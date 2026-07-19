@@ -52,6 +52,19 @@ type InstanceStudent struct {
 	CheckedInAt  *time.Time `bun:"checked_in_at" json:"checked_in_at,omitempty"`
 	CheckedOutAt *time.Time `bun:"checked_out_at" json:"checked_out_at,omitempty"`
 	IsUnplanned  bool       `bun:"is_unplanned,notnull,default:false" json:"is_unplanned"`
+	// NotScheduled records that the care plan did not place this child in the
+	// OGS on the instance's date (#1747). It is written once, by the two paths
+	// that end a block (instance Complete and the nightly session-end bridge),
+	// and frozen from then on: a later care-plan edit must not retroactively
+	// rewrite what a finished day meant.
+	//
+	// It exists as its own column because the fact cannot be inferred from
+	// `Status`. Other writers own that column — a PATCH reset writes
+	// 'expected', ApplyStatusDay writes 'absent' — and would silently create or
+	// destroy the marker. Readers combine both: a row is the non-booking marker
+	// only while it is NotScheduled AND still 'expected'; once somebody checks
+	// the child in or decides the slot by hand, that decision tells the story.
+	NotScheduled bool `bun:"not_scheduled,notnull,default:false" json:"not_scheduled"`
 	// StudentStatusDayID marks a broad day status that owns the slot absence.
 	// Manual slot decisions keep this nil and therefore win over later broad
 	// status changes.
@@ -204,7 +217,19 @@ type InstanceStudentRepository interface {
 	// children the care plan does not place here today (#1747): they were
 	// never expected, so recording them absent would be the same kind of
 	// misclaim — and it would leak into attendance statistics and exports.
+	// Callers must stamp those same children via MarkNotScheduled, or the
+	// spared rows carry no record of why they were spared.
 	BulkUpdateStatus(ctx context.Context, instanceID int64, fromStatus, toStatus string, excludeStudentIDs []int64) (int, error)
+
+	// MarkNotScheduled persists the #1747 non-booking marker on the given
+	// (instance, student) rows: the care plan did not place the child in the
+	// OGS on that instance's date, so ending the block wrote no absence for
+	// them. Only rows still 'expected' are stamped — a child who was checked
+	// in or decided by hand has an outcome of their own, and overwriting it
+	// would claim they were never booked.
+	//
+	// Idempotent, tenant-scoped, and a no-op on an empty slice.
+	MarkNotScheduled(ctx context.Context, refs []StudentInstanceRef) error
 
 	// FindInstancesWithAttendanceByStudentAndDateRange returns one row per
 	// (instance_students, activity_instance) pair for the student across the
@@ -215,12 +240,13 @@ type InstanceStudentRepository interface {
 	// instance they dropped into without being enrolled) are NOT included;
 	// the handler layer enriches those via the visits-side lookup.
 	//
-	// Rows still 'expected' on a COMPLETED instance are excluded too: at
-	// completion every genuinely expected row is flipped to 'absent', so a
-	// surviving 'expected' row is the "war an dem Tag nicht eingeplant"
-	// marker (#1747) — reporting it as expected attendance would claim care
-	// that was never booked. 'Expected' rows on cancelled instances remain
-	// visible; the cancelled instance status carries that story.
+	// Rows carrying the not_scheduled marker while still 'expected' are
+	// excluded too: the care plan did not book the child that day (#1747), so
+	// reporting them as expected attendance would claim care that never
+	// existed. A marked row that somebody later checked in or decided by hand
+	// stays visible — that decision outranks the marker. 'Expected' rows on
+	// cancelled instances are never marked; the instance status carries that
+	// story.
 	FindInstancesWithAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*ScheduledInstanceRow, error)
 
 	// HasPlannedSlotsInRange reports whether the tenant has at least one
@@ -247,7 +273,8 @@ type InstanceStudentRepository interface {
 	// exclusions are (instance, student) pairs skipped by the update,
 	// carrying the same rule as BulkUpdateStatus: a child the care plan does
 	// not place there THAT day was never expected and must not be recorded
-	// absent (#1747). The pairs are per-instance on purpose — one nightly run
+	// absent (#1747), and the same pairs must be stamped via
+	// MarkNotScheduled. The pairs are per-instance on purpose — one nightly run
 	// can close instances from several dates, and a child not booked on one
 	// date may well be booked on another.
 	MarkExpectedAbsentByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, updatedAt time.Time, exclusions []StudentInstanceRef) error

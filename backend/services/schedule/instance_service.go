@@ -526,6 +526,20 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 	if err != nil {
 		return nil, err
 	}
+	// Persist WHY those rows are spared before sparing them. Without the
+	// marker the spared rows are indistinguishable from ordinary expected
+	// rows, and every later writer of `status` — the attendance PATCH, a sick
+	// report — would silently create or destroy the fact (#1747 review).
+	refs := make([]scheduleModel.StudentInstanceRef, 0, len(notScheduled))
+	for _, studentID := range notScheduled {
+		refs = append(refs, scheduleModel.StudentInstanceRef{
+			StudentID:  studentID,
+			InstanceID: instance.ID,
+		})
+	}
+	if err := s.deps.InstanceStudents.MarkNotScheduled(ctx, refs); err != nil {
+		return nil, &ScheduleError{Op: "complete instance: mark not scheduled", Err: err}
+	}
 	if _, err := s.deps.InstanceStudents.BulkUpdateStatus(
 		ctx, instance.ID, scheduleModel.AttendanceStatusExpected, scheduleModel.AttendanceStatusAbsent, notScheduled,
 	); err != nil {

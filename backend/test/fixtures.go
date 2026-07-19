@@ -2796,22 +2796,35 @@ func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date timezone.Date, r
 	return row
 }
 
+// InstanceStudentOpts controls optional fields for CreateTestInstanceStudent.
+type InstanceStudentOpts struct {
+	// NotScheduled sets the #1747 non-booking marker ending a block stamps on
+	// children the care plan did not place there that day.
+	NotScheduled bool
+}
+
 // CreateTestInstanceStudent inserts one instance_students row. Status defaults
-// to AttendanceStatusExpected when empty.
-func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID int64, status string) *schedule.InstanceStudent {
+// to AttendanceStatusExpected when empty; opts is optional and only the first
+// entry is read.
+func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID int64, status string, opts ...InstanceStudentOpts) *schedule.InstanceStudent {
 	tb.Helper()
 
 	if status == "" {
 		status = schedule.AttendanceStatusExpected
+	}
+	var opt InstanceStudentOpts
+	if len(opts) > 0 {
+		opt = opts[0]
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	row := &schedule.InstanceStudent{
-		InstanceID: instanceID,
-		StudentID:  studentID,
-		Status:     status,
+		InstanceID:   instanceID,
+		StudentID:    studentID,
+		Status:       status,
+		NotScheduled: opt.NotScheduled,
 	}
 	row.SetTenantID(1)
 

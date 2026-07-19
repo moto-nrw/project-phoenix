@@ -114,12 +114,13 @@ func TestInstanceStudentRepository_FindInstancesWithAttendanceByStudentAndDateRa
 	})
 }
 
-// A completed instance's surviving 'expected' row is the #1747 "war an dem
-// Tag nicht eingeplant" marker — Complete()/the nightly bridge flip every
-// genuinely expected row to 'absent', and the per-student read must not
-// resurface the spared rows as expected attendance. Rows with a real outcome
-// on completed instances and 'expected' rows on cancelled instances stay
-// visible.
+// The #1747 "war an dem Tag nicht eingeplant" marker is the persisted
+// not_scheduled column that Complete()/the nightly bridge stamp on the rows
+// they spare the absence, and the per-student read must not resurface those
+// rows as expected attendance. Everything else stays visible: rows with a real
+// outcome, 'expected' rows on cancelled instances, and — critically — an
+// unmarked 'expected' row on a completed instance, which is what an attendance
+// PATCH reset writes and must never be mistaken for a non-booking.
 func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduledOnCompleted(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -143,20 +144,21 @@ func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduled
 	cancelledInst.Status = scheduleModels.InstanceStatusCancelled
 	require.NoError(t, instanceRepo.Update(ctx, cancelledInst))
 
-	mkRow := func(instID int64, status string) *scheduleModels.InstanceStudent {
+	mkRow := func(instID int64, status string, notScheduled bool) *scheduleModels.InstanceStudent {
 		row := &scheduleModels.InstanceStudent{
-			InstanceID: instID,
-			StudentID:  student.ID,
-			Status:     status,
+			InstanceID:   instID,
+			StudentID:    student.ID,
+			Status:       status,
+			NotScheduled: notScheduled,
 		}
 		row.SetTenantID(1)
 		return row
 	}
 
-	spared := mkRow(completedInst.ID, scheduleModels.AttendanceStatusExpected)
+	spared := mkRow(completedInst.ID, scheduleModels.AttendanceStatusExpected, true)
 	require.NoError(t, repo.Create(ctx, spared))
 	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", spared.ID)
-	cancelledExpected := mkRow(cancelledInst.ID, scheduleModels.AttendanceStatusExpected)
+	cancelledExpected := mkRow(cancelledInst.ID, scheduleModels.AttendanceStatusExpected, false)
 	require.NoError(t, repo.Create(ctx, cancelledExpected))
 	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", cancelledExpected.ID)
 
@@ -165,10 +167,30 @@ func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduled
 		require.NoError(t, err)
 		require.Len(t, rows, 1)
 		assert.Equal(t, cancelledInst.ID, rows[0].Instance.ID,
-			"the cancelled instance's expected row stays visible; the completed one's must not")
+			"the cancelled instance's expected row stays visible; the marked one must not")
 	})
 
-	t.Run("a real outcome on the completed instance stays visible", func(t *testing.T) {
+	t.Run("an unmarked expected row on a completed instance stays visible", func(t *testing.T) {
+		// What an attendance PATCH reset writes. Nothing about it says the
+		// child was never booked, so hiding it would erase a real expectation
+		// from the history and the exports.
+		unmarked, cleanUnmarked := createInstanceFixture(t, db, "nsc-reset", day)
+		defer cleanUnmarked()
+		unmarked.Status = scheduleModels.InstanceStatusCompleted
+		require.NoError(t, instanceRepo.Update(ctx, unmarked))
+
+		row := mkRow(unmarked.ID, scheduleModels.AttendanceStatusExpected, false)
+		require.NoError(t, repo.Create(ctx, row))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		rows, err := repo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, student.ID, day, day)
+		require.NoError(t, err)
+		require.Len(t, rows, 2)
+		instanceIDs := []int64{rows[0].Instance.ID, rows[1].Instance.ID}
+		assert.Contains(t, instanceIDs, unmarked.ID)
+	})
+
+	t.Run("a marked row somebody decided by hand stays visible", func(t *testing.T) {
 		spared.Status = scheduleModels.AttendanceStatusAbsent
 		require.NoError(t, repo.Update(ctx, spared))
 

@@ -1308,10 +1308,15 @@ func TestInstance_Complete_SkipsChildrenNotInCareThatDay(t *testing.T) {
 	got1 := fetchAttendance(t, s, ai.ID, s.student1)
 	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got1.Status,
 		"a child without any care plan is still expected, so Complete marks them absent")
+	assert.False(t, got1.NotScheduled,
+		"a real absence must never carry the non-booking marker")
 
 	got2 := fetchAttendance(t, s, ai.ID, s.student2)
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got2.Status,
 		"a child not booked for care on this weekday must not be recorded absent")
+	assert.True(t, got2.NotScheduled,
+		"the spared row carries the reason it was spared, so no later writer of "+
+			"status can create or destroy the fact")
 }
 
 // The mirror image of the test above: a child who IS booked today and whose day

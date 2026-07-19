@@ -247,7 +247,9 @@ describe("PlannedNowSection", () => {
         plannedNow={[
           {
             ...plannedInstance,
-            expectedStudentsCount: 7,
+            // The counts are the backend's, not a roster derivation: it counts
+            // only rows that are still expected AND scheduled today.
+            expectedStudentsCount: 1,
             notScheduledStudentsCount: 1,
             rosterPreview: [
               plannedInstance.rosterPreview[0]!,
@@ -280,7 +282,9 @@ describe("PlannedNowSection", () => {
         plannedNow={[
           {
             ...plannedInstance,
-            expectedStudentsCount: 7,
+            // The counts are the backend's, not a roster derivation: it counts
+            // only rows that are still expected AND scheduled today.
+            expectedStudentsCount: 1,
             notScheduledStudentsCount: 1,
             rosterPreview: [
               plannedInstance.rosterPreview[0]!,
@@ -331,5 +335,46 @@ describe("PlannedNowSection", () => {
 
     expect(screen.getAllByText("Anwesend").length).toBeGreaterThan(0);
     expect(screen.queryByText("Nicht eingeplant")).toBeNull();
+  });
+
+  // The preview label and the Erwartet stat sit on the same card and must
+  // agree. Sick, absent and already-present rows are not expected either, so
+  // deriving the label from the roster length minus the not-scheduled rows
+  // overstates it (#1747 review).
+  it("reads the preview label from the backend counts, not the roster length", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            expectedStudentsCount: 5,
+            notScheduledStudentsCount: 3,
+            presentStudentsCount: 0,
+            rosterPreview: [
+              plannedInstance.rosterPreview[0]!,
+              {
+                ...plannedInstance.rosterPreview[0]!,
+                studentId: "student-2",
+                studentName: "Jonas Weber",
+                status: "absent",
+                substatus: "sick",
+              },
+              {
+                ...plannedInstance.rosterPreview[0]!,
+                studentId: "student-3",
+                studentName: "Lina Krause",
+                careDayStatus: "not_scheduled",
+              },
+            ],
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("5 erwartet · 3 heute nicht eingeplant"),
+    ).toBeInTheDocument();
   });
 });

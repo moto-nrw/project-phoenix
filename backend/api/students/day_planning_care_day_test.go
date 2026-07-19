@@ -66,19 +66,37 @@ func TestFilterTimetableIDsByCareDayDropsNotScheduled(t *testing.T) {
 // Children with no care plan on file resolve to unknown and must keep their
 // timetable signal: a school that does not maintain arrival/pickup plans still
 // sees its full roster.
-func TestFilterTimetableIDsByCareDayKeepsUnknownAndCancelled(t *testing.T) {
+func TestFilterTimetableIDsByCareDayKeepsUnknown(t *testing.T) {
 	stub := &stubCareDayService{verdicts: map[int64]scheduleService.CareDayStatus{
 		20: scheduleService.CareDayUnknown,
+	}}
+	rs := &Resource{ResourceConfig: ResourceConfig{CareDayService: stub}}
+
+	got, err := rs.filterTimetableIDsByCareDay(
+		context.Background(), timetableSet(20), timezone.NewDate(2026, 7, 20),
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, timetableSet(20), got)
+}
+
+// A cancelled day loses the signal too. On a weekday ResolveDayPlanning
+// answers on the exception anyway, so dropping it changes nothing there — but
+// the bulk arrival/pickup loaders skip weekends without reading exceptions, so
+// a weekend "kommt heute nicht" would otherwise arrive as a bare HasTimetable
+// and be reported as "kommt heute" while the roster says abgemeldet (#1747).
+func TestFilterTimetableIDsByCareDayDropsCancelled(t *testing.T) {
+	stub := &stubCareDayService{verdicts: map[int64]scheduleService.CareDayStatus{
 		21: scheduleService.CareDayCancelled,
 	}}
 	rs := &Resource{ResourceConfig: ResourceConfig{CareDayService: stub}}
 
 	got, err := rs.filterTimetableIDsByCareDay(
-		context.Background(), timetableSet(20, 21), timezone.NewDate(2026, 7, 20),
+		context.Background(), timetableSet(21), timezone.NewDate(2026, 7, 18),
 	)
 
 	require.NoError(t, err)
-	assert.Equal(t, timetableSet(20, 21), got)
+	assert.Empty(t, got)
 }
 
 // A student the resolver returns no entry for must not silently lose the

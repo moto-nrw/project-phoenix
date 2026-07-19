@@ -40,11 +40,18 @@ type bridgeStudentRepoStub struct {
 	expected      []*scheduleModel.InstanceStudent
 	markErr       error
 	gotExclusions []scheduleModel.StudentInstanceRef
+	gotMarked     []scheduleModel.StudentInstanceRef
 	calls         *[]string
 }
 
 func (f *bridgeStudentRepoStub) FindExpectedByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStudent, error) {
 	return f.expected, nil
+}
+
+func (f *bridgeStudentRepoStub) MarkNotScheduled(_ context.Context, refs []scheduleModel.StudentInstanceRef) error {
+	*f.calls = append(*f.calls, "mark_not_scheduled")
+	f.gotMarked = refs
+	return nil
 }
 
 func (f *bridgeStudentRepoStub) MarkExpectedAbsentByActiveGroupIDs(
@@ -131,13 +138,18 @@ func TestTimetableBridgeCompletesOnlyAfterFinalizingAttendance(t *testing.T) {
 
 	// Attendance is final BEFORE the status flips — the bulk absent update only
 	// matches instances that are still active.
-	assert.Equal(t, []string{"mark_absent", "complete"}, calls)
+	assert.Equal(t, []string{"mark_not_scheduled", "mark_absent", "complete"}, calls)
 
 	// Only the non-booking is spared. A cancelled day is a reported absence and
 	// must still be written, or it vanishes from history and exports.
 	assert.Equal(t, []scheduleModel.StudentInstanceRef{
 		{StudentID: notBookedChild, InstanceID: instanceID},
 	}, students.gotExclusions)
+
+	// The spared row carries the reason itself. Without the persisted marker
+	// it is indistinguishable from an ordinary expected row, and the next
+	// writer of `status` would silently create or destroy the fact.
+	assert.Equal(t, students.gotExclusions, students.gotMarked)
 }
 
 func TestTimetableBridgeDoesNotCompleteWhenAttendanceFinalizationFails(t *testing.T) {

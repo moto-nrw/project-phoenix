@@ -30,19 +30,24 @@ interface PlannedNowSectionProps {
 
 const SOON_THRESHOLD_MINUTES = 15;
 
+// Both numbers come from the backend, which counts only rows that are still
+// expected AND scheduled today. Deriving them from the roster length would
+// count sick, absent and already-present children as "erwartet" and contradict
+// the Erwartet stat on the very same card (#1747 review).
 function rosterPreviewLabel(
-  count: number,
+  rosterLength: number,
+  expectedCount: number,
   notScheduledCount: number,
   showTimetableCounts: boolean,
 ): string {
-  if (count === 0) return "keine Liste";
+  if (rosterLength === 0) return "keine Liste";
   if (!showTimetableCounts) return "Liste verfügbar";
   // Name the children the care plan leaves out (#1747) instead of quietly
   // showing a smaller number than the assignment list.
   if (notScheduledCount > 0) {
-    return `${count - notScheduledCount} erwartet · ${notScheduledCount} heute nicht eingeplant`;
+    return `${expectedCount} erwartet · ${notScheduledCount} heute nicht eingeplant`;
   }
-  return `${count} erwartet`;
+  return `${expectedCount} erwartet`;
 }
 
 // Both non-expected verdicts count here — "not_scheduled" (never booked that
@@ -280,8 +285,8 @@ export function PlannedNowSection({
                         <span className="text-xs font-normal text-gray-500">
                           {rosterPreviewLabel(
                             instance.rosterPreview.length,
-                            instance.rosterPreview.filter(isNotScheduled)
-                              .length,
+                            instance.expectedStudentsCount,
+                            instance.notScheduledStudentsCount,
                             showTimetableCounts,
                           )}
                         </span>

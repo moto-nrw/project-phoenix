@@ -354,6 +354,13 @@ func (r *InstanceStudentRepository) FindCurrentCandidates(
 	return rows, nil
 }
 
+// ApplyStatusDay stamps a broad day status (sick / excused / class trip) onto
+// the student's slots for that date.
+//
+// Rows carrying the #1747 non-booking marker are skipped: the child was not
+// booked into care on that day, so there is no attendance to excuse. Writing
+// 'absent' there would record a missed day of care that was never owed — the
+// exact misclaim ending the block deliberately avoided.
 func (r *InstanceStudentRepository) ApplyStatusDay(
 	ctx context.Context, studentID int64, date timezone.Date, statusDayID int64, substatus string,
 ) (int, error) {
@@ -381,6 +388,7 @@ func (r *InstanceStudentRepository) ApplyStatusDay(
 		FROM schedule.activity_instances AS instance, incoming
 		WHERE attendance.tenant_id = ?
 			AND attendance.student_id = ?
+			AND NOT attendance.not_scheduled
 			AND (attendance.status = ? OR attendance.student_status_day_id IS NOT NULL)
 			AND instance.id = attendance.instance_id
 			AND instance.tenant_id = attendance.tenant_id
@@ -452,6 +460,7 @@ func (r *InstanceStudentRepository) ReleaseStatusDay(ctx context.Context, status
 // ApplyActiveStatusDaysForInstance restores broad day-status provenance after
 // materialization or re-planning created fresh expected rows. The latest
 // active report wins if corrupt legacy data contains competing statuses.
+// Marked non-bookings are skipped for the same reason as in ApplyStatusDay.
 func (r *InstanceStudentRepository) ApplyActiveStatusDaysForInstance(
 	ctx context.Context, instanceID int64, date timezone.Date,
 ) (int, error) {
@@ -476,6 +485,7 @@ func (r *InstanceStudentRepository) ApplyActiveStatusDaysForInstance(
 		WHERE attendance.tenant_id = ?
 			AND attendance.instance_id = ?
 			AND attendance.student_id = latest_status.student_id
+			AND NOT attendance.not_scheduled
 			AND attendance.status = ?
 	`, tenant.FromContext(ctx), date, schedule.AttendanceStatusAbsent,
 		schedule.AttendanceSubstatusSick, schedule.AttendanceSubstatusExcused,
@@ -578,6 +588,42 @@ func (r *InstanceStudentRepository) BulkUpdateStatus(
 	}
 	n, _ := res.RowsAffected()
 	return int(n), nil
+}
+
+// MarkNotScheduled implements schedule.InstanceStudentRepository.
+//
+// One statement per pair rather than a composite IN: the list holds only the
+// children a single ended block spared, and bun's non-deprecated placeholder
+// helpers cannot render a tuple IN. The 'expected' guard keeps a manual
+// decision or an observed check-in from being relabelled as a non-booking.
+func (r *InstanceStudentRepository) MarkNotScheduled(ctx context.Context, refs []schedule.StudentInstanceRef) error {
+	if len(refs) == 0 {
+		return nil
+	}
+
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*schedule.InstanceStudent)(nil)).
+		ModelTableExpr(modelTblInstanceStudent).
+		Set(`not_scheduled = TRUE`).
+		Set(`updated_at = ?`, time.Now().UTC()).
+		Where(`"instance_student".status = ?`, schedule.AttendanceStatusExpected).
+		WhereGroup(" AND ", func(group *bun.UpdateQuery) *bun.UpdateQuery {
+			for _, ref := range refs {
+				group = group.WhereOr(`("instance_student".instance_id = ? AND "instance_student".student_id = ?)`,
+					ref.InstanceID, ref.StudentID)
+			}
+			return group
+		})
+
+	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
+
+	if _, err := q.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "mark attendance rows not scheduled",
+			Err: err,
+		}
+	}
+	return nil
 }
 
 // DeleteByInstanceID removes all attendance rows for an instance.

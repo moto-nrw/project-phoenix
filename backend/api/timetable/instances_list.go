@@ -298,20 +298,20 @@ func (rs *Resource) careDaysForInstance(
 // counts read, so a child can never be listed as "Erwartet" while the header
 // count leaves them out (#1747 review).
 //
-// On a completed instance the verdict is frozen: Complete flips every
-// genuinely expected row to 'absent', so a surviving 'expected' row IS the
-// "war an dem Tag nicht eingeplant" marker. Read it from that fact, never from
-// the current care plan — a later plan or exception edit must not retroactively
-// change a completed instance's expected count or required staffing. Rows that
-// already carry a real attendance status tell their own story; they report
-// "unknown" rather than a re-derived plan verdict.
+// On a completed instance the verdict is frozen: ending the block wrote the
+// absences and stamped not_scheduled on the children it spared, so the stored
+// marker IS the "war an dem Tag nicht eingeplant" verdict. Read it from that
+// column, never from the current care plan — a later plan or exception edit
+// must not retroactively change a completed instance's expected count or
+// required staffing. Rows that already carry a real attendance status tell
+// their own story; they report "unknown" rather than a re-derived plan verdict.
 func instanceStudentCareDay(
 	inst *scheduleModel.ActivityInstance,
 	row *scheduleModel.InstanceStudent,
 	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
 ) scheduleSvc.CareDayStatus {
 	if inst.Status == scheduleModel.InstanceStatusCompleted {
-		if row.Status == scheduleModel.AttendanceStatusExpected {
+		if row.NotScheduled && row.Status == scheduleModel.AttendanceStatusExpected {
 			return scheduleSvc.CareDayNotScheduled
 		}
 		return scheduleSvc.CareDayUnknown

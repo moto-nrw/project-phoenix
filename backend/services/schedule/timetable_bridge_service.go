@@ -60,6 +60,12 @@ func (s *TimetableBridgeService) CompleteActiveByActiveGroupIDs(
 	if err != nil {
 		return 0, err
 	}
+	// Stamp the non-booking marker before sparing those rows the absence: the
+	// spared rows must carry the reason themselves, or later writers of
+	// `status` cannot tell them from ordinary expected rows (#1747 review).
+	if err := s.deps.InstanceStudents.MarkNotScheduled(ctx, notScheduled); err != nil {
+		return 0, &ScheduleError{Op: "complete bridged instances: mark not scheduled", Err: err}
+	}
 	if err := s.deps.InstanceStudents.MarkExpectedAbsentByActiveGroupIDs(
 		ctx, activeGroupIDs, completedAt, notScheduled,
 	); err != nil {

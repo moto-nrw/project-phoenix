@@ -9,7 +9,7 @@ import (
 
 const (
 	backfillCompletedExpectedAttendanceVersion     = "1.15.205"
-	backfillCompletedExpectedAttendanceDescription = "Flip legacy 'expected' attendance rows on completed timetable instances to 'absent' so a surviving 'expected' row can carry the #1747 'nicht eingeplant' marker unambiguously."
+	backfillCompletedExpectedAttendanceDescription = "Flip legacy 'expected' attendance rows on completed timetable instances to 'absent' — the absence the old force-start path never wrote (#1747)."
 )
 
 func init() {
@@ -29,25 +29,25 @@ func init() {
 	)
 }
 
-// backfillCompletedExpectedAttendanceUp repairs the rows that would otherwise
-// be misread by the #1747 marker.
+// backfillCompletedExpectedAttendanceUp writes the absences an old code path
+// forgot.
 //
 // From #1747 on, completing an instance finalizes its attendance first: every
 // genuinely expected child flips to 'absent', and only children the care plan
-// does not place there that day keep their 'expected' row. Readers (attendance
-// history, week view, exports) therefore treat 'expected' on a COMPLETED
-// instance as "war an dem Tag nicht eingeplant" and hide it.
+// does not place there that day keep their 'expected' row — stamped with the
+// not_scheduled marker added in 1.15.206.
 //
-// Rows written BEFORE that change do not carry that meaning. The force-start
-// path completed instances through the instance repository directly and left
-// every expected row untouched, so genuinely expected children — real absences
-// — sit in the same shape. Without this repair the new predicate would silently
-// erase those absences from the history and the exports.
+// Rows written BEFORE that change never went through that step. The
+// force-start path completed instances through the instance repository
+// directly and left every expected row untouched, so children who were
+// genuinely expected and did not come still sit there as 'expected' — an
+// absence nobody recorded, on a day that is long over.
 //
 // Every completed+expected row existing at migration time is by definition
-// legacy (the marker-writing code ships with this deploy), so flipping all of
-// them to 'absent' restores what the normal completion path would have written
-// and leaves the marker unambiguous from here on.
+// legacy (the finalizing code ships with this deploy), so flipping all of them
+// to 'absent' restores what the normal completion path would have written.
+// They get no marker: 1.15.206 defaults not_scheduled to FALSE, which is
+// correct — nothing in the old data claimed these children were unbooked.
 func backfillCompletedExpectedAttendanceUp(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.15.205: Backfilling legacy 'expected' attendance on completed timetable instances (#1747)...")
 

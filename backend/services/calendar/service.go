@@ -829,6 +829,13 @@ func (s *service) parentTimetableEvents(ctx context.Context, children []*parentM
 			return nil, err
 		}
 		for _, row := range rows {
+			// A block that ended stamped this marker on the children the care
+			// plan did not book that day (#1747). Showing the parent a care
+			// event for a day their child was never booked into is the same
+			// false claim the attendance history refuses to make.
+			if row.NotScheduled && row.Status == scheduleModels.AttendanceStatusExpected {
+				continue
+			}
 			key := fmt.Sprintf("%d:%d", child.StudentID, row.InstanceID)
 			if _, ok := seen[key]; ok {
 				continue

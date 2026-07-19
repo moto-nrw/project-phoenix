@@ -246,13 +246,16 @@ func TestListInstances_StaffAndStudentCounts(t *testing.T) {
 	assert.Equal(t, schedule.AttendanceStatusPresent, studentByID[student2.ID].Status)
 }
 
-// Completion flips every genuinely expected row to 'absent'; a row still
-// 'expected' on a completed instance is the frozen "war an dem Tag nicht
-// eingeplant" marker (#1747). The list endpoint must classify it from that
-// fact alone — here the care-day lookup reads "unknown" (nil service), which
-// on a planned instance would count as expected. If the current care plan
-// leaked into the classification, a later plan edit could retroactively
-// change a completed instance's expected count and required staffing.
+// Completion flips every genuinely expected row to 'absent' and stamps the
+// not_scheduled marker on the children it spares; that stored marker is the
+// frozen "war an dem Tag nicht eingeplant" verdict (#1747). The list endpoint
+// must classify it from that column alone — here the care-day lookup reads
+// "unknown" (nil service), which on a planned instance would count as
+// expected. If the current care plan leaked into the classification, a later
+// plan edit could retroactively change a completed instance's expected count
+// and required staffing. An unmarked 'expected' row is NOT the marker: only
+// the two completion paths write it, so anything else (a reset through the
+// attendance PATCH) has to keep counting as a real expectation.
 func TestListInstances_CompletedExpectedRowStaysNotScheduled(t *testing.T) {
 	s := buildListSetup(t)
 	defer s.cleanupFn()
@@ -269,12 +272,16 @@ func TestListInstances_CompletedExpectedRowStaysNotScheduled(t *testing.T) {
 	suffix := time.Now().UnixNano()
 	student1 := testpkg.CreateTestStudent(t, s.db, "Frozen", fmt.Sprintf("Marker-%d-A", suffix), "2b")
 	student2 := testpkg.CreateTestStudent(t, s.db, "Was", fmt.Sprintf("There-%d-B", suffix), "2b")
-	is1 := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student1.ID, schedule.AttendanceStatusExpected)
+	student3 := testpkg.CreateTestStudent(t, s.db, "Reset", fmt.Sprintf("Expected-%d-C", suffix), "2b")
+	is1 := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student1.ID, schedule.AttendanceStatusExpected,
+		testpkg.InstanceStudentOpts{NotScheduled: true})
 	is2 := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student2.ID, schedule.AttendanceStatusPresent)
+	is3 := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student3.ID, schedule.AttendanceStatusExpected)
 	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", is1.ID, is2.ID)
+		testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", is1.ID, is2.ID, is3.ID)
 		testpkg.CleanupActivityFixtures(t, s.db, student1.ID, 0, 0, 0, 0)
 		testpkg.CleanupActivityFixtures(t, s.db, student2.ID, 0, 0, 0, 0)
+		testpkg.CleanupActivityFixtures(t, s.db, student3.ID, 0, 0, 0, 0)
 	})
 
 	router := listRouter(s.ctx, s.res)
@@ -284,8 +291,8 @@ func TestListInstances_CompletedExpectedRowStaysNotScheduled(t *testing.T) {
 	got := decodeList(t, w)
 	require.Len(t, got.Instances, 1)
 	item := got.Instances[0]
-	assert.Equal(t, 0, item.ExpectedStudentsCount,
-		"a surviving 'expected' row on a completed instance is never expected again")
+	assert.Equal(t, 1, item.ExpectedStudentsCount,
+		"an unmarked 'expected' row is a real expectation, not a non-booking")
 	assert.Equal(t, 1, item.NotScheduledCount,
 		"the frozen marker is reported as not scheduled")
 	assert.Equal(t, 1, item.PresentStudentsCount)
@@ -300,6 +307,8 @@ func TestListInstances_CompletedExpectedRowStaysNotScheduled(t *testing.T) {
 	assert.Equal(t, scheduleSvc.CareDayNotScheduled, careDayByStudent[student1.ID])
 	assert.Equal(t, scheduleSvc.CareDayUnknown, careDayByStudent[student2.ID],
 		"a row with a real attendance status tells its own story")
+	assert.Equal(t, scheduleSvc.CareDayUnknown, careDayByStudent[student3.ID],
+		"an unmarked expected row must not be relabelled as never booked")
 }
 
 func TestListInstances_IncludesPlannedConflictWarnings(t *testing.T) {

@@ -28,6 +28,7 @@ type scheduledInstanceScan struct {
 	IsCheckedInAt        *time.Time `bun:"is_checked_in_at"`
 	IsCheckedOutAt       *time.Time `bun:"is_checked_out_at"`
 	IsUnplanned          bool       `bun:"is_unplanned"`
+	IsNotScheduled       bool       `bun:"is_not_scheduled"`
 	IsStudentStatusDayID *int64     `bun:"is_student_status_day_id"`
 	IsCreatedAt          time.Time  `bun:"is_created_at"`
 	IsUpdatedAt          time.Time  `bun:"is_updated_at"`
@@ -76,6 +77,7 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 		ColumnExpr(`"instance_student".checked_in_at AS is_checked_in_at`).
 		ColumnExpr(`"instance_student".checked_out_at AS is_checked_out_at`).
 		ColumnExpr(`"instance_student".is_unplanned AS is_unplanned`).
+		ColumnExpr(`"instance_student".not_scheduled AS is_not_scheduled`).
 		ColumnExpr(`"instance_student".student_status_day_id AS is_student_status_day_id`).
 		ColumnExpr(`"instance_student".created_at AS is_created_at`).
 		ColumnExpr(`"instance_student".updated_at AS is_updated_at`).
@@ -102,22 +104,22 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 		Where(`"instance_student".student_id = ?`, studentID).
 		Where(`"activity_instance".date >= ?`, from).
 		Where(`"activity_instance".date <= ?`, to).
-		// Completion flips every genuinely expected row to 'absent' (Complete /
-		// the nightly bridge) — including the days somebody cancelled, which
-		// stay in the history as absences; a row still 'expected' on a
-		// completed instance means the child was not booked into care at all
-		// that day. That frozen "war an dem Tag nicht eingeplant" marker (#1747)
-		// must not resurface as expected attendance in the history, the export,
-		// or the week view. Cancelled instances keep their 'expected' rows
-		// visible — the instance status itself carries that story.
+		// Ending a block writes an absence for every genuinely expected child —
+		// including the days somebody cancelled, which belong in the history as
+		// absences — and stamps not_scheduled on the children the care plan did
+		// not book at all that day (#1747). That frozen marker must not
+		// resurface as expected attendance in the history, the export, or the
+		// week view.
 		//
-		// Legacy rows do not carry that meaning: before #1747 the force-start
-		// path completed instances without finalizing attendance, leaving
-		// genuinely expected children — real absences — in exactly this shape.
-		// Migration 1.15.205 flips those to 'absent' at deploy time, so from
-		// here on the predicate below only ever hides non-bookings.
-		Where(`NOT ("activity_instance".status = ? AND "instance_student".status = ?)`,
-			schedule.InstanceStatusCompleted, schedule.AttendanceStatusExpected).
+		// The status half of the predicate is what lets a human override it: a
+		// marked child who turned up anyway is 'present', a marked slot somebody
+		// decided by hand is 'absent', and both stay visible. Only the untouched
+		// marker is hidden. Reading the marker from its own column (rather than
+		// inferring it from 'expected' on a completed instance) is what keeps
+		// the other writers of `status` — the attendance PATCH, ApplyStatusDay —
+		// from creating or destroying it by accident.
+		Where(`NOT ("instance_student".not_scheduled AND "instance_student".status = ?)`,
+			schedule.AttendanceStatusExpected).
 		OrderExpr(`"activity_instance".date ASC, "activity_instance".start_time ASC`)
 
 	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)
@@ -165,6 +167,7 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 			CheckedInAt:        s.IsCheckedInAt,
 			CheckedOutAt:       s.IsCheckedOutAt,
 			IsUnplanned:        s.IsUnplanned,
+			NotScheduled:       s.IsNotScheduled,
 			StudentStatusDayID: s.IsStudentStatusDayID,
 		}
 		att.ID = s.IsID

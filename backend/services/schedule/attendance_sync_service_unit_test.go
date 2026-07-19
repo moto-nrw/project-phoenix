@@ -235,6 +235,10 @@ func (f *fakeInstanceStudentRepo) BulkUpdateStatus(context.Context, int64, strin
 	panic("unused")
 }
 
+func (f *fakeInstanceStudentRepo) MarkNotScheduled(context.Context, []scheduleModel.StudentInstanceRef) error {
+	panic("unused")
+}
+
 func (f *fakeInstanceStudentRepo) FindInstancesWithAttendanceByStudentAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*scheduleModel.ScheduledInstanceRow, error) {
 	panic("unused")
 }
