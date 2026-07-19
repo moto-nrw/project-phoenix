@@ -1014,7 +1014,7 @@ export default function ReachPitchPage() {
           </div>
         </Slide>
 
-        <Slide index={10} eyebrow="Next">
+        <Slide index={10} eyebrow="Ausblick">
           <div className="grid min-h-0 flex-1 grid-cols-[1fr_0.35fr] items-center gap-[5%]">
             <div>
               <Headline className="max-w-[17ch]">
@@ -1049,7 +1049,7 @@ export default function ReachPitchPage() {
               </p>
             </div>
             <div className="flex -translate-x-8 -translate-y-10 justify-center">
-              <div className="flex aspect-square w-full max-w-[270px] items-center justify-center rounded-[42%] bg-[#83CD2D]/10 text-[#83CD2D] shadow-[inset_0_0_0_1px_rgba(131,205,45,0.12)]">
+              <div className="flex aspect-square w-full max-w-[270px] items-center justify-center rounded-[42%] bg-[#83CD2D]/10 text-[#3F6F12] shadow-[inset_0_0_0_1px_rgba(131,205,45,0.12)]">
                 <MapPinHouse
                   className="h-[12.5rem] w-[12.5rem] drop-shadow-[0_18px_24px_rgba(63,111,18,0.16)]"
                   strokeWidth={1.25}
