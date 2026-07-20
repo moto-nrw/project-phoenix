@@ -42,6 +42,12 @@ type StudentService interface {
 	// ErrCompanionLockBusy rather than risking a deadlock.
 	LockStudentsForUpdateBelow(ctx context.Context, ids []int64, maxHeldID int64) error
 
+	// LockCompanionGraph is the shared lock protocol for every transaction that
+	// can add or remove "läuft mit" edges: it locks the subjects, the extra ids
+	// the caller already knows about (a submitted companion list), and the far
+	// end of every stored edge, in one ascending-id pass.
+	LockCompanionGraph(ctx context.Context, subjectIDs []int64, additional []int64) error
+
 	// Create persists a new student.
 	Create(ctx context.Context, student *userModels.Student) error
 
@@ -206,6 +212,105 @@ func (s *studentService) LockStudentsForUpdateBelow(ctx context.Context, ids []i
 		}
 	}
 	return nil
+}
+
+// LockCompanionGraph locks the subjects, the caller's additional ids, and the
+// far end of every stored edge of every subject in one ascending-id pass (via
+// LockStudentsForUpdate).
+//
+// It takes a SET of subjects, not a single one, because a transaction that
+// writes several children (the enrollment change-request approval applies one
+// approved child after the other) would otherwise acquire their student locks
+// in its own order — enrollment sort order — while the per-child companion
+// writes walk the far ends in ascending order. Two orders over the same rows is
+// the deadlock this protocol exists to prevent: an approval holding student 100
+// and waiting for 10, against a companion edit holding 10 and waiting for 100,
+// ends with PostgreSQL aborting one of them. Locking the complete set here, once,
+// in global order removes the inversion; every later per-row lock in the same
+// transaction re-acquires a row it already holds.
+//
+// The stored-companion snapshot is read BEFORE the locks (there is no other
+// order), so an edge committed between the snapshot and the lock pass could
+// have a far end this pass never locked. One re-read under the subjects' locks
+// closes that: every writer that creates or removes an edge touching a subject
+// locks the subject's row first, so once we hold them no further edges can
+// appear, and a single top-up pass over the late edges suffices.
+//
+// That top-up is the one place where the ascending order cannot be honored: a
+// late edge may point at an id BELOW ids this transaction already holds, and
+// waiting for it head-on against a writer coming up the other way is exactly
+// the deadlock this whole protocol exists to prevent. Those downward locks are
+// therefore taken with NOWAIT (LockStudentsForUpdateBelow), which either gets
+// them immediately or refuses the request as retriable — never blocks.
+func (s *studentService) LockCompanionGraph(ctx context.Context, subjectIDs []int64, additional []int64) error {
+	if len(subjectIDs) == 0 {
+		return nil
+	}
+
+	stored, err := s.companionIDsOfMany(ctx, subjectIDs)
+	if err != nil {
+		return err
+	}
+
+	locked := make(map[int64]bool, len(subjectIDs)+len(additional)+len(stored))
+	ids := make([]int64, 0, len(subjectIDs)+len(additional)+len(stored))
+	var maxLocked int64
+	add := func(id int64) {
+		if id <= 0 || locked[id] {
+			return
+		}
+		locked[id] = true
+		ids = append(ids, id)
+		if id > maxLocked {
+			maxLocked = id
+		}
+	}
+	for _, id := range subjectIDs {
+		add(id)
+	}
+	for _, id := range additional {
+		add(id)
+	}
+	for _, id := range stored {
+		add(id)
+	}
+	if err := s.LockStudentsForUpdate(ctx, ids); err != nil {
+		return err
+	}
+
+	fresh, err := s.companionIDsOfMany(ctx, subjectIDs)
+	if err != nil {
+		return err
+	}
+	var late []int64
+	for _, id := range fresh {
+		if id <= 0 || locked[id] {
+			continue
+		}
+		locked[id] = true
+		late = append(late, id)
+	}
+	if len(late) == 0 {
+		return nil
+	}
+	return s.LockStudentsForUpdateBelow(ctx, late, maxLocked)
+}
+
+// companionIDsOfMany collects the far ends of every stored edge of the given
+// subjects, duplicates included — LockCompanionGraph folds them.
+func (s *studentService) companionIDsOfMany(ctx context.Context, subjectIDs []int64) ([]int64, error) {
+	out := make([]int64, 0, len(subjectIDs))
+	for _, subjectID := range subjectIDs {
+		if subjectID <= 0 {
+			continue
+		}
+		ids, err := s.ListCompanionIDs(ctx, subjectID)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ids...)
+	}
+	return out, nil
 }
 
 func (s *studentService) Create(ctx context.Context, student *userModels.Student) error {

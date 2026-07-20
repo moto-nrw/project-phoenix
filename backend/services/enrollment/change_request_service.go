@@ -61,6 +61,13 @@ type CorrectApprovedChildDataInput struct {
 	ActorAccountID    int64
 }
 
+// CompanionGraphLocker takes the student row locks a companion-touching write
+// needs, in the global ascending-id order every companion writer follows.
+// Implemented by services/users studentService (LockCompanionGraph).
+type CompanionGraphLocker interface {
+	LockCompanionGraph(ctx context.Context, subjectIDs []int64, additional []int64) error
+}
+
 type ChangeRequestDecisionApplier interface {
 	applyApprovedChangeRequestOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error)
 	SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*enrollmentModels.RequestChild, error)
@@ -106,6 +113,7 @@ type ChangeRequestServiceConfig struct {
 	GuardianProfileRepo      userModels.GuardianProfileRepository
 	GuardianPhoneRepo        userModels.GuardianPhoneNumberRepository
 	DecisionService          ChangeRequestDecisionApplier
+	CompanionGraphLocker     CompanionGraphLocker
 	Settings                 RequestSettingsResolver
 	OutboxEnqueuer           platformModels.OutboxEnqueuer
 	FrontendURL              string
@@ -1084,6 +1092,39 @@ func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollm
 	return persistedSnapshot(req, children, guardians, linksByChild), nil
 }
 
+// lockApprovedStudents takes the row locks of every student this approval can
+// write — and of their "läuft mit" companions — up front, in the global
+// ascending-id order.
+//
+// The per-child work below locks one student at a time (SyncApprovedChildData
+// re-reads it FOR UPDATE, and the departure-plan write path additionally locks
+// the far end of every edge it drops). Across several children that acquires
+// student locks in enrollment sort order, which is NOT the order the companion
+// protocol uses: an approval holding student 100 and waiting for 10 deadlocks
+// against a companion edit holding 10 and waiting for 100, and PostgreSQL
+// aborts one of them. Taking the whole set in one ordered pass first removes
+// the inversion — every later lock in this transaction re-acquires a row it
+// already holds.
+func (s *changeRequestService) lockApprovedStudents(ctx context.Context, children []*enrollmentModels.RequestChild) error {
+	if s.CompanionGraphLocker == nil {
+		return nil
+	}
+	ids := make([]int64, 0, len(children))
+	for _, child := range children {
+		if child == nil || child.CreatedStudentID == nil || *child.CreatedStudentID <= 0 {
+			continue
+		}
+		ids = append(ids, *child.CreatedStudentID)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	if err := s.CompanionGraphLocker.LockCompanionGraph(ctx, ids, nil); err != nil {
+		return fmt.Errorf("change request approve: lock students: %w", err)
+	}
+	return nil
+}
+
 func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enrollmentModels.ChangeRequest, input ReviewChangeRequestInput) error {
 	req, err := s.RequestRepo.FindByIDForUpdate(ctx, row.RequestID)
 	if err != nil {
@@ -1168,6 +1209,10 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 				return fmt.Errorf("change request approve: create guardian %d: %w", i, err)
 			}
 		}
+	}
+
+	if err := s.lockApprovedStudents(ctx, children); err != nil {
+		return err
 	}
 
 	newlyWaitlisted := make(map[int64]struct{})

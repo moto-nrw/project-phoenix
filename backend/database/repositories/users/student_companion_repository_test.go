@@ -353,3 +353,66 @@ func TestStudentCompanionRepository_ListLinksForStudent(t *testing.T) {
 		assert.Empty(t, got)
 	})
 }
+
+// ============================================================================
+// ListLinksForStudents Tests
+// ============================================================================
+
+// TestStudentCompanionRepository_ListLinksForStudents pins the bulk read the
+// offline lists (student export, class roster) depend on: every requested child
+// gets exactly its OWN folded links, with names, out of the single edge query.
+//
+// The per-child bucketing is what makes that affordable. Folding the whole edge
+// slice once per child rescans every edge of the school for every row of the
+// export, which is quadratic at the sizes these documents are rendered at — the
+// result below must therefore stay identical while the work stays linear.
+func TestStudentCompanionRepository_ListLinksForStudents(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentCompanion
+	ctx := testpkg.TenantContext(1)
+
+	first := testpkg.CreateTestStudent(t, db, "BulkFirst", "Companion", "7a")
+	second := testpkg.CreateTestStudent(t, db, "BulkSecond", "Companion", "7a")
+	third := testpkg.CreateTestStudent(t, db, "BulkThird", "Companion", "7a")
+	lonely := testpkg.CreateTestStudent(t, db, "BulkLonely", "Companion", "7a")
+	defer testpkg.CleanupActivityFixtures(t, db, first.ID, second.ID, third.ID, lonely.ID)
+	defer cleanupStudentCompanions(t, db, first.ID, second.ID, third.ID, lonely.ID)
+
+	// A chain: first-second on Mon+Wed, second-third on Tue. The middle child
+	// therefore carries links to BOTH ends and must not receive the other pair's
+	// weekdays.
+	require.NoError(t, repo.ReplaceForStudent(ctx, first.ID, []*users.StudentCompanion{
+		newCompanionEdge(t, first.ID, second.ID, 1),
+		newCompanionEdge(t, first.ID, second.ID, 3),
+	}))
+	require.NoError(t, repo.ReplaceForStudent(ctx, third.ID, []*users.StudentCompanion{
+		newCompanionEdge(t, third.ID, second.ID, 2),
+	}))
+
+	byStudent, err := repo.ListLinksForStudents(ctx, []int64{first.ID, second.ID, third.ID, lonely.ID})
+	require.NoError(t, err)
+
+	require.Len(t, byStudent[first.ID], 1)
+	assert.Equal(t, second.ID, byStudent[first.ID][0].CompanionStudentID)
+	assert.Equal(t, []string{users.PickupDayMonday, users.PickupDayWednesday}, byStudent[first.ID][0].Weekdays)
+	assert.Equal(t, "BulkSecond", byStudent[first.ID][0].FirstName, "the companion's name must be joined in")
+
+	require.Len(t, byStudent[second.ID], 2, "the middle child keeps one link per end")
+	linkedDays := map[int64][]string{}
+	for _, link := range byStudent[second.ID] {
+		linkedDays[link.CompanionStudentID] = link.Weekdays
+	}
+	assert.Equal(t, []string{users.PickupDayMonday, users.PickupDayWednesday}, linkedDays[first.ID])
+	assert.Equal(t, []string{users.PickupDayTuesday}, linkedDays[third.ID])
+
+	require.Len(t, byStudent[third.ID], 1)
+	assert.Equal(t, second.ID, byStudent[third.ID][0].CompanionStudentID)
+	assert.Equal(t, []string{users.PickupDayTuesday}, byStudent[third.ID][0].Weekdays)
+
+	// A child without links is absent from the map, not present with an empty
+	// slice — the callers test for presence.
+	_, ok := byStudent[lonely.ID]
+	assert.False(t, ok)
+}

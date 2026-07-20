@@ -106,9 +106,29 @@ func (r *StudentCompanionRepository) ListLinksForStudents(ctx context.Context, s
 		return nil, &modelBase.DatabaseError{Op: "list student companions", Err: err}
 	}
 
+	// Bucket the edges by requested child in ONE pass before folding. Handing
+	// the whole slice to CompanionLinksFromEdges per child would rescan it every
+	// time — at the export cap (thousands of children, every edge of the school)
+	// that is quadratic work for a document nobody waits minutes for.
+	requested := make(map[int64]bool, len(studentIDs))
+	for _, id := range studentIDs {
+		requested[id] = true
+	}
+	byStudent := make(map[int64][]*users.StudentCompanion, len(studentIDs))
+	for _, edge := range edges {
+		if edge == nil {
+			continue
+		}
+		for _, near := range [2]int64{edge.StudentLowID, edge.StudentHighID} {
+			if requested[near] {
+				byStudent[near] = append(byStudent[near], edge)
+			}
+		}
+	}
+
 	var farEnds []int64
 	for _, studentID := range studentIDs {
-		links := users.CompanionLinksFromEdges(studentID, edges)
+		links := users.CompanionLinksFromEdges(studentID, byStudent[studentID])
 		if len(links) == 0 {
 			continue
 		}

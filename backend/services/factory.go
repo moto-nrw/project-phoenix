@@ -1239,6 +1239,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 	enrollmentDecisionApplier, _ := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
 
+	// Created before the change-request service: its multi-child approval takes
+	// the companion lock order through this service.
+	studentService := users.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentCompanion)
+
 	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
 		ChangeRequestRepo:        repos.ChangeRequest,
 		MessageRepo:              repos.ChangeRequestMessage,
@@ -1253,6 +1257,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		GuardianProfileRepo:      repos.GuardianProfile,
 		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
 		DecisionService:          enrollmentDecisionApplier,
+		CompanionGraphLocker:     studentService,
 		Settings:                 settingsService,
 		OutboxEnqueuer:           emailOutboxService,
 		FrontendURL:              frontendURL,
@@ -1276,8 +1281,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                       db,
 		Logger:                   logger.With("service", "enrollment-rollover"),
 	})
-
-	studentService := users.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentCompanion)
 
 	// Chat-pill emitter (#1803): posts non-interactive notification events
 	// into parent-OGS threads on behalf of the request/self-service flows.

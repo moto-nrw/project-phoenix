@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -116,4 +117,50 @@ func TestStudentService_LockStudentsForUpdate_TakesFreeRows(t *testing.T) {
 	// deleted between the graph read and the lock pass, and the validation that
 	// follows distinguishes the two "gone" cases on its own.
 	require.NoError(t, service.LockStudentsForUpdateBelow(ctx, []int64{second.ID + 9_000_000}, second.ID))
+}
+
+// TestStudentService_LockCompanionGraph_CoversEverySubjectsFarEnds pins the
+// multi-subject shape the protocol grew for the enrollment change-request
+// approval: that transaction writes SEVERAL children one after the other, and
+// unless their whole student set — subjects AND the far ends of their stored
+// edges — is taken in one ordered pass, its per-child locks run against the
+// order every companion edit follows, which PostgreSQL ends as a deadlock.
+//
+// The far end of the SECOND subject is the one held here: a pass that only
+// looked at the first subject's graph would sail past it and return nil.
+func TestStudentService_LockCompanionGraph_CoversEverySubjectsFarEnds(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	service := newCompanionTestService(db)
+
+	firstSubject := testpkg.CreateTestStudent(t, db, "GraphSubjectOne", "Companion", "1a")
+	secondSubject := testpkg.CreateTestStudent(t, db, "GraphSubjectTwo", "Companion", "1a")
+	farEnd := testpkg.CreateTestStudent(t, db, "GraphFarEnd", "Companion", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, firstSubject.ID, secondSubject.ID, farEnd.ID)
+	defer cleanupCompanionEdges(t, db, firstSubject.ID, secondSubject.ID, farEnd.ID)
+
+	setAccompaniedDays(t, db, ctx, secondSubject.ID, "mon")
+	setAccompaniedDays(t, db, ctx, farEnd.ID, "mon")
+	conflicts, err := service.ReplaceCompanions(ctx, secondSubject.ID, usersService.CompanionUpdate{
+		Links: []userModels.CompanionLink{
+			{CompanionStudentID: farEnd.ID, Weekdays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, conflicts)
+
+	// Nobody holds anything: both subjects and the stored far end are free.
+	require.NoError(t, service.LockCompanionGraph(ctx, []int64{firstSubject.ID, secondSubject.ID}, nil))
+
+	holdStudentRowLock(t, db, farEnd.ID)
+
+	lockCtx, cancel := context.WithTimeout(ctx, 750*time.Millisecond)
+	defer cancel()
+
+	err = service.LockCompanionGraph(lockCtx, []int64{firstSubject.ID, secondSubject.ID}, nil)
+	require.Error(t, err, "the far end of the second subject must be part of the pass")
+	assert.NotErrorIs(t, err, usersService.ErrCompanionLockBusy,
+		"nothing is held yet at that point, so the acquisition follows the ascending order and waits")
 }
