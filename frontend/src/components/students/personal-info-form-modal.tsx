@@ -68,7 +68,19 @@ export function PersonalInfoFormModal({
   // carry over into a new edit.
   useEffect(() => {
     if (isOpen) {
-      setEditedStudent(student);
+      // A refresh (SWR/SSE) hands in a NEW object for the SAME child while the
+      // modal is open. The companions live in their own table and are fetched
+      // separately, so copying the incoming student verbatim would drop them —
+      // and the fetch below would not run again, because student.id did not
+      // change. Since the submitted list REPLACES the stored one, the next save
+      // would delete the child's whole Laufgemeinschaft. Carry the loaded links
+      // through a same-child reset; a different child starts from nothing and
+      // the fetch below refills them.
+      setEditedStudent((prev) =>
+        prev.id === student.id
+          ? { ...student, companions: prev.companions }
+          : student,
+      );
       setPlanConflict(null);
       setConfirmedExtensions([]);
     }

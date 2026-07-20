@@ -99,10 +99,12 @@ type StudentResponse struct {
 	// DepartureCompanionNote is the free-text "mit wem" for the accompanied
 	// departure mode (#1694).
 	DepartureCompanionNote string `json:"departure_companion_note,omitempty"`
-	// CompanionStudentIDs lists the children this child walks home with on the
-	// requested day (users.student_companions). Only populated when the caller
-	// passes include_companions=true and has full access to the child. The
-	// Kindersuche resolves these ids into Laufgemeinschaft groups client-side.
+	// CompanionStudentIDs lists the other children in this child's
+	// Laufgemeinschaft on the requested day (users.student_companions): the whole
+	// connected component, not only the direct links, so a page that shows just
+	// the ends of a chain still groups them together. Only populated when the
+	// caller passes include_companions=true and has full access to the child. The
+	// Kindersuche buckets by these ids client-side.
 	CompanionStudentIDs []int64       `json:"companion_student_ids,omitempty"`
 	Bus                 bool          `json:"bus"`
 	BusDays             users.BusDays `json:"bus_days,omitempty"`

@@ -528,8 +528,22 @@ const NO_COMPANION_GROUP_LABEL = "Ohne Laufgemeinschaft";
  * as walking alone, and a hidden child can be the bridge of an A-B-C group
  * whose visible members A and C would otherwise fall apart. Hidden members are
  * therefore counted into the label instead of being dropped.
+ *
+ * Each student is mapped to the component's identity (the union-find root) AND
+ * its label. Bucketing has to happen on the identity: the label is built from
+ * names, and two unrelated Laufgemeinschaften whose visible children happen to
+ * be namesakes would otherwise be merged into one displayed group.
  */
-function companionGroupLabels(students: Student[]): Map<string, string> {
+interface CompanionGroup {
+  /** Stable identity of the connected component — the bucket key. */
+  readonly key: string;
+  /** Display text; never used to decide what belongs together. */
+  readonly label: string;
+}
+
+function companionGroupLabels(
+  students: Student[],
+): Map<string, CompanionGroup> {
   const parent = new Map<string, string>();
   const find = (id: string): string => {
     let root = id;
@@ -570,23 +584,27 @@ function companionGroupLabels(students: Student[]): Map<string, string> {
     hiddenCounts.set(root, (hiddenCounts.get(root) ?? 0) + 1);
   }
 
-  const labels = new Map<string, string>();
+  const labels = new Map<string, CompanionGroup>();
   for (const [root, group] of members) {
     const hidden = hiddenCounts.get(root) ?? 0;
     // A set of one with nothing hidden behind it is a child that walks with
     // nobody on this day. With a hidden member it is a real Laufgemeinschaft
-    // we can only show in part.
-    const label =
+    // we can only show in part. The children who walk alone all share one
+    // bucket, so that label IS their key; every real group keeps its own root.
+    const resolved: CompanionGroup =
       group.length + hidden < 2
-        ? NO_COMPANION_GROUP_LABEL
-        : withHiddenMembers(
-            group
-              .map((student) => student.name)
-              .sort((a, b) => a.localeCompare(b, "de"))
-              .join(", "),
-            hidden,
-          );
-    for (const student of group) labels.set(String(student.id), label);
+        ? { key: NO_COMPANION_GROUP_LABEL, label: NO_COMPANION_GROUP_LABEL }
+        : {
+            key: root,
+            label: withHiddenMembers(
+              group
+                .map((student) => student.name)
+                .sort((a, b) => a.localeCompare(b, "de"))
+                .join(", "),
+              hidden,
+            ),
+          };
+    for (const student of group) labels.set(String(student.id), resolved);
   }
   return labels;
 }
@@ -611,10 +629,13 @@ function groupStudents(students: Student[], groupMode: GroupMode) {
   const companionLabels =
     groupMode === "companions" ? companionGroupLabels(students) : null;
 
-  const groups = new Map<string, Student[]>();
+  // Every mode but the companion one is grouped BY its label; companions are
+  // grouped by component identity and only rendered with the label.
+  const groups = new Map<string, { label: string; items: Student[] }>();
   for (const student of students) {
-    const key = companionLabels
-      ? (companionLabels.get(String(student.id)) ?? NO_COMPANION_GROUP_LABEL)
+    const companionGroup = companionLabels?.get(String(student.id));
+    const label = companionLabels
+      ? (companionGroup?.label ?? NO_COMPANION_GROUP_LABEL)
       : groupMode === "status"
         ? statusLabelForStudent(student)
         : groupMode === "room"
@@ -624,16 +645,19 @@ function groupStudents(students: Student[], groupMode: GroupMode) {
             : groupMode === "pickup"
               ? pickupLabelForStudent(student)
               : pickupStatusLabelForStudent(student);
+    const key = companionLabels
+      ? (companionGroup?.key ?? NO_COMPANION_GROUP_LABEL)
+      : label;
     const bucket = groups.get(key);
     if (bucket) {
-      bucket.push(student);
+      bucket.items.push(student);
     } else {
-      groups.set(key, [student]);
+      groups.set(key, { label, items: [student] });
     }
   }
 
-  return Array.from(groups.entries())
-    .map(([label, items]) => ({
+  return Array.from(groups.values())
+    .map(({ label, items }) => ({
       label,
       items,
     }))

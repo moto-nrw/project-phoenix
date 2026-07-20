@@ -308,12 +308,20 @@ func (r *StudentCompanionRepository) DeleteEdges(ctx context.Context, edgeIDs []
 	return nil
 }
 
-// CompanionIDsForWeekday returns, per requested student, the ids of the children
-// they walk home with on the given weekday. Students without a link are absent
+// CompanionIDsForWeekday returns, per requested student, the ids of every OTHER
+// child in their Laufgemeinschaft on the given weekday — the whole connected
+// component, not just the direct neighbours. Students without a link are absent
 // from the map.
 //
-// This is the bulk read behind the Kindersuche grouping: one query for the whole
-// page instead of one per child.
+// The full component is what the Kindersuche grouping needs, and it can only be
+// resolved here. Edges incident on the requested students alone are not enough:
+// in a chain A-B-C-D where the page shows only A and D, that would yield A-B and
+// C-D and no way to see that the hidden B-C edge joins them — the page would
+// render one Laufgemeinschaft as two. The recursive walk closes exactly that
+// gap; the caller still only names the members it received and counts the rest.
+//
+// This is the bulk read behind the grouping: one query for the whole page
+// instead of one per child.
 func (r *StudentCompanionRepository) CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error) {
 	result := make(map[int64][]int64)
 	if len(studentIDs) == 0 {
@@ -323,36 +331,46 @@ func (r *StudentCompanionRepository) CompanionIDsForWeekday(ctx context.Context,
 		return nil, fmt.Errorf("%w: got %d", users.ErrCompanionInvalidWeekday, weekday)
 	}
 
-	var edges []*users.StudentCompanion
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&edges).
-		ModelTableExpr(`users.student_companions AS "student_companion"`).
-		Where(`"student_companion".weekday = ?`, weekday).
-		Where(`("student_companion".student_low_id IN (?) OR "student_companion".student_high_id IN (?))`,
-			bun.List(studentIDs), bun.List(studentIDs))
+	// One row per (requested student, reachable member). UNION — not UNION ALL —
+	// terminates the walk: a cycle re-derives pairs that are already in the
+	// working set, and those are discarded.
+	type reachRow struct {
+		Root   int64 `bun:"root"`
+		Member int64 `bun:"member"`
+	}
+	var rows []reachRow
 
-	query = base.WithTenantFilter(ctx, query, "student_companion")
+	// Defense in depth on top of RLS, mirroring base.WithTenantFilter: filter by
+	// tenant when the context carries one, and leave the query alone when it does
+	// not (CLI/superuser paths).
+	tenantID := tenant.FromContext(ctx)
 
-	if err := query.Scan(ctx); err != nil {
+	if err := base.GetDB(ctx, r.db).NewRaw(`
+		WITH RECURSIVE reach (root, member) AS (
+			SELECT seed.id, seed.id
+			FROM unnest(ARRAY[?]::bigint[]) AS seed(id)
+			UNION
+			SELECT reach.root,
+			       CASE WHEN companion.student_low_id = reach.member
+			            THEN companion.student_high_id
+			            ELSE companion.student_low_id
+			       END
+			FROM reach
+			JOIN users.student_companions AS companion
+			  ON (companion.student_low_id = reach.member OR companion.student_high_id = reach.member)
+			 AND companion.weekday = ?
+			 AND (? = 0 OR companion.tenant_id = ?)
+		)
+		SELECT root, member FROM reach WHERE member <> root ORDER BY root, member
+	`, bun.List(studentIDs), weekday, tenantID, tenantID).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list companions for weekday", Err: err}
 	}
 
-	requested := make(map[int64]bool, len(studentIDs))
-	for _, id := range studentIDs {
-		requested[id] = true
-	}
-
-	// Both directions are recorded so the reader never has to know which
-	// endpoint a child sits on. An edge whose far end is outside the requested
-	// set still gets recorded for the near end — the caller decides what to do
-	// with a companion that is not on the current page.
-	for _, edge := range edges {
-		if requested[edge.StudentLowID] {
-			result[edge.StudentLowID] = append(result[edge.StudentLowID], edge.StudentHighID)
-		}
-		if requested[edge.StudentHighID] {
-			result[edge.StudentHighID] = append(result[edge.StudentHighID], edge.StudentLowID)
-		}
+	// A member outside the requested set is kept on purpose — the caller decides
+	// what to do with a child that is not on the current page (it counts them
+	// instead of naming them).
+	for _, row := range rows {
+		result[row.Root] = append(result[row.Root], row.Member)
 	}
 	return result, nil
 }

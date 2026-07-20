@@ -564,6 +564,40 @@ export function parseConflictExtensions(
   }
 }
 
+/**
+ * The backend's stable code for the retriable lock 409 on the student PUT
+ * (api/students: CodeCompanionLockBusy). Kept in sync by hand — the wire
+ * contract is the string.
+ */
+export const COMPANION_LOCK_BUSY_CODE = "companion_lock_busy";
+
+/**
+ * Reports whether a 409 body IS the companion-plan question rather than the
+ * lock collision.
+ *
+ * The status alone does not say so: the student PUT also answers 409 for
+ * ErrCompanionLockBusy (a linked child is being edited elsewhere — retriable,
+ * nothing to confirm). A body carrying that code is never the question; a body
+ * carrying conflicts always is. An unreadable body stays the question, which is
+ * the established behavior for this form — the retry then simply confirms
+ * nothing and the backend asks again.
+ */
+export function isCompanionPlanConflictBody(body: string): boolean {
+  if (parseConflictExtensions(body).length > 0) return true;
+  return !bodyHasCode(body, COMPANION_LOCK_BUSY_CODE);
+}
+
+function bodyHasCode(body: string, code: string): boolean {
+  const jsonStart = body.indexOf("{");
+  if (jsonStart === -1) return false;
+  try {
+    const parsed = JSON.parse(body.substring(jsonStart)) as { code?: string };
+    return parsed.code === code;
+  } catch {
+    return false;
+  }
+}
+
 function parseConflictMessage(body: string): string {
   try {
     const parsed = JSON.parse(body) as { message?: string; error?: string };
@@ -803,13 +837,19 @@ export const studentService = {
             error_text: errorText.substring(0, 200), // Truncate long errors
           });
 
-          // A 409 on the student PUT means a linked child's own departure plan
-          // does not allow the requested "läuft mit" days. It is a question,
-          // not a failure: the caller re-sends with extend_companion_plans
-          // after the user confirms. Typed so the modal can tell it apart from
-          // a real error. Nothing was written — the handler checks before its
-          // first write.
-          if (response.status === 409) {
+          // A 409 CARRYING A CONFLICT LIST on the student PUT means a linked
+          // child's own departure plan does not allow the requested "läuft mit"
+          // days. It is a question, not a failure: the caller re-sends with
+          // extend_companion_plans after the user confirms. Typed so the modal
+          // can tell it apart from a real error. Nothing was written — the
+          // handler checks before its first write. A 409 WITHOUT that list is a
+          // different conflict (a linked child locked by a concurrent edit) and
+          // falls through to the generic error path, which shows its retriable
+          // message instead of an unanswerable question.
+          if (
+            response.status === 409 &&
+            isCompanionPlanConflictBody(errorText)
+          ) {
             throw new CompanionPlanConflictError(errorText);
           }
 

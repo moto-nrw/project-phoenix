@@ -22,6 +22,13 @@ type CompanionResponse struct {
 	Weekdays           []string `json:"weekdays"`
 }
 
+// CodeCompanionLockBusy marks the retriable 409 raised when a linked child's
+// row is held by a concurrent edit. It exists because the student PUT answers
+// 409 for two very different reasons, and only this one has nothing for the
+// user to confirm — the client keys its "Ergänzen?" question off the ABSENCE of
+// this code (and off the conflicts list the other 409 carries).
+const CodeCompanionLockBusy = "companion_lock_busy"
+
 // CompanionConflictResponse is the 409 body: the companions whose own departure
 // plan does not permit the requested days. The client turns it into the
 // "Tom darf donnerstags noch nicht mit anderen Kindern gehen. Ergänzen?"
@@ -363,7 +370,10 @@ func (rs *Resource) applyCompanionUpdate(ctx context.Context, student *userModel
 	return nil
 }
 
-// enrichWithCompanions fills CompanionStudentIDs for the given day.
+// enrichWithCompanions fills CompanionStudentIDs for the given day with the
+// child's whole Laufgemeinschaft (the connected component, see
+// CompanionIDsForWeekday) — the page cannot derive it from direct links alone
+// when a bridging child is filtered out.
 //
 // Only the ids travel, not the names: the Kindersuche already knows every child
 // on the page, so it can resolve a companion that is visible and quietly ignore

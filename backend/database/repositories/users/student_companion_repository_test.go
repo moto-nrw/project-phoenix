@@ -266,6 +266,49 @@ func TestStudentCompanionRepository_CompanionIDsForWeekday(t *testing.T) {
 	})
 }
 
+// TestStudentCompanionRepository_CompanionIDsForWeekdayTransitive pins the
+// connected-component semantics of the Kindersuche grouping: the chain
+// A–B–C–D is ONE Laufgemeinschaft, so asking for A and D alone must still
+// report every other member, including the two children bridging them. Direct
+// neighbours only would let the page render one group as two.
+func TestStudentCompanionRepository_CompanionIDsForWeekdayTransitive(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentCompanion
+	ctx := testpkg.TenantContext(1)
+
+	studentA := testpkg.CreateTestStudent(t, db, "ChainA", "Reach", "5b")
+	studentB := testpkg.CreateTestStudent(t, db, "ChainB", "Reach", "5b")
+	studentC := testpkg.CreateTestStudent(t, db, "ChainC", "Reach", "5b")
+	studentD := testpkg.CreateTestStudent(t, db, "ChainD", "Reach", "5b")
+	defer testpkg.CleanupActivityFixtures(t, db, studentA.ID, studentB.ID, studentC.ID, studentD.ID)
+	defer cleanupStudentCompanions(t, db, studentA.ID, studentB.ID, studentC.ID, studentD.ID)
+
+	// A–B, B–C, C–D on Monday.
+	require.NoError(t, repo.ReplaceForStudent(ctx, studentB.ID, []*users.StudentCompanion{
+		newCompanionEdge(t, studentB.ID, studentA.ID, 1),
+		newCompanionEdge(t, studentB.ID, studentC.ID, 1),
+	}))
+	require.NoError(t, repo.ReplaceForStudent(ctx, studentD.ID, []*users.StudentCompanion{
+		newCompanionEdge(t, studentD.ID, studentC.ID, 1),
+	}))
+
+	t.Run("reports the whole component for the ends of a chain", func(t *testing.T) {
+		result, err := repo.CompanionIDsForWeekday(ctx, []int64{studentA.ID, studentD.ID}, 1)
+		require.NoError(t, err)
+
+		assert.ElementsMatch(t, []int64{studentB.ID, studentC.ID, studentD.ID}, result[studentA.ID])
+		assert.ElementsMatch(t, []int64{studentA.ID, studentB.ID, studentC.ID}, result[studentD.ID])
+	})
+
+	t.Run("does not reach across weekdays", func(t *testing.T) {
+		result, err := repo.CompanionIDsForWeekday(ctx, []int64{studentA.ID, studentD.ID}, 2)
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
+}
+
 // ============================================================================
 // ListLinksForStudent Tests
 // ============================================================================

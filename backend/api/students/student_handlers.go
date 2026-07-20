@@ -1192,9 +1192,12 @@ func updateStudentTxErrorRenderer(err error) render.Renderer {
 	// A linked child was being edited elsewhere and this transaction could not
 	// wait for its row without risking a deadlock. Nothing was written and the
 	// same request succeeds once the other edit commits, so this is a retriable
-	// conflict — never a 500.
+	// conflict — never a 500. It carries a code because it shares its status
+	// with the companion-plan question (which the client answers with
+	// extend_companion_plans): without the code the client would ask the user
+	// whether to widen another child's plan for what is really a lock collision.
 	case errors.Is(err, userService.ErrCompanionLockBusy):
-		return common.ErrorConflict(err)
+		return common.ErrorConflictWithCode(err, CodeCompanionLockBusy)
 	default:
 		return common.ErrorInternalServer(err)
 	}

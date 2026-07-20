@@ -637,9 +637,13 @@ func (s *careScheduleRequestService) applyDepartureModeChanges(ctx context.Conte
 	student.DepartureDays = nil
 	student.BusDays = nil
 	student.PickupDays = nil
-	if err := student.Validate(); err != nil {
-		return err
-	}
+	// No Validate() here: the repository Update validates the merged plan anyway,
+	// and only IT can see the second source of truth for the
+	// accompanied-requires-a-"mit wem" rule — the structured companion links in
+	// users.student_companions, which are not part of the model and are not
+	// hydrated by FindByIDForUpdate. Validating here would refuse every approval
+	// for a child whose accompanied day is answered by a link instead of the
+	// free-text note, even when this request touches a different weekday (#1694).
 	return s.studentRepo.Update(ctx, student)
 }
 

@@ -34,7 +34,11 @@ import {
   type StudentCompanion,
 } from "~/lib/student-companion-api";
 import { createLogger } from "~/lib/logger";
-import { CompanionPlanConflictError, parseConflictExtensions } from "~/lib/api";
+import {
+  CompanionPlanConflictError,
+  isCompanionPlanConflictBody,
+  parseConflictExtensions,
+} from "~/lib/api";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
@@ -127,15 +131,29 @@ function allowedDepartureModesEqual(
 
 // The save path of this tab goes through the generic CRUD service, which throws
 // a plain Error carrying the HTTP status, while other callers reach the typed
-// CompanionPlanConflictError from studentService.updateStudent — detect both. A
-// 409 from this form can only be the companion-plan conflict: the form never
-// submits sick/excused, the only other conflicting field pair on the student
-// PUT.
+// CompanionPlanConflictError from studentService.updateStudent — detect both.
+// The status alone is NOT enough: the student PUT also answers 409 when a linked
+// child is locked by a concurrent edit (code companion_lock_busy), which is
+// retriable and has nothing to confirm — asking "Ergänzen?" there would be
+// unanswerable. Everything else on a 409 stays the companion-plan question: this
+// form never submits sick/excused, the only other conflicting field pair.
 function isCompanionPlanConflict(err: unknown): boolean {
   if (err instanceof CompanionPlanConflictError) return true;
   return (
-    err instanceof Error && (err as Error & { status?: number }).status === 409
+    err instanceof Error &&
+    (err as Error & { status?: number }).status === 409 &&
+    !isCompanionLockConflict(err)
   );
+}
+
+// Reads the backend's lock code out of whichever wrapping the error arrived in:
+// the untouched body the CRUD service attaches, or the JSON embedded in the
+// message.
+function isCompanionLockConflict(err: Error): boolean {
+  const body = (err as Error & { body?: string }).body;
+  if (body && !isCompanionPlanConflictBody(body)) return true;
+  const match = /\{.*\}/s.exec(err.message);
+  return match ? !isCompanionPlanConflictBody(match[0]) : false;
 }
 
 const COMPANION_CONFLICT_FALLBACK =
