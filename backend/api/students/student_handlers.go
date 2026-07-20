@@ -1015,15 +1015,15 @@ func (rs *Resource) wakeChildGuardians(tenantID, studentID int64) {
 // plain name/notes edit changes nothing parent-visible, so it wakes no one
 // (#1725). Runs after the OUTER tx commits so a woken client never reads the
 // pre-commit snapshot; tenantID is captured before the hook fires.
-func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, studentID int64, req *UpdateStudentRequest) {
+func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, studentID int64, req *UpdateStudentRequest, companionsChanged bool) {
 	statusChanged := req.Sick != nil || req.Excused != nil
-	companionsChanged := req.touchesCompanions()
 	tenant.RegisterAfterCommit(ctx, func() {
 		rs.broadcastStudentUpdated(tenantID, studentID)
-		// Only when the request could actually have changed the links. An open
-		// Laufgemeinschaft form reacts to this event by discarding or blocking
-		// the user's draft, so firing it for a name or photo edit would cost
-		// somebody their unsaved work for a change that never touched them.
+		// Only when the write actually changed the links (or a linked child's
+		// departure plan) — see applyCompanionUpdate. An open Laufgemeinschaft
+		// form reacts to this event by discarding or blocking the user's draft,
+		// so firing it for a resubmitted, unchanged plan would cost somebody
+		// their unsaved work for a change that never touched them.
 		if companionsChanged {
 			rs.broadcastStudentCompanionsChanged(tenantID, studentID)
 		}
@@ -1152,7 +1152,8 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	// Companions BEFORE the student write: the link satisfies the
 	// accompanied-requires-a-note invariant that Update validates, and a
 	// conflict must abort the whole transaction before anything is persisted.
-	if err := rs.applyCompanionUpdate(ctx, fresh, req, authorizedExtensions); err != nil {
+	companionsChanged, err := rs.applyCompanionUpdate(ctx, fresh, req, authorizedExtensions)
+	if err != nil {
 		return err
 	}
 	if err := rs.StudentService.Update(ctx, fresh); err != nil {
@@ -1161,7 +1162,7 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 
 	// Broadcast after the OUTER tx commits. Broadcasting now would race
 	// subscribers into refetching the still-pre-commit row.
-	rs.scheduleStudentUpdateWakes(ctx, tenantID, student.ID, req)
+	rs.scheduleStudentUpdateWakes(ctx, tenantID, student.ID, req, companionsChanged)
 	return nil
 }
 
@@ -1345,7 +1346,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.deleteStudentTx(ctx, student)
+		return rs.deleteStudentTx(ctx, tenantID, student)
 	}); err != nil {
 		// Same reason as updateStudent: the surrounding transaction belongs to
 		// the middleware and commits on every non-5xx response, so the 409 paths
@@ -1372,11 +1373,21 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 // The photo path is captured from the locked row (not the pre-tx snapshot) so
 // a concurrent upload can't orphan a new file on disk; the unlink itself runs
 // after the OUTER tenant tx commits.
-func (rs *Resource) deleteStudentTx(ctx context.Context, student *users.Student) error {
+func (rs *Resource) deleteStudentTx(ctx context.Context, tenantID int64, student *users.Student) error {
 	if err := rs.lockStudentCompanionGraph(ctx, student.ID, nil); err != nil {
 		return err
 	}
 	if err := rs.StudentService.CheckCompanionTrim(ctx, student.ID, nil); err != nil {
+		return err
+	}
+
+	// Read under the graph lock, before the row goes: every edge of this child is
+	// a row on ANOTHER child's card, and ON DELETE CASCADE takes it with the
+	// student. Without the announcement below the surviving children's companion
+	// cards keep listing a child that no longer exists, and an open editor keeps
+	// working from a snapshot the delete already invalidated.
+	companionIDs, err := rs.StudentService.ListCompanionIDs(ctx, student.ID)
+	if err != nil {
 		return err
 	}
 
@@ -1405,6 +1416,15 @@ func (rs *Resource) deleteStudentTx(ctx context.Context, student *users.Student)
 	}
 
 	rs.StudentPhotos.ScheduleUnlinkAfterCommit(ctx, photoToRemove)
+
+	// After the OUTER tx commits, like every other companion broadcast: a
+	// subscriber woken earlier would refetch the still-present row.
+	if len(companionIDs) > 0 {
+		studentID := student.ID
+		tenant.RegisterAfterCommit(ctx, func() {
+			rs.broadcastStudentCompanionsChanged(tenantID, studentID)
+		})
+	}
 	return nil
 }
 

@@ -387,15 +387,53 @@ func (rs *Resource) authorizeCompanionExtension(ctx context.Context, conflicts [
 }
 
 // applyCompanionUpdate reconciles the child's "läuft mit" links with the
-// departure plan that is about to be written.
+// departure plan that is about to be written and reports whether the write
+// actually CHANGED the Laufgemeinschaft.
 //
 // It runs BEFORE the student write for two reasons: a link satisfies the
 // accompanied-requires-a-note invariant that the model checks on write, and a
 // conflict has to abort the transaction before anything lands.
 //
+// The reported flag decides whether the update announces
+// student_companions_changed, so it must answer "did anything change", not "did
+// the request carry plan fields". The Stammdaten forms resubmit the whole
+// departure plan on every save, including a pure name or address edit; treating
+// that as a companion change would mark every open "läuft mit" editor in the
+// school stale and block its save for a change that never touched a link.
+//
 // `student` must already carry the plan resolved from this request;
 // `authorizedExtensions` is what checkCompanionConflicts returned.
-func (rs *Resource) applyCompanionUpdate(ctx context.Context, student *userModels.Student, req *UpdateStudentRequest, authorizedExtensions map[int64]map[string]bool) error {
+func (rs *Resource) applyCompanionUpdate(ctx context.Context, student *userModels.Student, req *UpdateStudentRequest, authorizedExtensions map[int64]map[string]bool) (bool, error) {
+	// A request that cannot touch the links at all needs no before-state read:
+	// the reconciliation below is a no-op trim against the child's unchanged
+	// plan. Everything else is decided by comparing the stored links against
+	// what this write leaves behind — both read under the subject's row lock,
+	// which the caller already holds.
+	if !req.touchesCompanions() {
+		_, err := rs.reconcileCompanions(ctx, student, req, authorizedExtensions)
+		return false, err
+	}
+
+	current, err := rs.StudentService.ListCompanions(ctx, student.ID)
+	if err != nil {
+		return false, err
+	}
+
+	links, err := rs.reconcileCompanions(ctx, student, req, authorizedExtensions)
+	if err != nil {
+		return false, err
+	}
+
+	// A widened companion plan counts too: it is that other child's departure
+	// permission, shown on their card, changed by this request.
+	changed := userModels.CompanionLinksFingerprint(current) != userModels.CompanionLinksFingerprint(links) ||
+		len(authorizedExtensions) > 0
+	return changed, nil
+}
+
+// reconcileCompanions performs the actual link write and returns the links the
+// child is left with, so the caller can tell an effective change from a no-op.
+func (rs *Resource) reconcileCompanions(ctx context.Context, student *userModels.Student, req *UpdateStudentRequest, authorizedExtensions map[int64]map[string]bool) ([]userModels.CompanionLink, error) {
 	accompaniedDays := userModels.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)
 
 	// The plan no longer allows leaving with another child anywhere: the links
@@ -406,10 +444,10 @@ func (rs *Resource) applyCompanionUpdate(ctx context.Context, student *userModel
 		if _, err := rs.StudentService.ReplaceCompanions(ctx, student.ID, usersService.CompanionUpdate{
 			AccompaniedDays: accompaniedDays,
 		}); err != nil {
-			return err
+			return nil, err
 		}
 		student.DepartureCompanionDays = nil
-		return nil
+		return nil, nil
 	}
 
 	if !req.hasCompanionUpdate() {
@@ -420,10 +458,10 @@ func (rs *Resource) applyCompanionUpdate(ctx context.Context, student *userModel
 		// stays optional for a child that has a Laufgemeinschaft left.
 		links, err := rs.StudentService.TrimCompanionsToDays(ctx, student.ID, accompaniedDays)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		student.DepartureCompanionDays = userModels.CompanionDaysFromLinks(links)
-		return nil
+		return links, nil
 	}
 
 	links := toCompanionLinks(*req.Companions)
@@ -435,14 +473,14 @@ func (rs *Resource) applyCompanionUpdate(ctx context.Context, student *userModel
 		AuthorizedExtensions: authorizedExtensions,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(conflicts) > 0 {
-		return &companionConflictError{Conflicts: conflicts}
+		return nil, &companionConflictError{Conflicts: conflicts}
 	}
 
 	student.DepartureCompanionDays = userModels.CompanionDaysFromLinks(links)
-	return nil
+	return links, nil
 }
 
 // enrichWithCompanions fills CompanionStudentIDs for the given day with the

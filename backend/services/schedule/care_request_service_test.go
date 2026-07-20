@@ -725,6 +725,46 @@ func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
 	assert.Positive(t, len(bc.CallsByMethod("all")), "approve must broadcast arrival_schedule_changed globally")
 }
 
+// TestDecide_ApproveCompanionEventOnlyForDepartureModes pins WHO the approval
+// wakes: student_companions_changed makes every open "läuft mit" editor in the
+// school mark itself stale and refuse to save, so it may only fire when the
+// approval could actually reconcile a link. Merging departure modes can drop
+// links on a weekday the new plan no longer allows; a request that only moves
+// arrival or pickup times cannot, and must stay silent.
+func TestDecide_ApproveCompanionEventOnlyForDepartureModes(t *testing.T) {
+	f := newCareFixture(t)
+	bc := testpkg.NewRecordingBroadcaster()
+	svc := schedule.NewCareScheduleRequestService(
+		f.repos.CareScheduleChangeRequest, f.repos.Student, f.repos.Person,
+		f.sf.ArrivalSchedule, f.sf.PickupSchedule, f.sf.UserContext,
+		nil, bc, slog.Default(),
+	)
+
+	approve := func(t *testing.T, payload map[string]any) {
+		t.Helper()
+		req := f.createPending(t, payload)
+		bc.Reset()
+		_, err := svc.Decide(f.staffCtx(f.staffAccount), schedule.CareRequestDecideInput{
+			RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
+		})
+		require.NoError(t, err)
+	}
+
+	t.Run("time-only approval stays silent", func(t *testing.T) {
+		approve(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00", "pickup": "16:00"}))
+		assert.False(t, bc.HasEventType(realtime.EventStudentCompanionsChanged),
+			"a request that only moves times cannot touch a link and must not mark companion editors stale")
+		assert.True(t, bc.HasEventType(realtime.EventStudentUpdated),
+			"the ordinary student_updated invalidation still has to fire")
+	})
+
+	t.Run("departure-mode approval announces the reconciliation", func(t *testing.T) {
+		approve(t, careWeekdays(map[string]any{"weekday": 2, "mode": "bus"}))
+		assert.True(t, bc.HasEventType(realtime.EventStudentCompanionsChanged),
+			"merging departure modes trims links on the days the new plan forbids")
+	})
+}
+
 // TestWithdrawRequest_BogusIDNotFound covers the repository's no-rows lock
 // branch: withdrawing an id that exists in no tenant returns not-found (never a
 // panic or a leak of another child's row). The id is derived from a real

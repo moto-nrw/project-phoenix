@@ -553,12 +553,16 @@ func (req *UpdateStudentRequest) hasCompanionUpdate() bool {
 // "läuft mit" links — either by submitting a list, or by writing a departure
 // plan, which TRIMS the links on a weekday the new plan no longer allows.
 //
-// It decides whether the update announces student_companions_changed. The
-// legacy bus/pickup inputs count: they resolve into the same plan, so they can
-// take the accompanied mode (and with it the links) away. Everything else — a
-// name, an address, a photo, a sick flag — leaves the links untouched and must
-// stay silent, because a client reacting to the event discards or blocks an
-// in-progress companion edit.
+// It is a NECESSARY condition, not a sufficient one: the forms resubmit the
+// whole departure plan on every save, so a name-only edit answers true here.
+// applyCompanionUpdate uses it to skip the before-state read and then decides
+// from the actual write whether student_companions_changed is announced — a
+// client reacting to that event discards or blocks an in-progress companion
+// edit, so an event for an unchanged list costs somebody their work.
+//
+// The legacy bus/pickup inputs count: they resolve into the same plan, so they
+// can take the accompanied mode (and with it the links) away. Everything else —
+// a name, an address, a photo, a sick flag — cannot touch a link at all.
 func (req *UpdateStudentRequest) touchesCompanions() bool {
 	return req.hasCompanionUpdate() ||
 		req.DepartureDays != nil ||

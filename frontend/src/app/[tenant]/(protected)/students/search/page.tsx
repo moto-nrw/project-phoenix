@@ -675,8 +675,12 @@ function groupStudents(students: Student[], groupMode: GroupMode) {
     }
   }
 
-  return Array.from(groups.values())
-    .map(({ label, items }) => ({
+  // The key travels with the group: two unrelated Laufgemeinschaften can render
+  // the SAME label (namesake children, identical hidden-member count), and a
+  // duplicate React key would let one section's rows reconcile into the other.
+  return Array.from(groups.entries())
+    .map(([key, { label, items }]) => ({
+      key,
       label,
       items,
     }))
@@ -2357,7 +2361,7 @@ function SearchPageContent() {
             return (
               <div className="space-y-6">
                 {groupedStudents.map((group) => (
-                  <section key={group.label} data-testid="student-group">
+                  <section key={group.key} data-testid="student-group">
                     <div className="mb-3 flex items-center gap-3">
                       <h2 className="text-sm font-semibold text-gray-900">
                         {group.label}

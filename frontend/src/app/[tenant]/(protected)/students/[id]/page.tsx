@@ -601,12 +601,17 @@ function StudentDetailPageContent() {
       // Omitted when the modal has no loaded list: the field REPLACES the
       // stored links, so sending [] for "not loaded" would delete them. The
       // backend leaves the links alone when the key is absent.
+      //
+      // The fingerprint travels WITH the list: it names the snapshot the
+      // replacement was built on, so the backend can refuse it instead of
+      // deleting links someone else committed in the meantime.
       ...(editedStudent.companions
         ? {
             companions: editedStudent.companions.map((companion) => ({
               companion_student_id: companion.companion_student_id,
               weekdays: companion.weekdays,
             })),
+            companions_fingerprint: editedStudent.companions_fingerprint,
           }
         : {}),
       extend_companion_plans: editedStudent.extend_companion_plans ?? false,
