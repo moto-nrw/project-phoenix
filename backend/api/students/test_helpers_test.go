@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -78,6 +79,7 @@ func setupTestContext(t *testing.T) *testContext {
 		Broadcaster:             broadcaster,
 		ParentEventEmitter:      parentEventEmitter,
 		StudentPhotos:           studentPhotos,
+		ListExportService:       listexport.NewService(),
 		Logger:                  slog.Default(),
 		DB:                      db,
 	})

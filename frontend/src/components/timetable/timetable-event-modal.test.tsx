@@ -133,6 +133,7 @@ const savedInstance: EnrichedInstance = {
   staffCount: 0,
   absentStaffCount: 0,
   expectedStudentsCount: 0,
+  notScheduledStudentsCount: 0,
   presentStudentsCount: 0,
   requiredStaffCount: 0,
   assignedStaffCount: 0,
@@ -279,6 +280,52 @@ function renderModal(
   };
 }
 
+/**
+ * Wizard navigation helpers. The form is a three-step wizard
+ * ("Termin" = 1, "Wiederholung" = 2, "Personal und Kinder" = 3); only the
+ * current step is mounted, so a test that touches a field of a later step has
+ * to walk there first. These helpers only navigate — they never assert.
+ */
+function currentStep(): number {
+  const stepper = document.querySelector('[aria-label^="Schritt "]');
+  const label = stepper?.getAttribute("aria-label") ?? "";
+  return Number(/Schritt (\d+) von/.exec(label)?.[1] ?? 1);
+}
+
+/**
+ * "Weiter" runs the unchanged validateForm and refuses to leave step 1 while
+ * Titel or Raum are empty. Fill only what the test left empty so a test's own
+ * values always win, and only when we actually have to pass step 1.
+ */
+async function fillStep1Requirements() {
+  const title = screen.getByLabelText(/^Titel\*/) as HTMLInputElement;
+  if (title.value === "") {
+    fireEvent.change(title, { target: { value: "Testtermin" } });
+  }
+  const room = (await screen.findByLabelText(/^Raum\*/)) as HTMLSelectElement;
+  if (room.value === "") {
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.change(room, { target: { value: "3" } });
+  }
+}
+
+async function goToStep(target: 1 | 2 | 3) {
+  while (currentStep() > target) {
+    fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
+  }
+  if (currentStep() === target) return;
+  if (currentStep() === 1) await fillStep1Requirements();
+  while (currentStep() < target) {
+    const before = currentStep();
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    if (currentStep() === before) {
+      throw new Error(
+        `Wizard-Navigation blockiert auf Schritt ${before} (Ziel ${target}).`,
+      );
+    }
+  }
+}
+
 describe("TimetableEventModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -341,8 +388,10 @@ describe("TimetableEventModal", () => {
     fireEvent.change(screen.getByLabelText("Raum*"), {
       target: { value: "3" },
     });
+    await goToStep(3);
     fireEvent.click(screen.getByRole("checkbox", { name: /Max Kind/ }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Ada Staff/ }));
+    await goToStep(1);
     fireEvent.change(screen.getByLabelText("Tagesnotiz"), {
       target: { value: "ohne Nuesse" },
     });
@@ -387,6 +436,7 @@ describe("TimetableEventModal", () => {
     renderModal();
 
     await screen.findByText("Haus A - Mensa");
+    await goToStep(3);
     expect(screen.getByText("Max Kind")).toBeInTheDocument();
     expect(screen.getByText("Mila Kind")).toBeInTheDocument();
 
@@ -464,6 +514,7 @@ describe("TimetableEventModal", () => {
 
     renderModal();
 
+    await goToStep(3);
     expect(await screen.findByText("Max Erste Seite")).toBeInTheDocument();
     expect(await screen.findByText("Mila Zweite Seite")).toBeInTheDocument();
     expect(mockFetchStudents).toHaveBeenCalledWith({
@@ -491,9 +542,11 @@ describe("TimetableEventModal", () => {
 
     expect(await screen.findByText("Haus A - Mensa")).toBeInTheDocument();
     expect(screen.getByLabelText("Raum*")).toBeEnabled();
+    await goToStep(2);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
       button: 0,
     });
+    await goToStep(3);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Jahrgang" }), {
       button: 0,
     });
@@ -539,6 +592,7 @@ describe("TimetableEventModal", () => {
 
     renderModal();
 
+    await goToStep(3);
     expect(
       await screen.findByText(
         "Die Kinderliste konnte nicht vollständig geladen werden. Die Kinderzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.",
@@ -567,6 +621,7 @@ describe("TimetableEventModal", () => {
 
     renderModal();
 
+    await goToStep(3);
     expect(
       await screen.findByText(
         "Die Personalliste konnte nicht vollständig geladen werden. Die Personalzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.",
@@ -590,14 +645,17 @@ describe("TimetableEventModal", () => {
 
     renderModal({ variant: "quick" });
 
+    // Die frühere "Weitere Optionen"-Disclosure gibt es im Wizard nicht mehr:
+    // der Ladefehler muss trotzdem SOFORT sichtbar sein (Alert in der
+    // Wizard-Hülle auf Schritt 1), der Erneut-laden-Button liegt in
+    // Schritt 3 — die fachliche Aussage (Fehler sichtbar, erneut laden
+    // möglich, Speichern nicht blockiert) bleibt unverändert.
     expect(
       await screen.findByText(
         "Die Kinderliste konnte nicht vollständig geladen werden. Die Kinderzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.",
       ),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Weitere Optionen" }),
-    ).toHaveAttribute("aria-expanded", "true");
+    await goToStep(3);
     expect(
       screen.getByRole("button", { name: "Kinder erneut laden" }),
     ).toBeVisible();
@@ -610,6 +668,7 @@ describe("TimetableEventModal", () => {
       initialInstance: { ...savedInstance, studentIds: ["21"] },
     });
 
+    await goToStep(3);
     await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
     expect(screen.queryByText("Max Kind")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
@@ -633,6 +692,7 @@ describe("TimetableEventModal", () => {
       showPeriodField: true,
     });
 
+    await goToStep(3);
     await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
     const classSelect = screen.getByLabelText(/^Klasse\*/);
     expect(classSelect).toHaveValue("Klasse 3a");
@@ -662,7 +722,9 @@ describe("TimetableEventModal", () => {
     mockFetchStudents.mockRejectedValue(new Error("forbidden"));
     renderModal();
 
+    await goToStep(3);
     await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
+    await goToStep(1);
     fireEvent.change(screen.getByLabelText("Titel*"), {
       target: { value: "Mensa" },
     });
@@ -707,6 +769,7 @@ describe("TimetableEventModal", () => {
     setOpen(false);
     setOpen(true);
 
+    await goToStep(3);
     expect(await screen.findByText("Neue Kinderliste")).toBeInTheDocument();
 
     await act(async () => {
@@ -746,6 +809,7 @@ describe("TimetableEventModal", () => {
       });
 
     const { setOpen } = renderModal();
+    await goToStep(3);
     fireEvent.click(
       await screen.findByRole("button", { name: "Kinder erneut laden" }),
     );
@@ -754,6 +818,7 @@ describe("TimetableEventModal", () => {
     setOpen(false);
     setOpen(true);
 
+    await goToStep(3);
     expect(
       await screen.findByText("Liste nach Wiederöffnung"),
     ).toBeInTheDocument();
@@ -813,6 +878,10 @@ describe("TimetableEventModal", () => {
   });
 
   it("shows inline errors for series-only fields", async () => {
+    // Wizard adaptation (user-approved): the errors live on two steps and can
+    // no longer be asserted in one view — step 2 errors are checked from
+    // step 2, then Zurück reveals the Kategorie error on step 1. Every
+    // expected error text is unchanged.
     renderModal({ showPeriodField: true });
 
     await screen.findByText("Haus A - Mensa");
@@ -822,11 +891,9 @@ describe("TimetableEventModal", () => {
     fireEvent.change(screen.getByLabelText("Raum*"), {
       target: { value: "3" },
     });
+    await goToStep(2);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
       button: 0,
-    });
-    fireEvent.change(screen.getByLabelText("Kategorie*"), {
-      target: { value: "" },
     });
     fireEvent.change(screen.getByLabelText("Planungszeitraum*"), {
       target: { value: "" },
@@ -835,10 +902,7 @@ describe("TimetableEventModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(
-      await screen.findByText("Bitte eine Kategorie auswählen."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Bitte einen Planungszeitraum auswählen."),
+      await screen.findByText("Bitte einen Planungszeitraum auswählen."),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Bitte mindestens einen Wochentag auswählen."),
@@ -849,6 +913,16 @@ describe("TimetableEventModal", () => {
     expect(
       screen.queryByText("Bitte mindestens einen Wochentag auswählen."),
     ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
+    fireEvent.change(screen.getByLabelText("Kategorie*"), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(
+      await screen.findByText("Bitte eine Kategorie auswählen."),
+    ).toBeInTheDocument();
+    expect(mockCreateTemplate).not.toHaveBeenCalled();
   });
 
   it("requires the value belonging to each selected Zielgruppe", async () => {
@@ -861,10 +935,12 @@ describe("TimetableEventModal", () => {
     fireEvent.change(screen.getByLabelText("Raum*"), {
       target: { value: "3" },
     });
+    await goToStep(2);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
       button: 0,
     });
 
+    await goToStep(3);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Jahrgang" }), {
       button: 0,
     });
@@ -901,16 +977,20 @@ describe("TimetableEventModal", () => {
     fireEvent.change(screen.getByLabelText("Raum*"), {
       target: { value: "3" },
     });
+    await goToStep(2);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
       button: 0,
     });
+    await goToStep(1);
     fireEvent.click(screen.getByRole("button", { name: /AG Yoga/ }));
     fireEvent.change(screen.getByLabelText("Kategorie*"), {
       target: { value: "2" },
     });
+    await goToStep(2);
     fireEvent.change(screen.getByLabelText("Planungszeitraum*"), {
       target: { value: "5" },
     });
+    await goToStep(3);
     fireEvent.click(screen.getByRole("checkbox", { name: /Ada Staff/ }));
     fireEvent.change(screen.getByLabelText("Zuständige Person"), {
       target: { value: "11" },
@@ -960,17 +1040,21 @@ describe("TimetableEventModal", () => {
     fireEvent.change(screen.getByLabelText("Raum*"), {
       target: { value: "3" },
     });
+    await goToStep(2);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
       button: 0,
     });
+    await goToStep(1);
     fireEvent.click(screen.getByRole("button", { name: /AG Yoga/ }));
     fireEvent.change(screen.getByLabelText("Kategorie*"), {
       target: { value: "2" },
     });
+    await goToStep(2);
     fireEvent.change(screen.getByLabelText("Planungszeitraum*"), {
       target: { value: "5" },
     });
 
+    await goToStep(3);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Jahrgang" }), {
       button: 0,
     });
@@ -1010,6 +1094,7 @@ describe("TimetableEventModal", () => {
     });
 
     await screen.findByText("Haus A - Mensa");
+    await goToStep(3);
     const gradeSelect = screen.getByLabelText(/^Jahrgang\*/);
     expect(gradeSelect).toHaveValue("13");
     expect(
@@ -1058,23 +1143,29 @@ describe("TimetableEventModal", () => {
     renderModal({ showPeriodField: true });
 
     await screen.findByText("Haus A - Mensa");
+    await goToStep(3);
     fireEvent.click(screen.getByRole("checkbox", { name: /Nora Vier A/ }));
+    await goToStep(1);
     fireEvent.change(screen.getByLabelText("Titel*"), {
       target: { value: "Hausaufgabenbetreuung" },
     });
     fireEvent.change(screen.getByLabelText("Raum*"), {
       target: { value: "3" },
     });
+    await goToStep(2);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
       button: 0,
     });
+    await goToStep(1);
     fireEvent.click(screen.getByRole("button", { name: /AG Yoga/ }));
     fireEvent.change(screen.getByLabelText("Kategorie*"), {
       target: { value: "2" },
     });
+    await goToStep(2);
     fireEvent.change(screen.getByLabelText("Planungszeitraum*"), {
       target: { value: "5" },
     });
+    await goToStep(3);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Jahrgang" }), {
       button: 0,
     });
@@ -1116,17 +1207,21 @@ describe("TimetableEventModal", () => {
     fireEvent.change(screen.getByLabelText("Raum*"), {
       target: { value: "3" },
     });
+    await goToStep(2);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
       button: 0,
     });
+    await goToStep(1);
     fireEvent.click(screen.getByRole("button", { name: /AG Yoga/ }));
     fireEvent.change(screen.getByLabelText("Kategorie*"), {
       target: { value: "2" },
     });
+    await goToStep(2);
     fireEvent.change(screen.getByLabelText("Planungszeitraum*"), {
       target: { value: "5" },
     });
 
+    await goToStep(3);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Jahrgang" }), {
       button: 0,
     });
@@ -1160,6 +1255,7 @@ describe("TimetableEventModal", () => {
     });
 
     await screen.findByText("Regeltermin bearbeiten");
+    await goToStep(2);
     expect(screen.getByLabelText("Planungszeitraum*")).toHaveValue("6");
 
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
@@ -1323,6 +1419,7 @@ describe("TimetableEventModal", () => {
     });
 
     await screen.findByText("Termin wiederholen");
+    await goToStep(3);
     fireEvent.change(screen.getByLabelText("Benötigtes Personal"), {
       target: { value: "4" },
     });
@@ -1422,23 +1519,29 @@ describe("TimetableEventModal", () => {
     await screen.findByText("Haus A - Mensa");
     expect(screen.getByLabelText("Start*")).toHaveValue("08:00");
     expect(screen.getByLabelText("Ende*")).toHaveValue("09:30");
-    expect(screen.getByLabelText("Wiederholt sich")).toBeInTheDocument();
-    // 2026-05-04 is a Monday — the dynamic weekly option names the weekday.
-    expect(
-      screen.getByRole("option", { name: "Wöchentlich am Montag" }),
-    ).toBeInTheDocument();
     // Full-form controls stay hidden while collapsed.
     expect(screen.queryByRole("tab", { name: "Jede Woche" })).toBeNull();
     expect(screen.queryByLabelText("Kategorie*")).toBeNull();
     expect(screen.queryByText("Betreuung")).toBeNull();
     expect(screen.queryByText("Personal")).toBeNull();
     expect(screen.queryByText("Kinder")).toBeNull();
+    // Die Tagesnotiz steht im Wizard direkt in Schritt 1; früher lag sie
+    // hinter "Weitere Optionen".
+    expect(screen.getByLabelText("Tagesnotiz")).toBeInTheDocument();
 
-    // The disclosure reveals people and notes.
-    fireEvent.click(screen.getByRole("button", { name: /Weitere Optionen/ }));
+    // Die Wiederholung ist Schritt 2 — im quick-Modus weiterhin der
+    // Klartext-Preset statt der vollen Serien-Controls.
+    await goToStep(2);
+    expect(screen.getByLabelText("Wiederholt sich")).toBeInTheDocument();
+    // 2026-05-04 is a Monday — the dynamic weekly option names the weekday.
+    expect(
+      screen.getByRole("option", { name: "Wöchentlich am Montag" }),
+    ).toBeInTheDocument();
+
+    // Personal und Kinder sind Schritt 3 — früher die Disclosure-Inhalte.
+    await goToStep(3);
     expect(screen.getByText("Personal")).toBeInTheDocument();
     expect(screen.getByText("Kinder")).toBeInTheDocument();
-    expect(screen.getByLabelText("Tagesnotiz")).toBeInTheDocument();
   });
 
   it("quick preset 'Jeden Wochentag' creates a Mo-Fr weekly series", async () => {
@@ -1451,6 +1554,7 @@ describe("TimetableEventModal", () => {
     fireEvent.change(screen.getByLabelText("Raum*"), {
       target: { value: "3" },
     });
+    await goToStep(2);
     fireEvent.change(screen.getByLabelText("Wiederholt sich"), {
       target: { value: "jeden-wochentag" },
     });
@@ -1474,6 +1578,7 @@ describe("TimetableEventModal", () => {
     renderModal({ variant: "quick" });
 
     await screen.findByText("Haus A - Mensa");
+    await goToStep(2);
     fireEvent.change(screen.getByLabelText("Wiederholt sich"), {
       target: { value: "benutzerdefiniert" },
     });
@@ -1481,7 +1586,9 @@ describe("TimetableEventModal", () => {
     expect(
       await screen.findByRole("tab", { name: "Jede Woche" }),
     ).toBeInTheDocument();
+    await goToStep(3);
     expect(screen.getByText("Personal")).toBeInTheDocument();
+    await goToStep(2);
     expect(screen.queryByLabelText("Wiederholt sich")).toBeNull();
   });
 
@@ -1512,6 +1619,7 @@ describe("TimetableEventModal", () => {
     fireEvent.change(screen.getByLabelText("Raum*"), {
       target: { value: "3" },
     });
+    await goToStep(2);
     fireEvent.change(screen.getByLabelText("Wiederholt sich"), {
       target: { value: "jeden-wochentag" },
     });
@@ -1520,8 +1628,11 @@ describe("TimetableEventModal", () => {
     expect(
       await screen.findByText("Bitte eine Kategorie auswählen."),
     ).toBeInTheDocument();
-    // The form expanded so the inline error is visible.
-    expect(screen.getByRole("tab", { name: "Jede Woche" })).toBeInTheDocument();
+    // Der fehlgeschlagene Submit expandiert das Formular und springt auf den
+    // Fehler-Schritt: das im quick-Modus versteckte Kategorie-Feld ist samt
+    // Inline-Fehler sichtbar. (Früher belegte der "Jede Woche"-Tab dasselbe;
+    // er liegt jetzt in Schritt 2 und ist hinter dem Fehler nicht erreichbar.)
+    expect(screen.getByLabelText("Kategorie*")).toBeInTheDocument();
     expect(mockCreateTemplate).not.toHaveBeenCalled();
   });
 
@@ -1813,6 +1924,7 @@ describe("TimetableEventModal", () => {
     });
 
     await screen.findByText("Haus A - Mensa");
+    await goToStep(3);
     expect(screen.getByLabelText("Benötigtes Personal")).toHaveValue(null);
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await screen.findByText("Wiederholenden Termin ändern");
@@ -1857,7 +1969,9 @@ describe("TimetableEventModal", () => {
       },
     });
 
+    await goToStep(3);
     await screen.findByText("QA Substitute");
+    await goToStep(1);
     fireEvent.change(screen.getByLabelText("Titel*"), {
       target: { value: "Mensa umbenannt" },
     });
@@ -2096,6 +2210,7 @@ describe("TimetableEventModal", () => {
       },
     });
 
+    await goToStep(3);
     await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await screen.findByText("Wiederholenden Termin ändern");
@@ -2131,6 +2246,7 @@ describe("TimetableEventModal", () => {
       },
     });
 
+    await goToStep(3);
     await screen.findByText(/Die Personalliste konnte nicht vollständig/);
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await screen.findByText("Wiederholenden Termin ändern");
@@ -2211,6 +2327,7 @@ describe("TimetableEventModal", () => {
     });
 
     await screen.findByText("Haus A - Mensa");
+    await goToStep(3);
     expect(screen.getByLabelText("Benötigtes Personal")).toHaveValue(null);
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await screen.findByText("Wiederholenden Termin ändern");
@@ -2240,6 +2357,7 @@ describe("TimetableEventModal", () => {
     });
 
     await screen.findByText("Haus A - Mensa");
+    await goToStep(3);
     const requiredStaff = screen.getByLabelText("Benötigtes Personal");
     expect(requiredStaff).toHaveValue(2);
     fireEvent.change(requiredStaff, { target: { value: "" } });
@@ -2302,6 +2420,7 @@ describe("TimetableEventModal", () => {
       },
     });
 
+    await goToStep(3);
     await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await screen.findByText("Wiederholenden Termin ändern");
@@ -2339,6 +2458,7 @@ describe("TimetableEventModal", () => {
       },
     });
 
+    await goToStep(3);
     await screen.findByText(/Die Personalliste konnte nicht vollständig/);
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await screen.findByText("Wiederholenden Termin ändern");
@@ -2371,6 +2491,7 @@ describe("TimetableEventModal", () => {
       },
     });
 
+    await goToStep(3);
     await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await screen.findByText("Wiederholenden Termin ändern");
@@ -2402,6 +2523,7 @@ describe("TimetableEventModal", () => {
       },
     });
 
+    await goToStep(3);
     await screen.findByText(/Die Personalliste konnte nicht vollständig/);
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await screen.findByText("Wiederholenden Termin ändern");
@@ -2458,6 +2580,7 @@ describe("TimetableEventModal", () => {
     renderModal();
 
     await screen.findByText("Haus A - Mensa");
+    await goToStep(3);
 
     // Personal renders before Kinder (Streichliste 8).
     const fieldLabels = screen
@@ -2520,9 +2643,43 @@ describe("TimetableEventModal", () => {
         ),
       { timeout: 2000 },
     );
+    await goToStep(3);
     expect(
       await screen.findByText(
         "Hinweis: Raum Mensa ist 12:00–13:00 bereits belegt",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+  });
+
+  it("shows conflict hints already on step 1, where Speichern is possible", async () => {
+    mockCheckConflicts.mockResolvedValue({
+      date: "2026-05-04",
+      startTime: "12:00",
+      endTime: "13:00",
+      warnings: [
+        {
+          kind: "room",
+          resourceId: "3",
+          message: "Raum Mensa ist 12:00–13:00 bereits belegt",
+          conflictingInstanceId: "99",
+          conflictingTitle: "Mensa",
+        },
+      ],
+    });
+    renderModal();
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.change(screen.getByLabelText("Raum*"), {
+      target: { value: "3" },
+    });
+
+    // Without any step navigation the advisory hint appears on step 1.
+    expect(
+      await screen.findByText(
+        "Hinweis: Raum Mensa ist 12:00–13:00 bereits belegt",
+        undefined,
+        { timeout: 2000 },
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
@@ -2547,6 +2704,7 @@ describe("TimetableEventModal", () => {
     renderModal();
 
     await screen.findByText("Haus A - Mensa");
+    await goToStep(3);
     fireEvent.click(screen.getByRole("checkbox", { name: /Ada Staff/ }));
 
     expect(
@@ -2575,6 +2733,7 @@ describe("TimetableEventModal", () => {
     renderModal();
 
     await screen.findByText("Haus A - Mensa");
+    await goToStep(3);
     fireEvent.click(screen.getByRole("checkbox", { name: /Ada Staff/ }));
 
     expect(
@@ -2798,6 +2957,7 @@ describe("TimetableEventModal", () => {
     renderModal({ initialSeries: aWeekTemplate });
 
     await screen.findByText("Haus A - Mensa");
+    await goToStep(2);
     expect(screen.getByRole("tab", { name: "Alle 2 Wochen" })).toHaveAttribute(
       "data-state",
       "active",
@@ -2822,6 +2982,7 @@ describe("TimetableEventModal", () => {
     });
 
     await screen.findByText("Haus A - Mensa");
+    await goToStep(2);
     expect(screen.queryByRole("tab", { name: "Woche A" })).toBeNull();
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Alle 2 Wochen" }), {
       button: 0,
@@ -2870,6 +3031,7 @@ describe("TimetableEventModal", () => {
       });
 
       await screen.findByText("Haus A - Mensa");
+      await goToStep(2);
       const biweeklyTab = screen.getByRole("tab", { name: "Alle 2 Wochen" });
       expect(biweeklyTab).toBeDisabled();
       fireEvent.mouseDown(biweeklyTab, { button: 0 });
@@ -2900,6 +3062,7 @@ describe("TimetableEventModal", () => {
     });
 
     await screen.findByText("Haus A - Mensa");
+    await goToStep(2);
     const biweeklyTab = screen.getByRole("tab", { name: "Alle 2 Wochen" });
     expect(biweeklyTab).not.toBeDisabled();
     expect(biweeklyTab).toHaveAttribute("data-state", "active");
@@ -2942,12 +3105,15 @@ describe("TimetableEventModal", () => {
     fireEvent.change(screen.getByLabelText("Raum*"), {
       target: { value: "3" },
     });
+    await goToStep(2);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Alle 2 Wochen" }), {
       button: 0,
     });
+    await goToStep(1);
     fireEvent.change(screen.getByLabelText("Kategorie*"), {
       target: { value: "2" },
     });
+    await goToStep(2);
     // The tab was enabled under the two-week cycle; switching the period
     // afterwards must still be caught by validation.
     fireEvent.change(screen.getByLabelText("Planungszeitraum*"), {
@@ -2993,6 +3159,7 @@ describe("TimetableEventModal", () => {
     });
 
     await screen.findByText("Haus A - Mensa");
+    await goToStep(2);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Alle 2 Wochen" }), {
       button: 0,
     });
@@ -3006,9 +3173,11 @@ describe("TimetableEventModal", () => {
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Woche A" }), {
       button: 0,
     });
+    await goToStep(1);
     fireEvent.change(screen.getByLabelText(/Datum/), {
       target: { value: "2026-05-25" },
     });
+    await goToStep(2);
 
     expect(screen.getByRole("tab", { name: "Woche A" })).toHaveAttribute(
       "data-state",
@@ -3033,6 +3202,7 @@ describe("TimetableEventModal", () => {
     });
 
     await screen.findByText("Haus A - Mensa");
+    await goToStep(2);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Alle 2 Wochen" }), {
       button: 0,
     });
@@ -3065,6 +3235,7 @@ describe("TimetableEventModal", () => {
     renderModal();
 
     await screen.findByText("Haus A - Mensa");
+    await goToStep(3);
     fireEvent.click(screen.getByRole("checkbox", { name: /Ada Staff/ }));
 
     await waitFor(() => expect(mockCheckShiftCoverage).toHaveBeenCalled(), {
@@ -3119,6 +3290,7 @@ describe("TimetableEventModal", () => {
       },
     });
 
+    await goToStep(1);
     await screen.findByText("Haus A - Mensa");
     fireEvent.change(screen.getByLabelText("Datum*"), {
       target: { value: "2026-05-05" },
@@ -3203,6 +3375,7 @@ describe("TimetableEventModal", () => {
     fireEvent.change(screen.getByLabelText("Raum*"), {
       target: { value: "3" },
     });
+    await goToStep(2);
     fireEvent.change(screen.getByLabelText("Wiederholt sich"), {
       target: { value: "jeden-wochentag" },
     });
@@ -3310,6 +3483,7 @@ describe("TimetableEventModal", () => {
     renderModal({ variant: "quick", defaultDate: "2026-05-09" });
 
     await screen.findByText("Haus A - Mensa");
+    await goToStep(2);
     expect(
       screen.queryByRole("option", { name: /Wöchentlich am/ }),
     ).not.toBeInTheDocument();

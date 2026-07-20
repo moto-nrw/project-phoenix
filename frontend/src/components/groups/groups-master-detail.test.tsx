@@ -15,10 +15,15 @@ vi.mock("~/components/ui/database/database-form", () => ({
     onCancel: () => void;
   }) => (
     <div data-testid="database-form">
-      <button onClick={() => void onSubmit({ name: "Updated Group" })}>
+      <button
+        type="button"
+        onClick={() => void onSubmit({ name: "Updated Group" })}
+      >
         Save
       </button>
-      <button onClick={onCancel}>Cancel</button>
+      <button type="button" onClick={onCancel}>
+        Cancel
+      </button>
     </div>
   ),
 }));

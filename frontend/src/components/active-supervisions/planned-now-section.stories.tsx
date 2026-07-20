@@ -24,6 +24,7 @@ function makeRosterRow(
     checkedInAt: null,
     visitEntryTime: null,
     warnings: [],
+    careDayStatus: "unknown",
     ...overrides,
   };
 }
@@ -43,6 +44,7 @@ function makeInstance(
     isOverdue: false,
     minutesUntilStart: 30,
     expectedStudentsCount: 6,
+    notScheduledStudentsCount: 0,
     presentStudentsCount: 0,
     assignedStaffIds: ["staff-1"],
     isAssigned: true,
@@ -93,6 +95,7 @@ export const OverdueAndSoon: Story = {
         isOverdue: true,
         minutesUntilStart: -5,
         expectedStudentsCount: 8,
+        notScheduledStudentsCount: 0,
         presentStudentsCount: 3,
       }),
       makeInstance({

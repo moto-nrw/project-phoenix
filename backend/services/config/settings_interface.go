@@ -62,6 +62,13 @@ type SettingsService interface {
 	// Pass nil to skip permission checks (for system-level callers).
 	ResetValue(ctx context.Context, key string, changedBy *int64, userPermissions []string) error
 
+	// CheckOperatorWritable enforces the operator write/reveal access policy for
+	// a setting key: it returns *DefinitionNotFoundError for an unknown key and
+	// ErrOperatorAdminOnly for an AccessAdminOnly setting (which operators must
+	// not touch, mirroring GetSchemaForOperator hiding those keys). Returns nil
+	// when an operator may write the key.
+	CheckOperatorWritable(key string) error
+
 	// GetLoginImageURL returns the loginImageUrl from the school's settings JSONB.
 	// Returns empty string if no login image is set.
 	GetLoginImageURL(ctx context.Context, tenantID int64) (string, error)

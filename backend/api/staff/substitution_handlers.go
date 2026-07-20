@@ -360,23 +360,7 @@ func (rs *Resource) processTeacherForSubstitution(
 // getStaffByRole handles GET /api/staff/by-role?role=user or ?roles=teacher,staff,user
 // Returns staff members filtered by account role (useful for group transfer dropdowns)
 func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
-	// Support both ?role=teacher (singular, backward compat) and ?roles=teacher,staff,user (multi)
-	rolesParam := r.URL.Query().Get("roles")
-	roleParam := r.URL.Query().Get("role")
-
-	var roles []string
-	if rolesParam != "" {
-		// Parse comma-separated roles
-		for _, role := range strings.Split(rolesParam, ",") {
-			role = strings.TrimSpace(role)
-			if role != "" {
-				roles = append(roles, role)
-			}
-		}
-	} else if roleParam != "" {
-		roles = []string{strings.TrimSpace(roleParam)}
-	}
-
+	roles := parseRolesQuery(r)
 	if len(roles) == 0 {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("role or roles parameter is required")))
 		return
@@ -390,25 +374,7 @@ func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 			return
 		}
-
-		results := make([]StaffWithRoleResponse, 0, len(caregivers))
-		for _, caregiver := range caregivers {
-			results = append(results, StaffWithRoleResponse{
-				ID:                caregiver.StaffID,
-				PersonID:          caregiver.PersonID,
-				TeacherID:         caregiver.TeacherID,
-				FirstName:         caregiver.FirstName,
-				LastName:          caregiver.LastName,
-				FullName:          caregiver.FullName(),
-				AccountID:         caregiver.AccountID,
-				Email:             caregiver.Email,
-				IsActiveCaregiver: true,
-				CreatedAt:         caregiver.CreatedAt,
-				UpdatedAt:         caregiver.UpdatedAt,
-			})
-		}
-
-		common.Respond(w, r, http.StatusOK, results, "Active caregivers retrieved successfully")
+		common.Respond(w, r, http.StatusOK, caregiversToRoleResponses(caregivers), "Active caregivers retrieved successfully")
 		return
 	}
 
@@ -417,8 +383,51 @@ func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	common.Respond(w, r, http.StatusOK, staffByRolesToRoleResponses(staffByRoles), "Staff members with role retrieved successfully")
+}
 
-	// Deduplicate by staff ID (a staff member with multiple matching roles appears once)
+// parseRolesQuery reads the requested roles, supporting both ?role=teacher
+// (singular, backward compat) and ?roles=teacher,staff,user (multi).
+func parseRolesQuery(r *http.Request) []string {
+	if rolesParam := r.URL.Query().Get("roles"); rolesParam != "" {
+		var roles []string
+		for _, role := range strings.Split(rolesParam, ",") {
+			if role = strings.TrimSpace(role); role != "" {
+				roles = append(roles, role)
+			}
+		}
+		return roles
+	}
+	if roleParam := strings.TrimSpace(r.URL.Query().Get("role")); roleParam != "" {
+		return []string{roleParam}
+	}
+	return nil
+}
+
+// caregiversToRoleResponses maps active caregivers to the role-response wire shape.
+func caregiversToRoleResponses(caregivers []*users.ActiveCaregiver) []StaffWithRoleResponse {
+	results := make([]StaffWithRoleResponse, 0, len(caregivers))
+	for _, caregiver := range caregivers {
+		results = append(results, StaffWithRoleResponse{
+			ID:                caregiver.StaffID,
+			PersonID:          caregiver.PersonID,
+			TeacherID:         caregiver.TeacherID,
+			FirstName:         caregiver.FirstName,
+			LastName:          caregiver.LastName,
+			FullName:          caregiver.FullName(),
+			AccountID:         caregiver.AccountID,
+			Email:             caregiver.Email,
+			IsActiveCaregiver: true,
+			CreatedAt:         caregiver.CreatedAt,
+			UpdatedAt:         caregiver.UpdatedAt,
+		})
+	}
+	return results
+}
+
+// staffByRolesToRoleResponses maps staff-by-role rows to the wire shape,
+// deduplicating by staff ID (a staff member matching multiple roles appears once).
+func staffByRolesToRoleResponses(staffByRoles []*users.StaffWithRoleInfo) []StaffWithRoleResponse {
 	seen := make(map[int64]bool)
 	var results []StaffWithRoleResponse
 	for _, s := range staffByRoles {
@@ -438,8 +447,7 @@ func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
 			UpdatedAt: s.UpdatedAt,
 		})
 	}
-
-	common.Respond(w, r, http.StatusOK, results, "Staff members with role retrieved successfully")
+	return results
 }
 
 // accountHasRole checks if an account has a specific role

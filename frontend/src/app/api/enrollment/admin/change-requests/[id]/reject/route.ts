@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -19,7 +20,7 @@ async function bearerHeader() {
   return `Bearer ${token}`;
 }
 
-export async function POST(request: NextRequest, context: RouteContext) {
+async function POSTHandler(request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
   const authHeader = await bearerHeader();
   if (!authHeader) {
@@ -53,3 +54,5 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
   }
 }
+
+export const POST = withTenantAuth(POSTHandler);

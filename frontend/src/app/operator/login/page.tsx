@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator routes are not tenant-scoped
-import { useRouter } from "next/navigation";
+import { redirect, useRouter } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { KeyRound } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
@@ -89,25 +89,24 @@ export default function OperatorLoginPage() {
         setIsCleaningUp(false);
         return;
       }
-
-      if (
-        status === "authenticated" &&
-        session?.user?.scope === "platform" &&
-        session?.user?.token
-      ) {
-        router.push(operatorPath("/operator/suggestions"));
-      }
     };
     void check();
-  }, [status, session, router]);
+  }, [status, session]);
+
+  if (
+    status === "authenticated" &&
+    session?.user?.scope === "platform" &&
+    session.user.token &&
+    session.error === undefined
+  ) {
+    redirect(operatorPath("/operator/suggestions"));
+  }
 
   // Show loading while checking auth or cleaning stale session
   if (
     status === "loading" ||
     isCleaningUp ||
-    (status === "authenticated" &&
-      session?.user?.scope === "platform" &&
-      session?.user?.token)
+    (status === "authenticated" && session?.error !== undefined)
   ) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">

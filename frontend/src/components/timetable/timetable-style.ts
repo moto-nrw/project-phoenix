@@ -26,19 +26,10 @@ export const timetableTextAreaClass =
 export const timetableDangerPanel =
   "rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/5 p-3";
 
-export const timetableWarningPanel =
-  "rounded-xl border border-[#EAB308]/20 bg-[#EAB308]/5 p-3";
-
 export const timetableRequiredMark = "ml-0.5 text-[#FF3130]";
 
 /** Readable dark-amber text pairing with white/gray-50 backgrounds. */
 export const timetableWarningText = "text-[#92400E]";
-
-export const timetableStatusColors = {
-  active: LOCATION_COLORS.GROUP_ROOM,
-  cancelled: LOCATION_COLORS.HOME,
-  warning: LOCATION_COLORS.SICK,
-} as const;
 
 /**
  * Shared 5-tone palette for small status/ratio indicators across the

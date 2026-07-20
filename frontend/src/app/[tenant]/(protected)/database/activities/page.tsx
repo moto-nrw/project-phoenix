@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
@@ -31,7 +31,9 @@ const logger = createLogger({ component: "DatabaseActivitiesPage" });
 export default function ActivitiesPage() {
   return (
     <NfcModeGuard>
-      <ActivitiesPageContent />
+      <Suspense fallback={null}>
+        <ActivitiesPageContent />
+      </Suspense>
     </NfcModeGuard>
   );
 }

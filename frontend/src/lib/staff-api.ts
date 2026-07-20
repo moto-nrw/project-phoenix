@@ -656,6 +656,13 @@ class WorkTimeModelService {
 }
 
 // Staff history types (reuses time-tracking-helpers types)
+// One break of a work session. Narrowed to the fields the metric helpers read
+// from the wire (SessionResponse.Breaks); the payload carries more.
+interface StaffSessionBreak {
+  started_at: string;
+  ended_at: string | null;
+}
+
 export interface StaffHistorySession {
   id?: number;
   date: string;
@@ -668,6 +675,9 @@ export interface StaffHistorySession {
   check_in_time: string;
   check_out_time: string | null;
   break_minutes: number;
+  // Break rows for display. NOT needed to correct `net_minutes`: the server
+  // already deducts a running break from it (#1842).
+  breaks?: readonly StaffSessionBreak[] | null;
   auto_checked_out?: boolean;
   notes?: string;
   edit_count?: number;
@@ -871,9 +881,16 @@ class StaffAbsenceService {
 // ownership against the JWT subject). Routes via /api/staff/{id}/.../edits
 // so an admin can pull the audit trail for any staff member's session in
 // the tenant.
+import { parseISODate, toISODate } from "./date-helpers";
 import {
+  MAX_TARGET_RANGE_DAYS,
+  mapDailyTargetsResponse,
+  mapMonthSummaryResponse,
   mapWorkSessionEditResponse,
+  type BackendDailyTarget,
+  type BackendMonthSummary,
   type BackendWorkSessionEdit,
+  type MonthSummary,
   type WorkSessionEdit,
 } from "./time-tracking-helpers";
 
@@ -906,6 +923,136 @@ class StaffSessionEditsService {
     };
     return (json.data ?? []).map(mapWorkSessionEditResponse);
   }
+}
+
+// Monatskarte (#1842), live-computed. Admin counterpart to
+// timeTrackingService.getMonthSummary.
+class StaffMonthSummaryService {
+  async getMonthSummary(
+    staffId: string,
+    year: number,
+    month: number,
+  ): Promise<MonthSummary> {
+    const params = new URLSearchParams({
+      year: String(year),
+      month: String(month),
+    });
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/month-summary?${params}`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch month summary: ${response.statusText}`);
+    }
+    const json = (await response.json()) as { data: BackendMonthSummary };
+    return mapMonthSummaryResponse(json.data);
+  }
+
+  // Admin counterpart to timeTrackingService.getScheduleTargets — the same
+  // date-valid Soll the Monatskarte is computed from, so card and table can
+  // never disagree after a schedule change (#1842).
+  async getScheduleTargets(
+    staffId: string,
+    from: string,
+    to: string,
+  ): Promise<ReadonlyMap<string, number>> {
+    const params = new URLSearchParams({ from, to });
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/schedule-targets?${params}`,
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch schedule targets: ${response.statusText}`,
+      );
+    }
+    const json = (await response.json()) as {
+      data: BackendDailyTarget[] | null;
+    };
+    return mapDailyTargetsResponse(json.data);
+  }
+
+  /**
+   * Same date-valid Soll as `getScheduleTargets`, for a range that may be
+   * longer than the endpoint's MAX_TARGET_RANGE_DAYS window. The Übersicht
+   * charts reach back to the configured account start ("Gesamt"), which can be
+   * years — one request would simply 400. The windows are fetched with bounded
+   * concurrency and merged; days repeat across no two windows, so the merge is
+   * a plain union.
+   */
+  async getScheduleTargetsRange(
+    staffId: string,
+    from: string,
+    to: string,
+  ): Promise<ReadonlyMap<string, number>> {
+    // Windows are MAX_TARGET_RANGE_DAYS calendar days INCLUSIVE — one day
+    // inside the endpoint's cap, which counts the gap between the bounds
+    // rather than the days. Nothing rides on the last day of headroom, and a
+    // whole-window stride keeps the arithmetic obvious.
+    const windows: { from: string; to: string }[] = [];
+    const end = parseISODate(to);
+    for (
+      let cursor = parseISODate(from);
+      cursor <= end;
+      cursor = addDays(cursor, MAX_TARGET_RANGE_DAYS)
+    ) {
+      const windowEnd = addDays(cursor, MAX_TARGET_RANGE_DAYS - 1);
+      windows.push({
+        from: toISODate(cursor),
+        to: toISODate(windowEnd > end ? end : windowEnd),
+      });
+    }
+
+    // Bound the fan-out: a "Gesamt" range on a years-old account produces one
+    // window per ~year, and a plain Promise.all would fire them all at once —
+    // one overview render then opens dozens of simultaneous DB-backed requests
+    // per staff member. A small pool keeps the endpoint (and its RLS-scoped
+    // queries) from being hammered while still overlapping the round-trips.
+    const chunks = await mapWithConcurrency(
+      windows,
+      MAX_TARGET_RANGE_CONCURRENCY,
+      (w) => this.getScheduleTargets(staffId, w.from, w.to),
+    );
+    const merged = new Map<string, number>();
+    for (const chunk of chunks) {
+      for (const [day, minutes] of chunk) merged.set(day, minutes);
+    }
+    return merged;
+  }
+}
+
+// Upper bound on schedule-target windows fetched at once by
+// getScheduleTargetsRange. Four keeps the round-trips overlapping without
+// letting a long-lived account open a dozen+ concurrent DB-backed requests.
+const MAX_TARGET_RANGE_CONCURRENCY = 4;
+
+// Runs `worker` over `items` with at most `limit` in flight at any time,
+// preserving input order in the result. A fixed pool of `limit` runners pulls
+// from a shared cursor, so the total number of concurrent calls never exceeds
+// `limit` regardless of how many items there are.
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  worker: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const run = async (): Promise<void> => {
+    for (;;) {
+      const index = next++;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index]!);
+    }
+  };
+  const runners = Array.from({ length: Math.min(limit, items.length) }, () =>
+    run(),
+  );
+  await Promise.all(runners);
+  return results;
+}
+
+function addDays(d: Date, days: number): Date {
+  const next = new Date(d);
+  next.setDate(next.getDate() + days);
+  return next;
 }
 
 class StaffSessionService {
@@ -962,3 +1109,4 @@ export const staffHistoryService = new StaffHistoryService();
 export const staffAbsenceService = new StaffAbsenceService();
 export const staffSessionEditsService = new StaffSessionEditsService();
 export const staffSessionService = new StaffSessionService();
+export const staffMonthSummaryService = new StaffMonthSummaryService();

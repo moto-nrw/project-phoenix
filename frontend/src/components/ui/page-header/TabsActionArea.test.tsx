@@ -25,7 +25,11 @@ vi.mock("./BadgeDisplay", () => ({
 }));
 
 describe("DesktopTabsActionArea", () => {
-  const mockActionButton = <button data-testid="action-btn">Action</button>;
+  const mockActionButton = (
+    <button type="button" data-testid="action-btn">
+      Action
+    </button>
+  );
 
   it("renders action button even when hasTitle is true", () => {
     render(
@@ -122,7 +126,9 @@ describe("DesktopTabsActionArea", () => {
 
 describe("MobileTabsActionArea", () => {
   const mockActionButton = (
-    <button data-testid="mobile-action-btn">Mobile Action</button>
+    <button type="button" data-testid="mobile-action-btn">
+      Mobile Action
+    </button>
   );
 
   it("renders nothing when hasTitle is true", () => {

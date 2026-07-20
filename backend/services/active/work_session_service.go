@@ -73,6 +73,15 @@ type AdminCreateSessionRequest struct {
 // SessionResponse wraps a work session with calculated fields
 type SessionResponse struct {
 	*activeModels.WorkSession
+	// BreakMinutes SHADOWS WorkSession.BreakMinutes on the wire — the outer
+	// field is at the shallower depth, so encoding/json emits this one for
+	// "break_minutes". That is deliberate: the model field caches ENDED breaks
+	// only, while NetMinutes below already deducts a RUNNING one, so serializing
+	// the raw cache would print "Pause 0:00" next to an Ist that has visibly
+	// stopped growing. Both numbers come from the same as-of-now pair
+	// (totalBreakMinutes / netMinutesWithBreaks), which keeps
+	// gross = net + break true for the reader (#1842).
+	BreakMinutes     int                              `json:"break_minutes"`
 	NetMinutes       int                              `json:"net_minutes"`
 	IsOvertime       bool                             `json:"is_overtime"`
 	IsBreakCompliant bool                             `json:"is_break_compliant"`
@@ -255,6 +264,54 @@ type WorkSessionService interface {
 	// SaveCustomScheduleAsTemplate persists the rows as a new reusable work
 	// time model and binds it to the staff member.
 	SaveCustomScheduleAsTemplate(ctx context.Context, staff *userModels.Staff, name string, rotation int, anchor timezone.Date, entries []*configModels.WorkTimeModelEntry) error
+	// UpdateSchedule resolves the requested mode (template vs custom, with the
+	// legacy empty-mode fallback), validates and applies the change. Validation
+	// failures wrap ErrScheduleValidation so callers can map them to 400.
+	UpdateSchedule(ctx context.Context, staff *userModels.Staff, in ScheduleUpdateInput) error
+}
+
+// scheduleEntryMaxTargetMinutes caps a single schedule day at 12 hours.
+const scheduleEntryMaxTargetMinutes = 720
+
+// ErrScheduleValidation marks a schedule-update failure caused by invalid
+// request input (bad mode, out-of-range values, duplicate slots) so callers
+// render a 400 instead of a 500.
+var ErrScheduleValidation = errors.New("schedule validation")
+
+type scheduleValidationError struct {
+	message string
+}
+
+func (e scheduleValidationError) Error() string {
+	return e.message
+}
+
+func (e scheduleValidationError) Is(target error) bool {
+	return target == ErrScheduleValidation
+}
+
+func scheduleValidationErrorf(format string, args ...any) error {
+	return scheduleValidationError{message: fmt.Sprintf(format, args...)}
+}
+
+// ScheduleEntry mirrors a single day of the schedule-update request at the
+// service boundary (no api DTO types).
+type ScheduleEntry struct {
+	WeekIndex     int
+	DayOfWeek     int
+	TargetMinutes int
+	StartTime     *string
+}
+
+// ScheduleUpdateInput mirrors the PUT /staff/{id}/schedule request body at the
+// service boundary.
+type ScheduleUpdateInput struct {
+	Mode               string
+	ModelID            *int64
+	RotationLength     int
+	RotationAnchorDate string
+	Entries            []ScheduleEntry
+	SaveAsTemplateName string
 }
 
 // workSessionService implements WorkSessionService
@@ -820,7 +877,15 @@ func (s *workSessionService) GetSessionBreaks(ctx context.Context, staffID, sess
 	return breaks, nil
 }
 
-// recalcBreakMinutes sums all break durations for a session and updates the cache
+// recalcBreakMinutes sums the ENDED break durations for a session and updates
+// the cache. A still-running break contributes nothing: its elapsed time is
+// live data, and readers that need it add it themselves against their own
+// clock (netMinutes + runningBreakMinutes in the month service, the live
+// session card). Folding the running duration in here would double-count it —
+// once from the cache, once from the reader — for every recalc that happens
+// while a break is open (editing an ended break on a session whose second
+// break is still running), and would leave a stale snapshot in the cache the
+// moment the recalc returned.
 func (s *workSessionService) recalcBreakMinutes(ctx context.Context, sessionID int64) error {
 	breaks, err := s.breakRepo.GetBySessionID(ctx, sessionID)
 	if err != nil {
@@ -831,9 +896,6 @@ func (s *workSessionService) recalcBreakMinutes(ctx context.Context, sessionID i
 	for _, brk := range breaks {
 		if brk.EndedAt != nil {
 			totalMinutes += brk.DurationMinutes
-		} else {
-			// Active break: compute live duration
-			totalMinutes += int(math.Round(time.Since(brk.StartedAt).Minutes()))
 		}
 	}
 
@@ -1272,10 +1334,16 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 		}
 
 		responses[i] = &SessionResponse{
-			WorkSession:      session,
-			NetMinutes:       netMinutes(session, now),
-			IsOvertime:       isOvertime(session, now),
-			IsBreakCompliant: isBreakCompliant(session, now),
+			WorkSession: session,
+			// A running break is NOT in the BreakMinutes cache, so netMinutes
+			// alone would keep counting it as worked time and the day rows
+			// would climb while the Monatskarte and the week KPI (which both
+			// deduct it) stand still (#1842). The breaks are already loaded
+			// above — no extra query.
+			BreakMinutes:     totalBreakMinutes(session, breaks, now),
+			NetMinutes:       netMinutesWithBreaks(session, breaks, now),
+			IsOvertime:       isOvertime(session, breaks, now),
+			IsBreakCompliant: isBreakCompliant(session, breaks, now),
 			Breaks:           breaks,
 			EditCount:        editCounts[session.ID],
 			AuditCount:       auditCounts[session.ID],
@@ -2014,7 +2082,13 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 		ende = sess.CheckOutTime.Format("15:04")
 	}
 
-	pauseMin := strconv.Itoa(sess.BreakMinutes)
+	// Read the pause from the response-level total, not the model cache: for an
+	// open session with a running break the cache (sess.BreakMinutes) still holds
+	// only ENDED breaks and would print "Pause 0" next to a Netto that already
+	// deducts the running break (sr.NetMinutes). sr.BreakMinutes is the live
+	// total that pairs with that Netto, so the export row stays internally
+	// consistent (#1842).
+	pauseMin := strconv.Itoa(sr.BreakMinutes)
 
 	// Net as "Xh YYmin"
 	netMins := sr.NetMinutes
@@ -2132,12 +2206,12 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 	}
 
 	entries := modelEntriesToScheduleRows(model.Entries, model.RotationLength)
-	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries); err != nil {
+	anchor := model.RotationAnchorDate
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries, anchor); err != nil {
 		return fmt.Errorf("write assigned schedule snapshot: %w", err)
 	}
 
 	staff.WorkTimeModelID = &model.ID
-	anchor := model.RotationAnchorDate
 	staff.RotationAnchorDate = &anchor
 	if err := s.staffRepo.Update(ctx, staff); err != nil {
 		return fmt.Errorf("bind template to staff: %w", err)
@@ -2148,13 +2222,28 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 // ApplyCustomScheduleRows replaces the schedule with custom rows and unbinds
 // any assigned template.
 func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff *userModels.Staff, entries []*configModels.StaffWorkSchedule, anchor timezone.Date) error {
-	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries); err != nil {
+	// An omitted anchor keeps the staff-level one; the new version must be
+	// stamped with that same effective anchor, or it would silently re-parity
+	// once the staff anchor moves.
+	effective := anchor
+	if effective.IsZero() && staff.RotationAnchorDate != nil {
+		effective = *staff.RotationAnchorDate
+	}
+	// First rotational schedule of a staff member who has no anchor anywhere:
+	// stamp today, which is the version's valid_from. Leaving the column NULL
+	// would let a later template assignment write a staff-level anchor that
+	// these rows then fall back to, re-paritying their A/B weeks and moving a
+	// historical Saldo.
+	if effective.IsZero() && isRotationalSchedule(entries) {
+		effective = timezone.TodayDate()
+	}
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries, effective); err != nil {
 		return fmt.Errorf("write custom schedule: %w", err)
 	}
 
 	staff.WorkTimeModelID = nil
-	if !anchor.IsZero() {
-		staff.RotationAnchorDate = &anchor
+	if !effective.IsZero() {
+		staff.RotationAnchorDate = &effective
 	}
 	if err := s.staffRepo.Update(ctx, staff); err != nil {
 		return fmt.Errorf("unbind template: %w", err)
@@ -2178,7 +2267,7 @@ func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, s
 		return err
 	}
 	scheduleRows := modelEntriesToScheduleRows(entries, rotation)
-	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, scheduleRows); err != nil {
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, scheduleRows, anchor); err != nil {
 		return fmt.Errorf("write saved template schedule snapshot: %w", err)
 	}
 
@@ -2188,6 +2277,138 @@ func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, s
 		return fmt.Errorf("bind freshly created template: %w", err)
 	}
 	return nil
+}
+
+// UpdateSchedule resolves the requested mode and applies the schedule change.
+func (s *workSessionService) UpdateSchedule(ctx context.Context, staff *userModels.Staff, in ScheduleUpdateInput) error {
+	mode := in.Mode
+	if mode == "" {
+		// Backwards compatibility: missing mode + flat entries means the
+		// caller still uses the single-week, no-rotation contract.
+		mode = "custom"
+		if in.RotationLength == 0 {
+			in.RotationLength = 1
+		}
+	}
+
+	switch mode {
+	case "template":
+		if in.ModelID == nil || *in.ModelID == 0 {
+			return scheduleValidationErrorf("model_id is required for mode=template")
+		}
+		return s.AssignScheduleTemplate(ctx, staff, *in.ModelID)
+	case "custom":
+		return s.applyCustomSchedule(ctx, staff, in)
+	default:
+		return scheduleValidationErrorf("invalid mode %q", mode)
+	}
+}
+
+func (s *workSessionService) applyCustomSchedule(ctx context.Context, staff *userModels.Staff, in ScheduleUpdateInput) error {
+	rotation := in.RotationLength
+	if rotation == 0 {
+		rotation = 1
+	}
+	if rotation < 1 || rotation > configModels.WorkTimeModelMaxRotation {
+		return scheduleValidationErrorf("rotation_length must be between 1 and %d", configModels.WorkTimeModelMaxRotation)
+	}
+
+	anchor := timezone.Date{}
+	if in.RotationAnchorDate != "" {
+		parsed, err := timezone.ParseDate(in.RotationAnchorDate)
+		if err != nil {
+			return scheduleValidationErrorf("invalid rotation_anchor_date: %v", err)
+		}
+		anchor = parsed
+	}
+
+	entries, templateEntries, err := buildScheduleEntries(in.Entries, rotation)
+	if err != nil {
+		return err
+	}
+
+	if in.SaveAsTemplateName != "" {
+		if err := s.SaveCustomScheduleAsTemplate(ctx, staff, in.SaveAsTemplateName, rotation, anchor, templateEntries); err != nil {
+			return fmt.Errorf("save as template: %w", err)
+		}
+		return nil
+	}
+
+	return s.ApplyCustomScheduleRows(ctx, staff, entries, anchor)
+}
+
+func buildScheduleEntries(reqEntries []ScheduleEntry, rotation int) ([]*configModels.StaffWorkSchedule, []*configModels.WorkTimeModelEntry, error) {
+	entries := make([]*configModels.StaffWorkSchedule, 0, len(reqEntries))
+	templateEntries := make([]*configModels.WorkTimeModelEntry, 0, len(reqEntries))
+	seenSlots := make(map[string]struct{}, len(reqEntries))
+	for _, e := range reqEntries {
+		if e.TargetMinutes <= 0 {
+			continue
+		}
+		if err := validateScheduleEntryRequest(e, rotation, seenSlots); err != nil {
+			return nil, nil, err
+		}
+		startTime, err := parseScheduleStartTime(e.StartTime)
+		if err != nil {
+			return nil, nil, err
+		}
+		entries = append(entries, &configModels.StaffWorkSchedule{
+			WeekIndex:      e.WeekIndex,
+			RotationLength: rotation,
+			DayOfWeek:      e.DayOfWeek,
+			TargetMinutes:  e.TargetMinutes,
+			StartTime:      startTime,
+		})
+		templateEntries = append(templateEntries, &configModels.WorkTimeModelEntry{
+			WeekIndex:     e.WeekIndex,
+			DayOfWeek:     e.DayOfWeek,
+			TargetMinutes: e.TargetMinutes,
+			StartTime:     startTime,
+		})
+	}
+	return entries, templateEntries, nil
+}
+
+func parseScheduleStartTime(raw *string) (*time.Time, error) {
+	if raw == nil || *raw == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse("15:04", *raw)
+	if err != nil {
+		return nil, scheduleValidationErrorf("start_time must be HH:MM")
+	}
+	wallClock := timezone.WallClock(parsed)
+	return &wallClock, nil
+}
+
+func validateScheduleEntryRequest(e ScheduleEntry, rotation int, seenSlots map[string]struct{}) error {
+	if e.WeekIndex < 0 || e.WeekIndex >= rotation {
+		return scheduleValidationErrorf("week_index %d outside rotation_length %d", e.WeekIndex, rotation)
+	}
+	if e.DayOfWeek < configModels.DayMonday || e.DayOfWeek > configModels.DaySunday {
+		return scheduleValidationErrorf("day_of_week must be between 0 and 6")
+	}
+	if e.TargetMinutes > scheduleEntryMaxTargetMinutes {
+		return scheduleValidationErrorf("target_minutes must be between 0 and %d", scheduleEntryMaxTargetMinutes)
+	}
+	slot := fmt.Sprintf("%d:%d", e.WeekIndex, e.DayOfWeek)
+	if _, ok := seenSlots[slot]; ok {
+		return scheduleValidationErrorf("duplicate schedule entry for week_index %d and day_of_week %d", e.WeekIndex, e.DayOfWeek)
+	}
+	seenSlots[slot] = struct{}{}
+	return nil
+}
+
+// isRotationalSchedule reports whether the rows span more than one week, i.e.
+// whether their parity depends on a rotation anchor at all. Single-week
+// schedules have no parity, so they keep a NULL anchor.
+func isRotationalSchedule(entries []*configModels.StaffWorkSchedule) bool {
+	for _, e := range entries {
+		if e != nil && (e.RotationLength > 1 || e.WeekIndex > 0) {
+			return true
+		}
+	}
+	return false
 }
 
 // modelEntriesToScheduleRows converts work-time-model entries into schedule

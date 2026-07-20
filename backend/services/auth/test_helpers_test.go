@@ -143,6 +143,10 @@ func (noopAccountRepository) FindByID(context.Context, interface{}) (*authModel.
 	panic("FindByID not implemented")
 }
 
+func (noopAccountRepository) FindByIDForUpdate(context.Context, int64) (*authModel.Account, error) {
+	panic("FindByIDForUpdate not implemented")
+}
+
 func (noopAccountRepository) FindByEmail(context.Context, string) (*authModel.Account, error) {
 	panic("FindByEmail not implemented")
 }
@@ -1063,6 +1067,14 @@ func (noopTokenRepository) FindByToken(context.Context, string) (*authModel.Toke
 
 func (noopTokenRepository) FindByTokenForUpdate(context.Context, string) (*authModel.Token, error) {
 	panic("FindByTokenForUpdate not implemented")
+}
+
+func (noopTokenRepository) MarkRotated(context.Context, int64, string, []byte, time.Time) error {
+	panic("MarkRotated not implemented")
+}
+
+func (noopTokenRepository) DeleteExpiredRotatedForAccount(context.Context, int64, time.Time) error {
+	panic("DeleteExpiredRotatedForAccount not implemented")
 }
 
 func (noopTokenRepository) FindByAccountID(context.Context, int64) ([]*authModel.Token, error) {

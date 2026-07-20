@@ -121,6 +121,8 @@ type OperatorEmailChangeTokenRepository interface {
 type OperatorRefreshTokenRepository interface {
 	Create(ctx context.Context, token *OperatorRefreshToken) error
 	FindByTokenForUpdate(ctx context.Context, token string) (*OperatorRefreshToken, error)
+	MarkRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error
+	DeleteExpiredRotated(ctx context.Context, familyID string, now time.Time) error
 	Delete(ctx context.Context, id any) error
 	DeleteByOperatorID(ctx context.Context, operatorID int64) (int, error)
 	DeleteByFamilyID(ctx context.Context, familyID string) error

@@ -68,7 +68,7 @@ vi.mock("~/components/ui/button", () => ({
     children: React.ReactNode;
     onClick?: () => void;
   }) => (
-    <button onClick={onClick} {...props}>
+    <button type="button" onClick={onClick} {...props}>
       {children}
     </button>
   ),
@@ -110,6 +110,7 @@ vi.mock("~/components/import/upload-section", () => ({
       <span data-testid="is-dragging">{isDragging.toString()}</span>
       <span data-testid="is-loading">{isLoading.toString()}</span>
       <button
+        type="button"
         data-testid="file-select-trigger"
         onClick={() =>
           onFileSelect(new File(["test"], "test.csv", { type: "text/csv" }))

@@ -343,6 +343,13 @@ func TestGetLogger_WithLogger(t *testing.T) {
 	assert.Equal(t, customLogger, svc.getLogger())
 }
 
+func TestLogOperatorRefreshDecision_NilLoggerDoesNotPanic(t *testing.T) {
+	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{Logger: nil}}
+	assert.NotPanics(t, func() {
+		svc.logOperatorRefreshDecision("expired", 42, 3)
+	})
+}
+
 // =============================================================================
 // Dispatch function tests with real Dispatcher + mock mailer
 // =============================================================================

@@ -348,7 +348,11 @@ func TestWSSessionToRow_Complete(t *testing.T) {
 			Source:       activeModels.WorkSessionSourceApp,
 			Notes:        "Regular day",
 		},
-		NetMinutes: 480, // 8h 0min
+		// Response-level total, as GetHistory populates it (totalBreakMinutes).
+		// For a closed session it equals the model cache; sessionToRow reads
+		// THIS field so the Pause column pairs with the live Netto (#1842).
+		BreakMinutes: 45,
+		NetMinutes:   480, // 8h 0min
 	}
 
 	row := svc.sessionToRow(sr)
@@ -363,6 +367,37 @@ func TestWSSessionToRow_Complete(t *testing.T) {
 	assert.Equal(t, "Vor Ort", row[6])     // Status (Issue #1368)
 	assert.Equal(t, "App", row[7])         // Quelle (Issue #1368)
 	assert.Equal(t, "Regular day", row[8]) // Bemerkungen
+}
+
+// An open session with a running break: the model cache (WorkSession.BreakMinutes)
+// still holds only ENDED breaks (0 here), while GetHistory has already put the
+// live total (35) on the response and deducted it from Netto. The export must
+// print the live total, not the stale cache — otherwise the row reads "Pause 0"
+// next to a Netto that visibly excludes those 35 minutes (#1842).
+func TestWSSessionToRow_RunningBreakUsesLiveTotal(t *testing.T) {
+	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
+
+	date := timezone.NewDate(2024, 1, 15)
+	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
+
+	sr := &SessionResponse{
+		WorkSession: &activeModels.WorkSession{
+			Model:        base.Model{ID: 1},
+			Date:         date,
+			CheckInTime:  checkIn,
+			CheckOutTime: nil, // still open
+			BreakMinutes: 0,   // cache: no ENDED breaks yet
+			Status:       activeModels.WorkSessionStatusPresent,
+			Source:       activeModels.WorkSessionSourceApp,
+		},
+		BreakMinutes: 35,  // live total incl. the running break
+		NetMinutes:   385, // already deducts the 35 min
+	}
+
+	row := svc.sessionToRow(sr)
+
+	assert.Equal(t, "35", row[4], "Pause must show the live break total, not the ended-break cache")
+	assert.Equal(t, "6h 25min", row[5])
 }
 
 func TestWSSessionToRow_NFC(t *testing.T) {

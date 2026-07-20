@@ -129,6 +129,7 @@ export function DatabaseSelect({
 
       <div className="relative">
         <select
+          aria-label={label ?? name}
           id={id ?? name}
           name={name}
           value={value}

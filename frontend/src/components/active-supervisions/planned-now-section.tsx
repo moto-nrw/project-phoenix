@@ -14,6 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { isCareDayExpected } from "~/lib/timetable-types";
 import { useShowTimetableCounts } from "~/lib/tenant-context";
 import type {
   PlannedTimetableInstance,
@@ -29,13 +30,36 @@ interface PlannedNowSectionProps {
 
 const SOON_THRESHOLD_MINUTES = 15;
 
+// Both numbers come from the backend, which counts only rows that are still
+// expected AND scheduled today. Deriving them from the roster length would
+// count sick, absent and already-present children as "erwartet" and contradict
+// the Erwartet stat on the very same card (#1747 review).
 function rosterPreviewLabel(
-  count: number,
+  rosterLength: number,
+  expectedCount: number,
+  notScheduledCount: number,
   showTimetableCounts: boolean,
 ): string {
-  if (count === 0) return "keine Liste";
+  if (rosterLength === 0) return "keine Liste";
   if (!showTimetableCounts) return "Liste verfügbar";
-  return `${count} erwartet`;
+  // Name the children the care plan leaves out (#1747) instead of quietly
+  // showing a smaller number than the assignment list.
+  if (notScheduledCount > 0) {
+    return `${expectedCount} erwartet · ${notScheduledCount} heute nicht eingeplant`;
+  }
+  return `${expectedCount} erwartet`;
+}
+
+// Both non-expected verdicts count here — "not_scheduled" (never booked that
+// weekday) and "cancelled" ("kommt heute nicht"). The backend leaves both out
+// of expected_students_count, so testing one value would show a child as
+// "Erwartet" that the header count does not include (#1747).
+function isNotScheduled(row: TimetableRosterRow): boolean {
+  return (
+    !isCareDayExpected(row.careDayStatus) &&
+    !row.currentlyPresent &&
+    row.status !== "present"
+  );
 }
 
 export function PlannedNowSection({
@@ -261,6 +285,8 @@ export function PlannedNowSection({
                         <span className="text-xs font-normal text-gray-500">
                           {rosterPreviewLabel(
                             instance.rosterPreview.length,
+                            instance.expectedStudentsCount,
+                            instance.notScheduledStudentsCount,
                             showTimetableCounts,
                           )}
                         </span>
@@ -406,11 +432,22 @@ function RosterPreviewRow({ row }: Readonly<{ row: TimetableRosterRow }>) {
     warnings.length > 0
       ? warnings.map((warning) => warning.message).join("\n")
       : null;
+  // Set apart, never hidden: a child who turns up anyway must still be one tap
+  // away from a check-in (#1747).
+  const notScheduled = isNotScheduled(row);
   return (
-    <div className="rounded-lg bg-white px-3 py-2 text-sm shadow-[0_1px_0_rgba(17,24,39,0.04)]">
+    <div
+      className={`rounded-lg px-3 py-2 text-sm shadow-[0_1px_0_rgba(17,24,39,0.04)] ${
+        notScheduled ? "bg-gray-50" : "bg-white"
+      }`}
+    >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate font-medium text-gray-900">
+          <p
+            className={`truncate font-medium ${
+              notScheduled ? "text-gray-500" : "text-gray-900"
+            }`}
+          >
             {row.studentName || `Kind ${row.studentId}`}
           </p>
           <p className="mt-0.5 truncate text-xs text-gray-500">
@@ -449,6 +486,12 @@ function rosterDotColor(row: TimetableRosterRow) {
   if (row.currentlyPresent || row.status === "present") {
     return LOCATION_COLORS.GROUP_ROOM;
   }
+  // The care-day verdict wins over "absent": a child the care plan leaves out
+  // today is reported as absent by the status-day layer, but it is not a real
+  // absence and must match the "nicht eingeplant" count in the header (#1747).
+  if (isNotScheduled(row)) {
+    return LOCATION_COLORS.UNKNOWN;
+  }
   if (row.status === "absent") {
     return LOCATION_COLORS.HOME;
   }
@@ -457,6 +500,11 @@ function rosterDotColor(row: TimetableRosterRow) {
 
 function rosterStatusLabel(row: TimetableRosterRow) {
   if (row.currentlyPresent || row.status === "present") return "Anwesend";
+  if (isNotScheduled(row)) {
+    return row.careDayStatus === "cancelled"
+      ? "Abgemeldet"
+      : "Nicht eingeplant";
+  }
   if (row.status === "absent") return "Abwesend";
   return "Erwartet";
 }

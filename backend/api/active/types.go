@@ -199,6 +199,7 @@ type RecentActivityItem struct {
 
 // CurrentActivityItem represents current activity status
 type CurrentActivityItem struct {
+	ID           string `json:"id"`
 	Name         string `json:"name"`
 	Category     string `json:"category"`
 	Participants int    `json:"participants"`

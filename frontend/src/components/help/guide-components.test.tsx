@@ -282,7 +282,7 @@ describe("GuideShell", () => {
     );
 
     const img = screen.getByAltText("Bild A");
-    expect(img).toHaveAttribute("src", "/help/screens/a.webp");
+    expect(img.getAttribute("src")).toContain("%2Fhelp%2Fscreens%2Fa.webp");
     // The image-less step renders no <img> (no placeholder).
     expect(screen.queryByAltText("Bild B")).not.toBeInTheDocument();
   });
@@ -299,9 +299,8 @@ describe("GuideShell", () => {
       />,
     );
 
-    expect(screen.getByAltText("Galeriebild 1")).toHaveAttribute(
-      "src",
-      "/help/screens/g1.webp",
+    expect(screen.getByAltText("Galeriebild 1").getAttribute("src")).toContain(
+      "%2Fhelp%2Fscreens%2Fg1.webp",
     );
     expect(screen.getByAltText("Galeriebild 2")).toBeInTheDocument();
     // Captions render below each figure.

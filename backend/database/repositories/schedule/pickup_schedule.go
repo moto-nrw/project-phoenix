@@ -122,6 +122,34 @@ func (r *StudentPickupScheduleRepository) FindByStudentIDsAndWeekday(ctx context
 	return schedules, nil
 }
 
+// FindByStudentIDs returns every weekday row for the given students in one
+// query. Mirror of the arrival-side helper — the care-day derivation (#1747)
+// must distinguish "no row for today" from "no plan at all", which a
+// per-weekday query cannot express.
+func (r *StudentPickupScheduleRepository) FindByStudentIDs(ctx context.Context, studentIDs []int64) ([]*schedule.StudentPickupSchedule, error) {
+	if len(studentIDs) == 0 {
+		return []*schedule.StudentPickupSchedule{}, nil
+	}
+
+	var schedules []*schedule.StudentPickupSchedule
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&schedules).
+		ModelTableExpr(`schedule.student_pickup_schedules AS "student_pickup_schedule"`).
+		Where(`"student_pickup_schedule".student_id IN (?)`, bun.List(studentIDs)).
+		Order("student_id ASC", "weekday ASC")
+
+	query = base.WithTenantFilter(ctx, query, "student_pickup_schedule")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student ids",
+			Err: err,
+		}
+	}
+
+	return schedules, nil
+}
+
 // UpsertSchedule creates or updates a pickup schedule for a student and weekday
 func (r *StudentPickupScheduleRepository) UpsertSchedule(ctx context.Context, s *schedule.StudentPickupSchedule) error {
 	if s == nil {
@@ -346,6 +374,36 @@ func (r *StudentPickupExceptionRepository) FindByStudentIDAndDateRange(
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student id and date range",
+			Err: err,
+		}
+	}
+	return exceptions, nil
+}
+
+// FindByStudentIDsAndDateRange finds pickup exceptions for multiple students
+// whose exception_date lies in the inclusive [from, to] range (bulk query).
+// Feeds the care-day derivation across a planner window in one round trip.
+func (r *StudentPickupExceptionRepository) FindByStudentIDsAndDateRange(
+	ctx context.Context, studentIDs []int64, from, to timezone.Date,
+) ([]*schedule.StudentPickupException, error) {
+	if len(studentIDs) == 0 {
+		return []*schedule.StudentPickupException{}, nil
+	}
+
+	var exceptions []*schedule.StudentPickupException
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&exceptions).
+		ModelTableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`).
+		Where(`"student_pickup_exception".student_id IN (?)`, bun.List(studentIDs)).
+		Where(`"student_pickup_exception".exception_date >= ?`, from).
+		Where(`"student_pickup_exception".exception_date <= ?`, to).
+		Order("exception_date ASC")
+
+	query = base.WithTenantFilter(ctx, query, "student_pickup_exception")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student ids and date range",
 			Err: err,
 		}
 	}

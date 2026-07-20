@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -17,7 +18,7 @@ async function bearerHeader() {
   return `Bearer ${token}`;
 }
 
-export async function GET(_request: NextRequest, context: RouteContext) {
+async function GETHandler(_request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
   const authHeader = await bearerHeader();
   if (!authHeader) {
@@ -41,7 +42,9 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   }
 }
 
-export async function PUT(request: NextRequest, context: RouteContext) {
+export const GET = withTenantAuth(GETHandler);
+
+async function PUTHandler(request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
   const authHeader = await bearerHeader();
   if (!authHeader) {
@@ -73,7 +76,9 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   }
 }
 
-export async function DELETE(_request: NextRequest, context: RouteContext) {
+export const PUT = withTenantAuth(PUTHandler);
+
+async function DELETEHandler(_request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
   const authHeader = await bearerHeader();
   if (!authHeader) {
@@ -103,3 +108,5 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     );
   }
 }
+
+export const DELETE = withTenantAuth(DELETEHandler);

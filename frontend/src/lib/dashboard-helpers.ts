@@ -43,6 +43,7 @@ interface RecentActivity {
 }
 
 interface CurrentActivity {
+  id: string;
   name: string;
   category: string;
   participants: number;
@@ -83,6 +84,7 @@ export interface DashboardAnalyticsResponse {
     timestamp: string;
   }>;
   current_activities: Array<{
+    id: string;
     name: string;
     category: string;
     participants: number;
@@ -127,6 +129,7 @@ export function mapDashboardAnalyticsResponse(
       timestamp: new Date(activity.timestamp),
     })),
     currentActivities: data.current_activities.map((activity) => ({
+      id: activity.id,
       name: activity.name,
       category: activity.category,
       participants: activity.participants,

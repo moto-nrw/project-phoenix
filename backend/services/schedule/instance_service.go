@@ -147,6 +147,18 @@ type InstanceService interface {
 	// QueueActivityUpdates emits one activity_update per touched active group
 	// after the surrounding tenant transaction commits. Rollbacks emit nothing.
 	QueueActivityUpdates(ctx context.Context, touched map[int64]*scheduleModel.ActivityInstance)
+
+	// ApplyDeviations applies a whole Vertretungsplan slide-over save atomically
+	// (#1840/#1886): day-lock, validate + classify (Phase A), then the absence /
+	// presence / substitution writes plus acknowledgement reconciliation
+	// (Phase B). See deviation_apply.go. Returns a DeviationError carrying the
+	// exact HTTP mapping on a validation/conflict failure.
+	ApplyDeviations(ctx context.Context, instanceID int64, in ApplyDeviationsInput) (*ApplyDeviationsResult, error)
+	// AcknowledgeUnderstaffed applies the standalone "deliberately unstaffed"
+	// acknowledgement: it gates past blocks, serializes against same-day staffing
+	// saves, then delegates to SetUnderstaffedAck. The note must arrive already
+	// trimmed/validated.
+	AcknowledgeUnderstaffed(ctx context.Context, instanceID int64, ack bool, note *string, actorAccountID *int64) (*scheduleModel.ActivityInstance, error)
 }
 
 // CreateInstanceInput bundles the fields needed to insert a fresh instance
@@ -224,6 +236,9 @@ type InstanceServiceDependencies struct {
 	StudentRepo       usersModel.StudentRepository
 	ActiveService     ActiveSessionEnder
 	Materialization   MaterializationService
+	// CareDayService decides which still-expected children may be stamped
+	// absent when an instance ends (#1747) — required.
+	CareDayService CareDayService
 	// DeviationEventRepo appends the Änderungsprotokoll (#1886) — required.
 	DeviationEventRepo auditModel.DeviationEventRepository
 	Broadcaster        realtime.Broadcaster
@@ -244,7 +259,7 @@ func NewInstanceService(deps InstanceServiceDependencies) InstanceService {
 		deps.ActiveGroupRepo == nil || deps.SupervisorRepo == nil || deps.VisitRepo == nil ||
 		deps.RoomRepo == nil || deps.ActivityGroupRepo == nil || deps.StaffRepo == nil ||
 		deps.StudentRepo == nil || deps.ActiveService == nil || deps.Materialization == nil ||
-		deps.DeviationEventRepo == nil || deps.DB == nil {
+		deps.CareDayService == nil || deps.DeviationEventRepo == nil || deps.DB == nil {
 		panic("schedule.NewInstanceService: required dependency is nil")
 	}
 	return &instanceService{deps: deps}
@@ -252,6 +267,55 @@ func NewInstanceService(deps InstanceServiceDependencies) InstanceService {
 
 func (s *instanceService) getLogger() *slog.Logger {
 	return cmp.Or(s.deps.Logger, slog.Default())
+}
+
+// notScheduledStudentIDs returns the instance's assigned children who are not
+// booked into care at all on the instance's date (#1747). Used to spare them
+// the expected → absent stamp when an instance ends.
+//
+// A child whose day was explicitly cancelled is NOT in this list: that is a
+// reported absence and has to be written, or it vanishes from the attendance
+// history and the exports (see CareDayStatus.ExemptFromAbsence).
+//
+// Neither is a child whose row somebody set by hand (ManualStatusAt). Staff can
+// set an unbooked slot back to 'expected' — "the plan is wrong, this child is
+// coming" — and that decision outranks the derivation: the row is a genuine
+// expectation, so it must take the ordinary expected → absent path rather than
+// be spared it and stamped as a non-booking (#1747 review).
+func (s *instanceService) notScheduledStudentIDs(
+	ctx context.Context, instance *scheduleModel.ActivityInstance,
+) ([]int64, error) {
+	rows, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instance.ID)
+	if err != nil {
+		return nil, &ScheduleError{Op: "complete instance: load attendance rows", Err: err}
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+
+	studentIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if row.ManualStatusAt != nil {
+			continue
+		}
+		studentIDs = append(studentIDs, row.StudentID)
+	}
+	if len(studentIDs) == 0 {
+		return nil, nil
+	}
+
+	careDay, err := s.deps.CareDayService.ResolveForDate(ctx, studentIDs, instance.Date)
+	if err != nil {
+		return nil, &ScheduleError{Op: "complete instance: resolve care day", Err: err}
+	}
+
+	notScheduled := make([]int64, 0)
+	for _, studentID := range studentIDs {
+		if careDay[studentID].ExemptFromAbsence() {
+			notScheduled = append(notScheduled, studentID)
+		}
+	}
+	return notScheduled, nil
 }
 
 // rejectSchulhofRoom returns ErrSchulhofSupervisionRequired when the given room
@@ -466,8 +530,30 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 	// group. Runs inside the caller's tenant tx — if EndActivitySession or
 	// updateLifecycleColumns fail below, the bulk update rolls back too, so
 	// the instance never leaves the tx in a half-finished state.
+	//
+	// Children who are not booked into care today are left alone (#1747): they
+	// were never expected, so "absent" would claim they failed to show up to
+	// care they were not booked for. A cancelled day still gets its absence.
+	notScheduled, err := s.notScheduledStudentIDs(ctx, instance)
+	if err != nil {
+		return nil, err
+	}
+	// Persist WHY those rows are spared before sparing them. Without the
+	// marker the spared rows are indistinguishable from ordinary expected
+	// rows, and every later writer of `status` — the attendance PATCH, a sick
+	// report — would silently create or destroy the fact (#1747 review).
+	refs := make([]scheduleModel.StudentInstanceRef, 0, len(notScheduled))
+	for _, studentID := range notScheduled {
+		refs = append(refs, scheduleModel.StudentInstanceRef{
+			StudentID:  studentID,
+			InstanceID: instance.ID,
+		})
+	}
+	if err := s.deps.InstanceStudents.MarkNotScheduled(ctx, refs); err != nil {
+		return nil, &ScheduleError{Op: "complete instance: mark not scheduled", Err: err}
+	}
 	if _, err := s.deps.InstanceStudents.BulkUpdateStatus(
-		ctx, instance.ID, scheduleModel.AttendanceStatusExpected, scheduleModel.AttendanceStatusAbsent,
+		ctx, instance.ID, scheduleModel.AttendanceStatusExpected, scheduleModel.AttendanceStatusAbsent, notScheduled,
 	); err != nil {
 		return nil, &ScheduleError{Op: "complete instance: mark absent", Err: err}
 	}

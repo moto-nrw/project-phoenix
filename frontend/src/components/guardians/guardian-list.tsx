@@ -117,6 +117,7 @@ export default function GuardianList({
                   guardian.accountStatus !== "active" &&
                   guardian.email && (
                     <button
+                      type="button"
                       onClick={() => onInvite(guardian)}
                       disabled={invitingGuardianId === guardian.id}
                       className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors hover:bg-[#f0f9e4] disabled:opacity-50"
@@ -137,6 +138,7 @@ export default function GuardianList({
                   )}
                 {onEdit && (
                   <button
+                    type="button"
                     onClick={() => onEdit(guardian)}
                     className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
                   >

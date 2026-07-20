@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { Suspense, use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 // eslint-disable-next-line no-restricted-imports -- parent portal uses bare paths, no tenant-router
 import { useRouter, useSearchParams } from "next/navigation";
@@ -35,6 +35,14 @@ interface PageProps {
  * on the parent-authenticated endpoints.
  */
 export default function ParentEnrollFormPage({ params }: PageProps) {
+  return (
+    <Suspense fallback={null}>
+      <ParentEnrollFormPageContent params={params} />
+    </Suspense>
+  );
+}
+
+function ParentEnrollFormPageContent({ params }: PageProps) {
   const t = useTranslations("enrollmentPublic");
   const { tenantSlug, phaseId } = use(params);
   const router = useRouter();

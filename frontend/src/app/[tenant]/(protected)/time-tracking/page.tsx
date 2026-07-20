@@ -28,6 +28,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "~/components/ui/chart";
+import { Alert } from "~/components/ui/alert";
 import { Modal } from "~/components/ui/modal";
 import { OriginChip } from "~/components/ui/origin-chip";
 import {
@@ -38,21 +39,24 @@ import {
 import { StaffSessionTable } from "~/components/staff/staff-session-table";
 import { StaffExportButton } from "~/components/staff/staff-export-button";
 import { BetreuungsplanHeuteCard } from "~/components/time-tracking/betreuungsplan-heute-card";
+import { Monatskarte } from "~/components/time-tracking/monatskarte";
 import { LeaveRequestsCard } from "~/components/time-tracking/leave-requests-card";
 import type { StaffHistorySession, StaffAbsenceRow } from "~/lib/staff-api";
 import { ownShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
-import { toISODate } from "~/lib/date-helpers";
+import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useToast } from "~/contexts/ToastContext";
-import { useSWRAuth } from "~/lib/swr";
-import { useSWRConfig } from "swr";
+import {
+  usePeriodMetrics,
+  type PeriodMetrics,
+} from "~/lib/hooks/use-period-metrics";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { staffScheduleService } from "~/lib/staff-api";
 import {
-  computeStaffMetrics,
-  resolveAccountStartDate,
+  adaptAbsenceForMetrics,
+  adaptHistorySessionForMetrics,
   startOfYear,
-  toDateKey,
 } from "~/lib/staff-metrics-helpers";
 import {
   DEVIATION_REASON_REQUIRED_CODE,
@@ -64,6 +68,7 @@ import { userContextService } from "~/lib/usercontext-api";
 import type { ApiError } from "~/lib/auth-api";
 import {
   type AbsenceType,
+  type MonthSummary,
   type StaffAbsence,
   type WorkSession,
   type WorkSessionBreak,
@@ -75,52 +80,13 @@ import {
   getWeekDays,
   getWeekNumber,
   calculateNetMinutes,
+  OPEN_MONTH_REFRESH_MS,
 } from "~/lib/time-tracking-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "TimeTrackingPage" });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function adaptHistorySessionForMetrics(
-  session: WorkSessionHistory,
-): StaffHistorySession {
-  return {
-    id: session.id ? Number(session.id) : undefined,
-    date: session.date,
-    status: session.status,
-    source: undefined,
-    net_minutes: session.netMinutes,
-    check_in_time: session.checkInTime,
-    check_out_time: session.checkOutTime,
-    break_minutes: session.breakMinutes,
-    auto_checked_out: session.autoCheckedOut,
-    notes: session.notes || undefined,
-    edit_count: session.editCount,
-    audit_count: session.auditCount,
-  };
-}
-
-function adaptAbsenceForMetrics(absence: StaffAbsence): StaffAbsenceRow {
-  return {
-    id: Number(absence.id),
-    staff_id: Number(absence.staffId),
-    absence_type: absence.absenceType,
-    date_start: absence.dateStart,
-    date_end: absence.dateEnd,
-    half_day: absence.halfDay,
-    start_half_day: absence.startHalfDay,
-    end_half_day: absence.endHalfDay,
-    note: absence.note,
-    status: absence.status,
-    approved_by: absence.approvedBy ? Number(absence.approvedBy) : null,
-    approved_at: absence.approvedAt,
-    working_days: absence.workingDays,
-    decision_note: absence.decisionNote,
-    requested_at: absence.requestedAt,
-    duration_days: absence.durationDays,
-  };
-}
 
 function formatDateGerman(date: Date): string {
   const day = date.getDate().toString().padStart(2, "0");
@@ -589,7 +555,7 @@ function ClockInCard({
   readonly onEndBreak: () => Promise<void>;
   readonly weeklyMinutes: number;
   readonly onAddAbsence: () => void;
-  readonly metrics?: ReturnType<typeof computeStaffMetrics> | null;
+  readonly metrics?: PeriodMetrics | null;
   readonly plannedShifts?: readonly StaffShift[];
   readonly cancelledShifts?: readonly StaffShift[];
 }) {
@@ -886,18 +852,21 @@ function ClockInCard({
             {/* Mode toggle */}
             <div className="flex flex-wrap justify-center gap-2">
               <button
+                type="button"
                 onClick={() => setMode("present")}
                 className={getModeToggleClassName("present", mode)}
               >
                 In der OGS
               </button>
               <button
+                type="button"
                 onClick={() => setMode("home_office")}
                 className={getModeToggleClassName("home_office", mode)}
               >
                 Homeoffice
               </button>
               <button
+                type="button"
                 onClick={() => setMode("absent")}
                 className={getModeToggleClassName("absent", mode)}
               >
@@ -908,6 +877,7 @@ function ClockInCard({
             {/* Action button: play (check-in) or calendar (absence) */}
             {mode === "absent" ? (
               <button
+                type="button"
                 onClick={onAddAbsence}
                 className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-red-400 text-red-500 transition-all hover:bg-red-50 active:scale-95"
                 aria-label="Abwesenheit melden"
@@ -928,6 +898,7 @@ function ClockInCard({
               </button>
             ) : (
               <button
+                type="button"
                 onClick={handleCheckIn}
                 disabled={actionLoading || mode === null}
                 className={getCheckInButtonClassName(mode)}
@@ -966,6 +937,7 @@ function ClockInCard({
               <div className="relative">
                 {isOnBreak ? (
                   <button
+                    type="button"
                     onClick={handleEndBreakEarly}
                     disabled={actionLoading}
                     className={getBreakButtonClassName(true, breakMins)}
@@ -981,6 +953,7 @@ function ClockInCard({
                   </button>
                 ) : (
                   <button
+                    type="button"
                     onClick={() => setBreakMenuOpen(!breakMenuOpen)}
                     disabled={actionLoading}
                     className={getBreakButtonClassName(false, breakMins)}
@@ -1077,6 +1050,7 @@ function ClockInCard({
 
               {/* Stop / check-out button */}
               <button
+                type="button"
                 onClick={handleCheckOut}
                 disabled={actionLoading || isOnBreak}
                 className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-gray-300 text-gray-500 transition-all hover:border-red-400 hover:text-red-500 active:scale-95 disabled:opacity-50"
@@ -1188,40 +1162,55 @@ function ClockInCard({
 function ClockInStatsStrip({
   metrics,
 }: {
-  readonly metrics: ReturnType<typeof computeStaffMetrics>;
+  // Every figure is date-valid, straight from the backend month model
+  // (usePeriodMetrics, #1842). Never computeStaffMetrics: that one prices
+  // historical days at the CURRENT schedule and contradicts the Monatskarte
+  // further down the page after a contract change. null = loading.
+  readonly metrics: PeriodMetrics;
 }) {
-  const weekPct =
-    metrics.weekSoll > 0 ? (metrics.weekIst / metrics.weekSoll) * 100 : 0;
-  const monthPct =
-    metrics.monthSoll > 0 ? (metrics.monthIst / metrics.monthSoll) * 100 : 0;
+  const { week, month, accountBalanceMinutes } = metrics;
+
+  const weekPct = week && week.soll > 0 ? (week.ist / week.soll) * 100 : 0;
+  const monthPct = month && month.soll > 0 ? (month.ist / month.soll) * 100 : 0;
 
   const accountTone: StatusTone =
-    metrics.accountBalance > 0
-      ? "amber"
-      : metrics.accountBalance < -60
-        ? "gray"
-        : "green";
+    accountBalanceMinutes === null
+      ? "gray"
+      : accountBalanceMinutes > 0
+        ? "amber"
+        : accountBalanceMinutes < -60
+          ? "gray"
+          : "green";
 
   return (
     <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3 sm:gap-4">
       <InlineStat
         label="Diese Woche"
-        primary={formatDuration(metrics.weekIst)}
-        secondary={`von ${formatDuration(metrics.weekSoll)}`}
-        progressPct={weekPct}
+        primary={week === null ? "–" : formatDuration(week.ist)}
+        secondary={
+          week === null ? undefined : `von ${formatDuration(week.soll)}`
+        }
+        progressPct={week === null ? undefined : weekPct}
         tone="green"
       />
       <InlineStat
         label="Dieser Monat"
-        primary={formatDuration(metrics.monthIst)}
-        secondary={`von ${formatDuration(metrics.monthSoll)}`}
-        progressPct={monthPct}
+        primary={month === null ? "–" : formatDuration(month.ist)}
+        secondary={
+          month === null ? undefined : `von ${formatDuration(month.soll)}`
+        }
+        progressPct={month === null ? undefined : monthPct}
         tone="green"
       />
       <InlineStat
         label="Stundenkonto"
-        primary={formatSignedDuration(metrics.accountBalance)}
+        primary={
+          accountBalanceMinutes === null
+            ? "–"
+            : formatSignedDuration(accountBalanceMinutes)
+        }
         secondary={`seit ${metrics.accountStart.toLocaleDateString("de-DE", {
+          timeZone: "Europe/Berlin",
           day: "numeric",
           month: "short",
         })}`}
@@ -1417,7 +1406,7 @@ function BreakActivityLog({
     showBorder: boolean,
   ) => (
     <div
-      key={`${seg.type}-${index}`}
+      key={`${seg.type}-${seg.start.toISOString()}`}
       className={`flex items-center justify-between py-2.5 text-sm ${
         showBorder ? "border-t border-gray-50" : ""
       } ${getSegmentRowColor(seg)}`}
@@ -1473,6 +1462,7 @@ function BreakActivityLog({
       {/* Toggle button at the bottom */}
       {hasHidden && (
         <button
+          type="button"
           onClick={() => setExpanded(!expanded)}
           className="w-full border-t border-gray-50 py-1.5 text-center text-xs font-medium text-gray-400 transition-colors hover:text-gray-600"
         >
@@ -1521,19 +1511,23 @@ function OwnZeiterfassungSection({
     absence: StaffAbsence | null,
   ) => void;
 }) {
-  const today = useMemo(() => new Date(), []);
+  // The Berlin day, not the browser's, and re-rendered on the rollover: this
+  // section stays mounted all day, and `new Date()` frozen at mount would keep
+  // "Diesen Monat" and the open-month poll pointing at yesterday's month after
+  // midnight — and at the wrong month entirely from a non-Berlin browser
+  // (#1842). The backend derives its month from timezone.TodayDate().
+  const todayISO = useBerlinToday();
+  const today = useMemo(() => parseISODate(todayISO), [todayISO]);
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [weekAnchor, setWeekAnchor] = useState<Date>(() => {
-    const d = new Date();
+    const d = parseISODate(berlinTodayISO());
     const day = (d.getDay() + 6) % 7; // Mon = 0
     d.setDate(d.getDate() - day);
-    d.setHours(0, 0, 0, 0);
     return d;
   });
   const [monthAnchor, setMonthAnchor] = useState<Date>(() => {
-    const d = new Date();
+    const d = parseISODate(berlinTodayISO());
     d.setDate(1);
-    d.setHours(0, 0, 0, 0);
     return d;
   });
 
@@ -1588,6 +1582,87 @@ function OwnZeiterfassungSection({
     [tableAbsences],
   );
 
+  // Own Dienstplan shifts for the visible range → the "Plan (Schicht)"
+  // column, same as the admin view (#1842 AC1). Loading and error state are
+  // surfaced explicitly: rendering an unresolved or failed request as []
+  // would show "–" in every Plan cell, presenting a fetch failure as proof
+  // that no shifts were planned.
+  const {
+    data: tableShifts,
+    isLoading: shiftsLoading,
+    error: shiftsError,
+  } = useSWRAuth(
+    `time-tracking-table-shifts-${visibleFromKey}-${visibleToKey}`,
+    () => ownShiftService.getOwnShifts(visibleFromKey, visibleToKey),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
+  // Date-valid Soll for the visible range (#1842). Fetched in BOTH view modes:
+  // the table's `schedule` prop only ever describes the CURRENT plan, so after
+  // a contract change it would print today's hours onto historical rows and
+  // contradict the Monatskarte above it.
+  // `isLoading` is the staleness signal, not a spinner: with keepPreviousData
+  // SWR serves the PREVIOUS range's map while the new one is in flight, and the
+  // table must not fall back to today's plan for the days it doesn't cover.
+  const {
+    data: dailyTargets,
+    error: dailyTargetsError,
+    isLoading: dailyTargetsLoading,
+  } = useSWRAuth(
+    `time-tracking-schedule-targets-${visibleFromKey}-${visibleToKey}`,
+    () => timeTrackingService.getScheduleTargets(visibleFromKey, visibleToKey),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
+  // Monatskarte (#1842): server-computed month aggregate, read-only for the
+  // staff member. Only fetched in month mode. Check-ins, checkouts and
+  // absence changes invalidate this key (refreshTableData); the poll on top
+  // covers a still-running session, whose Ist grows server-side.
+  const monthYear = monthAnchor.getFullYear();
+  const monthNumber = monthAnchor.getMonth() + 1;
+  const isCurrentMonth =
+    monthYear === today.getFullYear() && monthNumber === today.getMonth() + 1;
+  const {
+    data: monthSummary,
+    isLoading: monthSummaryLoading,
+    error: monthSummaryError,
+  } = useSWRAuth<MonthSummary>(
+    viewMode === "month"
+      ? `time-tracking-month-summary-${monthYear}-${monthNumber}`
+      : null,
+    () => timeTrackingService.getMonthSummary(monthYear, monthNumber),
+    { refreshInterval: isCurrentMonth ? OPEN_MONTH_REFRESH_MS : 0 },
+  );
+
+  const { data: timeTrackingConfig } = useSWRAuth(
+    "time-tracking-config",
+    () => timeTrackingService.getConfig(),
+    { revalidateOnFocus: false },
+  );
+  // A month wholly before the configured account start is summarized standalone
+  // by the backend (full month, zero carry) and its closing value never enters
+  // the account chain — so the Monatskarte must not sell it as a carry or as
+  // the Stundenkonto (#1842).
+  const accountStartDate = timeTrackingConfig?.accountStartDate ?? "";
+  const isPreAccountMonth =
+    accountStartDate !== "" &&
+    `${monthYear}-${String(monthNumber).padStart(2, "0")}` <
+      accountStartDate.slice(0, 7);
+  // A start later THIS month (same month, future day) is not "pre-account" by
+  // the month comparison above, but the account still hasn't begun — the card
+  // must not print a "Stundenkonto Stand" for it (#1842). ISO dates compare
+  // lexicographically; both are "YYYY-MM-DD".
+  const accountStartsInFuture =
+    accountStartDate !== "" && accountStartDate > todayISO;
+
+  // Self-scoped audit-trail fetcher so staff read their own Abweichungsgründe
+  // without time_tracking:manage (#1842 AC8).
+  const fetchOwnEdits = useCallback(
+    (_staffId: string, sessionId: string) =>
+      timeTrackingService.getSessionEdits(sessionId),
+    [],
+  );
+
   const handleEdit = (date: Date) => {
     const dateKey = toISODate(date);
     const session = tableHistory.find((h) => h.date === dateKey) ?? null;
@@ -1637,31 +1712,31 @@ function OwnZeiterfassungSection({
   };
   const isOnCurrent = useMemo(() => {
     if (viewMode === "month") {
-      return (
-        monthAnchor.getFullYear() === today.getFullYear() &&
-        monthAnchor.getMonth() === today.getMonth()
-      );
+      return isCurrentMonth;
     }
     const cur = new Date(today);
     const day = (cur.getDay() + 6) % 7;
     cur.setDate(cur.getDate() - day);
     cur.setHours(0, 0, 0, 0);
     return cur.getTime() === weekAnchor.getTime();
-  }, [viewMode, monthAnchor, weekAnchor, today]);
+  }, [viewMode, isCurrentMonth, weekAnchor, today]);
 
   const labelRange = useMemo(() => {
     if (viewMode === "month") {
       return monthAnchor.toLocaleDateString("de-DE", {
+        timeZone: "Europe/Berlin",
         month: "long",
         year: "numeric",
       });
     }
     const weekNum = getWeekNumber(visibleFrom);
     const start = visibleFrom.toLocaleDateString("de-DE", {
+      timeZone: "Europe/Berlin",
       day: "numeric",
       month: "short",
     });
     const end = visibleTo.toLocaleDateString("de-DE", {
+      timeZone: "Europe/Berlin",
       day: "numeric",
       month: "short",
       year: "numeric",
@@ -1749,20 +1824,52 @@ function OwnZeiterfassungSection({
           </button>
         </div>
       </div>
-      {tableLoading && tableHistory.length === 0 ? (
+      {viewMode === "month" && (
+        <div className="mb-4">
+          <Monatskarte
+            summary={monthSummary ?? null}
+            isLoading={monthSummaryLoading}
+            error={
+              monthSummaryError
+                ? "Die Monatskarte konnte nicht geladen werden."
+                : null
+            }
+            isCurrentMonth={isCurrentMonth}
+            isPreAccountMonth={isPreAccountMonth}
+            accountStartsInFuture={accountStartsInFuture}
+            accountStartDate={accountStartDate}
+          />
+        </div>
+      )}
+      {(tableLoading && tableHistory.length === 0) || shiftsLoading ? (
         <div className="py-10 text-center text-sm text-gray-400">...</div>
       ) : (
-        <StaffSessionTable
-          staffId={ownStaffId ?? ""}
-          from={visibleFrom}
-          to={visibleTo}
-          sessions={adaptedSessions}
-          absences={adaptedAbsences}
-          schedule={schedule}
-          today={today}
-          isAdminView={ownStaffId !== null}
-          onEditDay={(date) => handleEdit(date)}
-        />
+        <>
+          {shiftsError ? (
+            <div className="mb-4">
+              <Alert
+                type="error"
+                message="Der Dienstplan konnte nicht geladen werden. Die Plan-Spalte ist deshalb unvollständig; bitte die Seite neu laden."
+              />
+            </div>
+          ) : null}
+          <StaffSessionTable
+            staffId={ownStaffId ?? ""}
+            from={visibleFrom}
+            to={visibleTo}
+            sessions={adaptedSessions}
+            absences={adaptedAbsences}
+            schedule={schedule}
+            dailyTargets={dailyTargets}
+            dailyTargetsError={dailyTargetsError != null}
+            dailyTargetsPending={dailyTargetsLoading}
+            today={today}
+            isAdminView={ownStaffId !== null}
+            onEditDay={(date) => handleEdit(date)}
+            plannedShifts={tableShifts ?? []}
+            fetchEdits={fetchOwnEdits}
+          />
+        </>
       )}
     </div>
   );
@@ -2294,12 +2401,14 @@ function EditSessionModal({
   const sessionFooter = (
     <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
       <button
+        type="button"
         onClick={onClose}
         className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
       >
         Abbrechen
       </button>
       <button
+        type="button"
         onClick={handleSave}
         disabled={saving || !startTime || !notes.trim() || hasInvalidTimeRange}
         className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -2312,12 +2421,14 @@ function EditSessionModal({
   const absenceFooter = (
     <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
       <button
+        type="button"
         onClick={onClose}
         className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
       >
         Abbrechen
       </button>
       <button
+        type="button"
         onClick={handleAbsenceSave}
         disabled={absenceSaving || !absDateStart || !absDateEnd}
         className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -2428,6 +2539,7 @@ function EditSessionModal({
                           </span>
                           <div className="relative flex-1">
                             <select
+                              aria-label={`Pausendauer ab ${formatTime(brk.startedAt)}`}
                               value={(
                                 breakDurations.get(brk.id) ??
                                 brk.durationMinutes
@@ -2678,6 +2790,7 @@ function EditSessionModal({
               <button
                 type="button"
                 role="switch"
+                aria-label="Halber Tag"
                 aria-checked={absHalfDay}
                 onClick={() => setAbsHalfDay(!absHalfDay)}
                 className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors ${absHalfDay ? "bg-gray-900" : "bg-gray-200"}`}
@@ -2805,12 +2918,14 @@ function CreateAbsenceModal({
       footer={
         <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
           <button
+            type="button"
             onClick={onClose}
             className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
           >
             Abbrechen
           </button>
           <button
+            type="button"
             onClick={handleSave}
             disabled={saving || !dateStart || !dateEnd}
             className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -2900,6 +3015,7 @@ function CreateAbsenceModal({
           <button
             type="button"
             role="switch"
+            aria-label="Halber Tag"
             aria-checked={halfDay}
             onClick={() => setHalfDay(!halfDay)}
             className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors ${halfDay ? "bg-gray-900" : "bg-gray-200"}`}
@@ -3046,18 +3162,15 @@ function TimeTrackingContent() {
       { keepPreviousData: true, revalidateOnFocus: false, errorRetryCount: 1 },
     );
 
-  // Pattern-mutate helper — refreshes both the WeekChart's history fetch
-  // and the OwnZeiterfassungSection's dedicated table fetches after an
-  // edit, so the table updates without a manual refresh.
-  const { mutate: swrMutate } = useSWRConfig();
-  const refreshTableData = useCallback(
-    () =>
-      swrMutate(
-        (key) =>
-          typeof key === "string" && key.startsWith("time-tracking-table"),
-      ),
-    [swrMutate],
-  );
+  // Pattern-mutate helper — refreshes the OwnZeiterfassungSection's dedicated
+  // table fetches and its Monatskarte after a check-in/out, edit or absence
+  // change, so both update without a manual refresh. The Monatskarte belongs
+  // in here: its Ist, Gutschriften, Saldo and Übertrag are server-derived from
+  // exactly the sessions and absences these handlers just changed.
+  const refreshTableData = useTenantMutateMatching([
+    "time-tracking-table",
+    "time-tracking-month-summary",
+  ]);
 
   // Fetch history covering 2 weeks (chart needs prev + current week)
   const { data: historyData, mutate: mutateHistory } = useSWRAuth<{
@@ -3124,22 +3237,12 @@ function TimeTrackingContent() {
 
   // --- MA-Saldo-Widget (Tranche 1.5) ----------------------------------------
   //
-  // The user's own staff id comes from the user-context endpoint; we then
-  // fetch the staff-scoped schedule/history/absence endpoints over the
-  // cumulative range and feed them into
-  // computeStaffMetrics, the same helper the admin staff-detail view uses.
-  // KpiCards then renders Diese Woche / Dieser Monat / Überstunden / Stundenkonto.
-  //
-  // Note: history is already fetched up there for the chart, but only over
-  // 2 weeks. The Stundenkonto card needs the full account range.
-  // So we issue a parallel, wider fetch keyed by the cumulative range; SWR
-  // dedupes anything that overlaps.
-  const todayMidnight = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
-
+  // Diese Woche / Dieser Monat / Stundenkonto all come from the server-computed
+  // model (usePeriodMetrics, #1842), which prices every day against the
+  // schedule that was valid on that day. The old path fed the CURRENT schedule
+  // plus a history fetch over the whole account range into computeStaffMetrics,
+  // which re-priced historical days at today's hours and contradicted the
+  // Monatskarte further down this very page.
   const { data: ownStaff } = useSWRAuth(
     "time-tracking-own-staff",
     () => userContextService.getCurrentStaff(),
@@ -3153,63 +3256,7 @@ function TimeTrackingContent() {
     { revalidateOnFocus: false },
   );
 
-  const { data: timeTrackingConfig } = useSWRAuth(
-    "time-tracking-config",
-    () => timeTrackingService.getConfig(),
-    { revalidateOnFocus: false },
-  );
-
-  const accountAnchor = useMemo(() => {
-    return resolveAccountStartDate(
-      todayMidnight,
-      timeTrackingConfig?.accountStartDate,
-    );
-  }, [timeTrackingConfig?.accountStartDate, todayMidnight]);
-  const accountFrom = toDateKey(accountAnchor);
-  const accountTo = toDateKey(todayMidnight);
-  const { data: accountHistoryData } = useSWRAuth<{
-    sessions: WorkSessionHistory[];
-    weeklySummaries: WeeklySummary[];
-  }>(
-    ownStaffId
-      ? `time-tracking-own-history-${ownStaffId}-${accountFrom}-${accountTo}`
-      : null,
-    () => timeTrackingService.getHistory(accountFrom, accountTo),
-    { revalidateOnFocus: false },
-  );
-  const accountSessions = useMemo<StaffHistorySession[]>(
-    () =>
-      (accountHistoryData?.sessions ?? []).map(adaptHistorySessionForMetrics),
-    [accountHistoryData],
-  );
-  const { data: accountAbsenceData } = useSWRAuth<StaffAbsence[]>(
-    ownStaffId
-      ? `time-tracking-own-absences-${ownStaffId}-${accountFrom}-${accountTo}`
-      : null,
-    () => timeTrackingService.getAbsences(accountFrom, accountTo),
-    { revalidateOnFocus: false },
-  );
-  const accountAbsences = useMemo<StaffAbsenceRow[]>(
-    () => (accountAbsenceData ?? []).map(adaptAbsenceForMetrics),
-    [accountAbsenceData],
-  );
-
-  const ownMetrics = useMemo(() => {
-    if (!ownSchedule) return null;
-    return computeStaffMetrics(
-      ownSchedule,
-      accountSessions,
-      accountAbsences,
-      todayMidnight,
-      timeTrackingConfig?.accountStartDate,
-    );
-  }, [
-    ownSchedule,
-    accountSessions,
-    accountAbsences,
-    todayMidnight,
-    timeTrackingConfig?.accountStartDate,
-  ]);
+  const ownMetrics = usePeriodMetrics();
 
   // Fetch breaks for current session
   const fetchBreaks = useCallback(async () => {
@@ -3619,7 +3666,7 @@ function TimeTrackingContent() {
           half_day: req.half_day,
           note: req.note,
         });
-        await mutateAbsences();
+        await Promise.all([mutateAbsences(), refreshTableData()]);
         toast.success("Abwesenheit eingetragen");
         setAbsenceModalOpen(false);
       } catch (err) {
@@ -3631,14 +3678,14 @@ function TimeTrackingContent() {
         );
       }
     },
-    [mutateAbsences, toast],
+    [mutateAbsences, refreshTableData, toast],
   );
 
   const handleDeleteAbsence = useCallback(
     async (id: string) => {
       try {
         await timeTrackingService.deleteAbsence(id);
-        await mutateAbsences();
+        await Promise.all([mutateAbsences(), refreshTableData()]);
         toast.success("Abwesenheit gelöscht");
       } catch (err) {
         logger.error("delete_absence_failed", {
@@ -3648,7 +3695,7 @@ function TimeTrackingContent() {
         toast.error(friendlyError(err, "Fehler beim Löschen der Abwesenheit"));
       }
     },
-    [mutateAbsences, toast],
+    [mutateAbsences, refreshTableData, toast],
   );
 
   const handleUpdateAbsence = useCallback(
@@ -3664,7 +3711,7 @@ function TimeTrackingContent() {
     ) => {
       try {
         await timeTrackingService.updateAbsence(id, req);
-        await mutateAbsences();
+        await Promise.all([mutateAbsences(), refreshTableData()]);
         toast.success("Abwesenheit aktualisiert");
       } catch (err) {
         logger.error("update_absence_failed", {
@@ -3676,7 +3723,7 @@ function TimeTrackingContent() {
         );
       }
     },
-    [mutateAbsences, toast],
+    [mutateAbsences, refreshTableData, toast],
   );
 
   if (authStatus === "loading") {
@@ -3703,7 +3750,7 @@ function TimeTrackingContent() {
           onEndBreak={handleEndBreak}
           weeklyMinutes={weeklyCompletedMinutes}
           onAddAbsence={() => setAbsenceModalOpen(true)}
-          metrics={ownMetrics ?? null}
+          metrics={ownMetrics}
           plannedShifts={todayShifts}
           cancelledShifts={todayCancelledShifts}
         />
@@ -3763,12 +3810,14 @@ function TimeTrackingContent() {
         footer={
           <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
             <button
+              type="button"
               onClick={() => setPendingManualEditCheckIn(null)}
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50"
             >
               Abbrechen
             </button>
             <button
+              type="button"
               onClick={async () => {
                 const status = pendingManualEditCheckIn;
                 setPendingManualEditCheckIn(null);
@@ -3819,12 +3868,14 @@ function TimeTrackingContent() {
         footer={
           <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
             <button
+              type="button"
               onClick={() => setPendingCheckIn(null)}
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50"
             >
               Abbrechen
             </button>
             <button
+              type="button"
               onClick={async () => {
                 const status = pendingCheckIn;
                 setPendingCheckIn(null);
@@ -3872,6 +3923,7 @@ function TimeTrackingContent() {
         footer={
           <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
             <button
+              type="button"
               onClick={handleClosePendingReopenStatusChange}
               disabled={reopenStatusChangeSubmitting}
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
@@ -3879,6 +3931,7 @@ function TimeTrackingContent() {
               Abbrechen
             </button>
             <button
+              type="button"
               onClick={confirmReopenStatusChange}
               disabled={
                 reopenStatusChangeSubmitting ||
@@ -3938,6 +3991,7 @@ function TimeTrackingContent() {
         footer={
           <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
             <button
+              type="button"
               onClick={handleClosePendingDeviation}
               disabled={deviationSubmitting}
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
@@ -3945,6 +3999,7 @@ function TimeTrackingContent() {
               Abbrechen
             </button>
             <button
+              type="button"
               onClick={confirmDeviationReason}
               disabled={deviationSubmitting || deviationReason.trim() === ""}
               className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"

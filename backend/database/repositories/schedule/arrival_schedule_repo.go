@@ -112,6 +112,37 @@ func (r *StudentArrivalScheduleRepository) FindByStudentIDsAndWeekday(ctx contex
 	return schedules, nil
 }
 
+// FindByStudentIDs returns every weekday row for the given students in one
+// query. The care-day derivation (#1747) needs the full week per child, not a
+// single weekday: "no row for today" only means "not in care today" when the
+// child has rows for OTHER weekdays — a child with no plan at all must stay
+// visible. A per-weekday query cannot tell those two cases apart, and calling
+// FindByStudentIDsAndWeekday once per date across a planner window would be
+// O(days) queries instead of one.
+func (r *StudentArrivalScheduleRepository) FindByStudentIDs(ctx context.Context, studentIDs []int64) ([]*schedule.StudentArrivalSchedule, error) {
+	if len(studentIDs) == 0 {
+		return []*schedule.StudentArrivalSchedule{}, nil
+	}
+
+	var schedules []*schedule.StudentArrivalSchedule
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&schedules).
+		ModelTableExpr(`schedule.student_arrival_schedules AS "student_arrival_schedule"`).
+		Where(`"student_arrival_schedule".student_id IN (?)`, bun.List(studentIDs)).
+		Order("student_id ASC", "weekday ASC")
+
+	query = base.WithTenantFilter(ctx, query, "student_arrival_schedule")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student ids",
+			Err: err,
+		}
+	}
+
+	return schedules, nil
+}
+
 // UpsertSchedule creates or updates an arrival schedule for a student and weekday
 func (r *StudentArrivalScheduleRepository) UpsertSchedule(ctx context.Context, s *schedule.StudentArrivalSchedule) error {
 	if s == nil {
@@ -333,6 +364,36 @@ func (r *StudentArrivalExceptionRepository) FindByStudentIDAndDateRange(
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student id and date range",
+			Err: err,
+		}
+	}
+	return exceptions, nil
+}
+
+// FindByStudentIDsAndDateRange finds arrival exceptions for multiple students
+// whose exception_date lies in the inclusive [from, to] range (bulk query).
+// Feeds the care-day derivation across a planner window in one round trip.
+func (r *StudentArrivalExceptionRepository) FindByStudentIDsAndDateRange(
+	ctx context.Context, studentIDs []int64, from, to timezone.Date,
+) ([]*schedule.StudentArrivalException, error) {
+	if len(studentIDs) == 0 {
+		return []*schedule.StudentArrivalException{}, nil
+	}
+
+	var exceptions []*schedule.StudentArrivalException
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&exceptions).
+		ModelTableExpr(`schedule.student_arrival_exceptions AS "student_arrival_exception"`).
+		Where(`"student_arrival_exception".student_id IN (?)`, bun.List(studentIDs)).
+		Where(`"student_arrival_exception".exception_date >= ?`, from).
+		Where(`"student_arrival_exception".exception_date <= ?`, to).
+		Order("exception_date ASC")
+
+	query = base.WithTenantFilter(ctx, query, "student_arrival_exception")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student ids and date range",
 			Err: err,
 		}
 	}

@@ -12,6 +12,7 @@ import { RemindersBell } from "./reminders-bell";
 function reminder(over: Partial<Reminder> = {}): Reminder {
   return {
     type: "pickup_upcoming",
+    student_id: "1",
     title: "Kind",
     due_time: "10:00",
     minutes_away: 10,
@@ -67,6 +68,8 @@ describe("RemindersBell", () => {
         }),
         reminder({
           type: "activity_start",
+          student_id: undefined,
+          activity_instance_id: "81",
           title: "Schach",
           minutes_away: 10,
           due_time: "11:10",
@@ -90,7 +93,13 @@ describe("RemindersBell", () => {
       count: 2,
       reminders: [
         reminder({ title: "Hannah", type: "pickup_overdue", minutes_away: -5 }),
-        reminder({ title: "Schach", type: "activity_start", minutes_away: 10 }),
+        reminder({
+          title: "Schach",
+          type: "activity_start",
+          student_id: undefined,
+          activity_instance_id: "81",
+          minutes_away: 10,
+        }),
       ],
     });
     render(<RemindersBell />);
@@ -103,7 +112,11 @@ describe("RemindersBell", () => {
 
   it("previews at most five reminders and notes the overflow", () => {
     const many = Array.from({ length: 7 }, (_, i) =>
-      reminder({ title: `Kind ${i}`, minutes_away: i + 1 }),
+      reminder({
+        student_id: String(i + 1),
+        title: `Kind ${i}`,
+        minutes_away: i + 1,
+      }),
     );
     setReminders({ enabled: true, count: 7, reminders: many });
     render(<RemindersBell />);

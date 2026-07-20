@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { Alert } from "~/components/ui/alert";
@@ -50,10 +50,22 @@ const timeRangeOptions = [
 const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
 function formatDateShort(date: Date): string {
-  return date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+  return date.toLocaleDateString("de-DE", {
+    timeZone: "Europe/Berlin",
+    day: "2-digit",
+    month: "2-digit",
+  });
 }
 
 export default function StudentFeedbackHistoryPage() {
+  return (
+    <Suspense fallback={<FeedbackHistorySkeleton />}>
+      <StudentFeedbackHistoryPageContent />
+    </Suspense>
+  );
+}
+
+function StudentFeedbackHistoryPageContent() {
   const router = useTenantRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -173,6 +185,7 @@ export default function StudentFeedbackHistoryPage() {
     const groups: Record<string, FeedbackEntry[]> = {};
     for (const entry of filteredFeedbackHistory) {
       const date = new Date(entry.timestamp).toLocaleDateString("de-DE", {
+        timeZone: "Europe/Berlin",
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
@@ -194,6 +207,7 @@ export default function StudentFeedbackHistoryPage() {
   const formatTime = (dateString: string): string => {
     const date = new Date(dateString);
     return date.toLocaleTimeString("de-DE", {
+      timeZone: "Europe/Berlin",
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -208,6 +222,7 @@ export default function StudentFeedbackHistoryPage() {
       <div className="flex min-h-[80vh] flex-col items-center justify-center">
         <Alert type="error" message={error ?? "Kind nicht gefunden"} />
         <button
+          type="button"
           onClick={() => router.push(referrer)}
           className="mt-4 rounded bg-blue-100 px-4 py-2 text-blue-800 transition-colors hover:bg-blue-200"
         >
@@ -256,6 +271,7 @@ export default function StudentFeedbackHistoryPage() {
       <div className="mb-6 flex flex-wrap gap-2">
         {timeRangeOptions.map((option) => (
           <button
+            type="button"
             key={option.key}
             className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
               timeRange === option.key
@@ -411,6 +427,7 @@ export default function StudentFeedbackHistoryPage() {
         {totalFeedback > 0 && (
           <>
             <button
+              type="button"
               onClick={() => setShowDetails((prev) => !prev)}
               className="flex w-full items-center justify-center gap-2 border-t border-gray-100 px-4 py-3 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
             >
@@ -441,6 +458,7 @@ export default function StudentFeedbackHistoryPage() {
                       <div className="border-b border-gray-50 bg-gray-50/50 px-4 py-2 sm:px-6">
                         <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
                           {dateObj.toLocaleDateString("de-DE", {
+                            timeZone: "Europe/Berlin",
                             weekday: "long",
                             day: "numeric",
                             month: "long",

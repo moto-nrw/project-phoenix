@@ -52,6 +52,7 @@ export function SearchBar({
       {value && (
         <button
           type="button"
+          aria-label="Suche löschen"
           onClick={() => {
             onChange("");
             onClear?.();

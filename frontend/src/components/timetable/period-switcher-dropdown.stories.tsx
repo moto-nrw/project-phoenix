@@ -93,9 +93,3 @@ export const MonthView: Story = {
     view: "month",
   },
 };
-
-export const YearView: Story = {
-  args: {
-    view: "year",
-  },
-};

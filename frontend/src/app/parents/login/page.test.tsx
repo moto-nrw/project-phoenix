@@ -4,12 +4,14 @@ import "@testing-library/jest-dom/vitest";
 
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
+  redirect: vi.fn(),
   signIn: vi.fn(),
   signOut: vi.fn(),
   useSession: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
+  redirect: mocks.redirect,
   useRouter: () => ({ push: mocks.push, refresh: vi.fn() }),
 }));
 
@@ -134,6 +136,24 @@ describe("ParentLoginPage i18n", () => {
     expect(screen.getByLabelText("Email address")).toBeDisabled();
     expect(screen.getByLabelText("Password")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Sign in" })).toBeDisabled();
+  });
+
+  it("clears an errored parent session before redirecting", async () => {
+    mocks.signOut.mockResolvedValue(undefined);
+    mocks.useSession.mockReturnValue({
+      status: "authenticated",
+      data: {
+        error: "RefreshTokenExpired",
+        user: { scope: "parent", token: "stale-token" },
+      },
+    });
+
+    render(<ParentLoginPage />);
+
+    expect(mocks.redirect).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(mocks.signOut).toHaveBeenCalledWith({ redirect: false });
+    });
   });
 
   it("opens the password reset modal with localized parent copy", () => {

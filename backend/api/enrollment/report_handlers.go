@@ -8,6 +8,7 @@ import (
 	"io"
 	"maps"
 	"net/http"
+	"net/url"
 	"slices"
 	"sort"
 	"strconv"
@@ -252,38 +253,76 @@ func parseCareUsageFiltersFromQuery(r *http.Request) (enrollmentService.CareUsag
 	filters.Weekday = q.Get("weekday")
 	filters.PickupTime = q.Get("pickup_time")
 	filters.Search = q.Get("search")
-	offeringIDs, err := parseCareOfferingIDsFromQuery(q["care_offering_ids"])
+
+	offeringIDs, offeringIDsSet, err := resolveCareOfferingIDs(q)
 	if err != nil {
 		return filters, err
 	}
-	if _, ok := q["care_offering_ids"]; ok {
-		filters.CareOfferingIDsSet = true
+	filters.CareOfferingIDs = offeringIDs
+	filters.CareOfferingIDsSet = offeringIDsSet
+
+	dayCount, err := parseOptionalDayCount(q)
+	if err != nil {
+		return filters, err
 	}
+	filters.DayCount = dayCount
+
+	gradeLevel, err := parseOptionalGradeLevel(q)
+	if err != nil {
+		return filters, err
+	}
+	filters.GradeLevel = gradeLevel
+	return filters, nil
+}
+
+// resolveCareOfferingIDs merges the repeated/comma-joined care_offering_ids
+// param with the legacy single care_offering_id param. The bool reports
+// whether either param was present, so an explicit empty selection is
+// distinguished from "not filtered".
+func resolveCareOfferingIDs(q url.Values) ([]int64, bool, error) {
+	offeringIDs, err := parseCareOfferingIDsFromQuery(q["care_offering_ids"])
+	if err != nil {
+		return nil, false, err
+	}
+	_, set := q["care_offering_ids"]
 	if raw := q.Get("care_offering_id"); raw != "" {
 		id, parseErr := strconv.ParseInt(raw, 10, 64)
 		if parseErr != nil || id <= 0 {
-			return filters, errors.New("care_offering_id must be positive")
+			return nil, false, errors.New("care_offering_id must be positive")
 		}
 		offeringIDs = append(offeringIDs, id)
-		filters.CareOfferingIDsSet = true
+		set = true
 	}
-	filters.CareOfferingIDs = offeringIDs
-	if raw := q.Get("day_count"); raw != "" {
-		count, parseErr := strconv.Atoi(raw)
-		if parseErr != nil || count < 0 || count > 7 {
-			return filters, errors.New("day_count must be between 0 and 7")
-		}
-		filters.DayCount = &count
+	return offeringIDs, set, nil
+}
+
+// parseOptionalDayCount parses the optional day_count filter (0–7). An
+// absent param yields (nil, nil).
+func parseOptionalDayCount(q url.Values) (*int, error) {
+	raw := q.Get("day_count")
+	if raw == "" {
+		return nil, nil
 	}
-	if raw := q.Get("grade_level"); raw != "" {
-		grade, parseErr := strconv.ParseInt(raw, 10, 16)
-		if parseErr != nil || grade <= 0 {
-			return filters, errors.New("grade_level must be positive")
-		}
-		g := int16(grade)
-		filters.GradeLevel = &g
+	count, err := strconv.Atoi(raw)
+	if err != nil || count < 0 || count > 7 {
+		return nil, errors.New("day_count must be between 0 and 7")
 	}
-	return filters, nil
+	return &count, nil
+}
+
+// parseOptionalGradeLevel parses the optional grade_level filter. An absent
+// param yields (nil, nil).
+func parseOptionalGradeLevel(q url.Values) (*int16, error) {
+	raw := q.Get("grade_level")
+	if raw == "" {
+		return nil, nil
+	}
+	grade, err := strconv.ParseInt(raw, 10, 16)
+	if err != nil || grade <= 0 {
+		return nil, errors.New("grade_level must be positive")
+	}
+	g := int16(grade)
+	return &g, nil
 }
 
 func parseCareOfferingIDsFromQuery(values []string) ([]int64, error) {

@@ -6,6 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // SlotResponse describes an arrival or pickup slot for a single day.
@@ -19,12 +20,13 @@ type SlotResponse struct {
 	Reason       *string `json:"reason,omitempty"`
 }
 
-// SlotSource constants for SlotResponse.Source. Kept as strings (not a type)
-// because the wire format is a plain JSON string — no need for a typed enum.
+// SlotSource constants for SlotResponse.Source. Aliased to the schedule
+// service so the wire strings and the shared ResolveSlotSource precedence rule
+// stay in lockstep — one source of truth.
 const (
-	SlotSourceSchedule  = "schedule"
-	SlotSourceException = "exception"
-	SlotSourceNone      = "none"
+	SlotSourceSchedule  = scheduleSvc.SlotSourceSchedule
+	SlotSourceException = scheduleSvc.SlotSourceException
+	SlotSourceNone      = scheduleSvc.SlotSourceNone
 )
 
 // AttendanceDayResponse is the per-student attendance payload on a day

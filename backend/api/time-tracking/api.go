@@ -40,11 +40,13 @@ type Resource struct {
 	// StaffAssignmentService backs GET /assignments — the staff member's own
 	// Betreuungsplan blocks (Ort/Aufgabe) for a day (#1844).
 	StaffAssignmentService scheduleSvc.StaffAssignmentService
-	db                     *bun.DB
+	// WorkTimeMonthService backs GET /month-summary — the Monatskarte (#1842).
+	WorkTimeMonthService activeSvc.WorkTimeMonthService
+	db                   *bun.DB
 }
 
 // NewResource creates a new time-tracking resource
-func NewResource(workSessionService activeSvc.WorkSessionService, staffAbsenceService activeSvc.StaffAbsenceService, personService usersSvc.PersonService, settingsService configSvc.SettingsService, staffShiftService scheduleSvc.StaffShiftService, staffAssignmentService scheduleSvc.StaffAssignmentService, db *bun.DB) *Resource {
+func NewResource(workSessionService activeSvc.WorkSessionService, staffAbsenceService activeSvc.StaffAbsenceService, personService usersSvc.PersonService, settingsService configSvc.SettingsService, staffShiftService scheduleSvc.StaffShiftService, staffAssignmentService scheduleSvc.StaffAssignmentService, workTimeMonthService activeSvc.WorkTimeMonthService, db *bun.DB) *Resource {
 	return &Resource{
 		WorkSessionService:     workSessionService,
 		StaffAbsenceService:    staffAbsenceService,
@@ -52,6 +54,7 @@ func NewResource(workSessionService activeSvc.WorkSessionService, staffAbsenceSe
 		SettingsService:        settingsService,
 		StaffShiftService:      staffShiftService,
 		StaffAssignmentService: staffAssignmentService,
+		WorkTimeMonthService:   workTimeMonthService,
 		db:                     db,
 	}
 }
@@ -68,7 +71,11 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/check-in", rs.checkIn)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/check-out", rs.checkOut)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/current", rs.getCurrent)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/config", rs.getConfig)
+		// The Stundenkonto anchor is a tenant-wide setting, not caller-scoped
+		// data. Admin views resolve a staff member's Monatskarte from it, so a
+		// manage-only role must be able to read it — the staff summary
+		// endpoints it pairs with gate on TimeTrackingManage alone.
+		r.With(authorize.RequiresAnyPermission(permissions.TimeTrackingOwn, permissions.TimeTrackingManage), withTx).Get("/config", rs.getConfig)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/history", rs.getHistory)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Put("/{id}", rs.updateSession)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/{id}/edits", rs.getSessionEdits)
@@ -83,6 +90,9 @@ func (rs *Resource) Router() chi.Router {
 
 		// Own planned shifts (Dienstplan, #1376/#1798)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/shifts", rs.getOwnShifts)
+		// Own Monatskarte (#1842)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/month-summary", rs.getOwnMonthSummary)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/schedule-targets", rs.getOwnScheduleTargets)
 		// Own Betreuungsplan blocks for the day (Ort/Aufgabe + Vertretungen, #1844)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/assignments", rs.getOwnAssignments)
 

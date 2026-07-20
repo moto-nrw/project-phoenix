@@ -205,6 +205,28 @@ func TestTokenAuth_CreateRefreshJWT_SetsExpiry(t *testing.T) {
 	assert.True(t, expTime.Before(beforeCreate.Add(auth.JwtRefreshExpiry+time.Minute)))
 }
 
+func TestTokenAuth_CreateRefreshJWT_PreservesPersistedExpiry(t *testing.T) {
+	setupViperDefaults()
+	auth, err := NewTokenAuthWithSecret(testSecret)
+	require.NoError(t, err)
+
+	expiresAt := time.Now().Add(10 * time.Minute).Unix()
+	token, err := auth.CreateRefreshJWT(RefreshClaims{
+		ID:    1,
+		Token: "persisted-token",
+		CommonClaims: CommonClaims{
+			ExpiresAt: expiresAt,
+		},
+	})
+	require.NoError(t, err)
+
+	decoded, err := auth.JwtAuth.Decode(token)
+	require.NoError(t, err)
+	expiry, ok := decoded.Expiration()
+	require.True(t, ok)
+	assert.Equal(t, expiresAt, expiry.Unix())
+}
+
 // =============================================================================
 // GenTokenPair Tests
 // =============================================================================

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { redirect, useSearchParams } from "next/navigation";
@@ -68,6 +68,14 @@ function matchesTeacherSearch(teacher: Teacher, searchLower: string): boolean {
 }
 
 export default function TeachersPage() {
+  return (
+    <Suspense fallback={null}>
+      <TeachersPageContent />
+    </Suspense>
+  );
+}
+
+function TeachersPageContent() {
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 

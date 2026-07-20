@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -25,7 +26,7 @@ interface ErrorResponse {
   error: string;
 }
 
-export async function GET(
+async function GETHandler(
   _request: NextRequest,
   { params }: { params: Promise<{ permissionId: string }> },
 ) {
@@ -73,7 +74,9 @@ export async function GET(
   }
 }
 
-export async function PUT(
+export const GET = withTenantAuth(GETHandler);
+
+async function PUTHandler(
   request: NextRequest,
   { params }: { params: Promise<{ permissionId: string }> },
 ) {
@@ -113,8 +116,7 @@ export async function PUT(
 
     // Forward backend JSON (expected to contain the updated permission)
     const data = (await response.json()) as
-      | ApiResponse<BackendPermission>
-      | BackendPermission;
+      ApiResponse<BackendPermission> | BackendPermission;
     return NextResponse.json(data);
   } catch (error) {
     logger.error("update permission failed", {
@@ -127,7 +129,9 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
+export const PUT = withTenantAuth(PUTHandler);
+
+async function DELETEHandler(
   _request: NextRequest,
   { params }: { params: Promise<{ permissionId: string }> },
 ) {
@@ -175,3 +179,5 @@ export async function DELETE(
     );
   }
 }
+
+export const DELETE = withTenantAuth(DELETEHandler);

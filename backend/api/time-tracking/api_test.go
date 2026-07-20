@@ -148,6 +148,10 @@ func (m *mockWorkSessionService) GetCurrentScheduleRows(_ context.Context, _ int
 	return nil, nil
 }
 
+func (m *mockWorkSessionService) UpdateSchedule(_ context.Context, _ *userModels.Staff, _ activeSvc.ScheduleUpdateInput) error {
+	return nil
+}
+
 func (m *mockWorkSessionService) AssignScheduleTemplate(_ context.Context, _ *userModels.Staff, _ int64) error {
 	return nil
 }
@@ -295,7 +299,7 @@ func defaultPersonSvc() *userstest.PersonServiceMock {
 }
 
 func testResource(wsSvc *mockWorkSessionService, absSvc *mockStaffAbsenceService, pSvc *userstest.PersonServiceMock, db *bun.DB) *Resource {
-	return NewResource(wsSvc, absSvc, pSvc, nil, nil, nil, db)
+	return NewResource(wsSvc, absSvc, pSvc, nil, nil, nil, nil, db)
 }
 
 func withClaims(r *http.Request, claims jwt.AppClaims) *http.Request {
@@ -360,7 +364,7 @@ func TestCheckInRequest_Bind(t *testing.T) {
 // --- NewResource ---
 
 func TestNewResource(t *testing.T) {
-	rs := NewResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), newMockSettingsService("", nil), nil, nil, nil)
+	rs := NewResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), newMockSettingsService("", nil), nil, nil, nil, nil)
 	assert.NotNil(t, rs)
 	assert.NotNil(t, rs.WorkSessionService)
 	assert.NotNil(t, rs.StaffAbsenceService)

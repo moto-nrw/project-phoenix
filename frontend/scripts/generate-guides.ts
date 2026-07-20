@@ -15,6 +15,11 @@ const GUIDES = [
   { route: "/help/setup", file: "setup.pdf" },
   { route: "/help/features", file: "features.pdf" },
   { route: "/help/nfc", file: "nfc.pdf" },
+  {
+    route: "/help/nfc/erste-schritte",
+    file: "nfc-erste-schritte.pdf",
+    onePager: true,
+  },
 ] as const;
 
 const OUT_DIR = path.join(process.cwd(), "public", "help", "pdfs");
@@ -25,6 +30,7 @@ const OUT_DIR = path.join(process.cwd(), "public", "help", "pdfs");
 // download into the production image.
 const MIN_PDF_BYTES = 20_000;
 const PDF_MARGIN = { top: "18mm", right: "16mm", bottom: "18mm", left: "16mm" };
+const ONE_PAGER_MARGIN = { top: "0", right: "0", bottom: "0", left: "0" };
 const DOT_SPACING_PT = 10.5;
 const DOT_RADIUS_PT = 0.75;
 const DOT_OFFSET_PT = 0.75;
@@ -75,6 +81,7 @@ test.describe.configure({ mode: "serial" });
 
 for (const guide of GUIDES) {
   test(`generate ${guide.file}`, async ({ page }) => {
+    const onePager = "onePager" in guide && guide.onePager;
     await mkdir(OUT_DIR, { recursive: true });
     await page.goto(guide.route, { waitUntil: "load" });
 
@@ -121,7 +128,8 @@ for (const guide of GUIDES) {
       format: "A4",
       printBackground: true,
       displayHeaderFooter: false,
-      margin: PDF_MARGIN,
+      margin: onePager ? ONE_PAGER_MARGIN : PDF_MARGIN,
+      scale: 1,
       omitBackground: true,
     } as Parameters<typeof page.pdf>[0] & { omitBackground: boolean };
     await page.pdf(pdfOptions);

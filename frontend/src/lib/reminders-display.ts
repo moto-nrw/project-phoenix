@@ -44,3 +44,23 @@ export function reminderRelativeLabel(reminder: Reminder): string {
 export function reminderToneClass(reminder: Reminder): string {
   return isReminderOverdue(reminder) ? "text-[#FF3130]" : "text-gray-500";
 }
+
+/** Stable React key backed by the domain entity that produced the reminder. */
+export function reminderKey(reminder: Reminder): string {
+  switch (reminder.type) {
+    case "pickup_upcoming":
+    case "pickup_overdue":
+      if (!reminder.student_id) {
+        throw new Error(`${reminder.type} reminder is missing student_id`);
+      }
+      return `${reminder.type}-student-${reminder.student_id}`;
+    case "activity_start":
+    case "activity_overdue":
+      if (!reminder.activity_instance_id) {
+        throw new Error(
+          `${reminder.type} reminder is missing activity_instance_id`,
+        );
+      }
+      return `${reminder.type}-activity-${reminder.activity_instance_id}`;
+  }
+}

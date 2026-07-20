@@ -24,6 +24,7 @@ type Resource struct {
 	AuthService             authSvc.AuthService
 	WorkSessionService      activeSvc.WorkSessionService
 	StaffAbsenceService     activeSvc.StaffAbsenceService
+	WorkTimeMonthService    activeSvc.WorkTimeMonthService
 	db                      *bun.DB
 	logger                  *slog.Logger
 }
@@ -36,6 +37,7 @@ func NewResource(
 	authService authSvc.AuthService,
 	workSessionService activeSvc.WorkSessionService,
 	staffAbsenceService activeSvc.StaffAbsenceService,
+	workTimeMonthService activeSvc.WorkTimeMonthService,
 	db *bun.DB,
 	logger *slog.Logger,
 ) *Resource {
@@ -46,6 +48,7 @@ func NewResource(
 		AuthService:             authService,
 		WorkSessionService:      workSessionService,
 		StaffAbsenceService:     staffAbsenceService,
+		WorkTimeMonthService:    workTimeMonthService,
 		db:                      db,
 		logger:                  logger,
 	}
@@ -87,6 +90,10 @@ func (rs *Resource) Router() chi.Router {
 
 		// Time tracking history for a specific staff member (admin read)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/history", rs.getStaffHistory)
+
+		// Monatskarte (#1842)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/month-summary", rs.getStaffMonthSummary)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/schedule-targets", rs.getStaffScheduleTargets)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/export", rs.exportStaffSessions)
 
 		// Vacation workflow admin-side (Tranche 4)

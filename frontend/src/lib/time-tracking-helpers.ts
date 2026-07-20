@@ -477,3 +477,108 @@ export function calculateNetMinutes(
     return null;
   }
 }
+
+/**
+ * Backend shape of the Monatskarte aggregate (#1842).
+ */
+// Poll interval for the current month's Monatskarte (admin tab and own
+// view). A running session keeps growing the Ist server-side, so a card
+// fetched once at mount would freeze at the check-in minute.
+export const OPEN_MONTH_REFRESH_MS = 60_000;
+
+/**
+ * Largest [from, to] window the `schedule-targets` endpoint accepts, mirroring
+ * `maxDailyTargetRangeDays` in `services/active/work_time_month_service.go` —
+ * asking for more is a 400, not a truncated answer. Callers whose range is
+ * user-controlled (the Übersicht charts reach back to the account start) must
+ * split it into windows of at most this many days.
+ */
+export const MAX_TARGET_RANGE_DAYS = 366;
+
+export interface BackendDailyTarget {
+  date: string;
+  target_minutes: number;
+}
+
+/**
+ * Soll-Minuten je Kalendertag, aufgelöst gegen die Plan-Version, die AN
+ * diesem Tag galt (#1842). Key ist der ISO-Tag (YYYY-MM-DD).
+ *
+ * Die Tagestabelle darf das Soll nicht aus dem AKTUELLEN Dienstplan ableiten:
+ * Nach einer Vertragsänderung (z. B. 8h -> 4h) stünden sonst in jeder
+ * vergangenen Zeile 4h, während die Monatskarte darüber die tatsächlich
+ * gültigen 8h summiert — Karte und Tabelle widersprächen sich.
+ */
+export function mapDailyTargetsResponse(
+  data: BackendDailyTarget[] | null | undefined,
+): ReadonlyMap<string, number> {
+  const targets = new Map<string, number>();
+  for (const entry of data ?? []) {
+    targets.set(entry.date.slice(0, 10), entry.target_minutes);
+  }
+  return targets;
+}
+
+export interface BackendMonthSummary {
+  staff_id: number;
+  year: number;
+  month: number;
+  carry_in_minutes: number;
+  target_minutes: number;
+  target_minutes_to_date: number;
+  actual_minutes: number;
+  credited_sick_minutes: number;
+  credited_vacation_minutes: number;
+  credited_other_minutes: number;
+  sick_days: number;
+  vacation_days: number;
+  planned_shift_minutes?: number | null;
+  balance_minutes: number;
+  closing_balance_minutes: number;
+}
+
+/**
+ * Monatskarte aggregate for one staff member and month (#1842), computed
+ * live by the backend — the Übertrag updates automatically when past months
+ * are corrected. plannedShiftMinutes is null when no Dienstplan rows exist
+ * for the month ("kein Dienstplan gepflegt").
+ */
+export interface MonthSummary {
+  staffId: string;
+  year: number;
+  month: number;
+  carryInMinutes: number;
+  targetMinutes: number;
+  targetMinutesToDate: number;
+  actualMinutes: number;
+  creditedSickMinutes: number;
+  creditedVacationMinutes: number;
+  creditedOtherMinutes: number;
+  sickDays: number;
+  vacationDays: number;
+  plannedShiftMinutes: number | null;
+  balanceMinutes: number;
+  closingBalanceMinutes: number;
+}
+
+export function mapMonthSummaryResponse(
+  data: BackendMonthSummary,
+): MonthSummary {
+  return {
+    staffId: data.staff_id.toString(),
+    year: data.year,
+    month: data.month,
+    carryInMinutes: data.carry_in_minutes,
+    targetMinutes: data.target_minutes,
+    targetMinutesToDate: data.target_minutes_to_date,
+    actualMinutes: data.actual_minutes,
+    creditedSickMinutes: data.credited_sick_minutes,
+    creditedVacationMinutes: data.credited_vacation_minutes,
+    creditedOtherMinutes: data.credited_other_minutes,
+    sickDays: data.sick_days,
+    vacationDays: data.vacation_days,
+    plannedShiftMinutes: data.planned_shift_minutes ?? null,
+    balanceMinutes: data.balance_minutes,
+    closingBalanceMinutes: data.closing_balance_minutes,
+  };
+}

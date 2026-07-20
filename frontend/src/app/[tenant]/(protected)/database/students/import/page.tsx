@@ -445,6 +445,7 @@ export default function StudentImportPage() {
         <div className="relative">
           <Alert type="error" message={error} />
           <button
+            type="button"
             onClick={() => setError(null)}
             className="absolute top-1/2 right-4 -translate-y-1/2 text-red-600 hover:text-red-800"
             aria-label="Fehler schließen"
@@ -612,7 +613,7 @@ export default function StudentImportPage() {
             <div className="space-y-2 p-3">
               {previewData.map((student, idx) => (
                 <StudentRowCard
-                  key={`${student.row}-${idx}`}
+                  key={student.row}
                   student={student}
                   index={idx}
                 />

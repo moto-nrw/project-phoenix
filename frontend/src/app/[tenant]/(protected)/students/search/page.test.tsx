@@ -102,6 +102,7 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
         {activeFilters.map(
           (f: { id: string; label: string; onRemove?: () => void }) => (
             <button
+              type="button"
               key={f.id}
               data-testid={`active-filter-${f.id}`}
               onClick={f.onRemove}
@@ -111,11 +112,16 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
           ),
         )}
       </div>
-      <button data-testid="clear-filters" onClick={onClearAllFilters}>
+      <button
+        type="button"
+        data-testid="clear-filters"
+        onClick={onClearAllFilters}
+      >
         Clear
       </button>
       {(overflowMenu ?? []).map((item) => (
         <button
+          type="button"
           key={item.label}
           data-testid={`overflow-${item.label}`}
           onClick={item.onClick}
@@ -1457,6 +1463,13 @@ describe("StudentSearchPage", () => {
       )();
       expect(result).toEqual({
         students: [{ id: "1", first_name: "Test", second_name: "Student" }],
+        // The fetcher now stamps the response with the date AND the
+        // today/planning mode it was fetched for, so the page can tell a fresh
+        // result apart from keepPreviousData holding the previous request's rows
+        // during a date OR mode switch — the mode tag catches the midnight
+        // rollover where the date is unchanged but semantics flip (#1939).
+        requestDate: expect.any(String),
+        requestIsToday: expect.any(Boolean),
       });
       expect(mockGetStudents).toHaveBeenCalledWith(
         expect.objectContaining({ dayStatus: "not_coming_today" }),

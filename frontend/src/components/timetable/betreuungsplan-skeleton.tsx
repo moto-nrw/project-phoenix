@@ -1,12 +1,11 @@
 "use client";
 
-import { PageHeader } from "~/components/ui/page-header/PageHeader";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
   timetableSurface,
   timetableSurfacePadded,
 } from "~/components/timetable/timetable-style";
-import type { TimetableView } from "~/components/timetable/timetable-toolbar";
+import type { TimetableView } from "~/lib/timetable-helpers";
 
 export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
   if (view === "series") {
@@ -33,44 +32,6 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
               <Skeleton className="h-10 w-11/12 rounded-xl" />
             </div>
           </div>
-        ))}
-      </div>
-    );
-  }
-
-  if (view === "year") {
-    return (
-      <div
-        role="status"
-        aria-live="polite"
-        aria-busy="true"
-        aria-label="Jahresplan wird geladen"
-        data-testid="timetable-content-skeleton"
-        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
-      >
-        {Array.from({ length: 12 }, (_, month) => (
-          <section
-            key={month}
-            className={`${timetableSurface} overflow-hidden`}
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-3 py-3">
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-3 w-16" />
-              </div>
-              <Skeleton className="h-6 w-12 rounded-full" />
-            </div>
-            <div className="grid grid-cols-7 border-b border-gray-100 px-2 pt-2">
-              {Array.from({ length: 7 }, (_, day) => (
-                <Skeleton key={day} className="mx-auto mb-1 h-2 w-4" />
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1 p-2">
-              {Array.from({ length: 35 }, (_, day) => (
-                <Skeleton key={day} className="aspect-square min-h-8" />
-              ))}
-            </div>
-          </section>
         ))}
       </div>
     );
@@ -151,9 +112,9 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
                   style={{ top: `${(line + 1) * 70}px` }}
                 />
               ))}
-              {(weekSkeletonEvents[day] ?? []).map((event, index) => (
+              {(weekSkeletonEvents[day] ?? []).map((event) => (
                 <div
-                  key={`${day}-${index}`}
+                  key={`${day}-${event.top}-${event.height}-${event.width}`}
                   className="absolute left-2 rounded-xl border border-gray-200 bg-white p-2 shadow-sm sm:left-2.5"
                   style={{
                     top: `${event.top}px`,
@@ -211,30 +172,30 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
   );
 }
 
-function TimetableToolbarSkeleton() {
+/**
+ * Skeleton der PlanningContextBar-Kopfzeile: Titel, Zeitraum-Navigation,
+ * Ansichts-Umschalter und Primäraktion als Platzhalter — passend zur neuen
+ * Kopfzeile (statt der abgebauten Werkzeugleiste + Setup-Karten).
+ */
+function PlanningContextBarSkeleton() {
   return (
     <div
       role="status"
       aria-live="polite"
       aria-busy="true"
-      aria-label="Betreuungsplan-Werkzeugleiste wird geladen"
-      data-testid="timetable-toolbar-skeleton"
-      className={`${timetableSurface} flex min-h-16 flex-wrap items-center gap-3 px-4 py-3`}
+      aria-label="Betreuungsplan-Kopfzeile wird geladen"
+      data-testid="timetable-header-skeleton"
+      className="moto-content-surface rounded-2xl border p-3 sm:p-4"
     >
-      <div className="flex items-center gap-1 rounded-lg bg-gray-100 p-1">
-        {Array.from({ length: 4 }, (_, item) => (
-          <Skeleton key={item} className="h-8 w-20 rounded-lg" />
-        ))}
-      </div>
-      <div className="hidden h-8 w-px bg-gray-200 md:block" />
-      <div className="flex items-center gap-3">
-        <Skeleton className="h-8 w-8 rounded-lg" />
-        <Skeleton className="h-8 w-8 rounded-lg" />
-        <Skeleton className="h-5 w-28" />
-      </div>
-      <div className="ml-auto flex items-center gap-3">
-        <Skeleton className="h-9 w-48 rounded-lg" />
-        <Skeleton className="h-10 w-24 rounded-lg bg-gray-300" />
+      <div className="flex flex-wrap items-center gap-2">
+        <Skeleton className="h-6 w-40" />
+        <div className="flex items-center gap-1">
+          <Skeleton className="h-9 w-9 rounded-full" />
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-9 w-9 rounded-full" />
+        </div>
+        <Skeleton className="ml-2 h-9 w-48 rounded-lg" />
+        <Skeleton className="ml-auto h-9 w-24 rounded-lg bg-gray-300" />
       </div>
     </div>
   );
@@ -243,9 +204,8 @@ function TimetableToolbarSkeleton() {
 export function TimetablePageSkeleton() {
   return (
     <div className="flex flex-col gap-4" data-testid="timetable-page-skeleton">
-      <PageHeader title="Betreuungsplan" />
-      <TimetableToolbarSkeleton />
-      <TimetableContentSkeleton view="month" />
+      <PlanningContextBarSkeleton />
+      <TimetableContentSkeleton view="week" />
     </div>
   );
 }

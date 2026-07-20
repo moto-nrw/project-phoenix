@@ -13,6 +13,10 @@ import { Input } from "~/components/ui/input";
 import { activityService } from "~/lib/activity-service";
 import type { Activity } from "~/lib/activity-helpers";
 import { createLogger } from "~/lib/logger";
+import {
+  fetchPlannerRooms,
+  type PlannerRoomReference,
+} from "~/lib/planner-reference-api";
 import { staffService, type Staff } from "~/lib/staff-api";
 
 import { SCHULHOF_ROOM_NAME } from "./view-model";
@@ -25,18 +29,6 @@ interface RoomOption {
   name: string;
   building?: string | null;
 }
-
-interface BackendRoomsEnvelope {
-  data?: Array<{
-    id: number | string;
-    name?: string;
-    room_name?: string;
-    building?: string | null;
-  }>;
-}
-
-type BackendRoomList =
-  BackendRoomsEnvelope | NonNullable<BackendRoomsEnvelope["data"]>;
 
 export interface SpontaneousActivityStartPayload {
   title: string;
@@ -56,8 +48,7 @@ interface SpontaneousActivityStartProps {
   readonly onOpenSchulhofSupervision: () => void;
 }
 
-function normalizeRoomEnvelope(envelope: BackendRoomList): RoomOption[] {
-  const rooms = Array.isArray(envelope) ? envelope : (envelope.data ?? []);
+function normalizeRooms(rooms: PlannerRoomReference[]): RoomOption[] {
   return rooms
     .map((room) => ({
       id: String(room.id),
@@ -142,6 +133,7 @@ export function SpontaneousActivityStart({
 
   useEffect(() => {
     if (!isOpen) return;
+    let cancelled = false;
     setIsLoadingRefs(true);
     setError(null);
 
@@ -152,9 +144,8 @@ export function SpontaneousActivityStart({
         });
         return [] as Activity[];
       }),
-      fetch("/api/rooms", { credentials: "include" })
-        .then((response) => response.json() as Promise<BackendRoomsEnvelope>)
-        .then(normalizeRoomEnvelope)
+      fetchPlannerRooms()
+        .then(normalizeRooms)
         .catch((err: unknown) => {
           logger.error("spontaneous_rooms_fetch_failed", {
             error: err instanceof Error ? err.message : String(err),
@@ -169,6 +160,7 @@ export function SpontaneousActivityStart({
       }),
     ])
       .then(([activityData, roomData, staffData]) => {
+        if (cancelled) return;
         // The staff room list includes Schulhof as a planning/navigation
         // destination while keeping WC infrastructure hidden.
         const spontaneousRooms = roomData;
@@ -207,7 +199,12 @@ export function SpontaneousActivityStart({
           return firstAvailableRoom?.id ?? "";
         });
       })
-      .finally(() => setIsLoadingRefs(false));
+      .finally(() => {
+        if (!cancelled) setIsLoadingRefs(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [currentStaffId, defaultRoomId, isOpen, occupiedRoomIdSet]);
 
   // Close the activity suggestions when clicking outside the field.

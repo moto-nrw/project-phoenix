@@ -96,9 +96,29 @@ func (r *StaffWorkScheduleRepository) FindByStaffIDsValidInRange(ctx context.Con
 	return entries, nil
 }
 
+// HasScheduleHistory reports whether the staff member has ever had a schedule
+// snapshot, closed-out versions included.
+func (r *StaffWorkScheduleRepository) HasScheduleHistory(ctx context.Context, staffID int64) (bool, error) {
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model((*config.StaffWorkSchedule)(nil)).
+		ModelTableExpr(tableStaffWorkSchedules+` AS "staff_work_schedule"`).
+		Where("staff_id = ?", staffID)
+
+	tenantID := tenant.FromContext(ctx)
+	if tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	exists, err := query.Exists(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to check schedule history: %w", err)
+	}
+	return exists, nil
+}
+
 // ReplaceSchedule atomically replaces all current schedule entries for a staff member.
 // It sets valid_until on existing entries and inserts the new ones.
-func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*config.StaffWorkSchedule) error {
+func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*config.StaffWorkSchedule, anchor timezone.Date) error {
 	db := repoBase.GetDB(ctx, r.db)
 	tenantID := tenant.FromContext(ctx)
 	now := time.Now()
@@ -110,6 +130,11 @@ func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staff
 		e.ValidUntil = nil
 		e.CreatedAt = now
 		e.UpdatedAt = now
+		e.RotationAnchorDate = nil
+		if !anchor.IsZero() {
+			versionAnchor := anchor
+			e.RotationAnchorDate = &versionAnchor
+		}
 		if tenantID > 0 {
 			e.SetTenantID(tenantID)
 		}

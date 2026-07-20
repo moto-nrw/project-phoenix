@@ -198,7 +198,11 @@ describe("shouldShowInlineStatusBadge", () => {
 });
 
 describe("DesktopSearchAction", () => {
-  const mockActionButton = <button data-testid="action-btn">Action</button>;
+  const mockActionButton = (
+    <button type="button" data-testid="action-btn">
+      Action
+    </button>
+  );
 
   it("renders action button when no tabs and action provided", () => {
     render(

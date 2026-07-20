@@ -3,6 +3,7 @@ package active
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -151,8 +152,9 @@ func (m *wsMockWorkSessionRepository) UpdateBreakMinutes(ctx context.Context, id
 type wsMockStaffWorkScheduleRepository struct {
 	getCurrentByStaffIDFunc        func(ctx context.Context, staffID int64) ([]*configModels.StaffWorkSchedule, error)
 	getByStaffIDAndDateFunc        func(ctx context.Context, staffID int64, date timezone.Date) ([]*configModels.StaffWorkSchedule, error)
-	replaceScheduleFunc            func(ctx context.Context, staffID int64, entries []*configModels.StaffWorkSchedule) error
+	replaceScheduleFunc            func(ctx context.Context, staffID int64, entries []*configModels.StaffWorkSchedule, anchor timezone.Date) error
 	findByStaffIDsValidInRangeFunc func(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*configModels.StaffWorkSchedule, error)
+	hasScheduleHistoryFunc         func(ctx context.Context, staffID int64) (bool, error)
 }
 
 func (m *wsMockStaffWorkScheduleRepository) GetCurrentByStaffID(ctx context.Context, staffID int64) ([]*configModels.StaffWorkSchedule, error) {
@@ -169,9 +171,9 @@ func (m *wsMockStaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Cont
 	return nil, nil
 }
 
-func (m *wsMockStaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*configModels.StaffWorkSchedule) error {
+func (m *wsMockStaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*configModels.StaffWorkSchedule, anchor timezone.Date) error {
 	if m.replaceScheduleFunc != nil {
-		return m.replaceScheduleFunc(ctx, staffID, entries)
+		return m.replaceScheduleFunc(ctx, staffID, entries, anchor)
 	}
 	return nil
 }
@@ -181,6 +183,13 @@ func (m *wsMockStaffWorkScheduleRepository) FindByStaffIDsValidInRange(ctx conte
 		return m.findByStaffIDsValidInRangeFunc(ctx, staffIDs, from, to)
 	}
 	return nil, nil
+}
+
+func (m *wsMockStaffWorkScheduleRepository) HasScheduleHistory(ctx context.Context, staffID int64) (bool, error) {
+	if m.hasScheduleHistoryFunc != nil {
+		return m.hasScheduleHistoryFunc(ctx, staffID)
+	}
+	return false, nil
 }
 
 type wsMockWorkTimeModelRepository struct {
@@ -1596,6 +1605,141 @@ func TestWSGetHistory_Success(t *testing.T) {
 	require.Len(t, historyResp.WeeklySummaries, 1)
 }
 
+// WorkSession.BreakMinutes caches ENDED breaks only, so an open break is
+// invisible to netMinutes and the day row would keep counting break time as
+// worked time — climbing while the Monatskarte and the week KPI, which both
+// deduct the running break server-side, stand still (#1842).
+func TestWSGetHistory_DeductsRunningBreakFromNetMinutes(t *testing.T) {
+	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
+	staffID := int64(100)
+	// Open session, checked in 4h ago: 30 min of ended breaks (in the cache)
+	// plus a break that started 20 min ago and is still running.
+	checkIn := time.Now().Add(-4 * time.Hour)
+	breakStart := time.Now().Add(-20 * time.Minute)
+	endedBreakEnd := time.Now().Add(-2 * time.Hour)
+
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{
+			{
+				Model:        base.Model{ID: 1},
+				StaffID:      staffID,
+				Date:         timezone.TodayDate(),
+				CheckInTime:  checkIn,
+				BreakMinutes: 30,
+			},
+		}, nil
+	}
+	auditRepo.countManualBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	auditRepo.countBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return []*activeModels.WorkSessionBreak{
+			{Model: base.Model{ID: 1}, SessionID: 1, StartedAt: time.Now().Add(-150 * time.Minute), EndedAt: &endedBreakEnd, DurationMinutes: 30},
+			{Model: base.Model{ID: 2}, SessionID: 1, StartedAt: breakStart},
+		}, nil
+	}
+
+	historyResp, err := svc.GetHistory(context.Background(), staffID, timezone.TodayDate(), timezone.TodayDate())
+	require.NoError(t, err)
+	require.Len(t, historyResp.Sessions, 1)
+
+	// 240 gross − 30 ended − 20 running = 190.
+	assert.InDelta(t, 190, historyResp.Sessions[0].NetMinutes, 1,
+		"the running break must be deducted, exactly as the Monatskarte does")
+	assert.InDelta(t, 190, historyResp.WeeklySummaries[0].TotalNetMinutes, 1,
+		"the weekly summary aggregates the corrected value")
+	// The reader must be able to add the row up: the Ist above already stopped
+	// growing, so reporting the raw ENDED-breaks cache (30) as the pause would
+	// print "Pause 0:30" against 20 minutes of deducted time and break
+	// gross = net + Pause on screen (#1842).
+	assert.InDelta(t, 50, historyResp.Sessions[0].BreakMinutes, 1,
+		"the displayed pause must include the running break")
+}
+
+// The pause total is what the day row prints, so it has to survive JSON: the
+// response embeds *WorkSession, whose own break_minutes tag would win if the
+// shadowing field were ever removed — and the row would silently fall back to
+// the ENDED-breaks cache while NetMinutes stayed corrected (#1842).
+func TestWSGetHistory_SerializesRunningBreakInBreakMinutes(t *testing.T) {
+	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
+	staffID := int64(100)
+	checkIn := time.Now().Add(-2 * time.Hour)
+
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{
+			{Model: base.Model{ID: 1}, StaffID: staffID, Date: timezone.TodayDate(), CheckInTime: checkIn},
+		}, nil
+	}
+	auditRepo.countManualBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	auditRepo.countBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return []*activeModels.WorkSessionBreak{
+			{Model: base.Model{ID: 1}, SessionID: 1, StartedAt: time.Now().Add(-15 * time.Minute)},
+		}, nil
+	}
+
+	historyResp, err := svc.GetHistory(context.Background(), staffID, timezone.TodayDate(), timezone.TodayDate())
+	require.NoError(t, err)
+	require.Len(t, historyResp.Sessions, 1)
+
+	encoded, err := json.Marshal(historyResp.Sessions[0])
+	require.NoError(t, err)
+	var wire struct {
+		BreakMinutes int `json:"break_minutes"`
+		NetMinutes   int `json:"net_minutes"`
+	}
+	require.NoError(t, json.Unmarshal(encoded, &wire))
+	assert.InDelta(t, 15, wire.BreakMinutes, 1, "break_minutes must carry the running break")
+	assert.InDelta(t, 105, wire.NetMinutes, 1)
+}
+
+// A checked-out session is final: its breaks are all ended and folded into the
+// cache, so nothing may be deducted twice.
+func TestWSGetHistory_ClosedSessionKeepsCachedBreaks(t *testing.T) {
+	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
+	staffID := int64(100)
+	checkIn := time.Now().Add(-8 * time.Hour)
+	checkOut := time.Now().Add(-2 * time.Hour)
+	breakEnd := time.Now().Add(-5 * time.Hour)
+
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{
+			{
+				Model:        base.Model{ID: 1},
+				StaffID:      staffID,
+				Date:         timezone.TodayDate(),
+				CheckInTime:  checkIn,
+				CheckOutTime: &checkOut,
+				BreakMinutes: 30,
+			},
+		}, nil
+	}
+	auditRepo.countManualBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	auditRepo.countBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return []*activeModels.WorkSessionBreak{
+			{Model: base.Model{ID: 1}, SessionID: 1, StartedAt: time.Now().Add(-330 * time.Minute), EndedAt: &breakEnd, DurationMinutes: 30},
+		}, nil
+	}
+
+	historyResp, err := svc.GetHistory(context.Background(), staffID, timezone.TodayDate(), timezone.TodayDate())
+	require.NoError(t, err)
+	require.Len(t, historyResp.Sessions, 1)
+	// 360 gross − 30 cached = 330, unchanged.
+	assert.InDelta(t, 330, historyResp.Sessions[0].NetMinutes, 1)
+}
+
 func TestWSGetHistory_UsesRotationWeekTargets(t *testing.T) {
 	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
@@ -2848,4 +2992,132 @@ func TestWSUpdateSession_TimeChangeNotesGate(t *testing.T) {
 			require.NotNil(t, session)
 		})
 	}
+}
+
+// ============================================================================
+// ApplyCustomScheduleRows anchor persistence (#1842)
+// ============================================================================
+
+// A staff member saving a multi-week custom schedule with no anchor anywhere
+// must still get one stamped onto the rows. Left NULL, the rows fall back to
+// the staff-level anchor at read time — and a later template assignment writes
+// exactly that, re-paritying these historical A/B weeks and moving the carry.
+func TestWSApplyCustomScheduleRows_StampsAnchorForFirstRotation(t *testing.T) {
+	svc, _, _, _, _ := wsCreateTestService()
+	staff := &userModels.Staff{Model: base.Model{ID: 100}}
+
+	var written timezone.Date
+	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
+		replaceScheduleFunc: func(_ context.Context, _ int64, _ []*configModels.StaffWorkSchedule, anchor timezone.Date) error {
+			written = anchor
+			return nil
+		},
+	}
+	svc.staffRepo = &testpkg.StaffRepoMock{
+		UpdateFn: func(_ context.Context, _ *userModels.Staff) error { return nil },
+	}
+
+	entries := []*configModels.StaffWorkSchedule{
+		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 2, DayOfWeek: configModels.DayMonday, TargetMinutes: 480},
+		{StaffID: staff.ID, WeekIndex: 1, RotationLength: 2, DayOfWeek: configModels.DayMonday, TargetMinutes: 240},
+	}
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date{}))
+
+	assert.Equal(t, timezone.TodayDate(), written, "rotational rows must carry the version's own anchor")
+	require.NotNil(t, staff.RotationAnchorDate)
+	assert.Equal(t, timezone.TodayDate(), *staff.RotationAnchorDate)
+}
+
+// A single-week schedule has no A/B parity, so it keeps a NULL anchor.
+func TestWSApplyCustomScheduleRows_SingleWeekKeepsAnchorUnset(t *testing.T) {
+	svc, _, _, _, _ := wsCreateTestService()
+	staff := &userModels.Staff{Model: base.Model{ID: 100}}
+
+	var written timezone.Date
+	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
+		replaceScheduleFunc: func(_ context.Context, _ int64, _ []*configModels.StaffWorkSchedule, anchor timezone.Date) error {
+			written = anchor
+			return nil
+		},
+	}
+	svc.staffRepo = &testpkg.StaffRepoMock{
+		UpdateFn: func(_ context.Context, _ *userModels.Staff) error { return nil },
+	}
+
+	entries := []*configModels.StaffWorkSchedule{
+		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModels.DayMonday, TargetMinutes: 480},
+	}
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date{}))
+
+	assert.True(t, written.IsZero(), "single-week rows have no parity to anchor")
+	assert.Nil(t, staff.RotationAnchorDate)
+}
+
+// An existing staff anchor still wins over today: the rows must be stamped
+// with the anchor the schedule was actually being planned against.
+func TestWSApplyCustomScheduleRows_ExistingStaffAnchorWins(t *testing.T) {
+	svc, _, _, _, _ := wsCreateTestService()
+	existing := timezone.NewDate(2026, 6, 1)
+	staff := &userModels.Staff{Model: base.Model{ID: 100}, RotationAnchorDate: &existing}
+
+	var written timezone.Date
+	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
+		replaceScheduleFunc: func(_ context.Context, _ int64, _ []*configModels.StaffWorkSchedule, anchor timezone.Date) error {
+			written = anchor
+			return nil
+		},
+	}
+	svc.staffRepo = &testpkg.StaffRepoMock{
+		UpdateFn: func(_ context.Context, _ *userModels.Staff) error { return nil },
+	}
+
+	entries := []*configModels.StaffWorkSchedule{
+		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 2, DayOfWeek: configModels.DayMonday, TargetMinutes: 480},
+	}
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date{}))
+
+	assert.Equal(t, existing, written)
+	require.NotNil(t, staff.RotationAnchorDate)
+	assert.Equal(t, existing, *staff.RotationAnchorDate)
+}
+
+// recalcBreakMinutes must cache ENDED breaks only. A still-running break is
+// live data that every reader re-derives against its own clock (netMinutes +
+// runningBreakMinutes in the month service, the live session card). Folding
+// its elapsed time into the cache made the Monatskarte subtract the same break
+// twice — once from the cache, once live — which under-reported Ist and Saldo
+// until the break was closed. Reachable whenever a recalc runs while a break
+// is open: editing an ended break on a session whose second break still runs.
+func TestWSRecalcBreakMinutes_ExcludesRunningBreak(t *testing.T) {
+	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
+	ctx := context.Background()
+	sessionID := int64(42)
+	endedAt := time.Now().Add(-60 * time.Minute)
+
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return []*activeModels.WorkSessionBreak{
+			{
+				Model:           base.Model{ID: 1},
+				SessionID:       sessionID,
+				StartedAt:       endedAt.Add(-30 * time.Minute),
+				EndedAt:         &endedAt,
+				DurationMinutes: 30,
+			},
+			{
+				Model:     base.Model{ID: 2},
+				SessionID: sessionID,
+				StartedAt: time.Now().Add(-20 * time.Minute), // still running
+			},
+		}, nil
+	}
+
+	var cached int
+	sessionRepo.updateBreakMinutesFunc = func(_ context.Context, _ int64, breakMinutes int) error {
+		cached = breakMinutes
+		return nil
+	}
+
+	require.NoError(t, svc.recalcBreakMinutes(ctx, sessionID))
+	assert.Equal(t, 30, cached,
+		"only the ended break belongs in the cache; the running break's 20 minutes would be double-counted by readers")
 }

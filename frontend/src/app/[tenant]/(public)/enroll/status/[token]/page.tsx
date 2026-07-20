@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { Suspense, use } from "react";
 import { useSearchParams } from "next/navigation";
 import { EnrollmentStatusView } from "~/components/enrollment/enrollment-status-view";
 import {
@@ -16,6 +16,14 @@ interface PageProps {
 }
 
 export default function EnrollmentStatusPage({ params }: PageProps) {
+  return (
+    <Suspense fallback={null}>
+      <EnrollmentStatusPageContent params={params} />
+    </Suspense>
+  );
+}
+
+function EnrollmentStatusPageContent({ params }: PageProps) {
   const { token } = use(params);
   const searchParams = useSearchParams();
   const { tenant } = useTenant();

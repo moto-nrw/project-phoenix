@@ -20,6 +20,7 @@ import { useShellAuth } from "~/lib/shell-auth-context";
 import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
+import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
@@ -301,6 +302,7 @@ const DATABASE_SUB_PAGES = [
   { href: "/database/roles", label: "Rollen" },
   { href: "/database/devices", label: "Geräte" },
   { href: "/database/permissions", label: "Berechtigungen" },
+  { href: "/database/exports", label: "Exporte" },
 ];
 
 const NFC_ONLY_HREFS = new Set<string>([
@@ -876,15 +878,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const isChildOfAccordion =
     pathname.startsWith("/students/") && pathname !== "/students/search";
   const childFromParam = isChildOfAccordion ? fromParam : null;
-  const childGroupId =
-    childFromParam?.startsWith("/ogs-groups") && globalThis.window !== undefined
-      ? localStorage.getItem("sidebar-last-group")
-      : null;
-  const childRoomId =
-    childFromParam?.startsWith("/active-supervisions") &&
-    globalThis.window !== undefined
-      ? localStorage.getItem("sidebar-last-room")
-      : null;
+  const childGroupId = useLocalStorageValue(
+    "sidebar-last-group",
+    childFromParam?.startsWith("/ogs-groups") ?? false,
+  );
+  const childRoomId = useLocalStorageValue(
+    "sidebar-last-room",
+    childFromParam?.startsWith("/active-supervisions") ?? false,
+  );
 
   // Persist last selected sub-item per accordion section to localStorage.
   // Pages read this on mount to restore the user's last selection.
@@ -1425,7 +1426,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
               {databaseSubPages.map((page) => (
                 <SidebarSubItem
                   key={page.href}
-                  href={page.href}
+                  // Tenant-scoped [tenant]/… routes: in path-routing mode a
+                  // bare "/database/exports" makes the router read "database"
+                  // as the tenant slug, so prefix via tenantPath like the
+                  // Eltern accordion. No-op in subdomain mode.
+                  href={tenantPath(page.href)}
                   label={page.label}
                   isActive={pathname === page.href}
                 />

@@ -1,9 +1,14 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { TimetableTemplate } from "~/lib/timetable-types";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { GapInstance, TimetableTemplate } from "~/lib/timetable-types";
 
 const {
-  mockSearch,
   mockUseSession,
   mockToastSuccess,
   mockToastError,
@@ -24,9 +29,7 @@ const {
   mockLoggerWarn,
   mockLoggerError,
   mockListPhases,
-  mockListCareOfferings,
 } = vi.hoisted(() => ({
-  mockSearch: { value: "" },
   mockUseSession: vi.fn(),
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
@@ -47,11 +50,14 @@ const {
   mockLoggerWarn: vi.fn(),
   mockLoggerError: vi.fn(),
   mockListPhases: vi.fn(),
-  mockListCareOfferings: vi.fn(),
 }));
 
+// useSearchParams spiegelt die echte URL wider; kombiniert mit dem
+// replaceState->popstate-Spy (siehe beforeEach) macht das die View auf
+// updateUrlParams reaktiv — genau wie Next.js' History-Instrumentierung in
+// Produktion. Der Betreuungsplan nutzt useUrlParams mit syncPopstate.
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(mockSearch.value),
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -88,7 +94,6 @@ vi.mock("~/lib/timetable-api", () => ({
     getWeek: vi.fn(),
     getTemplates: vi.fn(),
     getGaps: vi.fn(),
-    getExceptionConflicts: vi.fn(),
     materialize: mockMaterialize,
     replanWeek: vi.fn(),
     start: mockStart,
@@ -162,74 +167,8 @@ vi.mock("~/lib/enrollment-phase-api", () => ({
   listPhases: mockListPhases,
 }));
 
-vi.mock("~/lib/care-offering-api", () => ({
-  listCareOfferings: mockListCareOfferings,
-}));
-
 vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading">Loading</div>,
-}));
-
-vi.mock("~/components/timetable/timetable-toolbar", () => ({
-  DENSITY_TO_HOUR_HEIGHT_PX: { compact: 60, normal: 90, comfortable: 120 },
-  TimetableToolbar: ({
-    view,
-    rangeLabel,
-    onViewChange,
-    onPrev,
-    onNext,
-    onToday,
-    onDensityChange,
-    onManagePeriods,
-    periodSwitcher,
-    planWeekAction,
-  }: {
-    view: string;
-    rangeLabel: string;
-    onViewChange: (view: "week" | "month" | "year" | "series") => void;
-    onPrev: () => void;
-    onNext: () => void;
-    onToday: () => void;
-    onDensityChange: (density: "compact" | "normal" | "comfortable") => void;
-    onManagePeriods: () => void;
-    periodSwitcher: React.ReactNode;
-    planWeekAction: React.ReactNode;
-  }) => (
-    <div data-testid="toolbar">
-      <span>
-        {view}:{rangeLabel}
-      </span>
-      <button type="button" onClick={onManagePeriods}>
-        manage-periods
-      </button>
-      <button type="button" onClick={() => onViewChange("week")}>
-        week-view
-      </button>
-      <button type="button" onClick={() => onViewChange("month")}>
-        month-view
-      </button>
-      <button type="button" onClick={() => onViewChange("year")}>
-        year-view
-      </button>
-      <button type="button" onClick={() => onViewChange("series")}>
-        series-view
-      </button>
-      <button type="button" onClick={onPrev}>
-        prev
-      </button>
-      <button type="button" onClick={onNext}>
-        next
-      </button>
-      <button type="button" onClick={onToday}>
-        today
-      </button>
-      <button type="button" onClick={() => onDensityChange("comfortable")}>
-        density
-      </button>
-      {periodSwitcher}
-      {planWeekAction}
-    </div>
-  ),
 }));
 
 vi.mock("~/components/timetable/timetable-add-menu", () => ({
@@ -313,39 +252,22 @@ vi.mock("~/components/timetable/month-planner-grid", () => ({
   ),
 }));
 
-vi.mock("~/components/timetable/year-planner-grid", () => ({
-  YearPlannerGrid: ({
-    onMonthClick,
-    onDayClick,
-  }: {
-    onMonthClick: (month: Date) => void;
-    onDayClick: (date: string) => void;
-  }) => (
-    <div>
-      <button
-        type="button"
-        onClick={() => onMonthClick(new Date("2026-05-01T00:00:00"))}
-      >
-        year-month
-      </button>
-      <button type="button" onClick={() => onDayClick("2026-05-06")}>
-        year-day
-      </button>
-    </div>
-  ),
-}));
-
 vi.mock("~/components/timetable/weekly-calendar-grid", () => ({
   WeeklyCalendarGrid: ({
     instances,
     onInstanceClick,
     onSlotClick,
+    gapInstanceIds,
   }: {
     instances: Array<{ id: string }>;
     onInstanceClick: (instance: { id: string } | null) => void;
     onSlotClick?: (dateISO: string, hour: number) => void;
+    gapInstanceIds?: ReadonlySet<string>;
   }) => (
     <div>
+      <span data-testid="grid-gap-ids">
+        {gapInstanceIds ? [...gapInstanceIds].join(",") : ""}
+      </span>
       <button
         type="button"
         onClick={() => onInstanceClick(instances[0] ?? null)}
@@ -357,38 +279,6 @@ vi.mock("~/components/timetable/weekly-calendar-grid", () => ({
           slot-click
         </button>
       )}
-    </div>
-  ),
-}));
-
-vi.mock("~/components/timetable/plan-quality-panel", () => ({
-  PlanQualityPanel: ({
-    onSelectInstance,
-    onEditInstance,
-    onSubstitute,
-  }: {
-    onSelectInstance: (id: string) => void;
-    onEditInstance: (id: string) => void;
-    onSubstitute: (
-      instanceId: string,
-      absent: string,
-      substitute: string,
-      date: string,
-    ) => Promise<void>;
-  }) => (
-    <div>
-      <button type="button" onClick={() => onSelectInstance("42")}>
-        quality-select
-      </button>
-      <button type="button" onClick={() => onEditInstance("42")}>
-        quality-edit
-      </button>
-      <button
-        type="button"
-        onClick={() => void onSubstitute("42", "11", "12", "2026-05-04")}
-      >
-        quality-substitute
-      </button>
     </div>
   ),
 }));
@@ -597,10 +487,7 @@ vi.mock("~/components/timetable/calendar-period-modal", () => ({
     ) : null,
 }));
 
-import {
-  BetreuungsplanView,
-  loadCareOfferingLinkSummary,
-} from "./betreuungsplan-view";
+import { BetreuungsplanView } from "./betreuungsplan-view";
 
 const instance = {
   id: "42",
@@ -628,6 +515,7 @@ const instance = {
   staffCount: 1,
   absentStaffCount: 1,
   expectedStudentsCount: 1,
+  notScheduledStudentsCount: 0,
   presentStudentsCount: 0,
   requiredStaffCount: 3,
   assignedStaffCount: 1,
@@ -700,12 +588,30 @@ const template: TimetableTemplate = {
   ],
 };
 
+const gap: GapInstance = {
+  instanceId: "42",
+  date: "2026-05-04",
+  title: "Mensa",
+  startTime: "12:00",
+  endTime: "13:00",
+  roomId: "3",
+  status: "planned",
+  assignedStaffCount: 1,
+  absentStaffCount: 1,
+  presentStaffCount: 1,
+  plannedStaffCount: 3,
+};
+
 function setupSWR({
   periods = [period],
   templates = [template],
   settingsSchema = null,
   settingsSchemaLoading = false,
   careOfferingLink = null,
+  gaps = [] as GapInstance[],
+  gapsState = "ready" as "ready" | "loading" | "error",
+  phases = [] as Array<Record<string, unknown>>,
+  phasesState = "ready" as "ready" | "loading" | "error",
 }: {
   periods?: Array<typeof period>;
   templates?: TimetableTemplate[];
@@ -713,6 +619,10 @@ function setupSWR({
   settingsSchemaLoading?: boolean;
   /** null = the planner admin cannot read enrollment (status "unknown"). */
   careOfferingLink?: { total: number; linked: number } | null;
+  gaps?: GapInstance[];
+  gapsState?: "ready" | "loading" | "error";
+  phases?: Array<Record<string, unknown>>;
+  phasesState?: "ready" | "loading" | "error";
 } = {}) {
   mockUseSWRAuth.mockImplementation((key: string | null) => {
     if (key === null) return {};
@@ -726,6 +636,13 @@ function setupSWR({
     }
     if (key === "database-calendar-periods-list") {
       return { data: periods, isLoading: false };
+    }
+    if (key === "timetable-enrollment-phases") {
+      if (phasesState === "loading") return { isLoading: true };
+      if (phasesState === "error") {
+        return { error: new Error("phases kaputt"), isLoading: false };
+      }
+      return { data: phases, isLoading: false };
     }
     if (key === "timetable-staff-list") {
       return {
@@ -747,17 +664,18 @@ function setupSWR({
       return { data: { students: [{ id: "21", name: "Max Kind" }] } };
     }
     if (key.startsWith("timetable-gaps")) {
-      return { data: { gaps: [] }, isLoading: false };
-    }
-    if (key.startsWith("timetable-exception-conflicts")) {
-      return { data: { conflicts: [] }, isLoading: false };
+      if (gapsState === "loading") return { isLoading: true };
+      if (gapsState === "error") {
+        return { error: new Error("gaps kaputt"), isLoading: false };
+      }
+      return { data: { gaps, acknowledged: [] }, isLoading: false };
     }
     if (key.startsWith("timetable-templates")) {
       return { data: { templates }, isLoading: false };
     }
     if (key.startsWith("timetable-")) {
       return {
-        data: { from: "2026-05-04", to: "2026-05-08", instances: [instance] },
+        data: { from: "2026-05-04", to: "2026-05-10", instances: [instance] },
         isLoading: false,
       };
     }
@@ -765,11 +683,30 @@ function setupSWR({
   });
 }
 
+/** Setzt die URL, bevor gerendert wird (der syncPopstate-Hook liest daraus). */
+function setUrl(search: string) {
+  window.history.replaceState(
+    null,
+    "",
+    `/acme/betreuungsplan${search ? `?${search}` : ""}`,
+  );
+}
+
+function urlParams() {
+  return new URLSearchParams(window.location.search);
+}
+
+/** Radix-Tab: Aktivierung per mousedown (Kit-Regel), nicht click. */
+function selectTab(name: string) {
+  fireEvent.mouseDown(screen.getByRole("tab", { name }));
+}
+
+let realReplaceState: typeof window.history.replaceState;
+
 describe("BetreuungsplanView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.setSystemTime(new Date("2026-05-06T12:00:00"));
-    mockSearch.value = "";
     mockUseSession.mockReturnValue({ status: "authenticated" });
     mockTenantMutate.mockResolvedValue(undefined);
     mockMaterialize.mockResolvedValue({
@@ -799,19 +736,201 @@ describe("BetreuungsplanView", () => {
     );
     mockArchiveTemplate.mockResolvedValue({});
     mockListPhases.mockResolvedValue([]);
-    mockListCareOfferings.mockResolvedValue([]);
     setupSWR();
-    window.history.replaceState(null, "", "/acme/timetables");
+
+    // Der syncPopstate-Hook reagiert auf popstate, nicht auf manuelle
+    // replaceState-Aufrufe. Next.js instrumentiert die History in Produktion;
+    // im Test bilden wir das nach, indem replaceState ein popstate feuert.
+    realReplaceState = window.history.replaceState.bind(window.history);
+    vi.spyOn(window.history, "replaceState").mockImplementation(
+      (data: unknown, unused: string, url?: string | URL | null) => {
+        realReplaceState(data, unused, url);
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      },
+    );
+    setUrl("");
   });
 
-  it("renders month view by default and opens create/edit period flows", async () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("renders the week view by default with the calendar as first content", () => {
     render(<BetreuungsplanView />);
 
     expect(
       screen.getByRole("heading", { name: "Betreuungsplan" }),
     ).toBeVisible();
-    expect(screen.getByText(/month:/)).toBeInTheDocument();
+    expect(screen.getByText("week-grid")).toBeVisible();
     expect(screen.getByTestId("conflicts")).toHaveTextContent("1");
+    // Kein Alt-URL-Parameter überlebt.
+    expect(urlParams().has("week")).toBe(false);
+    expect(urlParams().has("month")).toBe(false);
+  });
+
+  it("falls back to the week for an unknown view value", () => {
+    setUrl("view=quatsch");
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByText("week-grid")).toBeVisible();
+  });
+
+  it("shows month and series views from the view param", () => {
+    setUrl("view=monat");
+    const { unmount } = render(<BetreuungsplanView />);
+    expect(screen.getByText("month-grid")).toBeVisible();
+    unmount();
+
+    setUrl("view=serien");
+    render(<BetreuungsplanView />);
+    expect(screen.getByText("create-template")).toBeVisible();
+  });
+
+  it("writes d on week navigation and view on the segment switch", () => {
+    render(<BetreuungsplanView />);
+
+    // Aktuelle Woche (Mo 2026-05-04): Weiter -> Montag der Folgewoche.
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    expect(urlParams().get("d")).toBe("2026-05-11");
+    fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
+    expect(urlParams().get("d")).toBe("2026-05-04");
+
+    selectTab("Monat");
+    expect(urlParams().get("view")).toBe("monat");
+    selectTab("Serien");
+    expect(urlParams().get("view")).toBe("serien");
+    selectTab("Woche");
+    expect(urlParams().has("view")).toBe(false);
+  });
+
+  it("shows the Heute button only when the visible week differs from today's", () => {
+    render(<BetreuungsplanView />);
+    expect(
+      screen.queryByRole("button", { name: "Heute" }),
+    ).not.toBeInTheDocument();
+
+    setUrl("d=2026-09-14");
+    render(<BetreuungsplanView />);
+    const todayButton = screen.getAllByRole("button", { name: "Heute" })[0]!;
+    fireEvent.click(todayButton);
+    expect(urlParams().get("d")).toBe("2026-05-06");
+  });
+
+  it("switches to the week and sets d when a month day is clicked", () => {
+    setUrl("view=monat");
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("month-grid"));
+    expect(urlParams().get("d")).toBe("2026-05-06");
+    expect(urlParams().has("view")).toBe(false);
+    expect(screen.getByText("week-grid")).toBeVisible();
+  });
+
+  it("opens and closes the slide-over via the block param", async () => {
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByText("detail-close")).toBeVisible();
+    fireEvent.click(screen.getByText("detail-close"));
+
+    await waitFor(() =>
+      expect(screen.queryByText("detail-close")).not.toBeInTheDocument(),
+    );
+    expect(urlParams().has("block")).toBe(false);
+  });
+
+  it("marks open-gap instances on the week grid", () => {
+    setupSWR({ gaps: [gap] });
+    setUrl("view=woche");
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("grid-gap-ids")).toHaveTextContent("42");
+  });
+
+  it("jumps to a gap: the jump list sets d and block and opens the slide-over", async () => {
+    setupSWR({ gaps: [gap] });
+    setUrl("view=woche");
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByRole("button", { name: /1 Lücke/ }));
+    // Sprungliste-Zeile (Titel des Blocks) im Popover.
+    const popover = screen.getByRole("region", { name: "Offene Lücken" });
+    fireEvent.click(within(popover).getByRole("button", { name: /Mensa/ }));
+
+    await waitFor(() => expect(screen.getByText("detail-close")).toBeVisible());
+    expect(urlParams().get("d")).toBe("2026-05-04");
+    expect(urlParams().get("block")).toBe("42");
+  });
+
+  it("shows a neutral checking chip while gaps load instead of 'Keine Lücken'", () => {
+    setupSWR({ gapsState: "loading" });
+    setUrl("view=woche");
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByText("Lücken werden geprüft …")).toBeInTheDocument();
+    expect(screen.queryByText("Keine Lücken")).not.toBeInTheDocument();
+  });
+
+  it("hides the gap chip when the gaps request fails", () => {
+    setupSWR({ gapsState: "error" });
+    setUrl("view=woche");
+    render(<BetreuungsplanView />);
+
+    expect(screen.queryByText("Keine Lücken")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Lücken werden geprüft …"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a neutral chip while phases load instead of 'keine Anmeldung verknüpft'", () => {
+    setupSWR({ phasesState: "loading" });
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByText("Bedarf wird ermittelt …")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Bedarf: keine Anmeldung verknüpft"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the demand-origin chip when the phases request fails", () => {
+    setupSWR({ phasesState: "error" });
+    render(<BetreuungsplanView />);
+
+    expect(screen.queryByText(/^Bedarf/)).not.toBeInTheDocument();
+  });
+
+  it("shows the demand-origin chip, linked to enrollment-phases when unresolved", () => {
+    render(<BetreuungsplanView />);
+
+    const chip = screen.getByText("Bedarf: keine Anmeldung verknüpft");
+    // Tenant-bewusster Pfad (useTenantAwarePath) — im Pfad-Routing-Modus
+    // muss der Slug vorangestellt sein.
+    expect(chip.closest("a")).toHaveAttribute(
+      "href",
+      "/test-tenant/enrollment-phases",
+    );
+  });
+
+  it("names the single matching phase in the demand-origin chip", () => {
+    setupSWR({
+      phases: [
+        {
+          id: "1",
+          name: "Anmeldung HJ1",
+          calendar_period_id: "5",
+          service_start_date: "2026-08-01",
+          service_end_date: "2027-07-31",
+        },
+      ],
+    });
+    render(<BetreuungsplanView />);
+
+    const chip = screen.getByText("Bedarf: Anmeldung HJ1");
+    expect(chip.closest("a")).toBeNull();
+  });
+
+  it("opens create/edit/delete period flows from the period chip", async () => {
+    render(<BetreuungsplanView />);
 
     fireEvent.click(screen.getByText("create-period"));
     expect(screen.getByText("period-save")).toBeInTheDocument();
@@ -847,32 +966,10 @@ describe("BetreuungsplanView", () => {
     );
   });
 
-  it("uses staffing ratios for the overview in every planner view", () => {
+  it("runs slide-over lifecycle, attendance and delete actions", async () => {
+    setUrl("view=woche&block=42");
     render(<BetreuungsplanView />);
 
-    const expectUnderstaffed = () => {
-      const label = screen.getByText("Unterbesetzt");
-      expect(label.parentElement).toHaveTextContent("1");
-      expect(
-        screen.getByText("zusätzliches Personal nötig"),
-      ).toBeInTheDocument();
-    };
-
-    expectUnderstaffed();
-
-    for (const viewButton of ["week-view", "year-view", "series-view"]) {
-      fireEvent.click(screen.getByText(viewButton));
-      expectUnderstaffed();
-    }
-  });
-
-  it("navigates views and runs week actions", async () => {
-    mockSearch.value = "view=week&instance=42";
-    render(<BetreuungsplanView />);
-
-    fireEvent.click(screen.getByText("week-view"));
-    await waitFor(() => expect(screen.getByText("week-grid")).toBeVisible());
-    fireEvent.click(screen.getByText("week-grid"));
     fireEvent.click(screen.getByText("detail-start"));
     await waitFor(() => expect(mockStart).toHaveBeenCalledWith("42"));
     fireEvent.click(screen.getByText("detail-complete"));
@@ -885,31 +982,15 @@ describe("BetreuungsplanView", () => {
         status: "present",
       }),
     );
-    fireEvent.click(screen.getByText("quality-substitute"));
-    await waitFor(() =>
-      expect(mockApplyDeviations).toHaveBeenCalledWith("42", {
-        substitutions: [{ absentStaffId: "11", substituteStaffId: "12" }],
-      }),
-    );
-
-    fireEvent.click(screen.getByText("quality-edit"));
-    expect(screen.getByText("event-save")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("event-save"));
-    await waitFor(() => expect(mockTenantMutate).toHaveBeenCalled());
-
-    fireEvent.click(screen.getByText("week-grid"));
-    await waitFor(() =>
-      expect(screen.getByText("detail-delete")).toBeVisible(),
-    );
-    fireEvent.click(screen.getByText("detail-repeat"));
-    expect(screen.getByText("event-save-series")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("event-save-series"));
-    await waitFor(() => expect(mockTenantMutate).toHaveBeenCalled());
 
     fireEvent.click(screen.getByText("detail-delete"));
     await waitFor(() => expect(mockDeleteCancelled).toHaveBeenCalledWith("42"));
+  });
 
-    fireEvent.click(screen.getByText("week-grid"));
+  it("ends following instances from the slide-over", async () => {
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
     fireEvent.click(screen.getByText("detail-delete-following"));
     await waitFor(() =>
       expect(mockEndTemplate).toHaveBeenCalledWith("7", {
@@ -918,11 +999,21 @@ describe("BetreuungsplanView", () => {
     );
   });
 
-  it("handles series, month and year navigation callbacks", async () => {
-    mockSearch.value = "view=series&period=5";
+  it("repeats an instance into a series from the slide-over", async () => {
+    setUrl("view=woche&block=42");
     render(<BetreuungsplanView />);
 
-    expect(screen.getByText(/series:/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText("detail-repeat"));
+    expect(screen.getByText("event-save-series")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("event-save-series"));
+    await waitFor(() => expect(mockTenantMutate).toHaveBeenCalled());
+  });
+
+  it("handles series create, edit, apply, delete and archive", async () => {
+    setUrl("view=serien");
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByText("create-template")).toBeVisible();
     fireEvent.click(screen.getByText("create-template"));
     expect(screen.getByText("event-close")).toBeInTheDocument();
     fireEvent.click(screen.getByText("event-close"));
@@ -952,9 +1043,6 @@ describe("BetreuungsplanView", () => {
     ).toHaveTextContent("Regeltermin „Yoga“");
     fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
     expect(mockArchiveTemplate).not.toHaveBeenCalled();
-    expect(
-      screen.queryByRole("dialog", { name: "Regeltermin archivieren?" }),
-    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText("archive-template"));
     fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
@@ -963,28 +1051,17 @@ describe("BetreuungsplanView", () => {
       'Regeltermin "Yoga" archiviert',
     );
     expect(mockTenantMutate).toHaveBeenCalledWith("timetable-templates-5");
+  });
 
-    fireEvent.click(screen.getByText("month-view"));
-    await waitFor(() => expect(screen.getByText("month-grid")).toBeVisible());
-    fireEvent.click(screen.getByText("month-grid"));
+  it("adds a one-off appointment from the + Neu menu", () => {
+    render(<BetreuungsplanView />);
 
-    fireEvent.click(screen.getByText("year-view"));
-    await waitFor(() => expect(screen.getByText("year-month")).toBeVisible());
-    fireEvent.click(screen.getByText("year-month"));
-    fireEvent.click(screen.getByText("year-view"));
-    await waitFor(() => expect(screen.getByText("year-day")).toBeVisible());
-    fireEvent.click(screen.getByText("year-day"));
-
-    fireEvent.click(screen.getByText("prev"));
-    fireEvent.click(screen.getByText("next"));
-    fireEvent.click(screen.getByText("today"));
-    fireEvent.click(screen.getByText("density"));
     fireEvent.click(screen.getByText("add-instance"));
     expect(screen.getByText("event-save")).toBeInTheDocument();
   });
 
   it("keeps archive confirmation open and reports errors", async () => {
-    mockSearch.value = "view=series&period=5";
+    setUrl("view=serien");
     mockArchiveTemplate.mockRejectedValueOnce(new Error("Archivierung kaputt"));
     render(<BetreuungsplanView />);
 
@@ -1005,8 +1082,6 @@ describe("BetreuungsplanView", () => {
     render(<BetreuungsplanView />);
 
     expect(screen.getByTestId("timetable-page-skeleton")).toBeVisible();
-    expect(screen.getByTestId("timetable-toolbar-skeleton")).toBeVisible();
-    expect(screen.getByLabelText("Monatsplan wird geladen")).toBeVisible();
     expect(screen.queryByTestId("loading")).not.toBeInTheDocument();
   });
 
@@ -1021,11 +1096,11 @@ describe("BetreuungsplanView", () => {
       }
       return {};
     });
+    setUrl("view=woche");
 
     render(<BetreuungsplanView />);
 
     expect(screen.getByTestId("timetable-content-skeleton")).toBeVisible();
-    expect(screen.getByLabelText("Monatsplan wird geladen")).toBeVisible();
     expect(screen.queryByTestId("loading")).not.toBeInTheDocument();
   });
 
@@ -1052,108 +1127,99 @@ describe("BetreuungsplanView", () => {
     expect(mockBootstrap).not.toHaveBeenCalled();
   });
 
-  // Issue #1651: the setup step reflects real care-offering linkage, not the
-  // mere existence of an active enrollment phase.
-  it("keeps the enrollment setup step open while no care offering is linked", () => {
-    setupSWR({ careOfferingLink: { total: 3, linked: 0 } });
-
+  it("passes the series list period to the event modal", () => {
+    setupSWR({ periods: [period, laterPeriod] });
+    // d liegt im späteren Zeitraum -> sichtbarer Zeitraum = 6.
+    setUrl("view=serien&d=2027-09-01");
     render(<BetreuungsplanView />);
 
-    const step = screen.getByRole("link", {
-      name: /Mit der Anmeldung verknüpfen/,
-    });
-    expect(step).toHaveAttribute("href", "/care-offerings");
-    expect(step).toHaveTextContent("0 von 3 Angeboten verknüpft");
-  });
+    fireEvent.click(screen.getByText("create-template"));
 
-  it("marks the enrollment setup step done once a care offering is linked", () => {
-    setupSWR({ careOfferingLink: { total: 3, linked: 2 } });
-
-    render(<BetreuungsplanView />);
-
-    const step = screen.getByRole("link", {
-      name: /Mit der Anmeldung verknüpfen/,
-    });
-    expect(step).toHaveTextContent("2 von 3 Angeboten verknüpft");
-    expect(step).toHaveTextContent("Angebote öffnen");
-  });
-
-  it("hides the enrollment setup step when the linkage cannot be read", () => {
-    setupSWR({ careOfferingLink: null });
-
-    render(<BetreuungsplanView />);
-
-    expect(
-      screen.queryByText("Mit der Anmeldung verknüpfen"),
-    ).not.toBeInTheDocument();
-  });
-
-  it("treats a failed active-phase offering request as unknown", async () => {
-    mockListPhases.mockResolvedValue([
-      { id: "10", is_active: true },
-      { id: "11", is_active: true },
-    ]);
-    mockListCareOfferings.mockImplementation((phaseId: string) => {
-      if (phaseId === "11") return Promise.reject(new Error("forbidden"));
-      return Promise.resolve([
-        {
-          phase_id: "10",
-          is_active: true,
-          activity_group_id: "7",
-        },
-      ]);
-    });
-
-    await expect(loadCareOfferingLinkSummary()).resolves.toBeNull();
-    expect(mockLoggerWarn).toHaveBeenCalledWith(
-      "timetable_care_offering_link_load_failed",
-      { error: "forbidden" },
+    expect(mockEventModalProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        isOpen: true,
+        defaultCalendarPeriodId: "6",
+        calendarPeriods: expect.arrayContaining([
+          expect.objectContaining({ id: "6" }),
+        ]),
+      }),
     );
   });
 
-  it("summarizes only active offerings from active phases", async () => {
-    mockListPhases.mockResolvedValue([
-      { id: "10", is_active: true },
-      { id: "11", is_active: false },
-    ]);
-    mockListCareOfferings.mockResolvedValue([
-      {
-        phase_id: "10",
-        is_active: true,
-        activity_group_id: "7",
-      },
-      {
-        phase_id: "10",
-        is_active: true,
-        activity_group_id: null,
-      },
-      {
-        phase_id: "10",
-        is_active: false,
-        activity_group_id: "8",
-      },
-    ]);
-
-    await expect(loadCareOfferingLinkSummary()).resolves.toEqual({
-      total: 2,
-      linked: 1,
+  it("materializes a template-only period pin instead of the current period", async () => {
+    setupSWR({
+      periods: [period, laterPeriod],
+      templates: [
+        {
+          ...template,
+          calendarPeriodId: "6",
+          schedules: template.schedules.map((schedule) => ({
+            ...schedule,
+            calendarPeriodId: undefined,
+          })),
+        },
+      ],
     });
-    expect(mockListCareOfferings).toHaveBeenCalledTimes(1);
-    expect(mockListCareOfferings).toHaveBeenCalledWith("10");
-  });
-
-  // A fresh school has no enrollment phases at all — "0 von 0 Angeboten
-  // verknüpft" would be nonsense on the very screen the guide exists for.
-  it("shows a plain hint instead of a 0-of-0 ratio when no offerings exist", () => {
-    setupSWR({ careOfferingLink: { total: 0, linked: 0 } });
-
+    setUrl("view=serien");
     render(<BetreuungsplanView />);
 
-    const step = screen.getByRole("link", {
-      name: /Mit der Anmeldung verknüpfen/,
+    fireEvent.click(screen.getByText("apply-template"));
+
+    await waitFor(() =>
+      expect(mockMaterialize).toHaveBeenNthCalledWith(
+        1,
+        "2027-08-01",
+        "2027-09-25",
+      ),
+    );
+  });
+
+  it("shows the period chip whenever at least one period exists", () => {
+    setUrl("view=woche");
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("period-switcher")).toBeInTheDocument();
+  });
+
+  it("renders no period chip when no periods exist", () => {
+    setupSWR({ periods: [] });
+    render(<BetreuungsplanView />);
+
+    expect(screen.queryByTestId("period-switcher")).not.toBeInTheDocument();
+  });
+
+  it("renders the disabled state when the timetable setting is off", () => {
+    setupSWR({
+      settingsSchema: {
+        tabs: [
+          {
+            id: "operations",
+            label: "Betrieb",
+            categories: [
+              {
+                id: "timetable",
+                label: "Betreuungsplan",
+                items: [{ key: "timetable.enabled", value: false }],
+              },
+            ],
+          },
+        ],
+      },
     });
-    expect(step).toHaveTextContent("Noch keine Angebote");
-    expect(step).not.toHaveTextContent("0 von 0");
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("timetable-disabled-state")).toBeVisible();
+    expect(screen.getByText("Betreuungsplan ist deaktiviert")).toBeVisible();
+    expect(screen.queryByText("week-grid")).not.toBeInTheDocument();
+    expect(mockBootstrap).not.toHaveBeenCalled();
+  });
+
+  it("shows the skeleton while the settings schema loads", () => {
+    setupSWR({ settingsSchemaLoading: true });
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("timetable-page-skeleton")).toBeVisible();
+    expect(screen.queryByText("week-grid")).not.toBeInTheDocument();
   });
 
   it("logs a warning when the bootstrap fails with 403", async () => {
@@ -1187,14 +1253,10 @@ describe("BetreuungsplanView", () => {
         error: "backend down",
       }),
     );
-    expect(mockLoggerWarn).not.toHaveBeenCalledWith(
-      "periods_bootstrap_failed",
-      expect.anything(),
-    );
   });
 
   it("opens the quick-create modal from an empty week slot", () => {
-    mockSearch.value = "view=week";
+    setUrl("view=woche");
     render(<BetreuungsplanView />);
 
     fireEvent.click(screen.getByText("slot-click"));
@@ -1210,7 +1272,6 @@ describe("BetreuungsplanView", () => {
       }),
     );
 
-    // Closing resets the prefill; the next manual create is the full form.
     fireEvent.click(screen.getByText("event-close"));
     fireEvent.click(screen.getByText("add-instance"));
     expect(mockEventModalProps).toHaveBeenLastCalledWith(
@@ -1223,103 +1284,38 @@ describe("BetreuungsplanView", () => {
     );
   });
 
-  it("passes the series list period to the event modal", () => {
-    setupSWR({ periods: [period, laterPeriod] });
-    mockSearch.value = "view=series&period=6";
+  // --- Chrome-Abbau: Kalender als erstes Inhaltselement, kein Setup-Chrome ---
+
+  it("renders no setup chrome and shows the calendar as the first content when a period exists", () => {
+    setUrl("view=woche");
     render(<BetreuungsplanView />);
 
-    fireEvent.click(screen.getByText("create-template"));
-
-    expect(mockEventModalProps).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        isOpen: true,
-        defaultCalendarPeriodId: "6",
-        calendarPeriods: expect.arrayContaining([
-          expect.objectContaining({ id: "6" }),
-        ]),
-      }),
-    );
+    // Kalenderraster ist da; die abgebauten Karten (Overview/SetupGuide) nicht.
+    expect(screen.getByText("week-grid")).toBeVisible();
+    expect(
+      screen.queryByText("Betreuungsplan im Blick"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Einrichtung")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Mit der Anmeldung verknüpfen"),
+    ).not.toBeInTheDocument();
+    // Kein Leerzustand-Hinweis, solange ein Zeitraum existiert.
+    expect(
+      screen.queryByText("Noch kein Planungszeitraum"),
+    ).not.toBeInTheDocument();
   });
 
-  it("materializes a template-only period pin instead of the current period", async () => {
-    setupSWR({
-      periods: [period, laterPeriod],
-      templates: [
-        {
-          ...template,
-          calendarPeriodId: "6",
-          schedules: template.schedules.map((schedule) => ({
-            ...schedule,
-            calendarPeriodId: undefined,
-          })),
-        },
-      ],
-    });
-    mockSearch.value = "view=series&period=5";
-    render(<BetreuungsplanView />);
-
-    fireEvent.click(screen.getByText("apply-template"));
-
-    await waitFor(() =>
-      expect(mockMaterialize).toHaveBeenNthCalledWith(
-        1,
-        "2027-08-01",
-        "2027-09-25",
-      ),
-    );
-  });
-
-  it("hides the period pill for a fully covered week and reveals it via Verwaltung", () => {
-    mockSearch.value = "view=week";
-    render(<BetreuungsplanView />);
-
-    expect(screen.queryByTestId("period-switcher")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByText("manage-periods"));
-    expect(screen.getByTestId("period-switcher")).toBeInTheDocument();
-  });
-
-  it("renders no period UI when no periods exist and Verwaltung opens create", () => {
+  it("shows the empty-period hint instead of the grid when no period exists, and its action opens the period modal", () => {
     setupSWR({ periods: [] });
+    setUrl("view=woche");
     render(<BetreuungsplanView />);
 
-    expect(screen.queryByTestId("period-switcher")).not.toBeInTheDocument();
+    expect(screen.getByText("Noch kein Planungszeitraum")).toBeVisible();
+    expect(screen.queryByText("week-grid")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("manage-periods"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Planungszeitraum anlegen" }),
+    );
     expect(screen.getByText("period-save")).toBeInTheDocument();
-  });
-
-  it("renders the disabled state when the timetable setting is off", () => {
-    setupSWR({
-      settingsSchema: {
-        tabs: [
-          {
-            id: "operations",
-            label: "Betrieb",
-            categories: [
-              {
-                id: "timetable",
-                label: "Betreuungsplan",
-                items: [{ key: "timetable.enabled", value: false }],
-              },
-            ],
-          },
-        ],
-      },
-    });
-    render(<BetreuungsplanView />);
-
-    expect(screen.getByTestId("timetable-disabled-state")).toBeVisible();
-    expect(screen.getByText("Betreuungsplan ist deaktiviert")).toBeVisible();
-    expect(screen.queryByTestId("toolbar")).not.toBeInTheDocument();
-    expect(mockBootstrap).not.toHaveBeenCalled();
-  });
-
-  it("shows the skeleton while the settings schema loads", () => {
-    setupSWR({ settingsSchemaLoading: true });
-    render(<BetreuungsplanView />);
-
-    expect(screen.getByTestId("timetable-page-skeleton")).toBeVisible();
-    expect(screen.queryByTestId("toolbar")).not.toBeInTheDocument();
   });
 });

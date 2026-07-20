@@ -12,9 +12,11 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -22,6 +24,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+// studentExportPageSize caps how many child rows a single export document may
+// carry. The cap is applied to the FINAL, filtered result (see exportStudents),
+// not to the raw school size — a narrow birthday or search list still exports at
+// a large school. It also bounds the initial fetch page for callers that still
+// paginate.
 const studentExportPageSize = 5000
 
 type studentExportRequest struct {
@@ -43,10 +50,18 @@ type studentExportFilters struct {
 	PhotoConsent string `json:"photo_consent"`
 	PickupStatus string `json:"pickup_status"`
 	DayStatus    string `json:"day_status"`
+	// Date is the optional planning day (YYYY-MM-DD) the day-planning status,
+	// status days, and planned arrival/pickup times are evaluated for (#1939).
+	// Empty means the school-local today.
+	Date         string `json:"date"`
 	PickupTime   string `json:"pickup_time"`
 	ArrivalTime  string `json:"arrival_time"`
 	Sort         string `json:"sort"`
 	GroupByClass bool   `json:"group_by_class"`
+	// Months restricts a birthday list to the given birth months ("01".."12").
+	// Empty means every month. A birthday recurs annually, so this matches on
+	// month alone and never on the birth year.
+	Months []string `json:"months"`
 }
 
 type weeklySchedule struct {
@@ -66,10 +81,18 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolved before the fetch for the same reason as in listStudents: the
+	// room pre-filter reads today's live active.visits state (#1939).
+	planningDate, isToday, errResp := resolveExportPlanningDate(req.Filters, rs.Now())
+	if errResp != nil {
+		renderError(w, r, errResp)
+		return
+	}
+
 	params := exportRequestToListParams(req)
-	students, _, err := rs.fetchStudentsForList(r, params)
-	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+	students, errResp := rs.fetchStudentsForExport(r, params)
+	if errResp != nil {
+		renderError(w, r, errResp)
 		return
 	}
 
@@ -85,24 +108,21 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	if exportNeedsPhotoConsentFilter(req.Filters) {
 		populateExportPhotoConsentFilterData(responses, students)
 	}
-	for i := range responses {
-		if responses[i].HasFullAccess {
-			applyActualTimesFromSnapshot(&responses[i], dataSnapshot)
-		}
-	}
 
-	fullAccessIDs := collectFullAccessStudentIDs(responses)
-	today := rs.Now()
-	rs.applyStatusDaysForDate(r.Context(), responses, today)
-	if err := rs.enrichWithDayPlanning(r.Context(), responses, today, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+	if errResp := rs.prepareDatedExportResponses(r, responses, dataSnapshot, planningDate, isToday); errResp != nil {
+		renderError(w, r, errResp)
 		return
 	}
-	rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, today)
-	rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, today)
 
-	responses = applyExportFilters(responses, req.Filters)
-	sortExportResponses(responses, req.Filters.Sort)
+	responses = applyExportFilters(responses, req.Filters, req.Preset)
+	// The cap is applied to the rows that actually land in the document, after
+	// every requested filter has run — so a narrow list still exports at a large
+	// school and only a genuinely oversized result is refused.
+	if errResp := exportSelectionCapError(len(responses)); errResp != nil {
+		renderError(w, r, errResp)
+		return
+	}
+	sortExportResponses(responses, exportSortMode(req))
 	if req.Filters.GroupByClass {
 		groupExportResponsesByClass(responses)
 	}
@@ -113,7 +133,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	columns := listexport.ResolveColumns(req.Columns, req.Preset)
-	enrollmentSummaries, err := rs.loadActiveEnrollmentSummaries(r, collectResponseIDs(responses), timezone.DateFromTime(today), columns)
+	enrollmentSummaries, err := rs.loadActiveEnrollmentSummaries(r, collectResponseIDs(responses), planningDate, columns)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -121,15 +141,15 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 
 	var rows []listexport.Row
 	if req.Filters.GroupByClass {
-		rows = buildGroupedExportRows(responses, weekly, enrollmentSummaries)
+		rows = buildGroupedExportRows(responses, weekly, enrollmentSummaries, planningDate, isToday)
 	} else {
-		rows = buildExportRows(responses, weekly, enrollmentSummaries)
+		rows = buildExportRows(responses, weekly, enrollmentSummaries, planningDate, isToday)
 	}
 	doc := listexport.Document{
 		Title:       exportTitle(req),
 		Subtitle:    rs.exportSubtitle(r, len(responses)),
 		GeneratedAt: time.Now(),
-		Filters:     exportFilterLabels(req.Filters),
+		Filters:     exportFilterLabelsForDate(req.Filters, planningDate, isToday),
 		Columns:     columns,
 		Rows:        rows,
 	}
@@ -147,6 +167,50 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(file.Data)
 }
 
+// resolveExportPlanningDate resolves the export's planning day and rejects the
+// live presence filters that cannot be answered for any day but today. Both
+// checks run before the fetch so a dated export never reaches the live-state
+// query path (#1939).
+func resolveExportPlanningDate(filters studentExportFilters, now time.Time) (timezone.Date, bool, render.Renderer) {
+	planningDate, isToday, dateErr := resolvePlanningDate(filters.Date, now)
+	if dateErr != nil {
+		return timezone.Date{}, false, common.ErrorInvalidRequest(dateErr)
+	}
+	if err := liveFilterError(activeLiveExportFilters(filters), planningDate, isToday); err != nil {
+		return timezone.Date{}, false, common.ErrorInvalidRequest(err)
+	}
+	return planningDate, isToday, nil
+}
+
+// prepareDatedExportResponses layers the date-scoped view onto the already-built
+// responses: today keeps live check-in/out times, any other day starts from the
+// row's clean state and carries only that day's status days, plans, and
+// effective arrival/pickup times. It returns a renderer when a lookup fails.
+func (rs *Resource) prepareDatedExportResponses(r *http.Request, responses []StudentResponse, dataSnapshot *common.StudentDataSnapshot, planningDate timezone.Date, isToday bool) render.Renderer {
+	// Actual check-in/out times and the row-seeded Sick/Excused flags describe
+	// today; a non-today planning export starts clean and only carries the
+	// requested date's status days and plans.
+	if isToday {
+		applyFullAccessActualTimes(responses, dataSnapshot)
+	} else {
+		resetScheduledStatusFlags(responses)
+		// The live-location snapshot describes today; strip it so a document
+		// labelled for another day cannot leak the child's current whereabouts
+		// through the current-location column or the momentary-status filter (#1939).
+		resetLiveLocationFields(responses)
+	}
+	if err := rs.applyStatusDaysForDate(r.Context(), responses, planningDate.BerlinMidnight()); err != nil {
+		return common.ErrorInternalServer(err)
+	}
+	if err := rs.enrichWithDayPlanning(r.Context(), responses, planningDate, isToday, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
+		return common.ErrorInternalServer(err)
+	}
+	fullAccessIDs := collectFullAccessStudentIDs(responses)
+	rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
+	rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
+	return nil
+}
+
 func decodeStudentExportRequest(r *http.Request) (studentExportRequest, error) {
 	var req studentExportRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -160,10 +224,72 @@ func decodeStudentExportRequest(r *http.Request) (studentExportRequest, error) {
 	}
 	switch req.Format {
 	case listexport.FormatPDF, listexport.FormatDOCX, listexport.FormatXLSX:
-		return req, nil
 	default:
 		return req, fmt.Errorf("unsupported export format %q", req.Format)
 	}
+	if _, err := parseExportMonths(req.Filters.Months); err != nil {
+		return req, err
+	}
+	return req, nil
+}
+
+// parseExportMonths turns the wire month filter ("01".."12") into a lookup set.
+// An empty list means "every month" and yields a nil set. Unknown values are
+// rejected rather than skipped: silently dropping a month would render a list
+// that looks complete but quietly covers the wrong period.
+func parseExportMonths(values []string) (map[time.Month]bool, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	months := make(map[time.Month]bool, len(values))
+	for _, value := range values {
+		number, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil || number < 1 || number > 12 {
+			return nil, fmt.Errorf("invalid birthday month %q, expected \"01\" to \"12\"", value)
+		}
+		months[time.Month(number)] = true
+	}
+	return months, nil
+}
+
+// fetchStudentsForExport loads every student matching the SQL-level filters for
+// an export. It returns a ready-to-render error rather than writing the response
+// so the handler keeps a single error branch. params.fetchAll is set, so the
+// query is unpaginated: the in-memory birthday-month and search filters that run
+// afterward see the whole set, and the size cap is enforced on the FINAL,
+// filtered result in exportStudents — not here on the raw school size.
+func (rs *Resource) fetchStudentsForExport(r *http.Request, params *studentListParams) ([]*users.Student, render.Renderer) {
+	students, _, err := rs.fetchStudentsForList(r, params)
+	if err != nil {
+		return nil, common.ErrorInternalServer(err)
+	}
+	return students, nil
+}
+
+// exportSelectionCapError returns a ready-to-render error when a filtered export
+// exceeds what one document can carry, or nil when it fits. It is checked
+// against the rows that actually land in the file, after every requested filter
+// has run: a narrow birthday or search list still exports at a large school, and
+// only a genuinely oversized result is refused. Because the fetch is complete
+// (params.fetchAll), refusing here is never silent truncation.
+func exportSelectionCapError(count int) render.Renderer {
+	if exportSelectionTooLarge(count) {
+		return common.ErrorInvalidRequest(errExportSelectionTooLarge(count))
+	}
+	return nil
+}
+
+// exportSelectionTooLarge reports whether a filtered export exceeds what a single
+// document can carry (studentExportPageSize rows).
+func exportSelectionTooLarge(total int) bool {
+	return total > studentExportPageSize
+}
+
+// errExportSelectionTooLarge is the user-facing message shown when the selection
+// is over the cap. Lowercase and unpunctuated to satisfy Go error-string linting
+// while still reading as a full sentence in the frontend toast.
+func errExportSelectionTooLarge(total int) error {
+	return fmt.Errorf("die Auswahl umfasst %d Kinder, ein Export ist auf höchstens %d Kinder begrenzt, bitte die Auswahl eingrenzen (etwa nach Gruppe oder Klasse)", total, studentExportPageSize)
 }
 
 func exportRequestToListParams(req studentExportRequest) *studentListParams {
@@ -175,6 +301,10 @@ func exportRequestToListParams(req studentExportRequest) *studentListParams {
 		includeArrivalTimes: true,
 		dayStatus:           parseDayStatusParam(req.Filters.DayStatus),
 		schoolClass:         strings.TrimSpace(req.Filters.SchoolClass),
+		// The birthday-month and search filters run in memory after the fetch,
+		// so pull every SQL-matching row: a paginated page would drop matching
+		// children past the boundary and silently shorten the list.
+		fetchAll: true,
 	}
 	if req.Filters.GroupID != "" {
 		if groupID, err := strconv.ParseInt(req.Filters.GroupID, 10, 64); err == nil {
@@ -187,6 +317,17 @@ func exportRequestToListParams(req studentExportRequest) *studentListParams {
 		}
 	}
 	return params
+}
+
+// applyFullAccessActualTimes overlays the snapshot's actual arrival/pickup times
+// onto every response the caller has full access to; redacted rows are left
+// untouched so GDPR-scoped exports never carry times the caller may not see.
+func applyFullAccessActualTimes(responses []StudentResponse, dataSnapshot *common.StudentDataSnapshot) {
+	for i := range responses {
+		if responses[i].HasFullAccess {
+			applyActualTimesFromSnapshot(&responses[i], dataSnapshot)
+		}
+	}
 }
 
 func exportNeedsPhotoConsentFilter(filters studentExportFilters) bool {
@@ -210,42 +351,83 @@ func populateExportPhotoConsentFilterData(responses []StudentResponse, students 
 	}
 }
 
-func applyExportFilters(students []StudentResponse, filters studentExportFilters) []StudentResponse {
+// birthdayExportMatch reports whether a child belongs on a birthday-filtered
+// export. Children without a parseable birthday never match: a birthday list
+// carrying rows with an empty date is noise, not data. An empty month set
+// accepts every month.
+func birthdayExportMatch(student StudentResponse, months map[time.Month]bool) bool {
+	birthday, err := timezone.ParseDate(student.Birthday)
+	if err != nil {
+		return false
+	}
+	return len(months) == 0 || months[birthday.Month]
+}
+
+// matchesTimeFilter reports whether a child's planned arrival/pickup time
+// satisfies the requested filter. "" and "all" accept everyone; "none" keeps
+// only children with no planned time and no exception for today; any other
+// value is matched literally against the HH:MM time.
+func matchesTimeFilter(planned *string, isException bool, filter string) bool {
+	if filter == "" || filter == "all" {
+		return true
+	}
+	if filter == "none" {
+		return planned == nil && !isException
+	}
+	return planned != nil && *planned == filter
+}
+
+func applyExportFilters(students []StudentResponse, filters studentExportFilters, preset listexport.Preset) []StudentResponse {
+	// Months were validated when the request was decoded.
+	months, _ := parseExportMonths(filters.Months)
+	// The birthday preset demands a birthday even without a month filter, so a
+	// child with no stored date is dropped rather than printed as a blank row.
+	byBirthday := preset == listexport.PresetBirthdayList || len(months) > 0
 	filtered := make([]StudentResponse, 0, len(students))
 	for _, student := range students {
-		if filters.Year != "" && filters.Year != "all" && schoolYear(student.SchoolClass) != filters.Year {
-			continue
+		if exportStudentMatchesFilters(student, filters, byBirthday, months) {
+			filtered = append(filtered, student)
 		}
-		if filters.Status != "" && filters.Status != "all" && exportStatus(student) != filters.Status {
-			continue
-		}
-		if !matchesAdministrativeFilters(student, filters.Bus, filters.PhotoConsent, filters.PickupStatus) {
-			continue
-		}
-		if filters.DayStatus != "" && filters.DayStatus != DayPlanningStatusAll && student.DayPlanningStatus != filters.DayStatus {
-			continue
-		}
-		if filters.PickupTime != "" && filters.PickupTime != "all" {
-			if filters.PickupTime == "none" {
-				if student.PickupTime != nil || student.PickupIsException {
-					continue
-				}
-			} else if student.PickupTime == nil || *student.PickupTime != filters.PickupTime {
-				continue
-			}
-		}
-		if filters.ArrivalTime != "" && filters.ArrivalTime != "all" {
-			if filters.ArrivalTime == "none" {
-				if student.ArrivalTime != nil || student.ArrivalIsException {
-					continue
-				}
-			} else if student.ArrivalTime == nil || *student.ArrivalTime != filters.ArrivalTime {
-				continue
-			}
-		}
-		filtered = append(filtered, student)
 	}
 	return filtered
+}
+
+// exportStudentMatchesFilters reports whether one child survives every requested
+// export filter. byBirthday and months are precomputed by applyExportFilters.
+func exportStudentMatchesFilters(student StudentResponse, filters studentExportFilters, byBirthday bool, months map[time.Month]bool) bool {
+	if byBirthday && !birthdayExportMatch(student, months) {
+		return false
+	}
+	if filters.Year != "" && filters.Year != "all" && schoolYear(student.SchoolClass) != filters.Year {
+		return false
+	}
+	if filters.Status != "" && filters.Status != "all" && exportStatus(student) != filters.Status {
+		return false
+	}
+	if !matchesAdministrativeFilters(student, filters.Bus, filters.PhotoConsent, filters.PickupStatus) {
+		return false
+	}
+	if filters.DayStatus != "" && filters.DayStatus != DayPlanningStatusAll && student.DayPlanningStatus != filters.DayStatus {
+		return false
+	}
+	if !matchesTimeFilter(student.PickupTime, student.PickupIsException, filters.PickupTime) {
+		return false
+	}
+	if !matchesTimeFilter(student.ArrivalTime, student.ArrivalIsException, filters.ArrivalTime) {
+		return false
+	}
+	return true
+}
+
+// exportSortMode resolves the ordering a request asks for. Calendar order is
+// what makes a birthday list a birthday list, so the preset implies it rather
+// than depending on a caller to pass the matching sort; an explicit sort still
+// wins for the rare pickup/arrival view of the same list.
+func exportSortMode(req studentExportRequest) string {
+	if req.Filters.Sort == "" && req.Preset == listexport.PresetBirthdayList {
+		return "birthday"
+	}
+	return req.Filters.Sort
 }
 
 func sortExportResponses(students []StudentResponse, sortMode string) {
@@ -258,8 +440,25 @@ func sortExportResponses(students []StudentResponse, sortMode string) {
 		if sortMode == "arrival" {
 			return timeValue(a.ArrivalTime) < timeValue(b.ArrivalTime)
 		}
+		// Same-day children fall through to name collation below.
+		if sortMode == "birthday" {
+			if ka, kb := birthdaySortKey(a.Birthday), birthdaySortKey(b.Birthday); ka != kb {
+				return ka < kb
+			}
+		}
 		return collation.CompareGermanNames(a.LastName, a.FirstName, b.LastName, b.FirstName) < 0
 	})
+}
+
+// birthdaySortKey orders by the annually recurring day ("MM-DD") rather than
+// the birth year, so a birthday list reads as a calendar instead of an age
+// ranking. Children without a birthday sort last.
+func birthdaySortKey(birthday string) string {
+	date, err := timezone.ParseDate(birthday)
+	if err != nil {
+		return "99-99"
+	}
+	return fmt.Sprintf("%02d-%02d", int(date.Month), date.Day)
 }
 
 func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64) (map[int64]weeklySchedule, error) {
@@ -312,35 +511,39 @@ func (rs *Resource) loadActiveEnrollmentSummaries(r *http.Request, studentIDs []
 	}
 	summaries := make(map[int64]string, len(studentIDs))
 	for _, studentID := range studentIDs {
-		groups := groupsByStudent[studentID]
-		if len(groups) == 0 {
-			summaries[studentID] = "Keine Anmeldung"
-			continue
-		}
-		names := make([]string, 0, len(groups))
-		seen := make(map[string]bool, len(groups))
-		for _, group := range groups {
-			if group == nil {
-				continue
-			}
-			name := strings.TrimSpace(group.Name)
-			if name == "" {
-				name = "Gruppe #" + strconv.FormatInt(group.ID, 10)
-			}
-			if seen[name] {
-				continue
-			}
-			seen[name] = true
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		if len(names) == 0 {
-			summaries[studentID] = "Keine Anmeldung"
-			continue
-		}
-		summaries[studentID] = "Angemeldet: " + strings.Join(names, ", ")
+		summaries[studentID] = enrollmentSummaryLabel(groupsByStudent[studentID])
 	}
 	return summaries, nil
+}
+
+// enrollmentSummaryLabel renders the export's "angemeldet" cell for one child:
+// the deduplicated, alphabetically sorted list of active activity-group names,
+// or "Keine Anmeldung" when the child has no active enrollment.
+func enrollmentSummaryLabel(groups []*activitiesModels.Group) string {
+	if len(groups) == 0 {
+		return "Keine Anmeldung"
+	}
+	names := make([]string, 0, len(groups))
+	seen := make(map[string]bool, len(groups))
+	for _, group := range groups {
+		if group == nil {
+			continue
+		}
+		name := strings.TrimSpace(group.Name)
+		if name == "" {
+			name = "Gruppe #" + strconv.FormatInt(group.ID, 10)
+		}
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	if len(names) == 0 {
+		return "Keine Anmeldung"
+	}
+	return "Angemeldet: " + strings.Join(names, ", ")
 }
 
 func columnsContain(columns []listexport.Column, id listexport.ColumnID) bool {
@@ -360,7 +563,7 @@ func groupExportResponsesByClass(students []StudentResponse) {
 	})
 }
 
-func buildGroupedExportRows(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string) []listexport.Row {
+func buildGroupedExportRows(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) []listexport.Row {
 	rows := make([]listexport.Row, 0, len(students))
 	currentClass := ""
 	for i, student := range students {
@@ -371,20 +574,47 @@ func buildGroupedExportRows(students []StudentResponse, weekly map[int64]weeklyS
 			currentClass = class
 			rows = append(rows, listexport.Row{GroupTitle: listexport.ClassGroupTitle(class)})
 		}
-		rows = append(rows, buildExportRow(student, weekly[student.ID], enrollmentSummaries))
+		rows = append(rows, buildExportRow(student, weekly[student.ID], enrollmentSummaries, onDate, isToday))
 	}
 	return rows
 }
 
-func buildExportRows(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string) []listexport.Row {
+func buildExportRows(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) []listexport.Row {
 	rows := make([]listexport.Row, 0, len(students))
 	for _, student := range students {
-		rows = append(rows, buildExportRow(student, weekly[student.ID], enrollmentSummaries))
+		rows = append(rows, buildExportRow(student, weekly[student.ID], enrollmentSummaries, onDate, isToday))
 	}
 	return rows
 }
 
-func buildExportRow(student StudentResponse, plan weeklySchedule, enrollmentSummaries map[int64]string) listexport.Row {
+// birthdayExportCell renders the birth date German-style ("02.09.2018").
+// Children without a stored birthday render empty rather than a fake date.
+func birthdayExportCell(birthday string) string {
+	date, err := timezone.ParseDate(birthday)
+	if err != nil {
+		return ""
+	}
+	return date.Format("02.01.2006")
+}
+
+// ageExportCell renders the age in completed years as of onDate. A birthday
+// later this year has not happened yet, so that year is not counted.
+func ageExportCell(birthday string, onDate timezone.Date) string {
+	date, err := timezone.ParseDate(birthday)
+	if err != nil {
+		return ""
+	}
+	years := onDate.Year - date.Year
+	if onDate.Month < date.Month || (onDate.Month == date.Month && onDate.Day < date.Day) {
+		years--
+	}
+	if years < 0 {
+		return ""
+	}
+	return strconv.Itoa(years)
+}
+
+func buildExportRow(student StudentResponse, plan weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) listexport.Row {
 	return listexport.Row{Values: map[listexport.ColumnID]string{
 		listexport.ColumnName:              strings.TrimSpace(student.FirstName + " " + student.LastName),
 		listexport.ColumnSchoolClass:       student.SchoolClass,
@@ -396,19 +626,21 @@ func buildExportRow(student StudentResponse, plan weeklySchedule, enrollmentSumm
 		listexport.ColumnWeeklyWednesday:   weeklyCell(plan, schedule.WeekdayWednesday),
 		listexport.ColumnWeeklyThursday:    weeklyCell(plan, schedule.WeekdayThursday),
 		listexport.ColumnWeeklyFriday:      weeklyCell(plan, schedule.WeekdayFriday),
-		listexport.ColumnDailyStatus:       dailyStatusExportCell(student),
+		listexport.ColumnDailyStatus:       dailyStatusExportCell(student, isToday),
 		listexport.ColumnPlannedArrival:    base.Deref(student.ArrivalTime),
 		listexport.ColumnPlannedPickup:     base.Deref(student.PickupTime),
 		listexport.ColumnDeparture:         departureExportCell(student),
 		listexport.ColumnDailyNotes:        dailyNotes(student),
 		listexport.ColumnCurrentLocation:   student.Location,
+		listexport.ColumnBirthday:          birthdayExportCell(student.Birthday),
+		listexport.ColumnAge:               ageExportCell(student.Birthday, onDate),
 	}}
 }
 
-func dailyStatusExportCell(student StudentResponse) string {
+func dailyStatusExportCell(student StudentResponse, isToday bool) string {
 	switch student.DayPlanningStatus {
 	case DayPlanningStatusComesToday:
-		return "Kommt heute"
+		return dayLabel("Kommt heute", "Wird erwartet", isToday)
 	case DayPlanningStatusNotComingToday:
 		switch student.DayPlanningReason {
 		case dayPlanningReasonSick:
@@ -421,7 +653,7 @@ func dailyStatusExportCell(student StudentResponse) string {
 		if student.DayPlanningLabel != "" {
 			return sentenceCase(student.DayPlanningLabel)
 		}
-		return "Kommt heute nicht"
+		return dayLabel("Kommt heute nicht", "Wird nicht erwartet", isToday)
 	}
 
 	if student.Sick {
@@ -592,13 +824,32 @@ func exportTitle(req studentExportRequest) string {
 		return "Abholliste"
 	case listexport.PresetBlankChecklist:
 		return "Checkliste"
+	case listexport.PresetBirthdayList:
+		return "Geburtstagsliste"
 	default:
 		return "OGS Wochenliste"
 	}
 }
 
+// exportFilterLabels renders the printed filter header for a today-scoped
+// export; exportFilterLabelsForDate is the date-aware form the handler uses.
 func exportFilterLabels(filters studentExportFilters) []string {
+	return exportFilterLabelsForDate(filters, timezone.Date{}, true)
+}
+
+func exportFilterLabelsForDate(filters studentExportFilters, planningDate timezone.Date, isToday bool) []string {
+	labels := exportIdentityFilterLabels(filters, planningDate, isToday)
+	return append(labels, exportAttributeFilterLabels(filters, isToday)...)
+}
+
+// exportIdentityFilterLabels names the "who / which" filters for the printed
+// header: the planning date, free-text search, group, school year, class, and
+// the momentary status snapshot.
+func exportIdentityFilterLabels(filters studentExportFilters, planningDate timezone.Date, isToday bool) []string {
 	labels := []string{}
+	if !isToday {
+		labels = append(labels, "Datum: "+planningDate.Format("02.01.2006"))
+	}
 	if filters.Search != "" {
 		labels = append(labels, "Suche: "+filters.Search)
 	}
@@ -612,32 +863,76 @@ func exportFilterLabels(filters studentExportFilters) []string {
 		labels = append(labels, "Klasse: "+strings.TrimSpace(filters.SchoolClass))
 	}
 	if filters.Status != "" && filters.Status != "all" {
-		labels = append(labels, "Momentaufnahme: "+exportStatusLabel(filters.Status))
+		// Only the location-derived buckets are a snapshot of right now; on a
+		// dated export the remaining ones (krank/klassenfahrt/entschuldigt) come
+		// from that day's status days, so calling them a Momentaufnahme would
+		// mislabel a plan (#1939).
+		labels = append(labels, dayLabel("Momentaufnahme: ", "Geplanter Status: ", isToday)+exportStatusLabel(filters.Status))
 	}
-	if filters.Bus != "" && filters.Bus != "all" {
-		if filters.Bus == "yes" {
-			labels = append(labels, "Buskind")
-		} else {
-			labels = append(labels, "Kein Buskind")
-		}
+	return labels
+}
+
+// exportAttributeFilterLabels names the per-child attribute filters for the
+// printed header: bus, photo consent, pickup rule, day planning, class grouping,
+// and birthday months.
+func exportAttributeFilterLabels(filters studentExportFilters, isToday bool) []string {
+	labels := []string{}
+	if label := binaryFilterLabel(filters.Bus, "Buskind", "Kein Buskind"); label != "" {
+		labels = append(labels, label)
 	}
-	if filters.PhotoConsent != "" && filters.PhotoConsent != "all" {
-		if filters.PhotoConsent == "yes" {
-			labels = append(labels, "Fotoerlaubnis liegt vor")
-		} else {
-			labels = append(labels, "Keine Fotoerlaubnis")
-		}
+	if label := binaryFilterLabel(filters.PhotoConsent, "Fotoerlaubnis liegt vor", "Keine Fotoerlaubnis"); label != "" {
+		labels = append(labels, label)
 	}
 	if filters.PickupStatus != "" && filters.PickupStatus != "all" {
 		labels = append(labels, "Abholregelung: "+exportPickupStatusLabel(filters.PickupStatus))
 	}
 	if filters.DayStatus != "" && filters.DayStatus != DayPlanningStatusAll {
-		labels = append(labels, "Tagesplanung: "+dayStatusExportLabel(filters.DayStatus))
+		labels = append(labels, "Tagesplanung: "+dayStatusExportLabel(filters.DayStatus, isToday))
 	}
 	if filters.GroupByClass {
 		labels = append(labels, "Nach Klassen getrennt")
 	}
+	if label := birthdayMonthFilterLabel(filters.Months); label != "" {
+		labels = append(labels, label)
+	}
 	return labels
+}
+
+// binaryFilterLabel names a yes/no filter for the printed header, or "" when
+// the filter is inactive.
+func binaryFilterLabel(value, yesLabel, noLabel string) string {
+	if value == "" || value == "all" {
+		return ""
+	}
+	if value == "yes" {
+		return yesLabel
+	}
+	return noLabel
+}
+
+var germanMonthNames = [12]string{
+	"Januar", "Februar", "März", "April", "Mai", "Juni",
+	"Juli", "August", "September", "Oktober", "November", "Dezember",
+}
+
+// birthdayMonthFilterLabel names the selected birth months chronologically,
+// independent of the order they arrived in, so the printed header matches the
+// order of the list below it.
+func birthdayMonthFilterLabel(values []string) string {
+	months, err := parseExportMonths(values)
+	if err != nil || len(months) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(months))
+	for month := time.January; month <= time.December; month++ {
+		if months[month] {
+			names = append(names, germanMonthNames[month-1])
+		}
+	}
+	if len(names) == 1 {
+		return "Geburtsmonat: " + names[0]
+	}
+	return "Geburtsmonate: " + strings.Join(names, ", ")
 }
 
 func exportPickupStatusLabel(status string) string {
@@ -674,12 +969,12 @@ func exportStatusLabel(status string) string {
 	}
 }
 
-func dayStatusExportLabel(status string) string {
+func dayStatusExportLabel(status string, isToday bool) string {
 	switch status {
 	case DayPlanningStatusComesToday:
-		return "Kommt heute"
+		return dayLabel("Kommt heute", "Wird erwartet", isToday)
 	case DayPlanningStatusNotComingToday:
-		return "Kommt heute nicht"
+		return dayLabel("Kommt heute nicht", "Wird nicht erwartet", isToday)
 	default:
 		return status
 	}

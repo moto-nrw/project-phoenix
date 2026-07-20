@@ -17,7 +17,7 @@
  * 3. A "Neuen Zeitraum anlegen" footer.
  */
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, ChevronDown, Plus, SlidersHorizontal } from "lucide-react";
 
@@ -40,7 +40,7 @@ import { getGermanWeekdayShort, toISODate } from "~/lib/timetable-helpers";
 interface PeriodSwitcherDropdownProps {
   periods: CalendarPeriod[];
   weekDays: Date[];
-  view?: "week" | "month" | "year" | "series";
+  view?: "week" | "month" | "series";
   selectedPeriodId?: string | null;
   isLoading?: boolean;
   /** Open the create modal. */
@@ -79,7 +79,7 @@ export function PeriodSwitcherDropdown({
     [assignments],
   );
   const hasMissingDays = assignments.some((a) => a.period === null);
-  const showContextAssignments = view !== "year" && view !== "series";
+  const showContextAssignments = view !== "series";
   const contextLabel = view === "month" ? "Dieser Monat" : "Diese Woche";
   const selectedPeriod = selectedPeriodId
     ? (periods.find((period) => period.id === selectedPeriodId) ?? null)
@@ -87,19 +87,17 @@ export function PeriodSwitcherDropdown({
 
   // Headline label on the trigger pill.
   const triggerLabel =
-    view === "year"
-      ? "Zeiträume"
-      : view === "series" && selectedPeriod
-        ? selectedPeriod.name
-        : view === "series"
-          ? "Zeiträume"
-          : assignedPeriods.length === 0
-            ? "Zeitraum anlegen"
-            : assignedPeriods.length === 1 && !hasMissingDays
-              ? assignedPeriods[0]!.name
-              : view === "week"
-                ? "Übergangswoche"
-                : "Mehrere Zeiträume";
+    view === "series" && selectedPeriod
+      ? selectedPeriod.name
+      : view === "series"
+        ? "Zeiträume"
+        : assignedPeriods.length === 0
+          ? "Zeitraum anlegen"
+          : assignedPeriods.length === 1 && !hasMissingDays
+            ? assignedPeriods[0]!.name
+            : view === "week"
+              ? "Übergangswoche"
+              : "Mehrere Zeiträume";
 
   // Group all periods for the list section.
   const grouped = useMemo<PeriodGroup[]>(() => {
@@ -129,7 +127,8 @@ export function PeriodSwitcherDropdown({
   }, [periods]);
 
   // Click-outside / Escape to close.
-  useClickOutside(containerRef, () => setOpen(false), open);
+  const closeMenu = useCallback(() => setOpen(false), []);
+  useClickOutside(containerRef, closeMenu, open);
 
   // While loading, render a skeleton sized like the trigger pill so the
   // header keeps its place instead of popping in when periods resolve.

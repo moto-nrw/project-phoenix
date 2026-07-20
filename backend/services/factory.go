@@ -61,6 +61,7 @@ type Factory struct {
 	Active                   active.Service
 	ActiveCleanup            active.CleanupService
 	WorkSession              active.WorkSessionService
+	WorkTimeMonth            active.WorkTimeMonthService
 	StaffAbsence             active.StaffAbsenceService
 	Activities               activities.ActivityService
 	Education                education.Service
@@ -85,6 +86,8 @@ type Factory struct {
 	PickupSchedule           schedule.PickupScheduleService
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
+	CareDay                  schedule.CareDayService
+	TimetableBridge          *schedule.TimetableBridgeService
 	Materialization          schedule.MaterializationService
 	TemplateSplit            *schedule.TemplateSplitService
 	TimetableCleanup         schedule.TimetableCleanupService
@@ -335,6 +338,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Planned-shift lookups for the auto-checkout job (#1798).
 	workSessionService.SetStaffShiftRepo(repos.StaffShift)
 
+	// Monatskarte read model (#1842) — everything computed on read, the
+	// Übertrag is live.
+	workTimeMonthService := active.NewWorkTimeMonthService(
+		repos.WorkSession,
+		repos.WorkSessionBreak,
+		repos.StaffAbsence,
+		repos.Staff,
+		repos.StaffWorkSchedule,
+		repos.WorkTimeModel,
+		repos.StaffShift,
+		settingsService,
+		activeLogger,
+	)
+
 	// Initialize staff absence service
 	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit)
 
@@ -347,6 +364,30 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.InstanceStudent,
 		logger.With("service", "attendance-sync"),
 	)
+
+	// Care-day derivation (#1747): intersects timetable assignments with the
+	// children's care plans. Read-only, so it can be shared by every consumer
+	// (instance lifecycle, operations roster, weekly planner, scheduler).
+	// Built here, ahead of the active service, because the timetable bridge
+	// below needs it and the active service needs the bridge.
+	careDayService := schedule.NewCareDayService(schedule.CareDayDependencies{
+		ArrivalSchedules:  repos.StudentArrivalSchedule,
+		ArrivalExceptions: repos.StudentArrivalException,
+		PickupSchedules:   repos.StudentPickupSchedule,
+		PickupExceptions:  repos.StudentPickupException,
+	})
+
+	// Single entry point for completing instances whose active.group somebody
+	// else ended (force-start here, the nightly session-end job in the
+	// scheduler). Finalizes attendance first, so a completed instance never
+	// keeps genuinely expected rows — readers take those as the "not booked
+	// into care that day" marker (#1747). Repos only, so no cycle with the
+	// active service it is injected into.
+	timetableBridgeService := schedule.NewTimetableBridgeService(schedule.TimetableBridgeDependencies{
+		Instances:        repos.ActivityInstance,
+		InstanceStudents: repos.InstanceStudent,
+		CareDays:         careDayService,
+	})
 
 	// Initialize active service with SSE broadcaster
 	activeService := active.NewService(active.ServiceDependencies{
@@ -374,7 +415,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Tracker:                  tracker,               // Product analytics (PostHog)
 		WorkSessionService:       workSessionService,    // NFC auto-check-in
 		AttendanceSyncer:         attendanceSyncService, // WP-B10 mirror + SSE enrichment
-		TimetableBridgeCompleter: repos.ActivityInstance,
+		TimetableBridgeCompleter: timetableBridgeService,
 		Logger:                   activeLogger,
 	})
 
@@ -490,18 +531,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		facilitiesLogger,
 	)
 
-	// Initialize RFID check-in service (issue #575 B8). Orchestrates the
-	// active/users/facilities/activities services for the /api/iot check-in
-	// workflow. Lives in the services/iot/checkin sub-package to avoid the
-	// services/iot ↔ services/active ↔ auth/device import cycle.
-	checkinService := iotcheckin.NewCheckinService(iotcheckin.CheckinServiceDeps{
-		Active:     activeService,
-		Users:      usersService,
-		Facilities: facilitiesService,
-		Activities: activitiesService,
-		Logger:     logger.With("service", "checkin"),
-	})
-
 	// Initialize schedule service
 	scheduleService := schedule.NewServiceWithConfig(schedule.ServiceConfig{
 		DateframeRepo:      repos.Dateframe,
@@ -565,7 +594,24 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentPickupSchedule,
 		repos.StudentPickupException,
 		repos.StudentPickupNote,
+		db,
 	)
+
+	// Initialize RFID check-in service (issue #575 B8). Orchestrates the
+	// active/users/facilities/activities services plus the daily-checkout gate
+	// policy (settings + pickup schedule + education group) for the /api/iot
+	// check-in workflow. Lives in the services/iot/checkin sub-package to avoid
+	// the services/iot ↔ services/active ↔ auth/device import cycle.
+	checkinService := iotcheckin.NewCheckinService(iotcheckin.CheckinServiceDeps{
+		Active:     activeService,
+		Users:      usersService,
+		Facilities: facilitiesService,
+		Activities: activitiesService,
+		Settings:   settingsService,
+		Pickup:     pickupScheduleService,
+		Education:  educationService,
+		Logger:     logger.With("service", "checkin"),
+	})
 
 	// Initialize display service (info-point dashboards, issue #1325).
 	// Aggregates existing data sources; owns no queries beyond its own repo.
@@ -619,6 +665,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Initialize instance lifecycle before template split: the split reuses its
 	// deviation snapshot/reapply machinery when replacing future occurrences.
 	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
+		CareDayService:     careDayService,
 		InstanceRepo:       repos.ActivityInstance,
 		InstanceStaffRepo:  repos.InstanceStaff,
 		InstanceStudents:   repos.InstanceStudent,
@@ -716,6 +763,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ActivityGroupRepo:  repos.ActivityGroup,
 		ActiveService:      activeService,
 		ArrivalService:     arrivalScheduleService,
+		CareDayService:     careDayService,
 		SupervisorRepo:     repos.GroupSupervisor,
 		VisitRepo:          repos.ActiveVisit,
 		StudentRepo:        repos.Student,
@@ -929,6 +977,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		SupervisorRepo:     repos.GroupSupervisor,
 		ProfileRepo:        repos.Profile,
 		SubstitutionRepo:   repos.GroupSubstitution,
+		ActiveService:      activeService,
+		SSESettings:        settingsService,
 	}, usercontextLogger)
 
 	// Initialize database stats service
@@ -1103,24 +1153,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:   logger.With("service", "enrollment-captcha"),
 	})
 
-	enrollmentRequestService := enrollment.NewRequestService(enrollment.RequestServiceConfig{
-		RequestRepo:              repos.Request,
-		RequestChildRepo:         repos.RequestChild,
-		RequestGuardianRepo:      repos.RequestGuardian,
-		LateInviteRepo:           repos.LateInvite,
-		RequestChildOfferingRepo: repos.RequestChildOffering,
-		CareOfferingRepo:         repos.CareOffering,
-		FormSchemaRepo:           repos.FormSchema,
-		PhaseRepo:                repos.Phase,
-		SchoolRepo:               repos.School,
-		RateLimitRepo:            repos.SubmissionRateLimit,
-		OutboxEnqueuer:           emailOutboxService,
-		Settings:                 settingsService,
-		FrontendURL:              frontendURL, // admin notification email
-		ParentsURL:               parentsURL,  // parent confirmation/status emails
-		DB:                       db,
-		Logger:                   logger.With("service", "enrollment-request"),
-	})
 	enrollmentDeletionService := enrollment.NewEnrollmentDeletionService(
 		repos.Request,
 		repos.RequestChild,
@@ -1195,6 +1227,26 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
 		},
 		Logger: logger.With("service", "enrollment-decision"),
+	})
+
+	enrollmentRequestService := enrollment.NewRequestService(enrollment.RequestServiceConfig{
+		RequestRepo:              repos.Request,
+		RequestChildRepo:         repos.RequestChild,
+		RequestGuardianRepo:      repos.RequestGuardian,
+		LateInviteRepo:           repos.LateInvite,
+		RequestChildOfferingRepo: repos.RequestChildOffering,
+		CareOfferingRepo:         repos.CareOffering,
+		FormSchemaRepo:           repos.FormSchema,
+		PhaseRepo:                repos.Phase,
+		SchoolRepo:               repos.School,
+		RateLimitRepo:            repos.SubmissionRateLimit,
+		OutboxEnqueuer:           emailOutboxService,
+		Settings:                 settingsService,
+		ManualDecider:            enrollmentDecisionService,
+		FrontendURL:              frontendURL, // admin notification email
+		ParentsURL:               parentsURL,  // parent confirmation/status emails
+		DB:                       db,
+		Logger:                   logger.With("service", "enrollment-request"),
 	})
 
 	enrollmentReportService := enrollment.NewReportService(enrollment.ReportServiceConfig{
@@ -1323,6 +1375,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		InstanceStaffRepo:    repos.InstanceStaff,
 		InstanceStudentRepo:  repos.InstanceStudent,
 		ActivityInstanceRepo: repos.ActivityInstance,
+		CareDays:             careDayService,
 		UserContext:          userContextService,
 		DB:                   db,
 	})
@@ -1418,6 +1471,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Active:                   activeService,
 		ActiveCleanup:            activeCleanupService,
 		WorkSession:              workSessionService,
+		WorkTimeMonth:            workTimeMonthService,
 		StaffAbsence:             staffAbsenceService,
 		Activities:               activitiesService,
 		Education:                educationService,
@@ -1440,6 +1494,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PickupSchedule:           pickupScheduleService,
 		Display:                  displayService,
 		ArrivalSchedule:          arrivalScheduleService,
+		CareDay:                  careDayService,
+		TimetableBridge:          timetableBridgeService,
 		CalendarPeriod:           calendarPeriodService,
 		Materialization:          materializationService,
 		TemplateSplit:            templateSplitService,

@@ -51,6 +51,7 @@ function instance(overrides: Partial<EnrichedInstance> = {}): EnrichedInstance {
     staffCount: 2,
     absentStaffCount: 1,
     expectedStudentsCount: 3,
+    notScheduledStudentsCount: 0,
     presentStudentsCount: 1,
     requiredStaffCount: 1,
     assignedStaffCount: 1,
@@ -167,6 +168,101 @@ describe("InstanceDetailSlideOver", () => {
     );
   });
 
+  // The header count already leaves these children out (#1747). Listing them
+  // under "Erwartet" with an "abmelden" action would contradict that count and
+  // write attendance for a day the child is not in care at all.
+  it("groups children who are not in care today and drops their actions", () => {
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({
+          students: [
+            { studentId: "21", status: "expected", careDayStatus: "scheduled" },
+            {
+              studentId: "24",
+              status: "expected",
+              careDayStatus: "not_scheduled",
+            },
+            { studentId: "25", status: "expected", careDayStatus: "cancelled" },
+          ],
+          studentIds: ["21", "24", "25"],
+          expectedStudentsCount: 1,
+          notScheduledStudentsCount: 2,
+          presentStudentsCount: 0,
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onAttendancePatch={vi.fn()}
+        studentNames={
+          new Map([
+            ["21", "Max Erwartet"],
+            ["24", "Nina Ohne Betreuung"],
+            ["25", "Ole Abgemeldet"],
+          ])
+        }
+        editDeferred={false}
+      />,
+    );
+
+    // Group header plus the row label of the not-booked child.
+    expect(screen.getAllByText("Heute nicht eingeplant")).toHaveLength(2);
+    expect(screen.getByText("Heute abgemeldet")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Max Erwartet abmelden" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Nina Ohne Betreuung/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Ole Abgemeldet/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  // A sick/excused report flips every still-expected slot of the day to
+  // "absent", including the slots of children the care plan never booked that
+  // weekday. The backend hands those rows a "not_scheduled" verdict until the
+  // block ends and undoes them; showing them under "Fehlt" would claim an
+  // absence from care that was never owed (#1747).
+  it("groups a status-day absence on an unbooked day as not scheduled", () => {
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({
+          students: [
+            {
+              studentId: "24",
+              status: "absent",
+              substatus: "sick",
+              careDayStatus: "not_scheduled",
+            },
+            { studentId: "25", status: "absent", careDayStatus: "unknown" },
+          ],
+          studentIds: ["24", "25"],
+          expectedStudentsCount: 0,
+          notScheduledStudentsCount: 1,
+          presentStudentsCount: 0,
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onAttendancePatch={vi.fn()}
+        studentNames={
+          new Map([
+            ["24", "Nina Ohne Betreuung"],
+            ["25", "Ole Fehlt Wirklich"],
+          ])
+        }
+        editDeferred={false}
+      />,
+    );
+
+    // Group header plus the row label of the falsely absent child.
+    expect(screen.getAllByText(/Heute nicht eingeplant/)).toHaveLength(2);
+    expect(
+      screen.queryByRole("button", { name: /Nina Ohne Betreuung/ }),
+    ).not.toBeInTheDocument();
+    // The genuine absence keeps its own group and its own label.
+    expect(screen.getByText("Ole Fehlt Wirklich")).toBeInTheDocument();
+    expect(screen.getAllByText("Abgemeldet").length).toBeGreaterThan(0);
+  });
+
   it("marks spontaneous instances in the detail header", () => {
     render(
       <InstanceDetailSlideOver
@@ -218,6 +314,63 @@ describe("InstanceDetailSlideOver", () => {
     );
     await waitFor(() =>
       expect(screen.queryByText("Termin absagen?")).not.toBeInTheDocument(),
+    );
+  });
+
+  // Not booked into care today is a plan, not a prophecy: the child can still
+  // walk in, and this view is where the supervisor standing in the room records
+  // it (#1747 review). Only "anwesend" survives here — "abmelden" and
+  // "zuruecksetzen" would write attendance for a day the child was never
+  // expected on.
+  it("keeps the check-in action for a child who turns up unplanned", async () => {
+    const onAttendancePatch = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({
+          status: "active",
+          isLive: true,
+          students: [
+            {
+              studentId: "24",
+              status: "expected",
+              careDayStatus: "not_scheduled",
+            },
+          ],
+          studentIds: ["24"],
+          expectedStudentsCount: 0,
+          notScheduledStudentsCount: 1,
+          presentStudentsCount: 0,
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onAttendancePatch={onAttendancePatch}
+        studentNames={new Map([["24", "Nina Ohne Betreuung"]])}
+        editDeferred={false}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", {
+        name: "Nina Ohne Betreuung als fehlend markieren",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: "Status von Nina Ohne Betreuung zurücksetzen",
+      }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Nina Ohne Betreuung als anwesend markieren",
+      }),
+    );
+    await waitFor(() =>
+      expect(onAttendancePatch).toHaveBeenCalledWith("42", "24", {
+        status: "present",
+        substatus: null,
+      }),
     );
   });
 
@@ -478,6 +631,7 @@ describe("InstanceDetailSlideOver", () => {
           students: [],
           studentIds: [],
           expectedStudentsCount: 0,
+          notScheduledStudentsCount: 0,
           presentStudentsCount: 0,
           notes: undefined,
           conflictWarnings: [],
@@ -528,6 +682,61 @@ describe("InstanceDetailSlideOver", () => {
     expect(screen.getByText(/Entschuldigt/)).toBeInTheDocument();
     expect(screen.getByText(/Ausflug/)).toBeInTheDocument();
     expect(screen.getByText(/Sonstiges/)).toBeInTheDocument();
+  });
+
+  it("shows the Regeltermin OriginChip only when the instance stems from one", () => {
+    const { rerender } = render(
+      <InstanceDetailSlideOver
+        instance={instance({
+          activityGroupId: "9",
+          date: "2026-05-04", // Monday
+          startTime: "12:00",
+          title: "Mensa",
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("aus Regeltermin Mensa, montags 12:00"),
+    ).toBeInTheDocument();
+
+    rerender(
+      <InstanceDetailSlideOver
+        instance={instance({ activityGroupId: undefined })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText(/aus Regeltermin/)).not.toBeInTheDocument();
+  });
+
+  it("labels the substitution jump action 'Vertretung bearbeiten' and links to /vertretung", () => {
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({
+          status: "planned",
+          staff: [
+            {
+              staffId: "11",
+              isPrimary: true,
+              isAbsent: true,
+              isSubstitute: false,
+            },
+          ],
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: /Vertretung bearbeiten/ });
+    expect(link).toHaveAttribute(
+      "href",
+      expect.stringContaining("/vertretung?d=2026-05-04&block=42"),
+    );
   });
 
   it("can back out of cancelled instance deletion confirmation", () => {

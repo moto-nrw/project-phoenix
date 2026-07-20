@@ -1,10 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth, uncachedAuth } from "../server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import type { ApiErrorResponse, ApiResponse } from "./api-helpers.server";
 import { handleApiError } from "./api-helpers.server";
 import {
-  type RouteContext,
   extractParams,
   parseRequestBody,
   wrapInApiResponse,
@@ -149,10 +149,7 @@ function createNoBodyHandler<T>(
   handler: NoBodyHandler<T>,
   formatResponse: ResponseFormatter<T>,
 ) {
-  return async (
-    request: NextRequest,
-    context: RouteContext,
-  ): RouteHandlerResponse<T> => {
+  return withTenantAuth(async (request, context): RouteHandlerResponse<T> => {
     try {
       const session = await auth();
 
@@ -172,7 +169,7 @@ function createNoBodyHandler<T>(
     } catch (error) {
       return handleApiError(error);
     }
-  };
+  });
 }
 
 /**
@@ -182,10 +179,7 @@ function createWithBodyHandler<T, B>(
   handler: WithBodyHandler<T, B>,
   formatResponse: ResponseFormatter<T>,
 ) {
-  return async (
-    request: NextRequest,
-    context: RouteContext,
-  ): RouteHandlerResponse<T> => {
+  return withTenantAuth(async (request, context): RouteHandlerResponse<T> => {
     try {
       const session = await auth();
       if (!session?.user?.token) {
@@ -205,7 +199,7 @@ function createWithBodyHandler<T, B>(
     } catch (error) {
       return handleApiError(error);
     }
-  };
+  });
 }
 
 /**

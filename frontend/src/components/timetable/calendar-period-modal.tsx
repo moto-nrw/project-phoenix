@@ -532,9 +532,9 @@ export function CalendarPeriodModal({
           </fieldset>
         )}
 
-        {saveWarnings.map((warning, index) => (
+        {saveWarnings.map((warning) => (
           <Alert
-            key={`${warning.code}-${index}`}
+            key={`${warning.code}-${warning.overlappingPeriodIds.join("-")}`}
             type="warning"
             message={warning.message}
           />

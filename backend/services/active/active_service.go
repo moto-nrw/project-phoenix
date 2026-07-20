@@ -378,15 +378,57 @@ func (s *service) FindActiveGroupsByGroupID(ctx context.Context, groupID int64) 
 }
 
 func (s *service) EndActiveGroupSession(ctx context.Context, id int64) error {
-	// Delegate to EndActivitySession which properly ends visits and broadcasts SSE
-	if err := s.EndActivitySession(ctx, id); err != nil {
-		// Wrap the error with our operation name for clarity
-		if activeErr, ok := err.(*ActiveError); ok {
-			return &ActiveError{Op: "EndActiveGroupSession", Err: activeErr.Err}
-		}
-		return &ActiveError{Op: "EndActiveGroupSession", Err: err}
+	// Ending a group by hand (POST /active/groups/{id}/end, and the Schulhof
+	// stale-session sweep) is a session end like any other, so it closes the
+	// timetable side too (#1747 review). Skipping it leaves the linked instance
+	// active with its expected rows unfinalized, and nothing repairs that
+	// afterwards: the nightly bridge only looks at active.groups that are still
+	// running, and this one is not.
+	//
+	// The state check runs BEFORE the bridge on purpose. EndActivitySession
+	// rejects an already-ended group as ErrActiveGroupAlreadyEnded, which the
+	// handler renders as 4xx — and the tenant middleware only rolls back on its
+	// own for 5xx, so bridging first would commit a completed instance beside
+	// that rejection.
+	group, err := s.GroupRepo.FindByID(ctx, id)
+	if err != nil || group == nil {
+		return &ActiveError{Op: "EndActiveGroupSession", Err: ErrActiveGroupNotFound}
 	}
-	return nil
+	if !group.IsActive() {
+		return &ActiveError{Op: "EndActiveGroupSession", Err: ErrActiveGroupAlreadyEnded}
+	}
+
+	// Both writes are one transition (#1747 review). runInSessionTx joins the
+	// caller's transaction when there is one (the HTTP path) and opens its own
+	// when there is none — the Schulhof sweep calls this straight from the
+	// scheduler, where a committed bridge write beside a failed session end
+	// would leave a completed instance next to an open group that no later run
+	// repairs.
+	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		// Ordered ahead of the session end for the same reason as everywhere
+		// else: EndActivitySession emits its checkout and activity-ended SSE
+		// events eagerly, so the failure-prone half has to run before the
+		// announcing one.
+		if err := s.completeTimetableMirrorsForEndedSessions(txCtx, []int64{id}); err != nil {
+			return &ActiveError{Op: "EndActiveGroupSession", Err: err}
+		}
+
+		// Delegate to EndActivitySession which properly ends visits and broadcasts SSE
+		if err := s.EndActivitySession(txCtx, id); err != nil {
+			// The bridge already completed the mirrored instance, so the
+			// transaction has to go. Joining the request's transaction means
+			// nothing here can roll it back, and the tenant middleware only
+			// rolls back on its own for 5xx — ErrActiveGroupAlreadyEnded and
+			// friends render as 4xx and would commit exactly that split state.
+			tenant.MarkRollback(txCtx)
+			// Wrap the error with our operation name for clarity
+			if activeErr, ok := err.(*ActiveError); ok {
+				return &ActiveError{Op: "EndActiveGroupSession", Err: activeErr.Err}
+			}
+			return &ActiveError{Op: "EndActiveGroupSession", Err: err}
+		}
+		return nil
+	})
 }
 
 func (s *service) GetActiveGroupWithVisits(ctx context.Context, id int64) (*active.Group, error) {

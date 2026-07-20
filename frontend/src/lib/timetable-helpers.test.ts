@@ -4,9 +4,7 @@ import {
   assignBlockLanes,
   chunkDateRange,
   computeTimetableSetup,
-  countPlanned,
-  countUnderstaffedInstances,
-  countUnderstaffedTemplates,
+  countPlannedStaff,
   deviationEventLabel,
   formatDayHeader,
   formatMonthLabel,
@@ -32,7 +30,6 @@ import {
   mapConflictCheckResult,
   mapDeviationHistory,
   mapCreateTemplateResult,
-  mapExceptionConflicts,
   mapGaps,
   mapInstance,
   mapInstanceStatusResult,
@@ -43,6 +40,7 @@ import {
   mapShiftCoverageCheckResult,
   mapTemplates,
   mapWeeklyInstances,
+  firstSchoolDayInPeriod,
   nextWorkdayISO,
   parseTimeToMinutes,
   resolveTemplateCalendarPeriodId,
@@ -176,6 +174,28 @@ describe("date and range helpers", () => {
     expect(nextWorkdayISO("2026-07-17")).toBe("2026-07-17"); // Fr bleibt
     expect(nextWorkdayISO("2026-08-01")).toBe("2026-08-03"); // Monatswechsel
     expect(nextWorkdayISO("2027-01-03")).toBe("2027-01-04"); // Jahreswechsel
+  });
+
+  it("snaps a weekend jump target to the nearest school day inside the period", () => {
+    const start = "2026-08-01"; // Samstag
+    const end = "2027-07-31";
+    // Sa/So am Zeitraumstart -> folgender Montag im Zeitraum.
+    expect(firstSchoolDayInPeriod(start, end, "2026-08-01")).toBe("2026-08-03");
+    expect(firstSchoolDayInPeriod(start, end, "2026-08-02")).toBe("2026-08-03");
+    // Wochentage bleiben unverändert.
+    expect(firstSchoolDayInPeriod(start, end, "2026-08-03")).toBe("2026-08-03");
+    expect(firstSchoolDayInPeriod(start, end, "2026-08-07")).toBe("2026-08-07");
+    // Sa/So am Zeitraumende -> zurück auf den vorangehenden Freitag.
+    expect(
+      firstSchoolDayInPeriod("2026-08-03", "2026-08-09", "2026-08-08"),
+    ).toBe("2026-08-07");
+    expect(
+      firstSchoolDayInPeriod("2026-08-03", "2026-08-09", "2026-08-09"),
+    ).toBe("2026-08-07");
+    // Zeitraum umfasst nur das Wochenende -> Ziel bleibt stehen.
+    expect(
+      firstSchoolDayInPeriod("2026-08-01", "2026-08-02", "2026-08-01"),
+    ).toBe("2026-08-01");
   });
 
   it("formats German labels", () => {
@@ -496,31 +516,6 @@ describe("backend mappers", () => {
     ).toMatchObject({ instanceId: "42", roomId: "3" });
 
     expect(
-      mapExceptionConflicts({
-        from: "2026-05-04",
-        to: "2026-05-08",
-        conflicts: [
-          {
-            kind: "modified_instance_time_mismatch",
-            date: "2026-05-04",
-            activity_group_id: 7,
-            instance_id: 42,
-            activity_title: "Mensa",
-            student_id: 21,
-            expected_arrival: "12:00",
-            arrival_source: "schedule",
-            original_start_time: "12:00",
-            modified_start_time: "12:30",
-          },
-        ],
-      }).conflicts[0],
-    ).toMatchObject({
-      activityGroupId: "7",
-      instanceId: "42",
-      studentId: "21",
-    });
-
-    expect(
       mapStartInstanceResult({
         instance_id: 42,
         status: "active",
@@ -594,14 +589,6 @@ describe("backend mappers", () => {
         gaps: undefined as never,
       }),
     ).toMatchObject({ gaps: [] });
-
-    expect(
-      mapExceptionConflicts({
-        from: "2026-05-04",
-        to: "2026-05-08",
-        conflicts: undefined as never,
-      }),
-    ).toMatchObject({ conflicts: [] });
   });
 
   it("maps gap staffing detail and the acknowledged bucket (#1840)", () => {
@@ -1286,78 +1273,54 @@ function planInstance(
   } as unknown as EnrichedInstance;
 }
 
-function fakeTemplate(
-  requiredStaffCount: number,
-  assignedStaffCount: number,
-): TimetableTemplate {
-  return {
-    requiredStaffCount,
-    assignedStaffCount,
-  } as unknown as TimetableTemplate;
-}
+describe("countPlannedStaff", () => {
+  function staffMember(
+    staffId: string,
+    isAbsent = false,
+  ): EnrichedInstance["staff"][number] {
+    return { staffId, isPrimary: false, isAbsent, isSubstitute: false };
+  }
 
-describe("countPlanned", () => {
-  it("counts non-cancelled instances", () => {
+  it("unions staff across blocks so a person in two blocks counts once", () => {
     expect(
-      countPlanned([
-        planInstance({ id: "a", status: "planned" }),
-        planInstance({ id: "b", status: "active" }),
-        planInstance({ id: "c", status: "completed" }),
-        planInstance({ id: "d", status: "cancelled" }),
+      countPlannedStaff([
+        planInstance({
+          id: "a",
+          staff: [staffMember("s1"), staffMember("s2")],
+        }),
+        planInstance({
+          id: "b",
+          staff: [staffMember("s2"), staffMember("s3")],
+        }),
       ]),
     ).toBe(3);
   });
 
-  it("returns 0 for an empty list", () => {
-    expect(countPlanned([])).toBe(0);
-  });
-});
-
-describe("countUnderstaffedInstances", () => {
-  it("counts ratio shortfalls while ignoring cancelled and zero-requirement appointments", () => {
+  it("excludes absent staff", () => {
     expect(
-      countUnderstaffedInstances([
+      countPlannedStaff([
         planInstance({
-          id: "partially-staffed",
-          requiredStaffCount: 3,
-          assignedStaffCount: 1,
+          id: "a",
+          staff: [staffMember("s1", true), staffMember("s2")],
         }),
+      ]),
+    ).toBe(1);
+  });
+
+  it("excludes staff of cancelled instances", () => {
+    expect(
+      countPlannedStaff([
         planInstance({
-          id: "unstaffed",
-          requiredStaffCount: 2,
-          assignedStaffCount: 0,
-        }),
-        planInstance({
-          id: "staffed",
-          requiredStaffCount: 2,
-          assignedStaffCount: 2,
-        }),
-        planInstance({
-          id: "no-requirement",
-          requiredStaffCount: 0,
-          assignedStaffCount: 0,
-        }),
-        planInstance({
-          id: "cancelled-gap",
+          id: "a",
           status: "cancelled",
-          requiredStaffCount: 2,
-          assignedStaffCount: 0,
+          staff: [staffMember("s1")],
         }),
       ]),
-    ).toBe(2);
+    ).toBe(0);
   });
-});
 
-describe("countUnderstaffedTemplates", () => {
-  it("counts partial and empty staffing only when the series has a requirement", () => {
-    expect(
-      countUnderstaffedTemplates([
-        fakeTemplate(3, 1),
-        fakeTemplate(2, 0),
-        fakeTemplate(2, 2),
-        fakeTemplate(0, 0),
-      ]),
-    ).toBe(2);
+  it("returns 0 for an empty list", () => {
+    expect(countPlannedStaff([])).toBe(0);
   });
 });
 

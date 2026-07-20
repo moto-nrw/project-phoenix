@@ -114,7 +114,11 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
           ))}
         </select>
       ))}
-      <button data-testid="clear-filters" onClick={onClearAllFilters}>
+      <button
+        type="button"
+        data-testid="clear-filters"
+        onClick={onClearAllFilters}
+      >
         Clear
       </button>
       {actionButton}
@@ -145,12 +149,17 @@ vi.mock("~/components/ui/database/database-form-modal", () => ({
       <div data-testid="activity-create-modal">
         {error ? <span data-testid="create-error">{error}</span> : null}
         <button
+          type="button"
           data-testid="submit-create"
           onClick={() => submit({ name: "Neue AG" })}
         >
           Submit
         </button>
-        <button data-testid="close-create-modal" onClick={onClose}>
+        <button
+          type="button"
+          data-testid="close-create-modal"
+          onClick={onClose}
+        >
           Close
         </button>
       </div>
@@ -187,6 +196,7 @@ vi.mock("@/components/activities/activities-master-detail", () => ({
       <div data-testid="activities-master-detail">
         {activities.map((activity) => (
           <button
+            type="button"
             key={activity.id}
             data-testid={`activity-row-${activity.id}`}
             onClick={() => onSelect(activity.id)}
@@ -202,18 +212,24 @@ vi.mock("@/components/activities/activities-master-detail", () => ({
               {selectedActivity?.name ?? "unbekannt"}
             </span>
             <button
+              type="button"
               data-testid="trigger-update"
               onClick={() => save({ name: "Updated AG" })}
             >
               Save
             </button>
             <button
+              type="button"
               data-testid="trigger-deselect"
               onClick={() => onSelect(null)}
             >
               Close
             </button>
-            <button data-testid="trigger-delete" onClick={onDeleteClick}>
+            <button
+              type="button"
+              data-testid="trigger-delete"
+              onClick={onDeleteClick}
+            >
               Delete
             </button>
           </div>
@@ -235,10 +251,10 @@ vi.mock("~/components/ui/modal", () => ({
   }) =>
     isOpen ? (
       <div data-testid="confirmation-modal">
-        <button data-testid="confirm-delete" onClick={onConfirm}>
+        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
           Confirm
         </button>
-        <button data-testid="cancel-delete" onClick={onClose}>
+        <button type="button" data-testid="cancel-delete" onClick={onClose}>
           Cancel
         </button>
       </div>

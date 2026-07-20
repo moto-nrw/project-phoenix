@@ -3,6 +3,7 @@ package platform
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	emailpkg "github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/platform"
@@ -375,6 +377,9 @@ func (s *operatorAuthService) mintOperatorTokenPair(operator *platform.Operator,
 		ID:    int(operator.ID),
 		Token: refreshToken.Token,
 		Scope: "platform",
+		CommonClaims: jwt.CommonClaims{
+			ExpiresAt: refreshToken.Expiry.Unix(),
+		},
 	}
 	access, refresh, err := s.tokenAuth.GenTokenPair(s.operatorAccessClaims(operator), refreshClaims)
 	if err != nil {
@@ -441,6 +446,7 @@ func (s *operatorAuthService) RefreshToken(ctx context.Context, operatorID int64
 	var accessToken string
 	var refreshToken string
 	var rejectAfterCommit bool
+	var recovered bool
 	err := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		dbToken, err := s.RefreshTokenRepo.FindByTokenForUpdate(txCtx, refreshTokenValue)
 		if err != nil {
@@ -452,10 +458,25 @@ func (s *operatorAuthService) RefreshToken(ctx context.Context, operatorID int64
 
 		now := time.Now()
 		if now.After(dbToken.Expiry) {
-			if err := s.RefreshTokenRepo.Delete(txCtx, dbToken.ID); err != nil {
-				return fmt.Errorf("failed to delete expired operator refresh token: %w", err)
+			if err := s.RefreshTokenRepo.DeleteByFamilyID(txCtx, dbToken.FamilyID); err != nil {
+				return fmt.Errorf("failed to delete expired operator refresh-token family: %w", err)
 			}
 			rejectAfterCommit = true
+			s.logOperatorRefreshDecision("token_expired", operatorID, dbToken.Generation)
+			return nil
+		}
+
+		dbToken, recovered, err = s.resolveOperatorRefreshHandoff(txCtx, dbToken, now)
+		if err != nil {
+			var invalidRefresh *OperatorRefreshTokenInvalidError
+			if !errors.As(err, &invalidRefresh) {
+				return err
+			}
+			if err := s.RefreshTokenRepo.DeleteByFamilyID(txCtx, dbToken.FamilyID); err != nil {
+				return fmt.Errorf("failed to revoke replayed operator refresh-token family: %w", err)
+			}
+			rejectAfterCommit = true
+			s.logOperatorRefreshDecision("replay_detected", operatorID, dbToken.Generation)
 			return nil
 		}
 
@@ -468,6 +489,7 @@ func (s *operatorAuthService) RefreshToken(ctx context.Context, operatorID int64
 				return fmt.Errorf("failed to revoke operator refresh token family: %w", err)
 			}
 			rejectAfterCommit = true
+			s.logOperatorRefreshDecision("lineage_mismatch", operatorID, dbToken.Generation)
 			return nil
 		}
 
@@ -482,16 +504,26 @@ func (s *operatorAuthService) RefreshToken(ctx context.Context, operatorID int64
 			return &OperatorInactiveError{OperatorID: operatorID}
 		}
 
-		newDBToken := s.newOperatorRefreshToken(operator.ID, dbToken.FamilyID, dbToken.Generation+1)
-		accessToken, refreshToken, err = s.mintOperatorTokenPair(operator, newDBToken)
-		if err != nil {
-			return err
-		}
-		if err := s.RefreshTokenRepo.Delete(txCtx, dbToken.ID); err != nil {
-			return fmt.Errorf("failed to delete old operator refresh token: %w", err)
-		}
-		if err := s.RefreshTokenRepo.Create(txCtx, newDBToken); err != nil {
-			return fmt.Errorf("failed to persist rotated operator refresh token: %w", err)
+		if recovered {
+			accessToken, refreshToken, err = s.mintOperatorTokenPair(operator, dbToken)
+			if err != nil {
+				return err
+			}
+		} else {
+			newDBToken := s.newOperatorRefreshToken(operator.ID, dbToken.FamilyID, dbToken.Generation+1)
+			accessToken, refreshToken, err = s.mintOperatorTokenPair(operator, newDBToken)
+			if err != nil {
+				return err
+			}
+			if err := s.RefreshTokenRepo.Create(txCtx, newDBToken); err != nil {
+				return fmt.Errorf("failed to persist rotated operator refresh token: %w", err)
+			}
+			if err := s.RefreshTokenRepo.MarkRotated(txCtx, dbToken.ID, newDBToken.Token, rotation.RecoveryProofHash(txCtx), now); err != nil {
+				return fmt.Errorf("failed to persist operator refresh-token handoff: %w", err)
+			}
+			if err := s.RefreshTokenRepo.DeleteExpiredRotated(txCtx, dbToken.FamilyID, now); err != nil {
+				return fmt.Errorf("failed to clean operator refresh-token handoffs: %w", err)
+			}
 		}
 		return nil
 	})
@@ -501,8 +533,53 @@ func (s *operatorAuthService) RefreshToken(ctx context.Context, operatorID int64
 	if rejectAfterCommit {
 		return "", "", &OperatorRefreshTokenInvalidError{}
 	}
+	if recovered {
+		s.getLogger().Info("operator_refresh_rotation_recovered",
+			slog.Int64("operator_id", operatorID),
+		)
+	}
 
 	return accessToken, refreshToken, nil
+}
+
+func (s *operatorAuthService) resolveOperatorRefreshHandoff(ctx context.Context, presented *platform.OperatorRefreshToken, now time.Time) (*platform.OperatorRefreshToken, bool, error) {
+	current := presented
+	// The request proves possession of the token it presented. Successor hops
+	// are accepted only after validating their persisted family and generation
+	// lineage; each hop may have been rotated under a different access token.
+	proofValidated := false
+	for hop := 0; hop < rotation.MaxRecoveryHops; hop++ {
+		if current.RotatedAt == nil {
+			return current, current.ID != presented.ID, nil
+		}
+		if current.ReplacementToken == nil || current.RotatedAt.After(now) || now.Sub(*current.RotatedAt) > rotation.RecoveryGrace {
+			return current, false, &OperatorRefreshTokenInvalidError{}
+		}
+		if !proofValidated {
+			if !rotation.MatchesRecoveryProof(ctx, current.RecoveryProofHash) {
+				return current, false, &OperatorRefreshTokenInvalidError{}
+			}
+			proofValidated = true
+		}
+
+		next, err := s.RefreshTokenRepo.FindByTokenForUpdate(ctx, *current.ReplacementToken)
+		if err != nil {
+			return current, false, fmt.Errorf("failed to follow operator refresh-token handoff: %w", err)
+		}
+		if next == nil || next.FamilyID != current.FamilyID || next.OperatorID != current.OperatorID || next.Generation != current.Generation+1 {
+			return current, false, &OperatorRefreshTokenInvalidError{}
+		}
+		current = next
+	}
+	return current, false, &OperatorRefreshTokenInvalidError{}
+}
+
+func (s *operatorAuthService) logOperatorRefreshDecision(reason string, operatorID int64, generation int) {
+	s.getLogger().Warn("operator_refresh_session_rejected",
+		slog.String("reason", reason),
+		slog.Int64("operator_id", operatorID),
+		slog.Int("generation", generation),
+	)
 }
 
 // ValidateOperator validates an operator's credentials without generating tokens

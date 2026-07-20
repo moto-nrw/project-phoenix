@@ -1021,6 +1021,7 @@ function formatOccurredAt(occurredAt: string): string {
   const d = new Date(occurredAt);
   if (Number.isNaN(d.getTime())) return occurredAt;
   return `${formatDate(occurredAt)}, ${d.toLocaleTimeString("de-DE", {
+    timeZone: "Europe/Berlin",
     hour: "2-digit",
     minute: "2-digit",
   })} Uhr`;
