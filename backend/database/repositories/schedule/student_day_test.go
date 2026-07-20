@@ -114,6 +114,123 @@ func TestInstanceStudentRepository_FindInstancesWithAttendanceByStudentAndDateRa
 	})
 }
 
+// The #1747 "war an dem Tag nicht eingeplant" marker is the persisted
+// not_scheduled column that Complete()/the nightly bridge stamp on the rows
+// they spare the absence, and the per-student read must not resurface those
+// rows as expected attendance. Everything else stays visible: rows with a real
+// outcome, 'expected' rows on cancelled instances, and — critically — an
+// unmarked 'expected' row on a completed instance, which is what an attendance
+// PATCH reset writes and must never be mistaken for a non-booking.
+func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduledOnCompleted(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	student := testpkg.CreateTestStudent(t, db, "Lina", fmt.Sprintf("NSC-%d", time.Now().UnixNano()), "1b")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	day := timezone.NewDate(2034, 6, 5)
+
+	completedInst, cleanCompleted := createInstanceFixture(t, db, "nsc-done", day)
+	defer cleanCompleted()
+	cancelledInst, cleanCancelled := createInstanceFixture(t, db, "nsc-cxl", day)
+	defer cleanCancelled()
+
+	completedInst.Status = scheduleModels.InstanceStatusCompleted
+	require.NoError(t, instanceRepo.Update(ctx, completedInst))
+	cancelledInst.Status = scheduleModels.InstanceStatusCancelled
+	require.NoError(t, instanceRepo.Update(ctx, cancelledInst))
+
+	mkRow := func(instID int64, status string, notScheduled bool) *scheduleModels.InstanceStudent {
+		row := &scheduleModels.InstanceStudent{
+			InstanceID:   instID,
+			StudentID:    student.ID,
+			Status:       status,
+			NotScheduled: notScheduled,
+		}
+		row.SetTenantID(1)
+		return row
+	}
+
+	spared := mkRow(completedInst.ID, scheduleModels.AttendanceStatusExpected, true)
+	require.NoError(t, repo.Create(ctx, spared))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", spared.ID)
+	cancelledExpected := mkRow(cancelledInst.ID, scheduleModels.AttendanceStatusExpected, false)
+	require.NoError(t, repo.Create(ctx, cancelledExpected))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", cancelledExpected.ID)
+
+	t.Run("spared row on a completed instance is hidden", func(t *testing.T) {
+		rows, err := repo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, student.ID, day, day)
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		assert.Equal(t, cancelledInst.ID, rows[0].Instance.ID,
+			"the cancelled instance's expected row stays visible; the marked one must not")
+	})
+
+	t.Run("an unmarked expected row on a completed instance stays visible", func(t *testing.T) {
+		// What an attendance PATCH reset writes. Nothing about it says the
+		// child was never booked, so hiding it would erase a real expectation
+		// from the history and the exports.
+		unmarked, cleanUnmarked := createInstanceFixture(t, db, "nsc-reset", day)
+		defer cleanUnmarked()
+		unmarked.Status = scheduleModels.InstanceStatusCompleted
+		require.NoError(t, instanceRepo.Update(ctx, unmarked))
+
+		row := mkRow(unmarked.ID, scheduleModels.AttendanceStatusExpected, false)
+		require.NoError(t, repo.Create(ctx, row))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		rows, err := repo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, student.ID, day, day)
+		require.NoError(t, err)
+		require.Len(t, rows, 2)
+		instanceIDs := []int64{rows[0].Instance.ID, rows[1].Instance.ID}
+		assert.Contains(t, instanceIDs, unmarked.ID)
+	})
+
+	t.Run("a marked row somebody decided by hand stays visible", func(t *testing.T) {
+		spared.Status = scheduleModels.AttendanceStatusAbsent
+		require.NoError(t, repo.Update(ctx, spared))
+
+		rows, err := repo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, student.ID, day, day)
+		require.NoError(t, err)
+		assert.Len(t, rows, 2)
+	})
+
+	t.Run("a hand-set expectation stays visible on its own evidence", func(t *testing.T) {
+		// Staff setting an unbooked slot back to 'expected' is the one decision
+		// that lands on the exact shape the marker claims. The PATCH clears
+		// not_scheduled on that write, so the pair should never coexist — but
+		// the read must not depend on that pairing holding, or the day some
+		// other writer forgets it a deliberate expectation goes invisible
+		// (#1747 review).
+		decided, cleanDecided := createInstanceFixture(t, db, "nsc-manual", day)
+		defer cleanDecided()
+		decided.Status = scheduleModels.InstanceStatusCompleted
+		require.NoError(t, instanceRepo.Update(ctx, decided))
+
+		row := mkRow(decided.ID, scheduleModels.AttendanceStatusExpected, true)
+		decidedAt := time.Date(2034, 6, 5, 9, 30, 0, 0, time.UTC)
+		row.ManualStatusAt = &decidedAt
+		require.NoError(t, repo.Create(ctx, row))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		rows, err := repo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, student.ID, day, day)
+		require.NoError(t, err)
+		var found *scheduleModels.ScheduledInstanceRow
+		for _, r := range rows {
+			if r.Instance.ID == decided.ID {
+				found = r
+			}
+		}
+		require.NotNil(t, found, "a hand-decided row must never be hidden as a non-booking")
+		require.NotNil(t, found.Attendance.ManualStatusAt,
+			"and the read must carry the stamp, or every downstream verdict re-derives against the plan it overrides")
+	})
+}
+
 // HasPlannedSlotsInRange is the tenant-wide care-plan signal: planned
 // assignment rows count, walk-in rows (is_unplanned) and rows outside the
 // range do not. The far-future window keeps concurrent fixtures from other

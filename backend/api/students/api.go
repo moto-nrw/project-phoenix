@@ -36,15 +36,21 @@ type Resource struct {
 // ResourceConfig holds all dependencies for creating a students Resource.
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
-	PersonService           userService.PersonService
-	GuardianService         *userService.GuardianService
-	EducationService        educationService.Service
-	UserContextService      userContextService.UserContextService
-	ActiveService           activeService.Service
-	IoTService              iotSvc.Service
-	PickupScheduleService   scheduleService.PickupScheduleService
-	ArrivalScheduleService  scheduleService.ArrivalScheduleService
-	InstanceService         scheduleService.InstanceService
+	PersonService          userService.PersonService
+	GuardianService        *userService.GuardianService
+	EducationService       educationService.Service
+	UserContextService     userContextService.UserContextService
+	ActiveService          activeService.Service
+	IoTService             iotSvc.Service
+	PickupScheduleService  scheduleService.PickupScheduleService
+	ArrivalScheduleService scheduleService.ArrivalScheduleService
+	InstanceService        scheduleService.InstanceService
+	// CareDayService gates the day-planning timetable signal on the child's
+	// care plan (#1747) — without it a child assigned to a block counts as
+	// "kommt heute" on every weekday, including the ones they are not booked
+	// for. Optional: nil keeps the unfiltered pre-#1747 behaviour, which is
+	// what bare test Resources rely on.
+	CareDayService          scheduleService.CareDayService
 	SchoolService           platformSvc.SchoolService
 	SettingsService         configService.SettingsService
 	StudentService          userService.StudentService

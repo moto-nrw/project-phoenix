@@ -515,6 +515,7 @@ const instance = {
   staffCount: 1,
   absentStaffCount: 1,
   expectedStudentsCount: 1,
+  notScheduledStudentsCount: 0,
   presentStudentsCount: 0,
   requiredStaffCount: 3,
   assignedStaffCount: 1,

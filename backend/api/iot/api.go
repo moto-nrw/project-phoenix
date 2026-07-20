@@ -53,6 +53,7 @@ type ServiceDependencies struct {
 	PickupScheduleService scheduleSvc.PickupScheduleService
 	SchoolService         platformSvc.SchoolService
 	TimetableDataService  *scheduleSvc.TimetableDataService
+	TimetableBridge       *scheduleSvc.TimetableBridgeService
 	UnregisteredTagScans  auditSvc.UnregisteredTagScanService
 	Broadcaster           realtime.Broadcaster
 	Logger                *slog.Logger
@@ -181,6 +182,7 @@ func (rs *Resource) Router() chi.Router {
 		)
 		sessionsResource.ConfigureTimetableMirror(
 			rs.TimetableDataService,
+			rs.TimetableBridge,
 			rs.Broadcaster,
 		)
 		r.Mount("/session", sessionsResource.Router())

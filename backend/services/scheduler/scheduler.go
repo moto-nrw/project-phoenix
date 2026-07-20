@@ -138,6 +138,7 @@ type Scheduler struct {
 	instanceRepo         scheduleModel.ActivityInstanceRepository
 	instanceRoomRepo     facilitiesModel.RoomRepository
 	instanceStudentRepo  scheduleModel.InstanceStudentRepository
+	timetableBridge      timetableBridgeCompleter
 	studentStatusDayRepo activeModel.StudentStatusDayRepository
 	overdueBroadcaster   realtime.Broadcaster
 	overdueEmitted       sync.Map // overdueKey{tenantID, instanceID} → time.Time
@@ -293,14 +294,27 @@ func (s *Scheduler) SetInstanceOverdueDeps(repo scheduleModel.ActivityInstanceRe
 	s.overdueBroadcaster = broadcaster
 }
 
-// SetTimetableBridgeRepos wires the schedule-side repositories used by the
+// timetableBridgeCompleter finalizes attendance and completes the schedule-side
+// instances of ended active.groups in one step. Implemented by
+// schedule.TimetableBridgeService — the same implementation the force-start
+// path uses, so both paths leave identical rows behind (#1747).
+type timetableBridgeCompleter interface {
+	CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
+}
+
+// SetTimetableBridgeRepos wires the schedule-side dependencies used by the
 // daily session-end bridge (completeTimetableInstancesForEndedSessions).
 // Independent of the overdue-tick wiring: it also sets instanceRepo so the
 // bridge works even when SetInstanceOverdueDeps was never called. Without
 // this wiring the bridge is a no-op.
-func (s *Scheduler) SetTimetableBridgeRepos(instanceStudents scheduleModel.InstanceStudentRepository, instances scheduleModel.ActivityInstanceRepository) {
+func (s *Scheduler) SetTimetableBridgeRepos(
+	instanceStudents scheduleModel.InstanceStudentRepository,
+	instances scheduleModel.ActivityInstanceRepository,
+	bridge timetableBridgeCompleter,
+) {
 	s.instanceStudentRepo = instanceStudents
 	s.instanceRepo = instances
+	s.timetableBridge = bridge
 }
 
 // SetStudentStatusDayRepo wires the repository used by the nightly
@@ -720,7 +734,7 @@ func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Conte
 	if result == nil || len(result.EndedActiveGroupIDs) == 0 {
 		return 0, nil
 	}
-	if s.instanceStudentRepo == nil || s.instanceRepo == nil {
+	if s.instanceStudentRepo == nil || s.timetableBridge == nil {
 		return 0, nil
 	}
 
@@ -733,11 +747,12 @@ func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Conte
 		return 0, fmt.Errorf("close open timetable checkouts: %w", err)
 	}
 
-	if err := s.instanceStudentRepo.MarkExpectedAbsentByActiveGroupIDs(ctx, result.EndedActiveGroupIDs, now); err != nil {
-		return 0, fmt.Errorf("mark expected timetable students absent: %w", err)
-	}
-
-	rows, err := s.instanceRepo.CompleteActiveByActiveGroupIDs(ctx, result.EndedActiveGroupIDs, now)
+	// The bridge finalizes attendance before it stamps the instances completed:
+	// children the care plan does not place in the OGS that day are spared the
+	// absent stamp (#1747), everybody else flips expected → absent. Shared with
+	// the force-start path so no caller can complete an instance that still
+	// carries expected rows.
+	rows, err := s.timetableBridge.CompleteActiveByActiveGroupIDs(ctx, result.EndedActiveGroupIDs, now)
 	if err != nil {
 		return 0, fmt.Errorf("complete active timetable instances: %w", err)
 	}

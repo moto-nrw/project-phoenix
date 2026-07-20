@@ -2796,22 +2796,46 @@ func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date timezone.Date, r
 	return row
 }
 
+// InstanceStudentOpts controls optional fields for CreateTestInstanceStudent.
+type InstanceStudentOpts struct {
+	// NotScheduled sets the #1747 non-booking marker ending a block stamps on
+	// children the care plan did not place there that day.
+	NotScheduled bool
+	// StudentStatusDayID records that a broad day status (sick / excused /
+	// class trip) owns this row's outcome, the provenance ApplyStatusDay
+	// writes. A manual decision and a check-in both clear it, so a nil value
+	// is what separates "a human decided this" from "a day status did".
+	StudentStatusDayID *int64
+	// ManualStatusAt reproduces an attendance PATCH: a human set this row's
+	// status by hand. Completion must leave such a row alone rather than stamp
+	// it as a non-booking (#1747).
+	ManualStatusAt *time.Time
+}
+
 // CreateTestInstanceStudent inserts one instance_students row. Status defaults
-// to AttendanceStatusExpected when empty.
-func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID int64, status string) *schedule.InstanceStudent {
+// to AttendanceStatusExpected when empty; opts is optional and only the first
+// entry is read.
+func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID int64, status string, opts ...InstanceStudentOpts) *schedule.InstanceStudent {
 	tb.Helper()
 
 	if status == "" {
 		status = schedule.AttendanceStatusExpected
+	}
+	var opt InstanceStudentOpts
+	if len(opts) > 0 {
+		opt = opts[0]
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	row := &schedule.InstanceStudent{
-		InstanceID: instanceID,
-		StudentID:  studentID,
-		Status:     status,
+		InstanceID:         instanceID,
+		StudentID:          studentID,
+		Status:             status,
+		NotScheduled:       opt.NotScheduled,
+		StudentStatusDayID: opt.StudentStatusDayID,
+		ManualStatusAt:     opt.ManualStatusAt,
 	}
 	row.SetTenantID(1)
 
@@ -2821,6 +2845,40 @@ func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID 
 		Exec(ctx)
 	require.NoError(tb, err, "Failed to create test instance student")
 	return row
+}
+
+// CreateTestStudentStatusDay inserts one reported broad day status (sick /
+// excused / class trip) for a student on a date. Callers that pass its ID into
+// InstanceStudentOpts.StudentStatusDayID reproduce the state ApplyStatusDay
+// leaves behind: a slot absence the day status owns. Clean up with
+// CleanupStudentStatusDays.
+func CreateTestStudentStatusDay(tb testing.TB, db *bun.DB, studentID int64, date timezone.Date, status string) *active.StudentStatusDay {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	row := &active.StudentStatusDay{
+		StudentID:  studentID,
+		Date:       date,
+		Status:     status,
+		ReportedAt: time.Now(),
+		Source:     active.StudentStatusSourceManual,
+	}
+	row.SetTenantID(1)
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`active.student_status_days`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test student status day")
+	return row
+}
+
+// CleanupStudentStatusDays removes status-day rows by ID. Safe to defer.
+func CleanupStudentStatusDays(tb testing.TB, db *bun.DB, ids ...int64) {
+	tb.Helper()
+	CleanupTableRecords(tb, db, "active.student_status_days", ids...)
 }
 
 // InstanceStaffOpts controls optional fields for CreateTestInstanceStaff.

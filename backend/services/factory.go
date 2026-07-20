@@ -86,6 +86,8 @@ type Factory struct {
 	PickupSchedule           schedule.PickupScheduleService
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
+	CareDay                  schedule.CareDayService
+	TimetableBridge          *schedule.TimetableBridgeService
 	Materialization          schedule.MaterializationService
 	TemplateSplit            *schedule.TemplateSplitService
 	TimetableCleanup         schedule.TimetableCleanupService
@@ -363,6 +365,30 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "attendance-sync"),
 	)
 
+	// Care-day derivation (#1747): intersects timetable assignments with the
+	// children's care plans. Read-only, so it can be shared by every consumer
+	// (instance lifecycle, operations roster, weekly planner, scheduler).
+	// Built here, ahead of the active service, because the timetable bridge
+	// below needs it and the active service needs the bridge.
+	careDayService := schedule.NewCareDayService(schedule.CareDayDependencies{
+		ArrivalSchedules:  repos.StudentArrivalSchedule,
+		ArrivalExceptions: repos.StudentArrivalException,
+		PickupSchedules:   repos.StudentPickupSchedule,
+		PickupExceptions:  repos.StudentPickupException,
+	})
+
+	// Single entry point for completing instances whose active.group somebody
+	// else ended (force-start here, the nightly session-end job in the
+	// scheduler). Finalizes attendance first, so a completed instance never
+	// keeps genuinely expected rows — readers take those as the "not booked
+	// into care that day" marker (#1747). Repos only, so no cycle with the
+	// active service it is injected into.
+	timetableBridgeService := schedule.NewTimetableBridgeService(schedule.TimetableBridgeDependencies{
+		Instances:        repos.ActivityInstance,
+		InstanceStudents: repos.InstanceStudent,
+		CareDays:         careDayService,
+	})
+
 	// Initialize active service with SSE broadcaster
 	activeService := active.NewService(active.ServiceDependencies{
 		GroupRepo:                repos.ActiveGroup,
@@ -389,7 +415,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Tracker:                  tracker,               // Product analytics (PostHog)
 		WorkSessionService:       workSessionService,    // NFC auto-check-in
 		AttendanceSyncer:         attendanceSyncService, // WP-B10 mirror + SSE enrichment
-		TimetableBridgeCompleter: repos.ActivityInstance,
+		TimetableBridgeCompleter: timetableBridgeService,
 		Logger:                   activeLogger,
 	})
 
@@ -639,6 +665,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Initialize instance lifecycle before template split: the split reuses its
 	// deviation snapshot/reapply machinery when replacing future occurrences.
 	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
+		CareDayService:     careDayService,
 		InstanceRepo:       repos.ActivityInstance,
 		InstanceStaffRepo:  repos.InstanceStaff,
 		InstanceStudents:   repos.InstanceStudent,
@@ -736,6 +763,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ActivityGroupRepo:  repos.ActivityGroup,
 		ActiveService:      activeService,
 		ArrivalService:     arrivalScheduleService,
+		CareDayService:     careDayService,
 		SupervisorRepo:     repos.GroupSupervisor,
 		VisitRepo:          repos.ActiveVisit,
 		StudentRepo:        repos.Student,
@@ -1347,6 +1375,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		InstanceStaffRepo:    repos.InstanceStaff,
 		InstanceStudentRepo:  repos.InstanceStudent,
 		ActivityInstanceRepo: repos.ActivityInstance,
+		CareDays:             careDayService,
 		UserContext:          userContextService,
 		DB:                   db,
 	})
@@ -1465,6 +1494,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PickupSchedule:           pickupScheduleService,
 		Display:                  displayService,
 		ArrivalSchedule:          arrivalScheduleService,
+		CareDay:                  careDayService,
+		TimetableBridge:          timetableBridgeService,
 		CalendarPeriod:           calendarPeriodService,
 		Materialization:          materializationService,
 		TemplateSplit:            templateSplitService,

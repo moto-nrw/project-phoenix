@@ -216,6 +216,54 @@ func (rs *Resource) loadDayPlanningTimetableIDs(ctx context.Context, studentIDs 
 	for _, id := range plannedIDs {
 		timetableIDs[id] = struct{}{}
 	}
+	return rs.filterTimetableIDsByCareDay(ctx, timetableIDs, date)
+}
+
+// filterTimetableIDsByCareDay drops the children a timetable block lists but
+// the care plan does not place in the OGS that weekday (#1747).
+//
+// Assigning a whole group or year to an activity (#1838) puts every member on
+// every occurrence, so the raw assignment alone would report a child as
+// "kommt heute — Betreuungsplan" on days they are not booked for. The timetable
+// roster and the expected counts already resolve this through CareDayService;
+// filtering the same signal here is what keeps the student search from
+// contradicting them about the same child on the same day.
+//
+// Both non-expected verdicts remove the signal — "not booked that weekday" and
+// "cancelled" — exactly as the timetable roster and the expected counts treat
+// them. Restricting this to not_scheduled leaves a weekend hole: the bulk
+// arrival/pickup loaders below return early on Saturdays and Sundays without
+// looking at exceptions, so a timeless "kommt heute nicht" exception on a
+// weekend block reaches ResolveDayPlanning as nothing but HasTimetable and the
+// search reports "kommt heute" for a child the roster calls abgemeldet.
+//
+// A child with no plan on file at all resolves to unknown and keeps the
+// signal — schools that do not maintain arrival/pickup plans must keep seeing
+// their full roster.
+func (rs *Resource) filterTimetableIDsByCareDay(
+	ctx context.Context, timetableIDs map[int64]struct{}, date timezone.Date,
+) (map[int64]struct{}, error) {
+	if rs.CareDayService == nil || len(timetableIDs) == 0 {
+		return timetableIDs, nil
+	}
+
+	studentIDs := make([]int64, 0, len(timetableIDs))
+	for id := range timetableIDs {
+		studentIDs = append(studentIDs, id)
+	}
+
+	careDays, err := rs.CareDayService.ResolveForDate(ctx, studentIDs, date)
+	if err != nil {
+		return nil, err
+	}
+
+	for id := range timetableIDs {
+		// A missing entry is the empty status, which Expected() reports true —
+		// an unresolvable child keeps the signal rather than disappearing.
+		if !careDays[id].Expected() {
+			delete(timetableIDs, id)
+		}
+	}
 	return timetableIDs, nil
 }
 
