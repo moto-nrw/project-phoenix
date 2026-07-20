@@ -126,7 +126,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	rs.enrichWithCompanionLinks(r.Context(), responses)
+	rs.enrichWithCompanionLinks(r.Context(), responses, accessCtx)
 	columns := listexport.ResolveColumns(req.Columns, req.Preset)
 	enrollmentSummaries, err := rs.loadActiveEnrollmentSummaries(r, collectResponseIDs(responses), timezone.DateFromTime(today), columns)
 	if err != nil {

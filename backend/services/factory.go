@@ -1192,6 +1192,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AccountRoleRepo:          repos.AccountRole,
 		RoleRepo:                 repos.Role,
 		OutboxEnqueuer:           emailOutboxService,
+		Broadcaster:              realtimeHub,
 		FrontendURL:              frontendURL,
 		ParentsURL:               parentsURL,
 		Settings:                 settingsService,

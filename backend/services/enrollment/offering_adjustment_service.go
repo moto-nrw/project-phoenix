@@ -13,6 +13,8 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type offeringAdjustmentSnapshot struct {
@@ -309,11 +311,22 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 			}
 		}
 		if guardian != nil {
-			if terr := s.applyTargetedFields(ctx, req, child, student, guardian, input.ActorAccountID, targetedFieldSyncOptions{
+			planSynced, terr := s.applyTargetedFields(ctx, req, child, student, guardian, input.ActorAccountID, targetedFieldSyncOptions{
 				Replace:                input.ReplaceTargetedData,
 				PreviousSnapshot:       input.PreviousSnapshot,
 				KeepGuardianProfileIDs: keepGuardianProfileIDs,
-			}); terr != nil {
+			})
+			// A persisted departure plan makes the repository reconcile the
+			// "läuft mit" links against it — a narrowed plan drops edges that
+			// are rows on ANOTHER child's card too. Announce it exactly like
+			// the student PUT, care-request and master-data-review writers do,
+			// or open detail cards and the Laufgemeinschaft search keep
+			// showing the pre-sync links. After-commit: a rolled-back sync
+			// (including the replacement-error return below) fires nothing.
+			if planSynced {
+				s.deferStudentCompanionsChanged(ctx, student.ID)
+			}
+			if terr != nil {
 				s.Logger.Warn("decision: approved child targeted-field sync had errors",
 					slog.Int64("request_id", req.ID),
 					slog.Int64("child_id", child.ID),
@@ -332,6 +345,33 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 	}
 
 	return s.RequestChildRepo.FindByID(ctx, child.ID)
+}
+
+// deferStudentCompanionsChanged announces, after the surrounding tenant
+// transaction commits, that an enrollment sync replaced a child's departure
+// plan and the repository may have trimmed its Laufgemeinschaft — the signal
+// every mounted "läuft mit" view refetches on. Mirrors the master-data-review
+// and care-request emitters: fire-and-forget, a lost event costs a stale card,
+// never data.
+func (s *decisionService) deferStudentCompanionsChanged(ctx context.Context, studentID int64) {
+	if s.Broadcaster == nil {
+		return
+	}
+	tenantID := tenant.FromContext(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		if tenantID <= 0 {
+			return
+		}
+		source := "enrollment_sync"
+		event := realtime.NewEvent(realtime.EventStudentCompanionsChanged, "", realtime.EventData{Source: &source})
+		if err := s.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+			s.Logger.Warn("decision: failed to broadcast student companions change",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int64("student_id", studentID),
+				slog.String("error", err.Error()),
+			)
+		}
+	})
 }
 
 func (s *decisionService) actorSnapshot(ctx context.Context, accountID int64) (*string, *string) {

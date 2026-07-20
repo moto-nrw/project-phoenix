@@ -207,28 +207,48 @@ func (rs *Resource) redactUnreadableCompanionNames(r *http.Request, links []user
 	if len(links) == 0 {
 		return links, nil
 	}
-
-	ids := make([]int64, 0, len(links))
-	for _, link := range links {
-		ids = append(ids, link.CompanionStudentID)
-	}
-	companions, err := rs.StudentService.GetByIDs(r.Context(), ids)
-	if err != nil {
+	if err := rs.redactCompanionNames(r.Context(), rs.determineStudentAccess(r), links); err != nil {
 		return nil, err
 	}
-
-	accessCtx := rs.determineStudentAccess(r)
-	for i := range links {
-		// A companion that could not be loaded stays redacted: without its
-		// group there is nothing to authorize against, and guessing in the
-		// permissive direction would leak the very name this guards.
-		if accessCtx.HasFullAccessToStudent(companions[links[i].CompanionStudentID]) {
-			continue
-		}
-		links[i].FirstName = ""
-		links[i].LastName = ""
-	}
 	return links, nil
+}
+
+// redactCompanionNames is the shared redaction core behind
+// redactUnreadableCompanionNames and the export enrichment: it strips the name
+// of every linked child the caller may not read from ALL given link sets, in
+// one bulk student read. The link slices are mutated in place.
+func (rs *Resource) redactCompanionNames(ctx context.Context, accessCtx *studentAccessContext, linkSets ...[]userModels.CompanionLink) error {
+	seen := make(map[int64]bool)
+	var ids []int64
+	for _, links := range linkSets {
+		for _, link := range links {
+			if !seen[link.CompanionStudentID] {
+				seen[link.CompanionStudentID] = true
+				ids = append(ids, link.CompanionStudentID)
+			}
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	companions, err := rs.StudentService.GetByIDs(ctx, ids)
+	if err != nil {
+		return err
+	}
+
+	for _, links := range linkSets {
+		for i := range links {
+			// A companion that could not be loaded stays redacted: without its
+			// group there is nothing to authorize against, and guessing in the
+			// permissive direction would leak the very name this guards.
+			if accessCtx.HasFullAccessToStudent(companions[links[i].CompanionStudentID]) {
+				continue
+			}
+			links[i].FirstName = ""
+			links[i].LastName = ""
+		}
+	}
+	return nil
 }
 
 // lockCompanionRows takes the student row locks this request may need — the
@@ -612,11 +632,16 @@ func (rs *Resource) enrichWithCompanions(ctx context.Context, responses []Studen
 //
 // Unlike enrichWithCompanions (ids of the whole Laufgemeinschaft, for the
 // Kindersuche grouping) this carries NAMES, so it is restricted to the children
-// the caller has full access to — the same gate the grouping uses.
+// the caller has full access to — the same gate the grouping uses. That gate
+// covers only the SUBJECT of each link: with gdpr.student_data_scope at its
+// restrictive default the far end may be a child in a group the caller does not
+// supervise, and its name must not ride into the exported document either —
+// the same per-companion redaction getStudentCompanions applies runs here
+// before any link is attached to a response.
 //
 // A failure is logged and swallowed: an export must not fail because one
 // optional detail column could not be filled.
-func (rs *Resource) enrichWithCompanionLinks(ctx context.Context, responses []StudentResponse) {
+func (rs *Resource) enrichWithCompanionLinks(ctx context.Context, responses []StudentResponse, accessCtx *studentAccessContext) {
 	studentIDs := collectFullAccessStudentIDs(responses)
 	if len(studentIDs) == 0 {
 		return
@@ -625,6 +650,19 @@ func (rs *Resource) enrichWithCompanionLinks(ctx context.Context, responses []St
 	byStudent, err := rs.StudentService.ListCompanionsForStudents(ctx, studentIDs)
 	if err != nil {
 		rs.Logger.Error("failed to load departure companions for export",
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+
+	// Redaction failing must NOT fall through to the unredacted names — the
+	// column is optional, the far-end names are another child's personal data.
+	linkSets := make([][]userModels.CompanionLink, 0, len(byStudent))
+	for _, links := range byStudent {
+		linkSets = append(linkSets, links)
+	}
+	if err := rs.redactCompanionNames(ctx, accessCtx, linkSets...); err != nil {
+		rs.Logger.Error("failed to authorize departure companions for export",
 			slog.String("error", err.Error()),
 		)
 		return

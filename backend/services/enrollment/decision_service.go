@@ -24,6 +24,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	importsvc "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -331,9 +332,14 @@ type DecisionServiceConfig struct {
 	AccountRoleRepo          authModels.AccountRoleRepository
 	RoleRepo                 authModels.RoleRepository
 	OutboxEnqueuer           platformModels.OutboxEnqueuer
-	FrontendURL              string                   // not used by parent-facing emails today; kept for future admin links
-	ParentsURL               string                   // status link in approved/waitlisted/rejected emails. Falls back to FrontendURL when empty.
-	Settings                 DecisionSettingsResolver // resolves enrollment.default_activation_mode on approval; nil-safe (defaults to scheduled)
+	// Broadcaster announces student_companions_changed after an approved
+	// enrollment sync replaced a child's departure plan (the write that can
+	// trim "läuft mit" links). Nil-safe: without it the sync still works,
+	// open companion views just stay stale until their next manual refresh.
+	Broadcaster realtime.Broadcaster
+	FrontendURL string                   // not used by parent-facing emails today; kept for future admin links
+	ParentsURL  string                   // status link in approved/waitlisted/rejected emails. Falls back to FrontendURL when empty.
+	Settings    DecisionSettingsResolver // resolves enrollment.default_activation_mode on approval; nil-safe (defaults to scheduled)
 	// LockTemplateRecurrence serializes sourced roster writes with template
 	// split/end/materialization. Production wires the schedule service's
 	// transaction-scoped tenant recurrence gate; tests may leave it nil.
@@ -1255,7 +1261,11 @@ func (s *decisionService) applyApproval(
 	// the approval — the targeted-field path is best-effort, the same
 	// philosophy the invitation-email enqueue uses elsewhere in this
 	// service.
-	if err := s.applyTargetedFields(ctx, request, child, student, guardian, reviewedBy, targetedFieldSyncOptions{}); err != nil {
+	// The plan-synced flag is deliberately dropped here: this student row was
+	// created moments ago in this transaction, so no "läuft mit" link can
+	// exist yet and a companion broadcast would only wake every open editor
+	// once per mass approval for a change that cannot have touched a link.
+	if _, err := s.applyTargetedFields(ctx, request, child, student, guardian, reviewedBy, targetedFieldSyncOptions{}); err != nil {
 		s.Logger.Warn("decision: targeted-field dispatch had errors",
 			slog.Int64("request_id", request.ID),
 			slog.Int64("child_id", child.ID),
@@ -2428,7 +2438,17 @@ func (s *decisionService) ensureGuardianRoleForTenant(ctx context.Context, accou
 //
 // Best-effort overall: per-field errors are collected and returned in
 // one combined error string but never abort the approval. The student
-// + per-child records have already been written by the caller.
+// + per-child records have already been written by the caller. The one
+// exception to the opaque combined string are the companion sentinels a
+// departure-plan student write can raise (users.ErrCompanionWouldLoseDeparture,
+// users.ErrCompanionLockBusy): they stay reachable via errors.Is so the
+// enrollment handlers can answer with the actionable 4xx the student PUT
+// gives instead of a blind 500.
+//
+// The returned bool reports whether a DEPARTURE-PLAN-carrying student write
+// was persisted — the write that makes the repository reconcile (and possibly
+// trim) the "läuft mit" links, and therefore the signal for the caller's
+// student_companions_changed broadcast.
 type targetedFieldSyncOptions struct {
 	Replace                bool
 	PreviousSnapshot       map[string]any
@@ -2443,17 +2463,24 @@ func (s *decisionService) applyTargetedFields(
 	guardian *users.GuardianProfile,
 	reviewedBy int64,
 	options targetedFieldSyncOptions,
-) error {
+) (bool, error) {
 	if s.FormSchemaRepo == nil || request.SchemaID == nil {
-		return nil
+		return false, nil
 	}
 	schema, err := s.FormSchemaRepo.FindByID(ctx, *request.SchemaID)
 	if err != nil || schema == nil {
-		return nil
+		return false, nil
 	}
 
 	var errs []string
 	studentDirty := false
+	// departureTouched marks the targets whose student write replaces the
+	// departure plan: the repository then reconciles the "läuft mit" links
+	// against the new plan and may trim edges — rows on ANOTHER child's card
+	// too. The flag feeds the returned plan-synced signal so the caller can
+	// announce student_companions_changed for exactly these writes and stay
+	// silent for a health-info or consent sync that can never touch a link.
+	departureTouched := false
 	// A unified departure target wins by replacing both legacy maps after the
 	// loop; the legacy Buskind/Abholregelung targets mutate their own map
 	// directly, so a form carrying both still combines correctly (#1610).
@@ -2515,6 +2542,7 @@ func (s *decisionService) applyTargetedFields(
 				student.PickupDays = users.PickupDays{}
 				student.DepartureCompanionNote = nil
 				studentDirty = true
+				departureTouched = true
 			} else if days, err := decodeDepartureDays(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
@@ -2527,6 +2555,7 @@ func (s *decisionService) applyTargetedFields(
 				}
 				explicitDeparture = &days
 				studentDirty = true
+				departureTouched = true
 			}
 		case enrollmentModels.TargetStudentAllowedDepartureModes:
 			if raw == nil {
@@ -2536,6 +2565,7 @@ func (s *decisionService) applyTargetedFields(
 				student.PickupDays = users.PickupDays{}
 				student.DepartureCompanionNote = nil
 				studentDirty = true
+				departureTouched = true
 			} else if modes, err := decodeAllowedDepartureModes(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
@@ -2544,26 +2574,31 @@ func (s *decisionService) applyTargetedFields(
 				}
 				explicitAllowedDeparture = &modes
 				studentDirty = true
+				departureTouched = true
 			}
 		case enrollmentModels.TargetStudentBusDays, enrollmentModels.TargetStudentBus:
 			if raw == nil {
 				student.BusDays = users.BusDays{}
 				studentDirty = true
+				departureTouched = true
 			} else if days, err := decodeBusDays(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
 				student.BusDays = days
 				studentDirty = true
+				departureTouched = true
 			}
 		case enrollmentModels.TargetStudentPickupStatus:
 			if raw == nil {
 				student.PickupDays = users.PickupDays{}
 				studentDirty = true
+				departureTouched = true
 			} else if days, err := decodePickupDays(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
 				student.PickupDays = days
 				studentDirty = true
+				departureTouched = true
 			}
 		case enrollmentModels.TargetSchedulePickup:
 			if options.Replace && s.PickupScheduleRepo != nil && !pickupScheduleDeleted {
@@ -2714,16 +2749,37 @@ func (s *decisionService) applyTargetedFields(
 		}
 	}
 
+	departurePlanSynced := false
+	// The companion refusals are kept as a WRAPPED error, not flattened into
+	// the string list: StudentRepository.Update reconciles the "läuft mit"
+	// edges for every caller, and these two sentinels are expected,
+	// user-actionable refusals (fix the other child's Heimweg first / retry
+	// after the concurrent edit). Reducing them to text — as every other
+	// best-effort field error is — would turn a legitimate enrollment change
+	// into an opaque 500 at the handler (#1694).
+	var companionRefusal error
 	if studentDirty {
 		if err := s.StudentRepo.Update(ctx, student); err != nil {
-			errs = append(errs, fmt.Sprintf("update student: %v", err))
+			if errors.Is(err, users.ErrCompanionWouldLoseDeparture) || errors.Is(err, users.ErrCompanionLockBusy) {
+				companionRefusal = fmt.Errorf("update student: %w", err)
+			} else {
+				errs = append(errs, fmt.Sprintf("update student: %v", err))
+			}
+		} else {
+			departurePlanSynced = departureTouched
 		}
 	}
 
-	if len(errs) > 0 {
-		return errors.New(strings.Join(errs, "; "))
+	if companionRefusal != nil {
+		if len(errs) > 0 {
+			return departurePlanSynced, fmt.Errorf("%s; %w", strings.Join(errs, "; "), companionRefusal)
+		}
+		return departurePlanSynced, companionRefusal
 	}
-	return nil
+	if len(errs) > 0 {
+		return departurePlanSynced, errors.New(strings.Join(errs, "; "))
+	}
+	return departurePlanSynced, nil
 }
 
 func targetedFieldHasMeaningfulValue(target string, raw any) bool {

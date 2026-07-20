@@ -12,7 +12,9 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -326,6 +328,17 @@ func mapChangeRequestError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, enrollmentService.ErrChangeRequestInvalidStatus),
 		errors.Is(err, enrollmentService.ErrChangeRequestInvalidData):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	// Approving a change (or correcting child data) replaces the student's
+	// departure plan through StudentRepository.Update, which reconciles the
+	// "läuft mit" links and can refuse with the two companion sentinels. Both
+	// are expected, user-actionable refusals — map them to the same status +
+	// wire code the student PUT answers with, and render the bare sentinel so
+	// the client shows its clean German instruction instead of the wrapped
+	// sync context (#1694).
+	case errors.Is(err, userModels.ErrCompanionWouldLoseDeparture):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(userModels.ErrCompanionWouldLoseDeparture, studentsAPI.CodeCompanionWouldLoseDeparture))
+	case errors.Is(err, userModels.ErrCompanionLockBusy):
+		common.RenderError(w, r, common.ErrorConflictWithCode(userModels.ErrCompanionLockBusy, studentsAPI.CodeCompanionLockBusy))
 	default:
 		mapEditError(w, r, err)
 	}
