@@ -84,17 +84,23 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The timetable side closes FIRST, before the session end (#1747 review).
+	// Both halves run in the request's tenant transaction, so a failure here
+	// rolls everything back — but EndActivitySession emits its checkout and
+	// activity-ended SSE events eagerly, not after commit. Running it first
+	// would let a failing bridge roll the database back while kiosks and
+	// dashboards had already been told the session was over. Ordering the
+	// failure-prone half ahead of the announcing half keeps the two in step:
+	// the mirrored instance's own completion event is registered after commit
+	// and is dropped with the rollback.
+	if err := rs.completeMirroredTimetableInstance(r.Context(), currentSession.ID); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to end mirrored timetable instance", err))
+		return
+	}
+
 	// End the session
 	if err := rs.ActiveService.EndActivitySession(r.Context(), currentSession.ID); err != nil {
 		common.RenderError(w, r, shared.ErrorRenderer(err))
-		return
-	}
-	// Both halves of the close or neither: this runs in the request's tenant
-	// transaction, so failing here rolls the session end back with it rather
-	// than acknowledging a close that left the mirrored block running (#1747
-	// review).
-	if err := rs.completeMirroredTimetableInstance(r.Context(), currentSession.ID); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to end mirrored timetable instance", err))
 		return
 	}
 
