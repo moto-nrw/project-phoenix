@@ -16,6 +16,7 @@ import (
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -412,31 +413,46 @@ func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
 // instance stays active with its expected rows unfinalized — and the nightly
 // bridge never repairs it, because it only looks at active.groups that are
 // still running (#1747 review).
+// newEndGroupService builds the service EndActiveGroupSession is exercised
+// against. sessionEndErr fails GroupRepo.EndSession, i.e. the session end AFTER
+// the bridge has already completed the mirrored instance.
+func newEndGroupService(
+	t *testing.T,
+	order *[]string,
+	group *activeModels.Group,
+	bridgeErr error,
+	sessionEndErr error,
+) *service {
+	t.Helper()
+
+	return &service{ServiceDependencies: ServiceDependencies{
+		Logger: slog.Default(),
+		GroupRepo: &mockGroupRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
+				return group, nil
+			},
+			endSessionFunc: func(context.Context, int64) error {
+				*order = append(*order, "session")
+				return sessionEndErr
+			},
+		},
+		VisitRepo:      &mockVisitRepository{},
+		SupervisorRepo: &mockGroupSupervisorRepository{},
+		TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
+			completeFunc: func(_ context.Context, activeGroupIDs []int64, _ time.Time) (int64, error) {
+				assert.Equal(t, []int64{100}, activeGroupIDs)
+				*order = append(*order, "timetable")
+				return 1, bridgeErr
+			},
+		},
+	}}
+}
+
 func TestEndActiveGroupSession_CompletesTimetableMirrorBeforeEndingSession(t *testing.T) {
 	ctx := context.Background()
 
 	newService := func(order *[]string, group *activeModels.Group, bridgeErr error) *service {
-		return &service{ServiceDependencies: ServiceDependencies{
-			Logger: slog.Default(),
-			GroupRepo: &mockGroupRepository{
-				findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
-					return group, nil
-				},
-				endSessionFunc: func(context.Context, int64) error {
-					*order = append(*order, "session")
-					return nil
-				},
-			},
-			VisitRepo:      &mockVisitRepository{},
-			SupervisorRepo: &mockGroupSupervisorRepository{},
-			TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
-				completeFunc: func(_ context.Context, activeGroupIDs []int64, _ time.Time) (int64, error) {
-					assert.Equal(t, []int64{100}, activeGroupIDs)
-					*order = append(*order, "timetable")
-					return 1, bridgeErr
-				},
-			},
-		}}
+		return newEndGroupService(t, order, group, bridgeErr, nil)
 	}
 
 	t.Run("closes the timetable first", func(t *testing.T) {
@@ -473,6 +489,23 @@ func TestEndActiveGroupSession_CompletesTimetableMirrorBeforeEndingSession(t *te
 
 		require.ErrorIs(t, err, ErrActiveGroupAlreadyEnded)
 		assert.Empty(t, order)
+	})
+
+	// The bridge has already completed the mirrored instance at this point. The
+	// handler maps most session-end errors to 4xx and the tenant middleware only
+	// rolls back on its own for 5xx, so the service has to ask for the rollback
+	// itself — otherwise a completed instance commits beside an open group.
+	t.Run("a failing session end asks for a rollback", func(t *testing.T) {
+		var order []string
+		rollbackCtx := tenant.WithRollbackMarker(ctx)
+
+		err := newEndGroupService(t, &order, &activeModels.Group{Model: modelBase.Model{ID: 100}}, nil,
+			errors.New("session end refused")).EndActiveGroupSession(rollbackCtx, 100)
+
+		require.Error(t, err)
+		assert.Equal(t, []string{"timetable", "session"}, order)
+		assert.True(t, tenant.RollbackRequested(rollbackCtx),
+			"the completed timetable instance must not commit beside a group that is still open")
 	})
 }
 
