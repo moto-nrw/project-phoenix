@@ -237,9 +237,22 @@ export const PUT = createPutHandler<
       // Fetch privacy consent data to include in the response
       const consentData = await fetchPrivacyConsent(id, apiGet, token);
 
+      // The write's own verdict on the "läuft mit" links (#1694). Not part of
+      // the student, so mapStudentResponse drops it — but the client decides
+      // from it whether to tell mounted companion views to refetch, and doing
+      // that for a save that changed nothing costs an open editor its draft.
+      // Absent when the backend sent none; the client then falls back to its
+      // conservative payload heuristic.
+      const companionsChanged = (
+        response.data as { companions_changed?: boolean }
+      ).companions_changed;
+
       return {
         ...mappedStudent,
         ...consentData,
+        ...(companionsChanged === undefined
+          ? {}
+          : { companions_changed: companionsChanged }),
       };
     } catch (error) {
       logger.error("student update failed", {

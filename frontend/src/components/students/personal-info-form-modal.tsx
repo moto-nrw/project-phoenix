@@ -240,6 +240,12 @@ export function PersonalInfoFormModal({
               departureDaysFromLegacy(student.bus_days, student.pickup_days),
           ),
       );
+      // A plan the USER changed, as opposed to the untouched copy this modal
+      // resubmits on every save. Only the former may remove links.
+      const planEdited = !allowedDepartureModesEqual(
+        storedDepartureModes,
+        allowedDepartureModes,
+      );
       // Whether the backend can answer this save with a
       // student_companions_changed echo. It broadcasts only when the write
       // actually changed links: an edited list travels with a differing
@@ -252,10 +258,7 @@ export function PersonalInfoFormModal({
       const mayAnnounceCompanions =
         companionsDirty ||
         confirmed.length > 0 ||
-        (!allowedDepartureModesEqual(
-          storedDepartureModes,
-          allowedDepartureModes,
-        ) &&
+        (planEdited &&
           (companionsStatus !== "ready" || loadedCompanions.length > 0));
       // withOwnWrite: this save announces the companion change itself, and
       // reacting to our own announcement would flag the modal stale for a
@@ -273,12 +276,22 @@ export function PersonalInfoFormModal({
             // someone else changed in the meantime, on a save that never meant to
             // touch them.
             companions: companionsDirty ? editedStudent.companions : undefined,
-            // What the list REPLACES, so the backend can refuse it if someone
-            // else changed the links since this modal loaded them instead of
-            // deleting their change. Travels only with the list.
-            companions_fingerprint: companionsDirty
-              ? companionsFingerprint(loadedCompanions)
-              : undefined,
+            // What this save claims the stored links are, so the backend can
+            // refuse it instead of deleting a change someone else made since
+            // this modal loaded.
+            //
+            // It travels with an edited LIST (which replaces the links) and with
+            // an edited PLAN, because the backend trims the links to the
+            // weekdays the submitted plan allows — a deliberate narrowing
+            // removes links just as surely as an edited list does, and without
+            // the claim the backend cannot tell it from a plan that went stale
+            // while this modal was open. A save that touches neither claims
+            // nothing: it removes nothing either. A pending or failed load makes
+            // no claim — it has none to make.
+            companions_fingerprint:
+              companionsStatus === "ready" && (companionsDirty || planEdited)
+                ? companionsFingerprint(loadedCompanions)
+                : undefined,
             extend_companion_plans: extendCompanionPlans,
             confirmed_companion_extensions: confirmed,
             allowed_departure_modes: allowedDepartureModes,

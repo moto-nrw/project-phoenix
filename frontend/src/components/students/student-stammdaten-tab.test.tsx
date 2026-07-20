@@ -1012,6 +1012,24 @@ describe("StudentStammdatenTab — companion list staleness", () => {
     );
   });
 
+  // The other side of the same coin: because a narrowed plan DELETES links
+  // without naming one, that save has to say which links it was looking at. The
+  // backend refuses a plan-driven removal that makes no such claim, so a form
+  // whose plan went stale (a dropped refresh) is told to reload instead of
+  // quietly dropping an edge somebody else just created.
+  it("sends the fingerprint with a plan edit that carries no list", async () => {
+    fetchStudentCompanionsMock.mockResolvedValueOnce([
+      { companion_student_id: "2", weekdays: ["mon"] },
+    ]);
+    const onSave = await saveAfter(() =>
+      fireEvent.click(screen.getByTestId("departure-set-mon-bus")),
+    );
+
+    const submitted = onSave.mock.calls[0]![0] as Partial<Student>;
+    expect(submitted).not.toHaveProperty("companions");
+    expect(submitted).toMatchObject({ companions_fingerprint: "2:mon" });
+  });
+
   // A departure-plan save can change the stored links without carrying a
   // companions list: the backend TRIMS every link whose weekday the new plan no
   // longer allows, and the picker unmounts with the last accompanied day before

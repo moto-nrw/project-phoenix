@@ -557,9 +557,14 @@ describe("prepareStudentForBackend", () => {
     expect(result.companions_fingerprint).toBe("7:mon");
   });
 
-  // Without a list the write does not touch the links, so a fingerprint would
-  // claim something about a state this request never replaces.
-  it("omits the companion fingerprint when no list travels", () => {
+  // A write without a list removes links too: the departure plan that rides
+  // along on every save trims every link whose weekday the plan no longer
+  // allows. So the claim has to travel on its own as well — otherwise a plan
+  // that went stale while the form was open deletes an edge somebody else just
+  // committed, and nothing on the backend can tell that apart from a deliberate
+  // narrowing. The caller decides whether it has a claim to make; this mapper
+  // forwards whatever it was given.
+  it("sends the companion fingerprint when no list travels", () => {
     const result = prepareStudentForBackend({
       id: "1",
       first_name: "Max",
@@ -567,7 +572,7 @@ describe("prepareStudentForBackend", () => {
     });
 
     expect(result.companions).toBeUndefined();
-    expect(result.companions_fingerprint).toBeUndefined();
+    expect(result.companions_fingerprint).toBe("7:mon");
   });
 
   it("converts empty birthday string to undefined", () => {

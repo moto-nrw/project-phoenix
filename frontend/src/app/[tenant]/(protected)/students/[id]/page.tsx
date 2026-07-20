@@ -602,18 +602,20 @@ function StudentDetailPageContent() {
       // stored links, so sending [] for "not loaded" would delete them. The
       // backend leaves the links alone when the key is absent.
       //
-      // The fingerprint travels WITH the list: it names the snapshot the
-      // replacement was built on, so the backend can refuse it instead of
-      // deleting links someone else committed in the meantime.
       ...(editedStudent.companions
         ? {
             companions: editedStudent.companions.map((companion) => ({
               companion_student_id: companion.companion_student_id,
               weekdays: companion.weekdays,
             })),
-            companions_fingerprint: editedStudent.companions_fingerprint,
           }
         : {}),
+      // The fingerprint travels on its own, not only with a list: it names the
+      // snapshot this save was built on, and the plan above removes links too
+      // (the backend trims the weekdays it no longer allows). Forwarding it
+      // regardless is what lets the backend refuse a save whose stale plan would
+      // delete links someone else committed in the meantime.
+      companions_fingerprint: editedStudent.companions_fingerprint,
       extend_companion_plans: editedStudent.extend_companion_plans ?? false,
       // The confirmation is only worth as much as what it names: the backend
       // widens a companion's plan only for these children and weekdays.

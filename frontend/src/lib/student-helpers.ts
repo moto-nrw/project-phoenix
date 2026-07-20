@@ -892,13 +892,15 @@ export function prepareStudentForBackend(
       weekdays: companion.weekdays,
     })),
     // The fingerprint of the list the form LOADED, so the backend can refuse a
-    // replacement built on a snapshot someone else has since replaced instead
-    // of silently deleting their links. Travels only WITH a list — on its own
-    // it would claim something about a write that never touches the links.
-    companions_fingerprint:
-      student.companions !== undefined
-        ? student.companions_fingerprint
-        : undefined,
+    // write built on a snapshot someone else has since replaced instead of
+    // silently deleting their links.
+    //
+    // Sent WITHOUT a list too: the departure plan removes links on its own (the
+    // backend trims every weekday the new plan no longer allows), and the forms
+    // resubmit their whole plan on every save — so a plan that rode along on a
+    // stale load deletes a fresh edge exactly like a stale list would. The
+    // backend refuses such a removal unless this claim matches what is stored.
+    companions_fingerprint: student.companions_fingerprint,
     extend_companion_plans: student.extend_companion_plans,
     // What the user confirmed, not just that they confirmed something: the
     // backend refuses to widen a conflict these entries do not cover.

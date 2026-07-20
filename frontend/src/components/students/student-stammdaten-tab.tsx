@@ -700,7 +700,28 @@ export function StudentStammdatenTab({
       ) {
         delete submitData.photo_consent_given;
       }
+      // A plan the USER changed, as opposed to the untouched copy that rides
+      // along on every save. Only the former may remove links.
+      const planEdited = !allowedDepartureModesEqual(
+        originalDraft.allowed_departure_modes,
+        submitData.allowed_departure_modes,
+      );
       if (companionsStatus === "ready") {
+        // What this save claims the stored links are. It travels with an edited
+        // LIST (which replaces them) and with an edited PLAN, because the
+        // backend trims the links to the weekdays the submitted plan allows — a
+        // deliberate narrowing removes links just as surely as an edited list
+        // does, and without the claim the backend cannot tell it from a plan
+        // that went stale while this form was open. An unrelated save claims
+        // nothing: its plan is untouched, so it removes nothing, and a
+        // fingerprint could only refuse it for somebody else's legitimate
+        // change. (If such a plan IS stale — a dropped refresh left the rebase
+        // effect above behind — the backend sees the removal it would cause and
+        // refuses the save outright, which is the point.)
+        if (companionsDirty || planEdited) {
+          submitData.companions_fingerprint =
+            companionsFingerprint(loadedCompanions);
+        }
         // Only when the user actually EDITED the list. It replaces the stored
         // one wholesale, so an untouched snapshot must not travel: someone else
         // may have changed the links since this form loaded, and re-sending the
@@ -711,19 +732,14 @@ export function StudentStammdatenTab({
         // load stays out for the same reason (there it would read as "delete
         // them all"). The plan that DOES travel on every save cannot delete a
         // link behind that omission either: an untouched plan is rebased onto
-        // the server's before it is submitted (see the rebase effect above), so
-        // it never trims a weekday somebody else has since opened.
+        // the server's before it is submitted (see the rebase effect above), and
+        // the fingerprint sent above makes the backend refuse the removal if a
+        // dropped refresh left that rebase behind anyway.
         if (companionsDirty) {
           submitData.companions = companions.map((companion) => ({
             companion_student_id: companion.companion_student_id,
             weekdays: companion.weekdays,
           }));
-          // What the list REPLACES. The row locks order two concurrent saves
-          // but cannot see that ours describes a state that no longer exists —
-          // this lets the backend refuse it instead of deleting the other
-          // person's links.
-          submitData.companions_fingerprint =
-            companionsFingerprint(loadedCompanions);
         }
         // Inert without a companion list, and the retry after a plan conflict
         // always carries one (the conflict can only arise from an edited list).
@@ -742,10 +758,7 @@ export function StudentStammdatenTab({
       const mayAnnounceCompanions =
         companionsDirty ||
         confirmed.length > 0 ||
-        (!allowedDepartureModesEqual(
-          originalDraft.allowed_departure_modes,
-          submitData.allowed_departure_modes,
-        ) &&
+        (planEdited &&
           (companionsStatus !== "ready" || loadedCompanions.length > 0));
       try {
         // withOwnWrite: this save announces the companion change itself, and

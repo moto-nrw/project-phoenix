@@ -345,11 +345,19 @@ func (rs *Resource) checkCompanionConflicts(ctx context.Context, student *userMo
 	// everything — and both can strand the child at the far end of a dropped
 	// link. applyCompanionUpdate performs them AFTER the first writes of this
 	// transaction, so the refusal has to be raised here.
+	//
+	// The fingerprint travels into both: a plan-driven removal deletes links this
+	// request never listed, so it may only proceed on a caller that says which
+	// links it was looking at — otherwise a form holding a stale plan drops an
+	// edge somebody else has just committed (see CheckCompanionTrim). The claim
+	// is checked against the links stored under the row lock this request already
+	// holds, so a mismatch is answered with a retriable 409 before anything is
+	// written.
 	if !req.hasCompanionUpdate() {
-		return nil, rs.StudentService.CheckCompanionTrim(ctx, student.ID, accompaniedDays)
+		return nil, rs.StudentService.CheckCompanionTrimForPlan(ctx, student.ID, accompaniedDays, req.CompanionsFingerprint)
 	}
 	if len(accompaniedDays) == 0 {
-		return nil, rs.StudentService.CheckCompanionTrim(ctx, student.ID, nil)
+		return nil, rs.StudentService.CheckCompanionTrimForPlan(ctx, student.ID, nil, req.CompanionsFingerprint)
 	}
 
 	conflicts, err := rs.StudentService.CheckCompanionConflicts(ctx, student.ID, usersService.CompanionUpdate{
@@ -522,6 +530,13 @@ func (rs *Resource) reconcileCompanions(ctx context.Context, student *userModels
 		// them would let the Kindersuche group the children on a day the
 		// Stammdaten forbid. What survives still answers "mit wem", so the note
 		// stays optional for a child that has a Laufgemeinschaft left.
+		//
+		// That this request is entitled to drop them was settled by
+		// checkCompanionConflicts, which verified the caller's baseline claim
+		// against the stored links. No re-check here: the companion graph lock
+		// taken before that check is held for the rest of the transaction, and
+		// every writer that adds an edge touching this child takes this child's
+		// row too, so the links cannot have moved in between.
 		links, err := rs.StudentService.TrimCompanionsToDays(ctx, student.ID, accompaniedDays)
 		if err != nil {
 			return nil, err

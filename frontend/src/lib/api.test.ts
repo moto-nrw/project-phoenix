@@ -1390,6 +1390,79 @@ describe("api.ts helper functions", () => {
       }
     });
 
+    // The backend answers the question itself, and its answer beats the shape
+    // of the request: the forms resubmit the whole departure plan on every
+    // save, so a pure name or address edit looks exactly like a plan change
+    // from here. Announcing one costs every other open Laufgemeinschaft editor
+    // its draft — for a write the backend already decided changed nothing.
+    it("stays silent when the response reports no companion change", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: { id: 1, first_name: "Updated", companions_changed: false },
+          }),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+      const { subscribeStudentCompanionsChanged } =
+        await import("./student-companion-api");
+
+      const listener = vi.fn();
+      const unsubscribe = subscribeStudentCompanionsChanged(listener);
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.updateStudent("1", {
+          first_name: "Updated",
+          departure_days: { mon: "accompanied" },
+        });
+        expect(listener).not.toHaveBeenCalled();
+      } finally {
+        unsubscribe();
+        restore();
+      }
+    });
+
+    // The other direction: the backend trims links off weekdays a narrowed plan
+    // no longer allows, so a write can change them without the payload naming a
+    // single link. Its verdict is what the mounted views have to hear.
+    it("announces when the response reports a companion change", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: { id: 1, first_name: "Updated", companions_changed: true },
+          }),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+      const { subscribeStudentCompanionsChanged } =
+        await import("./student-companion-api");
+
+      const listener = vi.fn();
+      const unsubscribe = subscribeStudentCompanionsChanged(listener);
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.updateStudent("1", {
+          departure_days: { mon: "alone" },
+        });
+        expect(listener).toHaveBeenCalledTimes(1);
+      } finally {
+        unsubscribe();
+        restore();
+      }
+    });
+
     it("throws error on API failure", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,

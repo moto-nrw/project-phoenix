@@ -94,8 +94,14 @@ type StudentService interface {
 	// CheckCompanionTrim reports, without writing anything, whether the trim
 	// TrimCompanionsToDays would perform for allowedDays leaves a former
 	// companion without any remaining "mit wem" detail. A nil/empty allowedDays
-	// means every link is dropped.
+	// means every link is dropped. For a trim that a submitted DEPARTURE PLAN
+	// drives, use CheckCompanionTrimForPlan instead.
 	CheckCompanionTrim(ctx context.Context, studentID int64, allowedDays map[string]bool) error
+
+	// CheckCompanionTrimForPlan is CheckCompanionTrim for the caller whose trim
+	// is derived from a departure plan it submitted, and additionally verifies
+	// that the caller knew which links that plan is about to delete.
+	CheckCompanionTrimForPlan(ctx context.Context, studentID int64, allowedDays map[string]bool, expectedFingerprint *string) error
 
 	// CheckCompanionConflicts reports the same conflicts as ReplaceCompanions
 	// without writing anything, so a caller can refuse before its first write.
@@ -436,19 +442,67 @@ func (s *studentService) TrimCompanionsToDays(ctx context.Context, studentID int
 // inside the request's tenant transaction, which commits on every non-5xx
 // response, so a rejection raised once the update has started writing would
 // keep those writes. A nil or empty allowedDays means every link goes.
+//
+// This form asks only the stranding question, for a caller whose removal intent
+// is unambiguous without any reference to the stored links — deleting the child
+// itself, whose edges go by ON DELETE CASCADE. A trim that a submitted departure
+// plan drives is the other case and belongs in CheckCompanionTrimForPlan.
 func (s *studentService) CheckCompanionTrim(ctx context.Context, studentID int64, allowedDays map[string]bool) error {
+	links, trimmed, err := s.planCompanionTrim(ctx, studentID, allowedDays)
+	if err != nil || links == nil {
+		return err
+	}
+	return s.checkCompanionRemovals(ctx, studentID, links, trimmed)
+}
+
+// CheckCompanionTrimForPlan is CheckCompanionTrim for a trim that a submitted
+// DEPARTURE PLAN drives, and it additionally holds the caller to a baseline.
+//
+// expectedFingerprint is the CompanionLinksFingerprint of the links the caller
+// was looking at when it built that plan, and it is what makes the removal safe.
+// A plan-driven trim carries no list of links, so a caller holding a stale plan
+// DELETES links it never saw: the Stammdaten forms resubmit the whole departure
+// plan on every save, so an address edit started before someone else widened the
+// plan and linked a child on the new day drops that fresh edge — and the
+// stranding check waves it through whenever the far child still has a note or
+// another link. Comparing the claim against the stored links under the subject's
+// row lock turns that silent loss into a retriable ErrCompanionsChanged.
+//
+// nil means the caller makes NO claim, which is refused as soon as the trim
+// would actually drop something — "I don't know what is stored" is not a licence
+// to delete it. A trim that changes nothing needs no claim at all, so the
+// overwhelmingly common resubmit of an unchanged plan passes untouched.
+func (s *studentService) CheckCompanionTrimForPlan(ctx context.Context, studentID int64, allowedDays map[string]bool, expectedFingerprint *string) error {
+	links, trimmed, err := s.planCompanionTrim(ctx, studentID, allowedDays)
+	if err != nil || links == nil {
+		return err
+	}
+	// Before the stranding check, not after: a stale caller must be told to
+	// reload, not sent off to fill in another child's Heimweg for a removal it
+	// never asked for.
+	if expectedFingerprint == nil || *expectedFingerprint != userModels.CompanionLinksFingerprint(links) {
+		return ErrCompanionsChanged
+	}
+	return s.checkCompanionRemovals(ctx, studentID, links, trimmed)
+}
+
+// planCompanionTrim computes the trim allowedDays would perform. It returns the
+// stored links and what survives, or (nil, nil, nil) when the trim changes
+// nothing — which is how callers tell "no removal at all" from "these links are
+// about to lose weekdays".
+func (s *studentService) planCompanionTrim(ctx context.Context, studentID int64, allowedDays map[string]bool) (stored, trimmed []userModels.CompanionLink, err error) {
 	if studentID <= 0 {
-		return ErrStudentNotFound
+		return nil, nil, ErrStudentNotFound
 	}
 	links, err := s.companionRepo.ListLinksForStudent(ctx, studentID)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	trimmed, changed := trimCompanionLinks(links, allowedDays)
+	kept, changed := trimCompanionLinks(links, allowedDays)
 	if !changed {
-		return nil
+		return nil, nil, nil
 	}
-	return s.checkCompanionRemovals(ctx, studentID, links, trimmed)
+	return links, kept, nil
 }
 
 // trimCompanionLinks keeps only the weekdays allowedDays permits, dropping a

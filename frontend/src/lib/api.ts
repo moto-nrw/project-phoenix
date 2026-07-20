@@ -46,21 +46,46 @@ import {
 const logger = createLogger({ component: "ApiClient" });
 
 /**
- * Whether a student PUT payload can change "läuft mit" links at all (#1694).
+ * Whether the update that just returned should tell mounted "läuft mit" views
+ * to refetch (#1694).
  *
  * The announcement is not a harmless refetch: an open Laufgemeinschaft form
  * answers it by discarding its draft, or — when the draft is dirty — by
- * blocking the save until the user reloads. Firing it after every student
- * write would do that for a sick flag, a rename or a photo upload, none of
- * which can touch a link, and would cost the user work for a change that
- * never happened.
+ * blocking the save until the user reloads. So it has to follow what the write
+ * DID, not what the request looked like: the Stammdaten forms resubmit the whole
+ * departure plan on every save, so the payload shape says "may have changed
+ * links" for a pure name or address edit that changed none, and announcing that
+ * costs some other editor their unsaved work.
  *
- * Three payload shapes CAN change links, mirroring what the backend broadcasts
- * on: a submitted list (it replaces the stored one), a confirmed plan
- * extension (it widens a linked child's plan), and a departure-plan change
- * (the backend trims links off weekdays the new plan no longer allows).
- * Everything else stays silent — a genuinely remote change still arrives via
- * the post-commit `student_companions_changed` SSE event.
+ * The backend answers the question itself — `companions_changed` on the update
+ * response, the same verdict that decides its `student_companions_changed`
+ * broadcast — so that answer wins whenever it is present. It is absent only from
+ * a response that carries no verdict at all; there we fall back to the
+ * conservative payload heuristic, because a missed announcement leaves a stale
+ * list on screen.
+ */
+function companionsChangedFromResponse(payload: unknown): boolean | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  const changed = (payload as { companions_changed?: unknown })
+    .companions_changed;
+  if (typeof changed === "boolean") return changed;
+  // The server-side path hands in the backend's whole { status, data } envelope,
+  // the browser path the already-unwrapped student — accept either.
+  const inner = (payload as { data?: unknown }).data;
+  if (!inner || typeof inner !== "object") return undefined;
+  const nested = (inner as { companions_changed?: unknown }).companions_changed;
+  return typeof nested === "boolean" ? nested : undefined;
+}
+
+/**
+ * The fallback heuristic: whether a student PUT payload can change links at all.
+ *
+ * Three payload shapes CAN, mirroring what the backend broadcasts on: a
+ * submitted list (it replaces the stored one), a confirmed plan extension (it
+ * widens a linked child's plan), and a departure-plan change (the backend trims
+ * links off weekdays the new plan no longer allows). Everything else stays
+ * silent — a genuinely remote change still arrives via the post-commit
+ * `student_companions_changed` SSE event.
  */
 function studentUpdateMayChangeCompanions(
   student: Partial<Student> & {
@@ -1116,8 +1141,11 @@ export const studentService = {
         // plan write can change them even when the caller sent no `companions`
         // list (the backend trims links the new plan no longer allows). Tell
         // every mounted companion view to refetch instead of leaving it stale —
-        // but only for a payload that can actually have changed them.
-        if (studentUpdateMayChangeCompanions(student)) {
+        // but only when the write actually changed them.
+        if (
+          companionsChangedFromResponse(actualData) ??
+          studentUpdateMayChangeCompanions(student)
+        ) {
           notifyStudentCompanionsChanged();
         }
         return mappedResponse;
@@ -1129,7 +1157,10 @@ export const studentService = {
         const mappedResponse = mapSingleStudentResponse({
           data: response.data as unknown as BackendStudent,
         });
-        if (studentUpdateMayChangeCompanions(student)) {
+        if (
+          companionsChangedFromResponse(response.data) ??
+          studentUpdateMayChangeCompanions(student)
+        ) {
           notifyStudentCompanionsChanged();
         }
         return mappedResponse;

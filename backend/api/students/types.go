@@ -115,17 +115,30 @@ type StudentResponse struct {
 	// GET /api/students/{id}/companions instead, so this never widens the list
 	// payload (or leaks names into a response the caller may not see them in).
 	DepartureCompanions []users.CompanionLink `json:"-"`
-	Bus                 bool                  `json:"bus"`
-	BusDays             users.BusDays         `json:"bus_days,omitempty"`
-	Sick                bool                  `json:"sick"`
-	SickSince           *time.Time            `json:"sick_since,omitempty"`
-	Excused             bool                  `json:"excused"`
-	ExcusedSince        *time.Time            `json:"excused_since,omitempty"`
-	ClassTrip           bool                  `json:"class_trip"`
-	ClassTripSince      *time.Time            `json:"class_trip_since,omitempty"`
-	DayPlanningStatus   string                `json:"day_planning_status,omitempty"`
-	DayPlanningReason   string                `json:"day_planning_reason,omitempty"`
-	DayPlanningLabel    string                `json:"day_planning_label,omitempty"`
+	// CompanionsChanged is the WRITE's verdict, not a property of the child: it
+	// says whether the update that produced this response actually changed the
+	// Laufgemeinschaft (a replaced list, a trimmed weekday, or a widened
+	// companion plan) — the same condition that decides the
+	// student_companions_changed broadcast.
+	//
+	// It exists because a client cannot tell from its own payload: the forms
+	// resubmit the whole departure plan on every save, and reacting to that as a
+	// link change costs an open Laufgemeinschaft editor its draft. Set only on
+	// the update path (a pointer, so reads keep the response shape they have) and
+	// always set there, so an absent key means "this response carries no verdict"
+	// rather than "nothing changed".
+	CompanionsChanged *bool         `json:"companions_changed,omitempty"`
+	Bus               bool          `json:"bus"`
+	BusDays           users.BusDays `json:"bus_days,omitempty"`
+	Sick              bool          `json:"sick"`
+	SickSince         *time.Time    `json:"sick_since,omitempty"`
+	Excused           bool          `json:"excused"`
+	ExcusedSince      *time.Time    `json:"excused_since,omitempty"`
+	ClassTrip         bool          `json:"class_trip"`
+	ClassTripSince    *time.Time    `json:"class_trip_since,omitempty"`
+	DayPlanningStatus string        `json:"day_planning_status,omitempty"`
+	DayPlanningReason string        `json:"day_planning_reason,omitempty"`
+	DayPlanningLabel  string        `json:"day_planning_label,omitempty"`
 	// PendingExcusedNote is set (#1845) when the child has a parent excused-absence
 	// request awaiting office approval that covers the planning day. The child
 	// stays "expected" (this does NOT change DayPlanningStatus); the planning
@@ -323,8 +336,15 @@ type UpdateStudentRequest struct {
 	// saw and the second write would delete the first one's committed links.
 	// The handler compares this against the stored links while it holds the
 	// child's row lock and answers a mismatch with a retriable 409 instead.
-	// Only meaningful together with Companions; omitted means the caller makes
-	// no claim about the state it started from.
+	//
+	// It is equally required WITHOUT Companions: a departure plan alone removes
+	// links too (the backend trims the weekdays the new plan no longer allows),
+	// and the forms resubmit their whole plan on every save, so a stale plan
+	// deletes an edge somebody else committed just as effectively as a stale list
+	// does. A client that writes a plan therefore sends the fingerprint of the
+	// links it loaded; omitted means the caller makes no claim about the state it
+	// started from, which is refused as soon as the trim would actually drop
+	// something.
 	CompanionsFingerprint *string `json:"companions_fingerprint,omitempty"`
 	// ExtendCompanionPlans confirms widening a companion's own departure plan.
 	ExtendCompanionPlans bool `json:"extend_companion_plans,omitempty"`

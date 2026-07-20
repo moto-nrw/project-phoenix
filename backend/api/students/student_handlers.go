@@ -1104,7 +1104,9 @@ func (rs *Resource) lockStudentForUpdate(ctx context.Context, student *users.Stu
 // concurrent photo upload can't have its photo_path clobbered by a stale
 // snapshot write. It returns one of the package sentinel errors for the racy
 // paths the outer switch maps to specific status codes.
-func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, student *users.Student, person *users.Person, req *UpdateStudentRequest, userPermissions []string, personUpdated bool, statusHistoryNow time.Time) error {
+// companionsChanged reports what the caller must forward to the client: whether
+// this write actually changed the Laufgemeinschaft.
+func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, student *users.Student, person *users.Person, req *UpdateStudentRequest, userPermissions []string, personUpdated bool, statusHistoryNow time.Time) (bool, error) {
 	// The photo-feature advisory lock comes FIRST, before any student row lock,
 	// and only when consent is actually toggling (name/notes edits must not
 	// queue behind a feature disable/purge). The photo upload and delete
@@ -1115,7 +1117,7 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 		(*req.PhotoConsentGiven) != (student.PhotoConsentGivenAt != nil)
 	if consentChanging {
 		if err := rs.StudentService.LockPhotoFeature(ctx); err != nil {
-			return err
+			return false, err
 		}
 	}
 
@@ -1127,12 +1129,12 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	// pass and the write pass cannot disagree. A request that cannot touch a
 	// link takes none of those locks (see lockCompanionRows).
 	if err := rs.lockCompanionRows(ctx, student, req); err != nil {
-		return err
+		return false, err
 	}
 
 	fresh, err := rs.lockStudentForUpdate(ctx, student, req, userPermissions)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	// Read pre-update flags off fresh, not the snapshot, so status
@@ -1150,12 +1152,12 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	applyStudentFieldUpdates(req, fresh)
 	authorizedExtensions, err := rs.checkCompanionConflicts(ctx, fresh, req, userPermissions)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	if personUpdated {
 		if err := rs.PersonService.Update(ctx, person); err != nil {
-			return err
+			return false, err
 		}
 	}
 
@@ -1164,23 +1166,23 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 
 	if err := rs.persistStudentStatusHistory(ctx, fresh, wasSick, wasExcused, statusHistoryNow, strutil.TrimPtrToNil(req.SickReason)); err != nil {
 		rs.logStatusHistoryError(student.ID, err)
-		return err
+		return false, err
 	}
 	// Companions BEFORE the student write: the link satisfies the
 	// accompanied-requires-a-note invariant that Update validates, and a
 	// conflict must abort the whole transaction before anything is persisted.
 	companionsChanged, err := rs.applyCompanionUpdate(ctx, fresh, req, authorizedExtensions)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if err := rs.StudentService.Update(ctx, fresh); err != nil {
-		return err
+		return false, err
 	}
 
 	// Broadcast after the OUTER tx commits. Broadcasting now would race
 	// subscribers into refetching the still-pre-commit row.
 	rs.scheduleStudentUpdateWakes(ctx, tenantID, student.ID, req, companionsChanged)
-	return nil
+	return companionsChanged, nil
 }
 
 // companionConflictRenderer returns the 409 payload when the transaction failed
@@ -1250,8 +1252,10 @@ func updateStudentTxErrorRenderer(err error) render.Renderer {
 	}
 }
 
-// respondUpdatedStudent re-reads the student and writes the 200 response.
-func (rs *Resource) respondUpdatedStudent(w http.ResponseWriter, r *http.Request, studentID int64, person *users.Person, hasFullAccess bool) {
+// respondUpdatedStudent re-reads the student and writes the 200 response,
+// stamping the write's companion verdict onto it (see
+// StudentResponse.CompanionsChanged).
+func (rs *Resource) respondUpdatedStudent(w http.ResponseWriter, r *http.Request, studentID int64, person *users.Person, hasFullAccess, companionsChanged bool) {
 	updatedStudent, err := rs.PersonService.GetStudentByID(r.Context(), studentID)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
@@ -1261,7 +1265,7 @@ func (rs *Resource) respondUpdatedStudent(w http.ResponseWriter, r *http.Request
 	group := rs.getStudentGroup(r.Context(), updatedStudent)
 
 	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
-	common.Respond(w, r, http.StatusOK, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
+	response := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       updatedStudent,
 		Person:        person,
 		Group:         group,
@@ -1270,7 +1274,9 @@ func (rs *Resource) respondUpdatedStudent(w http.ResponseWriter, r *http.Request
 	}, StudentResponseServices{
 		ActiveService: rs.ActiveService,
 		PersonService: rs.PersonService,
-	}), "Student updated successfully")
+	})
+	response.CompanionsChanged = &companionsChanged
+	common.Respond(w, r, http.StatusOK, response, "Student updated successfully")
 }
 
 // updateStudent handles updating an existing student
@@ -1324,8 +1330,14 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	statusHistoryNow := time.Now()
 
 	tenantID := tenant.FromContext(r.Context())
+	// The client needs the write's own verdict on the links (see
+	// StudentResponse.CompanionsChanged); it is produced inside the transaction
+	// and read after it, when the update is known to have succeeded.
+	companionsChanged := false
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.applyStudentUpdate(ctx, tenantID, student, person, req, userPermissions, personResult.updated, statusHistoryNow)
+		changed, err := rs.applyStudentUpdate(ctx, tenantID, student, person, req, userPermissions, personResult.updated, statusHistoryNow)
+		companionsChanged = changed
+		return err
 	}); err != nil {
 		// This handler runs inside TenantTxMiddleware's transaction, and the
 		// WithTenantTx above only REUSES it (tenant/tx.go) — returning an error
@@ -1342,7 +1354,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Admin users and group supervisors can see full data including detailed location
 	hasFullAccess := isAdmin || isGroupSupervisor
-	rs.respondUpdatedStudent(w, r, student.ID, person, hasFullAccess)
+	rs.respondUpdatedStudent(w, r, student.ID, person, hasFullAccess, companionsChanged)
 }
 
 // deleteStudent handles deleting a student and their associated person record
