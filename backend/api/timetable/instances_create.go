@@ -195,7 +195,15 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 	// straight into its SWR cache without a round-trip refetch.
 	roomCache := make(map[int64]string)
 	typeCache := make(map[int64]templateMeta)
-	enriched, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache, rs.childrenPerStaffRatio(r.Context()), rs.careDaysForInstance(r.Context(), inst))
+	// A failed care-day derivation takes the same route as any other failed
+	// enrichment: the payload is announced as incomplete instead of carrying
+	// counts that quietly read every assigned child as expected again (#1747
+	// review).
+	var enriched enrichedInstance
+	careDays, err := rs.careDaysForInstance(r.Context(), inst)
+	if err == nil {
+		enriched, err = rs.enrichInstance(r.Context(), inst, roomCache, typeCache, rs.childrenPerStaffRatio(r.Context()), careDays)
+	}
 	if err != nil {
 		// Insert succeeded; enrichment is informational. Fall through with
 		// a partial response rather than failing the whole request.

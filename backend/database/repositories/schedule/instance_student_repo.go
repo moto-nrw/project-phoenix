@@ -659,6 +659,16 @@ func (r *InstanceStudentRepository) BulkUpdateStatus(
 // unbooked slot back to 'expected', which is otherwise the exact shape this
 // write claims (#1747 review). Such a row stays a genuine expectation and takes
 // the ordinary expected → absent path.
+//
+// A finished block is out of reach entirely. Both callers read the instance
+// while it is still active and write immediately after, but only Complete()
+// holds the day lock — the nightly bridge and the force-start path do not, so a
+// second path can stamp the instance completed (or cancelled) in between. The
+// marker exists precisely so a finished day stops changing; a write that lands
+// after that flip would rewrite the history it was invented to freeze (#1747
+// review). Stated as "not finished" rather than "still active" on purpose: the
+// invariant is about frozen days, and MarkExpectedAbsentByActiveGroupIDs
+// already carries the active-only predicate for the absence half.
 func (r *InstanceStudentRepository) MarkNotScheduled(ctx context.Context, refs []schedule.StudentInstanceRef) error {
 	if len(refs) == 0 {
 		return nil
@@ -673,6 +683,12 @@ func (r *InstanceStudentRepository) MarkNotScheduled(ctx context.Context, refs [
 		Set(`student_status_day_id = NULL`).
 		Set(`updated_at = ?`, time.Now().UTC()).
 		Where(`"instance_student".manual_status_at IS NULL`).
+		Where(`NOT EXISTS (
+			SELECT 1
+			FROM schedule.activity_instances AS "instance"
+			WHERE "instance".id = "instance_student".instance_id
+				AND "instance".status IN (?, ?)
+		)`, schedule.InstanceStatusCompleted, schedule.InstanceStatusCancelled).
 		WhereGroup(" AND ", func(group *bun.UpdateQuery) *bun.UpdateQuery {
 			return group.
 				WhereOr(`"instance_student".status = ?`, schedule.AttendanceStatusExpected).

@@ -198,6 +198,37 @@ func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduled
 		require.NoError(t, err)
 		assert.Len(t, rows, 2)
 	})
+
+	t.Run("a hand-set expectation stays visible on its own evidence", func(t *testing.T) {
+		// Staff setting an unbooked slot back to 'expected' is the one decision
+		// that lands on the exact shape the marker claims. The PATCH clears
+		// not_scheduled on that write, so the pair should never coexist — but
+		// the read must not depend on that pairing holding, or the day some
+		// other writer forgets it a deliberate expectation goes invisible
+		// (#1747 review).
+		decided, cleanDecided := createInstanceFixture(t, db, "nsc-manual", day)
+		defer cleanDecided()
+		decided.Status = scheduleModels.InstanceStatusCompleted
+		require.NoError(t, instanceRepo.Update(ctx, decided))
+
+		row := mkRow(decided.ID, scheduleModels.AttendanceStatusExpected, true)
+		decidedAt := time.Date(2034, 6, 5, 9, 30, 0, 0, time.UTC)
+		row.ManualStatusAt = &decidedAt
+		require.NoError(t, repo.Create(ctx, row))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		rows, err := repo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, student.ID, day, day)
+		require.NoError(t, err)
+		var found *scheduleModels.ScheduledInstanceRow
+		for _, r := range rows {
+			if r.Instance.ID == decided.ID {
+				found = r
+			}
+		}
+		require.NotNil(t, found, "a hand-decided row must never be hidden as a non-booking")
+		require.NotNil(t, found.Attendance.ManualStatusAt,
+			"and the read must carry the stamp, or every downstream verdict re-derives against the plan it overrides")
+	})
 }
 
 // HasPlannedSlotsInRange is the tenant-wide care-plan signal: planned

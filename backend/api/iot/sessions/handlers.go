@@ -89,7 +89,14 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
-	rs.completeMirroredTimetableInstance(r.Context(), currentSession.ID)
+	// Both halves of the close or neither: this runs in the request's tenant
+	// transaction, so failing here rolls the session end back with it rather
+	// than acknowledging a close that left the mirrored block running (#1747
+	// review).
+	if err := rs.completeMirroredTimetableInstance(r.Context(), currentSession.ID); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to end mirrored timetable instance", err))
+		return
+	}
 
 	response := map[string]interface{}{
 		"active_group_id": currentSession.ID,

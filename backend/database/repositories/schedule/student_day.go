@@ -29,6 +29,7 @@ type scheduledInstanceScan struct {
 	IsCheckedOutAt       *time.Time `bun:"is_checked_out_at"`
 	IsUnplanned          bool       `bun:"is_unplanned"`
 	IsNotScheduled       bool       `bun:"is_not_scheduled"`
+	IsManualStatusAt     *time.Time `bun:"is_manual_status_at"`
 	IsStudentStatusDayID *int64     `bun:"is_student_status_day_id"`
 	IsCreatedAt          time.Time  `bun:"is_created_at"`
 	IsUpdatedAt          time.Time  `bun:"is_updated_at"`
@@ -78,6 +79,7 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 		ColumnExpr(`"instance_student".checked_out_at AS is_checked_out_at`).
 		ColumnExpr(`"instance_student".is_unplanned AS is_unplanned`).
 		ColumnExpr(`"instance_student".not_scheduled AS is_not_scheduled`).
+		ColumnExpr(`"instance_student".manual_status_at AS is_manual_status_at`).
 		ColumnExpr(`"instance_student".student_status_day_id AS is_student_status_day_id`).
 		ColumnExpr(`"instance_student".created_at AS is_created_at`).
 		ColumnExpr(`"instance_student".updated_at AS is_updated_at`).
@@ -118,7 +120,16 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 		// inferring it from 'expected' on a completed instance) is what keeps
 		// the other writers of `status` — the attendance PATCH, ApplyStatusDay —
 		// from creating or destroying it by accident.
-		Where(`NOT ("instance_student".not_scheduled AND "instance_student".status = ?)`,
+		//
+		// manual_status_at is the third guard, and it is not redundant with the
+		// status half: staff can set an unbooked slot back to 'expected' ("the
+		// plan is wrong, this child is coming"), which lands on the exact shape
+		// the marker claims. The PATCH clears not_scheduled on that write, so
+		// live rows never reach here as both — but the day this predicate is the
+		// only thing standing between a deliberate decision and an invisible row
+		// is the day some other writer forgets that pairing. A hand-decided row
+		// stays visible on its own evidence (#1747 review).
+		Where(`NOT ("instance_student".not_scheduled AND "instance_student".status = ? AND "instance_student".manual_status_at IS NULL)`,
 			schedule.AttendanceStatusExpected).
 		OrderExpr(`"activity_instance".date ASC, "activity_instance".start_time ASC`)
 
@@ -168,6 +179,7 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 			CheckedOutAt:       s.IsCheckedOutAt,
 			IsUnplanned:        s.IsUnplanned,
 			NotScheduled:       s.IsNotScheduled,
+			ManualStatusAt:     s.IsManualStatusAt,
 			StudentStatusDayID: s.IsStudentStatusDayID,
 		}
 		att.ID = s.IsID

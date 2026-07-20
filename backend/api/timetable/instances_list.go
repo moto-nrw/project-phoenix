@@ -276,25 +276,26 @@ func (rs *Resource) resolveCareDays(
 }
 
 // careDaysForInstance resolves the care-day map for a single instance, used by
-// the create/update paths that re-enrich one row. A failure degrades to an
-// empty map — the counts then read exactly as they did before this feature
-// rather than failing a write that already committed.
+// the create/update paths that re-enrich one row.
+//
+// A failure is returned, never swallowed (#1747 review). An empty map does not
+// mean "no verdict yet" to the reader — it reads as unknown, which is the
+// verdict that puts every assigned child back into "Erwartet". Degrading to it
+// would answer a successful write with counts that silently contradict the
+// planner the very next reload corrects, and the caller cannot tell the two
+// apart. Both call sites already have a path for "the write committed, the
+// enrichment did not" and route this into it.
 func (rs *Resource) careDaysForInstance(
 	ctx context.Context, inst *scheduleModel.ActivityInstance,
-) map[int64]map[timezone.Date]scheduleSvc.CareDayStatus {
-	empty := map[int64]map[timezone.Date]scheduleSvc.CareDayStatus{}
+) (map[int64]map[timezone.Date]scheduleSvc.CareDayStatus, error) {
 	if inst == nil {
-		return empty
+		return map[int64]map[timezone.Date]scheduleSvc.CareDayStatus{}, nil
 	}
 	careDays, err := rs.resolveCareDays(ctx, []*scheduleModel.ActivityInstance{inst}, inst.Date, inst.Date)
 	if err != nil {
-		rs.getLogger().WarnContext(ctx, "resolve care days for instance failed",
-			slog.Int64("instance_id", inst.ID),
-			slog.String("error", err.Error()),
-		)
-		return empty
+		return nil, fmt.Errorf("resolve care days for instance %d: %w", inst.ID, err)
 	}
-	return careDays
+	return careDays, nil
 }
 
 // instanceStudentCareDay picks the care-day verdict reported for one

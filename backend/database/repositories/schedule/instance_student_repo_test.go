@@ -903,6 +903,61 @@ func TestInstanceStudentRepository_MarkNotScheduled_KeepsManualExpected(t *testi
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got.Status)
 }
 
+// A finished block is frozen. Only Complete() holds the day lock, so the
+// nightly bridge and the force-start path can have their instance stamped
+// completed between reading it and writing the marker. Landing the write then
+// would rewrite the history the marker exists to freeze (#1747 review).
+func TestInstanceStudentRepository_MarkNotScheduled_LeavesFinishedInstancesAlone(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	for _, tc := range []struct {
+		name   string
+		status string
+	}{
+		{name: "completed", status: scheduleModels.InstanceStatusCompleted},
+		{name: "cancelled", status: scheduleModels.InstanceStatusCancelled},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			date := timezone.NewDate(2026, 10, 19)
+			inst, cleanupInst := createInstanceFixture(t, db, "frozen-"+tc.name, date)
+			defer cleanupInst()
+
+			student := testpkg.CreateTestStudent(t, db, "Eingefroren",
+				fmt.Sprintf("%s-%d", tc.name, time.Now().UnixNano()), "3a")
+			defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+			// Exactly the shape the write claims — 'expected', no manual stamp.
+			// Only the instance's finished status may keep it out.
+			row := &scheduleModels.InstanceStudent{
+				InstanceID: inst.ID,
+				StudentID:  student.ID,
+				Status:     scheduleModels.AttendanceStatusExpected,
+			}
+			row.SetTenantID(1)
+			require.NoError(t, repo.Create(ctx, row))
+			defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+			inst.Status = tc.status
+			require.NoError(t, instanceRepo.Update(ctx, inst))
+
+			require.NoError(t, repo.MarkNotScheduled(ctx, []scheduleModels.StudentInstanceRef{
+				{StudentID: student.ID, InstanceID: inst.ID},
+			}))
+
+			got, err := repo.FindByID(ctx, row.ID)
+			require.NoError(t, err)
+			assert.False(t, got.NotScheduled, "a finished day must not gain a marker after the fact")
+			assert.Equal(t, scheduleModels.AttendanceStatusExpected, got.Status,
+				"and its recorded attendance must stay exactly as the day ended")
+		})
+	}
+}
+
 func TestInstanceStudentRepository_UpdateAttendanceFields(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

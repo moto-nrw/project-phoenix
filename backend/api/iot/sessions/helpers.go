@@ -246,37 +246,49 @@ func (rs *Resource) mirrorSessionToTimetable(ctx context.Context, activeGroup *a
 // row and are stamped as non-bookings. Marking the instance completed on its
 // own would leave every expected row behind, which readers show as an
 // unfinished day and which no later path ever repairs.
-func (rs *Resource) completeMirroredTimetableInstance(ctx context.Context, activeGroupID int64) {
-	if activeGroupID <= 0 || rs.TimetableData == nil || rs.TimetableBridge == nil {
-		return
+//
+// Every failure is returned, not logged and swallowed (#1747 review). The
+// caller runs inside the request's tenant transaction, so a returned error
+// rolls the RFID session close back with it: either both sides of "Sitzung
+// beenden" happen or neither does. Acknowledging the close while the mirrored
+// instance stays active is the one outcome nothing later repairs — the kiosk
+// has moved on, the block still counts as running, and its attendance is never
+// finalized.
+func (rs *Resource) completeMirroredTimetableInstance(ctx context.Context, activeGroupID int64) error {
+	if activeGroupID <= 0 || rs.TimetableData == nil {
+		// No mirroring wired at all: this deployment never created the
+		// instance either, so there is nothing to complete.
+		return nil
+	}
+	if rs.TimetableBridge == nil {
+		// Mirroring is wired but its completion half is not. Sessions started
+		// here DO create instances, so staying quiet would leak a permanently
+		// active block per kiosk session. A wiring gap must fail visibly.
+		return fmt.Errorf("timetable mirroring is wired without a completion bridge (active group %d)", activeGroupID)
 	}
 	inst, err := rs.TimetableData.GetInstanceByActiveGroupID(ctx, activeGroupID)
-	if err != nil || inst == nil {
-		if err != nil {
-			slog.Default().WarnContext(ctx, "failed to find mirrored timetable instance for completion",
-				slog.Int64("active_group_id", activeGroupID),
-				slog.String("error", err.Error()),
-			)
-		}
-		return
+	if err != nil {
+		return fmt.Errorf("find mirrored timetable instance for completion (active group %d): %w", activeGroupID, err)
+	}
+	if inst == nil {
+		// The session was never mirrored (started before mirroring existed, or
+		// by a path that does not mirror). Nothing to complete.
+		return nil
 	}
 	now := time.Now()
 	completed, err := rs.TimetableBridge.CompleteActiveByActiveGroupIDs(ctx, []int64{activeGroupID}, now)
 	if err != nil {
-		slog.Default().WarnContext(ctx, "failed to complete mirrored timetable instance",
-			slog.Int64("instance_id", inst.ID),
-			slog.String("error", err.Error()),
-		)
-		return
+		return fmt.Errorf("complete mirrored timetable instance %d: %w", inst.ID, err)
 	}
 	if completed == 0 {
 		// Already completed by another path — nothing was finalized here, so
 		// re-announcing it would be a phantom event.
-		return
+		return nil
 	}
 	inst.Status = scheduleModel.InstanceStatusCompleted
 	inst.CompletedAt = &now
 	rs.broadcastMirroredInstance(ctx, realtime.EventInstanceCompleted, inst, &active.Group{RoomID: inst.RoomID})
+	return nil
 }
 
 func (rs *Resource) timetableTitleForActivity(ctx context.Context, activityGroupID *int64) string {
