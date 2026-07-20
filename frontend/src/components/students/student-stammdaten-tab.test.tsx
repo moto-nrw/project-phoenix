@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import type { Student } from "~/lib/student-helpers";
 
@@ -204,6 +210,7 @@ vi.mock("~/components/ui/button", () => ({
 }));
 
 import { StudentStammdatenTab } from "./student-stammdaten-tab";
+import { notifyStudentCompanionsChanged } from "~/lib/student-companion-api";
 
 function makeStudent(overrides: Partial<Student> = {}): Student {
   return {
@@ -870,6 +877,70 @@ describe("StudentStammdatenTab — companion list staleness", () => {
     expect(onSave.mock.calls[0]![0]).toMatchObject({
       companions: [{ companion_student_id: "7", weekdays: ["mon"] }],
     });
+  });
+
+  // The tab stays mounted while other people work on the same child, and
+  // student.id does not change when they do — so without listening to
+  // companion writes the form keeps a snapshot that no longer exists and its
+  // next save replaces the stored links with it.
+  it("reloads the links on a remote change while nothing is edited", async () => {
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    // The picker only appears once the stored links are known.
+    expect(await screen.findByTestId("companion-add")).toBeInTheDocument();
+    expect(fetchStudentCompanionsMock).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      notifyStudentCompanionsChanged();
+    });
+
+    await waitFor(() =>
+      expect(fetchStudentCompanionsMock).toHaveBeenCalledTimes(2),
+    );
+  });
+
+  it("blocks the save when a remote change lands on an edited list", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+    expect(await screen.findByTestId("companion-add")).toBeInTheDocument();
+    expect(fetchStudentCompanionsMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByTestId("companion-add"));
+    act(() => {
+      notifyStudentCompanionsChanged();
+    });
+
+    // The draft survives — discarding the user's work silently would be the
+    // other way to lose an edit.
+    expect(
+      await screen.findByText(/zwischenzeitlich an anderer Stelle geändert/),
+    ).toBeInTheDocument();
+    expect(fetchStudentCompanionsMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Bitte oben neu laden und die Änderung wiederholen/),
+      ).toBeInTheDocument(),
+    );
+    expect(onSave).not.toHaveBeenCalled();
+
+    // "Neu laden" is the explicit way out.
+    fireEvent.click(screen.getByRole("button", { name: /Neu laden/ }));
+    await waitFor(() =>
+      expect(fetchStudentCompanionsMock).toHaveBeenCalledTimes(2),
+    );
   });
 
   // A departure-plan save can change the stored links without carrying a

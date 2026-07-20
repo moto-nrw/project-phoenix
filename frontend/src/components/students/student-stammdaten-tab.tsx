@@ -33,6 +33,7 @@ import {
   type CompanionExtensionConfirmation,
   type StudentCompanion,
 } from "~/lib/student-companion-api";
+import { useCompanionRemoteRefresh } from "~/lib/hooks/use-companion-remote-refresh";
 import { createLogger } from "~/lib/logger";
 import {
   companionDepartureMessage,
@@ -486,6 +487,22 @@ export function StudentStammdatenTab({
         companionsFingerprint(companions),
     [companions, companionsStatus, loadedCompanions],
   );
+  // This form stays mounted while other people work on the same child, and the
+  // links it submits REPLACE the stored ones. Without listening to companion
+  // writes, an edit started before a remote change would save on top of a
+  // snapshot that no longer exists and delete links this form never saw.
+  const reloadCompanionsFromRemote = useCallback(
+    () => setReloadCompanions((count) => count + 1),
+    [],
+  );
+  const { companionsStale, refreshFromRemote, withOwnWrite } =
+    useCompanionRemoteRefresh({
+      // Always listening, including while the first load is still in flight —
+      // that request can have been answered before the remote write landed.
+      active: true,
+      hasUnsavedCompanionEdits: companionsDirty,
+      onRefresh: reloadCompanionsFromRemote,
+    });
   const isDirty = useMemo(() => {
     if (pendingPhotoBlob !== null) return true;
     if (pendingPhotoRemoved) return true;
@@ -659,7 +676,10 @@ export function StudentStammdatenTab({
         submitData.confirmed_companion_extensions = confirmed;
       }
       try {
-        await onSave(submitData);
+        // withOwnWrite: this save announces the companion change itself, and
+        // reacting to our own announcement would flag the form stale for a
+        // change the user just made.
+        await withOwnWrite(() => onSave(submitData));
         setPlanConflict(null);
         // The confirmation is one-shot: this save consumed it. Keeping it
         // would let a later unrelated save from this still-mounted form
@@ -769,6 +789,7 @@ export function StudentStammdatenTab({
       pendingPhotoBlob,
       pendingPhotoRemoved,
       student.id,
+      withOwnWrite,
     ],
   );
 
@@ -780,9 +801,20 @@ export function StudentStammdatenTab({
         setErrors({ submit: privacyConsentLoadError });
         return;
       }
+      // The edited list would replace links this form never loaded. Refusing
+      // here (instead of saving and hoping the backend's stranding check
+      // happens to object) is the only reading that cannot lose someone's work.
+      if (companionsStale) {
+        setErrors({
+          submit:
+            "Die Laufgemeinschaft wurde zwischenzeitlich an anderer Stelle geändert. Bitte oben neu laden und die Änderung wiederholen.",
+        });
+        return;
+      }
       await performSave(extendCompanionPlans, confirmedExtensions);
     },
     [
+      companionsStale,
       confirmedExtensions,
       extendCompanionPlans,
       performSave,
@@ -794,10 +826,20 @@ export function StudentStammdatenTab({
   // The user confirmed widening the linked child's departure plan: repeat the
   // identical save with the confirmation flag set.
   const handleConfirmExtendPlans = useCallback(() => {
+    // Same reason as in handleSubmit — the confirmed retry re-sends the very
+    // list that went stale.
+    if (companionsStale) {
+      setPlanConflict(null);
+      setErrors({
+        submit:
+          "Die Laufgemeinschaft wurde zwischenzeitlich an anderer Stelle geändert. Bitte oben neu laden und die Änderung wiederholen.",
+      });
+      return;
+    }
     setExtendCompanionPlans(true);
     setPlanConflict(null);
     void performSave(true, confirmedExtensions);
-  }, [confirmedExtensions, performSave]);
+  }, [companionsStale, confirmedExtensions, performSave]);
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
@@ -837,6 +879,29 @@ export function StudentStammdatenTab({
       {privacyConsentLoadError ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3">
           <p className="text-sm text-red-800">{privacyConsentLoadError}</p>
+        </div>
+      ) : null}
+      {companionsStale ? (
+        <div className="rounded-lg border border-[#F78C10] bg-[#F78C10]/5 p-3">
+          <p className="text-sm text-gray-900">
+            Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich an anderer
+            Stelle geändert. Speichern ist gesperrt, damit die fremde Änderung
+            nicht überschrieben wird.
+          </p>
+          <p className="mt-1 text-xs text-gray-600">
+            Neu laden verwirft die hier vorgenommenen Änderungen an der
+            Laufgemeinschaft.
+          </p>
+          <div className="mt-2 flex justify-end">
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={refreshFromRemote}
+            >
+              Neu laden
+            </Button>
+          </div>
         </div>
       ) : null}
       {companionsStatus === "error" ? (

@@ -449,4 +449,61 @@ describe("StudentSearchPage — Laufgemeinschaft grouping (#1694)", () => {
     );
     expect(annasGroup!.label).toContain("2 weitere Kinder");
   });
+
+  it("files a child whose links are redacted under 'Nicht einsehbar', not 'Ohne Laufgemeinschaft'", async () => {
+    // The backend resolves the Laufgemeinschaft only for full-access children,
+    // so a restricted child arrives WITHOUT companion ids whether or not they
+    // walk with someone. Claiming they walk alone would state as fact the one
+    // thing this page cannot know.
+    const restricted = {
+      ...student("4", "Dana", "Dreyer"),
+      has_full_access: false,
+    };
+
+    renderWithStudents([anna, ben, restricted]);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("student-card-4")).toBeDefined(),
+    );
+
+    fireEvent.click(screen.getByTestId("filter-groupMode-companions"));
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId("student-group").length).toBe(2),
+    );
+
+    const groups = readGroups();
+    // Last, after the real Laufgemeinschaften.
+    expect(groups.at(-1)!.label).toContain("Nicht einsehbar");
+    expect(groups.at(-1)!.studentIds).toEqual(["4"]);
+    expect(
+      groups.some((group) => group.label.includes("Ohne Laufgemeinschaft")),
+    ).toBe(false);
+  });
+
+  it("keeps a restricted child in the group a full-access child links them into", async () => {
+    // Here the link IS readable — it came from Anna's own list. The restricted
+    // child's membership is a fact, not a guess, so they belong in the group.
+    const restricted = {
+      ...student("4", "Dana", "Dreyer"),
+      has_full_access: false,
+    };
+    const annaLinksDana = student("1", "Anna", "Adler", [4]);
+
+    renderWithStudents([annaLinksDana, restricted]);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("student-card-4")).toBeDefined(),
+    );
+
+    fireEvent.click(screen.getByTestId("filter-groupMode-companions"));
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId("student-group").length).toBe(1),
+    );
+
+    const groups = readGroups();
+    expect(groups[0]!.label).toContain("Anna Adler, Dana Dreyer");
+    expect(groups[0]!.studentIds.sort()).toEqual(["1", "4"]);
+  });
 });

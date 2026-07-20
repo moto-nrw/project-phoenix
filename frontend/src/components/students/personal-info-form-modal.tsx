@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
@@ -23,6 +23,7 @@ import {
   type CompanionExtensionConfirmation,
   type StudentCompanion,
 } from "~/lib/student-companion-api";
+import { useCompanionRemoteRefresh } from "~/lib/hooks/use-companion-remote-refresh";
 import {
   companionDepartureMessage,
   CompanionPlanConflictError,
@@ -127,6 +128,24 @@ export function PersonalInfoFormModal({
     companionsFingerprint(loadedCompanions) !==
       companionsFingerprint(editedStudent.companions ?? []);
 
+  // The modal can stay open while someone else edits the same child's links,
+  // and the list it submits REPLACES the stored one. Reacting to companion
+  // writes is what keeps an edit from saving on top of a snapshot that no
+  // longer exists and deleting links this modal never saw.
+  const reloadCompanionsFromRemote = useCallback(
+    () => setReloadCompanions((count) => count + 1),
+    [],
+  );
+  const { companionsStale, refreshFromRemote, withOwnWrite } =
+    useCompanionRemoteRefresh({
+      // Listening for the whole time the modal is open, including while the
+      // first load is still in flight — that request can have been answered
+      // before the remote write landed.
+      active: isOpen,
+      hasUnsavedCompanionEdits: companionsDirty,
+      onRefresh: reloadCompanionsFromRemote,
+    });
+
   const updateField = <K extends keyof ExtendedStudent>(
     field: K,
     value: ExtendedStudent[K],
@@ -135,6 +154,15 @@ export function PersonalInfoFormModal({
   };
 
   const handleSave = async () => {
+    // The edited list would replace links this modal never loaded. Refusing
+    // here (instead of saving and hoping the backend's stranding check happens
+    // to object) is the only reading that cannot lose someone else's work.
+    if (companionsStale) {
+      toast.error(
+        "Die Laufgemeinschaft wurde zwischenzeitlich an anderer Stelle geändert. Bitte neu laden und die Änderung wiederholen.",
+      );
+      return;
+    }
     const allowedDepartureModes = normalizeAllowedDepartureModes(
       editedStudent.allowed_departure_modes ??
         allowedDepartureModesFromDeparture(
@@ -187,28 +215,35 @@ export function PersonalInfoFormModal({
     try {
       const busDays = allowedDepartureToBusDays(allowedDepartureModes);
       const pickupDays = allowedDepartureToPickupDays(allowedDepartureModes);
-      await onSave({
-        ...editedStudent,
-        // The submitted list REPLACES the stored one, so it must only travel
-        // when the user actually edited it. A pending or failed load stays
-        // undefined, which the page turns into "no companions key" — the
-        // backend then leaves the child's Laufgemeinschaft untouched instead of
-        // clearing it. An UNTOUCHED list stays out for the neighbouring reason:
-        // re-sending the snapshot this modal loaded would overwrite links
-        // someone else changed in the meantime, on a save that never meant to
-        // touch them.
-        companions: companionsDirty ? editedStudent.companions : undefined,
-        extend_companion_plans: extendCompanionPlans,
-        confirmed_companion_extensions: confirmed,
-        allowed_departure_modes: allowedDepartureModes,
-        departure_days: allowedDepartureToDepartureDays(allowedDepartureModes),
-        bus_days: busDays,
-        buskind: busDaysHaveAny(busDays),
-        pickup_days: pickupDays,
-        pickup_status: pickupDaysHaveAny(pickupDays)
-          ? "Wird abgeholt"
-          : "Geht alleine nach Hause",
-      });
+      // withOwnWrite: this save announces the companion change itself, and
+      // reacting to our own announcement would flag the modal stale for a
+      // change the user just made.
+      await withOwnWrite(() =>
+        onSave({
+          ...editedStudent,
+          // The submitted list REPLACES the stored one, so it must only travel
+          // when the user actually edited it. A pending or failed load stays
+          // undefined, which the page turns into "no companions key" — the
+          // backend then leaves the child's Laufgemeinschaft untouched instead of
+          // clearing it. An UNTOUCHED list stays out for the neighbouring reason:
+          // re-sending the snapshot this modal loaded would overwrite links
+          // someone else changed in the meantime, on a save that never meant to
+          // touch them.
+          companions: companionsDirty ? editedStudent.companions : undefined,
+          extend_companion_plans: extendCompanionPlans,
+          confirmed_companion_extensions: confirmed,
+          allowed_departure_modes: allowedDepartureModes,
+          departure_days: allowedDepartureToDepartureDays(
+            allowedDepartureModes,
+          ),
+          bus_days: busDays,
+          buskind: busDaysHaveAny(busDays),
+          pickup_days: pickupDays,
+          pickup_status: pickupDaysHaveAny(pickupDays)
+            ? "Wird abgeholt"
+            : "Geht alleine nach Hause",
+        }),
+      );
       setPlanConflict(null);
       // One-shot: this save consumed the confirmation. The modal component
       // stays mounted across open/close, so a stale list would ride along
@@ -276,6 +311,28 @@ export function PersonalInfoFormModal({
       }
     >
       <div className="space-y-4">
+        {companionsStale ? (
+          <div className="rounded-lg border border-[#F78C10] bg-[#F78C10]/5 p-3">
+            <p className="text-sm text-gray-900">
+              Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich an
+              anderer Stelle geändert. Speichern ist gesperrt, damit die fremde
+              Änderung nicht überschrieben wird.
+            </p>
+            <p className="mt-1 text-xs text-gray-600">
+              Neu laden verwirft die hier vorgenommenen Änderungen an der
+              Laufgemeinschaft.
+            </p>
+            <div className="mt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={refreshFromRemote}
+                className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700"
+              >
+                Neu laden
+              </button>
+            </div>
+          </div>
+        ) : null}
         {companionsStatus === "error" ? (
           <div className="rounded-lg border border-[#FF3130] bg-[#FF3130]/5 p-3">
             <p className="text-sm text-gray-900">
@@ -311,8 +368,11 @@ export function PersonalInfoFormModal({
               </button>
               <button
                 type="button"
-                disabled={isSaving}
+                disabled={isSaving || companionsStale}
                 onClick={() => {
+                  // Same reason as in handleSave — the confirmed retry
+                  // re-sends the very list that went stale.
+                  if (companionsStale) return;
                   updateField("extend_companion_plans", true);
                   void submit(
                     normalizeAllowedDepartureModes(

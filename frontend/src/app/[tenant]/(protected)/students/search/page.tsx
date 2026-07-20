@@ -512,6 +512,15 @@ function arrivalLabelForStudent(student: Student): string {
 }
 
 const NO_COMPANION_GROUP_LABEL = "Ohne Laufgemeinschaft";
+/**
+ * A child whose links the caller may not see. The backend only resolves the
+ * Laufgemeinschaft of full-access children (`collectFullAccessStudentIDs`), so
+ * for a restricted child an empty list means "not readable", NOT "walks alone" —
+ * with `gdpr.student_data_scope=group_supervisors_only` that is every child
+ * outside the caller's own groups. Filing them under "Ohne Laufgemeinschaft"
+ * would state as fact the one thing this page cannot know.
+ */
+const UNKNOWN_COMPANION_GROUP_LABEL = "Nicht einsehbar";
 
 /**
  * Resolves the Laufgemeinschaft of every student on the page.
@@ -591,8 +600,18 @@ function companionGroupLabels(
     // nobody on this day. With a hidden member it is a real Laufgemeinschaft
     // we can only show in part. The children who walk alone all share one
     // bucket, so that label IS their key; every real group keeps its own root.
-    const resolved: CompanionGroup =
-      group.length + hidden < 2
+    // A lone restricted child is the third case: nothing links to them on this
+    // page and their own links were never sent, so "walks alone" is a guess.
+    // Being pulled into a real group is still trustworthy — that link came
+    // from a full-access child and is readable data.
+    const lonely = group.length + hidden < 2;
+    const redacted = lonely && group[0]?.has_full_access === false;
+    const resolved: CompanionGroup = redacted
+      ? {
+          key: UNKNOWN_COMPANION_GROUP_LABEL,
+          label: UNKNOWN_COMPANION_GROUP_LABEL,
+        }
+      : lonely
         ? { key: NO_COMPANION_GROUP_LABEL, label: NO_COMPANION_GROUP_LABEL }
         : {
             key: root,
@@ -678,9 +697,14 @@ function groupStudents(students: Student[], groupMode: GroupMode) {
         return rank(a.label).localeCompare(rank(b.label), "de");
       }
       if (groupMode === "companions") {
-        // Real Laufgemeinschaften first, the "walks with nobody" rest last.
+        // Real Laufgemeinschaften first, then the children who walk with
+        // nobody, and last the ones this account may not read.
         const rank = (label: string) =>
-          label === NO_COMPANION_GROUP_LABEL ? 1 : 0;
+          label === NO_COMPANION_GROUP_LABEL
+            ? 1
+            : label === UNKNOWN_COMPANION_GROUP_LABEL
+              ? 2
+              : 0;
         const rankCmp = rank(a.label) - rank(b.label);
         if (rankCmp !== 0) return rankCmp;
       }
