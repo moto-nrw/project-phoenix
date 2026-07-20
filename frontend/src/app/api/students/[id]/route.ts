@@ -187,22 +187,15 @@ export const PUT = createPutHandler<
       const { privacy_consent_accepted, data_retention_days, ...studentData } =
         body;
 
-      // Transform frontend format to backend format
-      const backendData = prepareStudentForBackend(studentData);
-
-      // Call backend API to update student
-      const response = await apiPut<ApiStudentResponse>(
-        `/api/students/${id}`,
-        token,
-        backendData,
-      );
-
-      // Handle null or undefined response
-      if (!response?.data) {
-        throw new Error("Invalid response from backend");
-      }
-
-      // Handle privacy consent if provided — fail update if consent update fails
+      // Consent BEFORE the student PUT, deliberately. Both writes can fail, so
+      // one of them has to run while the other is still undone — and the two
+      // are not interchangeable. The consent PUT is a plain upsert of the two
+      // values in this request: failing it here leaves the student untouched,
+      // and the client's retry replays the identical, idempotent write. The
+      // student PUT is not replayable that cheaply — it carries the companion
+      // fingerprint (#1694), so once it commits, a retry of the same payload is
+      // refused as `companions_changed` and costs the user a reload. Running it
+      // last means a reported failure never hides a committed companion write.
       if (
         privacy_consent_accepted !== undefined ||
         data_retention_days !== undefined
@@ -231,11 +224,56 @@ export const PUT = createPutHandler<
         }
       }
 
+      // Transform frontend format to backend format
+      const backendData = prepareStudentForBackend(studentData);
+
+      // Call backend API to update student
+      const response = await apiPut<ApiStudentResponse>(
+        `/api/students/${id}`,
+        token,
+        backendData,
+      );
+
+      // Handle null or undefined response
+      if (!response?.data) {
+        throw new Error("Invalid response from backend");
+      }
+
       // Map the response to frontend format
       const mappedStudent = mapStudentResponse(response.data as BackendStudent);
 
-      // Fetch privacy consent data to include in the response
-      const consentData = await fetchPrivacyConsent(id, apiGet, token);
+      // Read back the stored consent for the response — but never let that read
+      // fail the request: everything is committed at this point, and turning an
+      // unreadable GET into a 500 would send the client down its generic save
+      // failure path for a write that succeeded (and, with companions in the
+      // payload, into a `companions_changed` conflict on the retry). We know
+      // what was just written, so fall back to it; with nothing written, the
+      // keys stay out and the client keeps the consent state it already holds.
+      const consentData = await fetchPrivacyConsent(id, apiGet, token).catch(
+        (consentError: unknown) => {
+          logger.warn("privacy consent read-back failed after update", {
+            student_id: id,
+            error:
+              consentError instanceof Error
+                ? consentError.message
+                : String(consentError),
+          });
+          if (
+            privacy_consent_accepted === undefined &&
+            data_retention_days === undefined
+          ) {
+            return {};
+          }
+          return {
+            ...(privacy_consent_accepted === undefined
+              ? {}
+              : { privacy_consent_accepted }),
+            ...(data_retention_days === undefined
+              ? {}
+              : { data_retention_days }),
+          };
+        },
+      );
 
       // The write's own verdict on the "läuft mit" links (#1694). Not part of
       // the student, so mapStudentResponse drops it — but the client decides

@@ -250,6 +250,80 @@ describe("PUT /api/students/[id]", () => {
     expect(updatePrivacyConsent).toHaveBeenCalled();
     expect(response.status).toBe(200);
   });
+
+  // The student PUT carries the companion fingerprint (#1694): once it commits,
+  // resending it is refused as `companions_changed`. So a failing consent write
+  // must happen while the student is still untouched — otherwise the client
+  // reports a failure for links that are already stored and its retry conflicts.
+  it("does not touch the student when the consent update fails", async () => {
+    const { updatePrivacyConsent } =
+      await import("~/lib/student-privacy-helpers");
+    vi.mocked(updatePrivacyConsent).mockRejectedValueOnce(
+      new Error("consent backend down"),
+    );
+
+    const request = createMockRequest("/api/students/123", {
+      method: "PUT",
+      body: {
+        first_name: "Alice",
+        privacy_consent_accepted: true,
+        companions: [],
+      },
+    });
+    const response = await PUT(request, createMockContext({ id: "123" }));
+
+    expect(response.status).toBe(500);
+    expect(mockApiPut).not.toHaveBeenCalled();
+  });
+
+  // Everything is committed by the time the read-back runs — failing the
+  // request here would send the client down its generic save-failure path for a
+  // save that succeeded.
+  it("still succeeds when the consent read-back fails after the update", async () => {
+    const { fetchPrivacyConsent } =
+      await import("~/lib/student-privacy-helpers");
+    vi.mocked(fetchPrivacyConsent).mockRejectedValueOnce(
+      new Error("consent read failed"),
+    );
+
+    mockApiPut.mockResolvedValueOnce({
+      data: {
+        id: 123,
+        person_id: 10,
+        first_name: "Alice",
+        last_name: "Smith",
+        school_class: "1a",
+        guardian_name: "Jane Smith",
+        guardian_contact: "jane@example.com",
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-15T10:00:00Z",
+      },
+    });
+
+    const request = createMockRequest("/api/students/123", {
+      method: "PUT",
+      body: {
+        first_name: "Alice",
+        privacy_consent_accepted: true,
+        data_retention_days: 25,
+      },
+    });
+    const response = await PUT(request, createMockContext({ id: "123" }));
+
+    expect(response.status).toBe(200);
+
+    const json = await parseJsonResponse<{
+      data: {
+        id: string;
+        privacy_consent_accepted: boolean;
+        data_retention_days: number;
+      };
+    }>(response);
+    expect(json.data.id).toBe("123");
+    // Falls back to what was just written instead of dropping the fields.
+    expect(json.data.privacy_consent_accepted).toBe(true);
+    expect(json.data.data_retention_days).toBe(25);
+  });
 });
 
 describe("PATCH /api/students/[id]", () => {
