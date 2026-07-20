@@ -108,6 +108,13 @@ func (rs *Resource) lockCompanionRows(ctx context.Context, student *userModels.S
 // child locks this child's row first (its subject or its submitted-companion
 // set contains the id), so once we hold the subject no further edges can
 // appear, and a single top-up pass over the late edges suffices.
+//
+// That top-up is the one place where the ascending order cannot be honored: a
+// late edge may point at an id BELOW ids this transaction already holds, and
+// waiting for it head-on against a writer coming up the other way is exactly
+// the deadlock this whole protocol exists to prevent. Those downward locks are
+// therefore taken with NOWAIT (LockStudentsForUpdateBelow), which either gets
+// them immediately or refuses the request as retriable — never blocks.
 func (rs *Resource) lockStudentCompanionGraph(ctx context.Context, studentID int64, submitted []int64) error {
 	stored, err := rs.StudentService.ListCompanionIDs(ctx, studentID)
 	if err != nil {
@@ -116,12 +123,16 @@ func (rs *Resource) lockStudentCompanionGraph(ctx context.Context, studentID int
 
 	locked := make(map[int64]bool, len(submitted)+len(stored)+1)
 	ids := make([]int64, 0, len(submitted)+len(stored)+1)
+	var maxLocked int64
 	add := func(id int64) {
 		if id <= 0 || locked[id] {
 			return
 		}
 		locked[id] = true
 		ids = append(ids, id)
+		if id > maxLocked {
+			maxLocked = id
+		}
 	}
 	add(studentID)
 	for _, id := range submitted {
@@ -147,7 +158,7 @@ func (rs *Resource) lockStudentCompanionGraph(ctx context.Context, studentID int
 	if len(late) == 0 {
 		return nil
 	}
-	return rs.StudentService.LockStudentsForUpdate(ctx, late)
+	return rs.StudentService.LockStudentsForUpdateBelow(ctx, late, maxLocked)
 }
 
 // companionConflictError carries the conflicting companions out of the update

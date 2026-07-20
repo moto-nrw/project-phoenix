@@ -1189,6 +1189,12 @@ func updateStudentTxErrorRenderer(err error) render.Renderer {
 	// give that child a note (or another link) first.
 	case errors.Is(err, userService.ErrCompanionWouldLoseDeparture):
 		return common.ErrorInvalidRequest(err)
+	// A linked child was being edited elsewhere and this transaction could not
+	// wait for its row without risking a deadlock. Nothing was written and the
+	// same request succeeds once the other edit commits, so this is a retriable
+	// conflict — never a 500.
+	case errors.Is(err, userService.ErrCompanionLockBusy):
+		return common.ErrorConflict(err)
 	default:
 		return common.ErrorInternalServer(err)
 	}
@@ -1365,6 +1371,10 @@ func deleteStudentTxErrorRenderer(err error) render.Renderer {
 	// link). The German sentinel text tells the user which precondition to
 	// fix first.
 	case errors.Is(err, userService.ErrCompanionWouldLoseDeparture):
+		return common.ErrorConflictMessage(err.Error())
+	// A linked child was locked by a concurrent edit this transaction could not
+	// safely wait for. Retriable, so it must not read as a server error.
+	case errors.Is(err, userService.ErrCompanionLockBusy):
 		return common.ErrorConflictMessage(err.Error())
 	case common.IsConstraintViolation(err):
 		return common.ErrorConflictMessage("Kind kann nicht gelöscht werden: Kind hat aktive Besuche, Einschreibungen oder andere verknüpfte Daten")

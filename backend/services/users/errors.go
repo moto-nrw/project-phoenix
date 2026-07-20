@@ -72,6 +72,13 @@ var (
 	// which layer refused.
 	ErrCompanionWouldLoseDeparture = userModels.ErrCompanionWouldLoseDeparture
 
+	// ErrCompanionLockBusy indicates a linked child's row was locked by another
+	// edit that this transaction may not wait for without risking a deadlock.
+	// Transient: the same request succeeds on retry. Re-exported from
+	// models/users for the same reason as the sentinel above — the repository
+	// write path raises the identical instance.
+	ErrCompanionLockBusy = userModels.ErrCompanionLockBusy
+
 	// ErrCompanionExtensionNotAuthorized indicates the write path was asked to
 	// widen a companion's departure plan that the caller was never authorized
 	// for. Not user-facing: it can only fire if the authorization pass and the

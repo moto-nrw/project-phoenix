@@ -163,6 +163,13 @@ type StudentRepository interface {
 	// upload flow to close a lost-update race against concurrent
 	// consent withdrawals from another tab.
 	FindByIDForUpdate(ctx context.Context, id int64) (*Student, error)
+
+	// FindByIDForUpdateNoWait is FindByIDForUpdate that fails immediately
+	// (PostgreSQL 55P03) instead of waiting when the row is already locked.
+	// Used only where waiting would invert the ascending-id order every
+	// companion writer follows and could therefore deadlock — see the
+	// lock protocol in api/students and StudentRepository.lockCompanionFarEnds.
+	FindByIDForUpdateNoWait(ctx context.Context, id int64) (*Student, error)
 }
 
 // StaffRepository defines operations for managing staff members

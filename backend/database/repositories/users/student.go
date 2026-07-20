@@ -3,8 +3,10 @@ package users
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -439,10 +441,66 @@ func (r *StudentRepository) planCompanionReconcile(ctx context.Context, student 
 	if len(trim.dropIDs) == 0 {
 		return trim, nil
 	}
+	// Serialize against every other writer that could remove one of the far
+	// child's OTHER links before checkCompanionStranding reads them.
+	if err := r.lockCompanionFarEnds(ctx, student.ID, removed); err != nil {
+		return nil, err
+	}
 	if err := r.checkCompanionStranding(ctx, student.ID, removed, removedDays); err != nil {
 		return nil, err
 	}
 	return trim, nil
+}
+
+// lockCompanionFarEnds takes the row lock of every child at the far end of a
+// link this update is about to drop.
+//
+// Without it the stranding check is a read that two transactions can pass on
+// each other's soon-to-be-deleted data: with links A-B and C-B, where B has no
+// note and depends on them, a writer narrowing A's plan and a writer narrowing
+// C's plan each still SEE the other edge, both conclude B stays covered, and
+// both commit — leaving B with an accompanied plan and no "mit wem" detail.
+// api/students takes exactly these locks for the HTTP path (lockCompanionRows),
+// but this repository method is also the write path of callers that never go
+// through it (masterDataReviewService.applyDepartureChange,
+// careScheduleRequestService.applyDepartureModeChanges, imports, enrollment
+// approval), so the invariant has to be re-established here.
+//
+// Order: ascending by id, the order every companion writer uses. The subject's
+// row is normally already locked by the caller, so a far end BELOW it can only
+// be acquired against that order — those are taken with NOWAIT and surface as
+// the retriable users.ErrCompanionLockBusy rather than blocking into a deadlock
+// with a writer coming up from the other side.
+func (r *StudentRepository) lockCompanionFarEnds(ctx context.Context, studentID int64, farEnds []int64) error {
+	ordered := make([]int64, 0, len(farEnds))
+	for _, id := range farEnds {
+		if id > 0 && id != studentID {
+			ordered = append(ordered, id)
+		}
+	}
+	if len(ordered) == 0 {
+		return nil
+	}
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i] < ordered[j] })
+
+	for _, id := range ordered {
+		var err error
+		if id < studentID {
+			_, err = r.FindByIDForUpdateNoWait(ctx, id)
+		} else {
+			_, err = r.FindByIDForUpdate(ctx, id)
+		}
+		switch {
+		case err == nil:
+		case errors.Is(err, sql.ErrNoRows):
+			// Deleted or another tenant — checkCompanionStranding skips it too.
+		case modelBase.IsLockNotAvailable(err):
+			return users.ErrCompanionLockBusy
+		default:
+			return err
+		}
+	}
+	return nil
 }
 
 // checkCompanionStranding refuses when any removed edge would leave its far
@@ -1219,17 +1277,44 @@ func (r *StudentRepository) LockPhotoFeature(ctx context.Context) error {
 // Returns sql.ErrNoRows wrapped in DatabaseError if the row doesn't
 // exist. RLS / TenantWhere scopes visibility to the current tenant.
 func (r *StudentRepository) FindByIDForUpdate(ctx context.Context, id int64) (*users.Student, error) {
+	return r.findByIDForUpdate(ctx, id, false)
+}
+
+// FindByIDForUpdateNoWait is FindByIDForUpdate that never blocks: when another
+// transaction already holds the row, PostgreSQL raises 55P03 immediately
+// instead of waiting.
+//
+// It exists for the one situation where waiting is unsafe — taking a lock on an
+// id BELOW an id this transaction already holds. Every companion writer acquires
+// student rows in ascending id order, so a downward acquisition inverts that
+// order and can deadlock against a writer coming the other way. The companion
+// graph is not fully known before the first lock (it is read from the edge
+// table, which a concurrent commit can grow), so downward acquisitions cannot
+// be designed away — they are made non-blocking instead, and the caller turns
+// the refusal into the retriable users.ErrCompanionLockBusy.
+func (r *StudentRepository) FindByIDForUpdateNoWait(ctx context.Context, id int64) (*users.Student, error) {
+	return r.findByIDForUpdate(ctx, id, true)
+}
+
+func (r *StudentRepository) findByIDForUpdate(ctx context.Context, id int64, noWait bool) (*users.Student, error) {
+	lockClause := "UPDATE"
+	op := "find_by_id_for_update"
+	if noWait {
+		lockClause = "UPDATE NOWAIT"
+		op = "find_by_id_for_update_nowait"
+	}
+
 	student := new(users.Student)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(student).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Where(`"student".id = ?`, id).
-		For("UPDATE")
+		For(lockClause)
 
 	query = base.WithTenantFilter(ctx, query, "student")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find_by_id_for_update", Err: err}
+		return nil, &modelBase.DatabaseError{Op: op, Err: err}
 	}
 	if err := r.hydrateBusDaysIfPresent(ctx, []*users.Student{student}); err != nil {
 		return nil, err

@@ -35,6 +35,13 @@ type StudentService interface {
 	// deadlock each other.
 	LockStudentsForUpdate(ctx context.Context, ids []int64) error
 
+	// LockStudentsForUpdateBelow takes the row locks of the given students
+	// knowing this transaction ALREADY holds locks up to maxHeldID. Ids at or
+	// above that bound still follow the ascending order and may wait; ids below
+	// it would invert the order and are taken without waiting, returning
+	// ErrCompanionLockBusy rather than risking a deadlock.
+	LockStudentsForUpdateBelow(ctx context.Context, ids []int64, maxHeldID int64) error
+
 	// Create persists a new student.
 	Create(ctx context.Context, student *userModels.Student) error
 
@@ -145,6 +152,26 @@ func (s *studentService) GetByIDForUpdate(ctx context.Context, id int64) (*userM
 // and nothing else, and the validation that follows already distinguishes "the
 // child being edited is gone" from "a submitted companion is gone".
 func (s *studentService) LockStudentsForUpdate(ctx context.Context, ids []int64) error {
+	// Nothing is held yet, so every id is "at or above the bound" and may wait.
+	return s.LockStudentsForUpdateBelow(ctx, ids, 0)
+}
+
+// LockStudentsForUpdateBelow implements the ascending-order acquisition with an
+// escape hatch for ids the transaction learns about only after it already holds
+// higher locks.
+//
+// The ascending order alone is enough while the whole set is known up front.
+// It is NOT enough for the companion graph: the far ends are read from the edge
+// table, and a concurrent writer can commit a new edge between that read and
+// the lock pass. Locking such a late, LOWER id normally would put this
+// transaction (holding the higher id, wanting the lower) head-on against a
+// writer following the plain ascending order (holding the lower, wanting the
+// higher) — PostgreSQL breaks that with a deadlock abort, i.e. a 500 on a
+// legitimate edit. Taking the downward locks with NOWAIT cannot deadlock: the
+// lock is either free (the overwhelmingly common case, since the writer that
+// created the edge has committed and released it) or the request is refused
+// with the retriable ErrCompanionLockBusy.
+func (s *studentService) LockStudentsForUpdateBelow(ctx context.Context, ids []int64, maxHeldID int64) error {
 	ordered := make([]int64, 0, len(ids))
 	seen := make(map[int64]bool, len(ids))
 	for _, id := range ids {
@@ -157,10 +184,19 @@ func (s *studentService) LockStudentsForUpdate(ctx context.Context, ids []int64)
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i] < ordered[j] })
 
 	for _, id := range ordered {
-		if _, err := s.studentRepo.FindByIDForUpdate(ctx, id); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				continue
-			}
+		var err error
+		if id < maxHeldID {
+			_, err = s.studentRepo.FindByIDForUpdateNoWait(ctx, id)
+		} else {
+			_, err = s.studentRepo.FindByIDForUpdate(ctx, id)
+		}
+		switch {
+		case err == nil:
+		case errors.Is(err, sql.ErrNoRows):
+			continue
+		case base.IsLockNotAvailable(err):
+			return ErrCompanionLockBusy
+		default:
 			return err
 		}
 	}

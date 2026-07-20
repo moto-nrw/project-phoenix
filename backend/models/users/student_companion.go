@@ -36,6 +36,18 @@ var (
 	// services package re-exports it so existing errors.Is call sites keep
 	// matching the same instance.
 	ErrCompanionWouldLoseDeparture = errors.New("Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrCompanionLockBusy indicates that a linked child's row is currently
+	// locked by another transaction that this one may NOT wait for without
+	// risking a deadlock — the companion graph is discovered while locks are
+	// already held, so an id below the ones we hold has to be taken without
+	// waiting (see the lock protocol on StudentRepository.lockCompanionFarEnds
+	// and api/students lockStudentCompanionGraph).
+	//
+	// It is a transient, retriable conflict, not a data problem: the same
+	// request succeeds once the other edit commits. Mapped to 409 so the client
+	// can say "please try again" instead of showing a 500 for a legitimate edit.
+	ErrCompanionLockBusy = errors.New("Ein verknüpftes Kind wird gerade an anderer Stelle bearbeitet. Bitte in einem Moment erneut speichern.") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // CompanionWeekdayNumbers maps the weekday keys used across the departure model
