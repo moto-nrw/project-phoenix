@@ -178,7 +178,16 @@ export function useCompanionRemoteRefresh({
   // so leaving it running would let it answer for a write it cannot be the echo
   // of.
   useEffect(() => {
-    if (!active) setCompanionsStale(false);
+    if (active) return;
+    setCompanionsStale(false);
+    // Disarm the grace with the flag. A save whose echo has not landed by the
+    // time the view closes will never be answered here, so leaving the deadline
+    // running would let the NEXT genuinely remote announcement — possibly for a
+    // draft started after the view was reopened — be consumed as that save's
+    // echo, refreshing silently instead of warning.
+    ownWriteEchoUntilRef.current = 0;
+    ownWriteSettledAtRef.current = 0;
+    submittedDraftKeyRef.current = undefined;
   }, [active]);
 
   useEffect(() => {

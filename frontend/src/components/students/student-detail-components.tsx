@@ -708,6 +708,19 @@ export function PersonalInfoReadOnly({
       unsubscribeDisplay();
     };
   }, []);
+  // This card is reused across children without unmounting, and the links are
+  // fetched separately from the student payload. Dropping the previous child's
+  // companions only once the new request resolves would show one child's
+  // departure companions under another child's name for the whole request —
+  // safety-relevant information about who walks home with whom. Reset during
+  // render (React's "adjusting state on prop change" pattern) so the wrong
+  // names never reach the screen, not in the effect, which runs after paint.
+  const [companionsStudentId, setCompanionsStudentId] = useState(student.id);
+  if (companionsStudentId !== student.id) {
+    setCompanionsStudentId(student.id);
+    setCompanions([]);
+    setCompanionsUnavailable(false);
+  }
   useEffect(() => {
     if (!student.id) return;
     let cancelled = false;
