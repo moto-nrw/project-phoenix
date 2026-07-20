@@ -430,9 +430,9 @@ func appendActiveGroupIDs(ids []int64, more ...int64) []int64 {
 // instance completed.
 //
 // Every path that ends a session has to come through here — force-start,
-// kiosk timeout and the abandoned-session sweep alike. A session that ends
-// without it leaves the mirrored instance active forever with its expected
-// rows unfinalized, and nothing downstream ever repairs that.
+// kiosk timeout, the abandoned-session sweep and the manual group end alike. A
+// session that ends without it leaves the mirrored instance active forever with
+// its expected rows unfinalized, and nothing downstream ever repairs that.
 func (s *service) completeTimetableMirrorsForEndedSessions(ctx context.Context, endedSessionIDs []int64) error {
 	if s.TimetableBridgeCompleter == nil || len(endedSessionIDs) == 0 {
 		return nil
@@ -442,7 +442,7 @@ func (s *service) completeTimetableMirrorsForEndedSessions(ctx context.Context, 
 		return fmt.Errorf("complete timetable mirrors for ended sessions: %w", err)
 	}
 	if completed > 0 {
-		s.getLogger().InfoContext(ctx, "completed timetable mirrors for force-ended activity sessions",
+		s.getLogger().InfoContext(ctx, "completed timetable mirrors for ended activity sessions",
 			slog.Int64("count", completed),
 		)
 	}
@@ -999,6 +999,44 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 		visitsToNotify = nil
 	}
 
+	// Every write below runs in ONE transaction (#1747 review). The abandoned-
+	// session sweep calls this straight from the scheduler, with no request
+	// middleware around it: without a transaction of its own the bridge would
+	// commit a completed timetable instance and a later failure would leave the
+	// session open beside it — a split that the next sweep cannot repair,
+	// because it only ever sees the still-active session and would re-bridge an
+	// instance that is already completed. RunInTx joins the caller's
+	// transaction when there is one (the kiosk timeout endpoint), so the
+	// request path is unchanged.
+	var result *TimeoutResult
+	if err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		res, err := s.processSessionTimeoutTx(txCtx, sessionID)
+		if err != nil {
+			return err
+		}
+		result = res
+		return nil
+	}); err != nil {
+		if activeErr, ok := err.(*ActiveError); ok {
+			return nil, activeErr
+		}
+		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
+	}
+
+	// Broadcast SSE events (fire-and-forget, outside transaction)
+	if s.Broadcaster != nil && result != nil {
+		sessionIDStr := fmt.Sprintf("%d", sessionID)
+		s.broadcastStudentCheckoutEvents(ctx, sessionIDStr, visitsToNotify)
+		s.broadcastActivityEndEvent(ctx, sessionID, sessionIDStr)
+	}
+
+	return result, nil
+}
+
+// processSessionTimeoutTx holds every write of a session timeout. It runs
+// inside one transaction and announces nothing — the SSE events belong to the
+// caller, after the commit.
+func (s *service) processSessionTimeoutTx(ctx context.Context, sessionID int64) (*TimeoutResult, error) {
 	session, err := s.validateSessionForTimeout(ctx, sessionID)
 	if err != nil {
 		if activeErr, ok := err.(*ActiveError); ok {
@@ -1011,9 +1049,8 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 	// review). A timed-out session is still a session end: without the bridge
 	// the mirrored instance stays active indefinitely and its expected rows are
 	// never finalized. Running it ahead of the checkouts and the session end
-	// keeps the failure-prone half in front of the SSE events at the bottom of
-	// this function, so a bridge error never announces an end that the
-	// enclosing transaction then rolls back.
+	// keeps the failure-prone half in front of the SSE events the caller fires,
+	// so a bridge error never announces an end that the transaction rolls back.
 	if err := s.completeTimetableMirrorsForEndedSessions(ctx, []int64{sessionID}); err != nil {
 		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
 	}
@@ -1027,21 +1064,25 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
 	}
 
-	result := &TimeoutResult{
+	return &TimeoutResult{
 		SessionID:          sessionID,
 		ActivityID:         session.GroupID,
 		StudentsCheckedOut: studentsCheckedOut,
 		TimeoutAt:          time.Now(),
-	}
+	}, nil
+}
 
-	// Broadcast SSE events (fire-and-forget, outside transaction)
-	if s.Broadcaster != nil && result != nil {
-		sessionIDStr := fmt.Sprintf("%d", sessionID)
-		s.broadcastStudentCheckoutEvents(ctx, sessionIDStr, visitsToNotify)
-		s.broadcastActivityEndEvent(ctx, sessionID, sessionIDStr)
+// runInSessionTx runs fn inside a transaction, joining the caller's when one is
+// already in context. Without a database handle — the shape unit tests build,
+// where every repository is a double and there is nothing to commit — fn runs
+// directly; production wiring always supplies one via services.NewFactory.
+func (s *service) runInSessionTx(ctx context.Context, fn func(context.Context) error) error {
+	if s.DB == nil {
+		return fn(ctx)
 	}
-
-	return result, nil
+	return modelBase.NewTxHandler(s.DB).RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		return fn(txCtx)
+	})
 }
 
 // UpdateSessionActivity updates the last activity timestamp for a session

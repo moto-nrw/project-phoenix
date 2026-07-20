@@ -317,6 +317,63 @@ describe("InstanceDetailSlideOver", () => {
     );
   });
 
+  // Not booked into care today is a plan, not a prophecy: the child can still
+  // walk in, and this view is where the supervisor standing in the room records
+  // it (#1747 review). Only "anwesend" survives here — "abmelden" and
+  // "zuruecksetzen" would write attendance for a day the child was never
+  // expected on.
+  it("keeps the check-in action for a child who turns up unplanned", async () => {
+    const onAttendancePatch = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({
+          status: "active",
+          isLive: true,
+          students: [
+            {
+              studentId: "24",
+              status: "expected",
+              careDayStatus: "not_scheduled",
+            },
+          ],
+          studentIds: ["24"],
+          expectedStudentsCount: 0,
+          notScheduledStudentsCount: 1,
+          presentStudentsCount: 0,
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onAttendancePatch={onAttendancePatch}
+        studentNames={new Map([["24", "Nina Ohne Betreuung"]])}
+        editDeferred={false}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", {
+        name: "Nina Ohne Betreuung als fehlend markieren",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: "Status von Nina Ohne Betreuung zurücksetzen",
+      }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Nina Ohne Betreuung als anwesend markieren",
+      }),
+    );
+    await waitFor(() =>
+      expect(onAttendancePatch).toHaveBeenCalledWith("42", "24", {
+        status: "present",
+        substatus: null,
+      }),
+    );
+  });
+
   it("patches active attendance states", async () => {
     const onAttendancePatch = vi.fn().mockResolvedValue(undefined);
 

@@ -359,10 +359,10 @@ function InstanceStudentsSection({
     );
   }
 
-  // The care-day group carries no attendance actions: "abmelden" or "anwesend"
-  // would write attendance for a child the counts already treat as not in care
-  // today. A child who turns up anyway is checked in from the roster, the same
-  // place the active-supervision view sends staff (#1747).
+  // The care-day group carries exactly one attendance action: "anwesend", for
+  // the child who is not in care today and turns up anyway (#1747 review).
+  // "abmelden" and "zurücksetzen" stay out — they would write attendance for a
+  // day the counts already treat as not in care.
   const groups = [
     { key: "expected", status: "expected", rows: groupedStudents.expected },
     {
@@ -890,8 +890,8 @@ function StudentGroup({
   status: InstanceStudentSummary["status"];
   /**
    * True for the "not in care today" group: it is labelled by the care-day
-   * verdict rather than the attendance status, and carries no attendance
-   * actions (#1747).
+   * verdict rather than the attendance status, and keeps only the "anwesend"
+   * action for a child who turns up anyway (#1747).
    */
   careDayGroup?: boolean;
   students: InstanceStudentSummary[];
@@ -945,8 +945,16 @@ function StudentGroup({
                 {student.note ? ` • ${student.note}` : ""}
               </div>
             </div>
-            {onAttendancePatch && !careDayGroup && (
+            {onAttendancePatch && (
               <div className="flex shrink-0 items-center gap-1">
+                {/*
+                  A child who is not in care today but turns up anyway is still
+                  checked in from here (#1747 review). The care-day group keeps
+                  only this one action: "anwesend" records what actually
+                  happened and takes the row out of the group, while "abmelden"
+                  and "zurücksetzen" would write attendance for a day the child
+                  was never expected on.
+                */}
                 {!isPlanned && student.status !== "present" && (
                   <IconActionButton
                     icon={<Check className="h-3.5 w-3.5" />}
@@ -962,7 +970,7 @@ function StudentGroup({
                     }
                   />
                 )}
-                {student.status !== "absent" && (
+                {!careDayGroup && student.status !== "absent" && (
                   <IconActionButton
                     icon={<X className="h-3.5 w-3.5" />}
                     label={
@@ -981,7 +989,7 @@ function StudentGroup({
                     }
                   />
                 )}
-                {student.status !== "expected" && (
+                {!careDayGroup && student.status !== "expected" && (
                   <IconActionButton
                     icon={<RotateCcw className="h-3.5 w-3.5" />}
                     label={`Status von ${studentName} zurücksetzen`}
