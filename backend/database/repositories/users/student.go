@@ -315,6 +315,11 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 		return err
 	}
 
+	// Move the plan fields the caller never touched onto the freshly locked
+	// state, BEFORE anything interprets the difference between them as an
+	// intentional change.
+	rebaseUntouchedDeparturePlan(student, currentDeparture)
+
 	// Align the in-memory departure plan to the plan that will actually be
 	// persisted BEFORE validating, so Validate() checks the effective plan rather
 	// than a transient mix of a stale hydrated allowed_departure_modes set and a
@@ -411,6 +416,50 @@ func (r *StudentRepository) lockSubjectForDepartureWrite(ctx context.Context, st
 		return err
 	}
 	return nil
+}
+
+// rebaseUntouchedDeparturePlan replaces every departure-plan field that still
+// carries exactly what the read hydrated with the state just read under the row
+// lock.
+//
+// Taking the lock makes the reads agree with the write, but only for the STORED
+// side: the in-memory student is whatever the caller loaded, possibly long
+// before a concurrent companion edit committed. A direct caller that never
+// touches the plan (autoClearStudentSickness, status days, imports) still
+// carries all four hydrated fields, so departurePlanTouched is true and
+// resolveAllowedDepartureModes would read the difference to the now-newer
+// stored plan as an intentional change — reverting the committed edit, trimming
+// its fresh edges, or refusing the unrelated update with
+// ErrCompanionWouldLoseDeparture. Rebasing the untouched fields makes such an
+// update a no-op re-persist of the current plan again.
+//
+// Fields the caller genuinely changed differ from the baseline and are left
+// alone, so an intentional plan write still wins over the stored state (last
+// writer wins, as before — this only stops a NON-writer from winning). Without
+// a baseline (the caller built the student itself, or the read predates this
+// snapshot) nothing is rebased and the supplied fields are taken at face value.
+func rebaseUntouchedDeparturePlan(student *users.Student, current *studentDepartureState) {
+	baseline := student.DepartureBaseline
+	if baseline == nil || current == nil {
+		return
+	}
+	if student.AllowedDepartureModes != nil &&
+		allowedDepartureModesEqual(student.AllowedDepartureModes, baseline.AllowedDepartureModes) {
+		student.AllowedDepartureModes = current.AllowedDepartureModes
+	}
+	if student.DepartureDays != nil &&
+		departureDaysEqual(student.DepartureDays, baseline.DepartureDays) {
+		student.DepartureDays = current.DepartureDays
+	}
+	if student.BusDays != nil && busDaysEqual(student.BusDays, baseline.BusDays) {
+		student.BusDays = current.BusDays
+	}
+	if student.PickupDays != nil && pickupDaysEqual(student.PickupDays, baseline.PickupDays) {
+		student.PickupDays = current.PickupDays
+	}
+	// PickupStatus needs no rebase: hydration always leaves PickupDays non-nil,
+	// and resolvedPickupDays only falls back to the legacy status string when
+	// PickupDays is nil.
 }
 
 // companionTrim is the outcome of planCompanionReconcile: the edge rows the new
@@ -729,6 +778,10 @@ func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *u
 		student.BusDays = busDays
 		student.PickupDays = pickupDays
 		student.PickupStatus = &pickupStatus
+		// The in-memory plan now equals the stored one, so it is also the new
+		// baseline: reusing the same instance for a second Update must not make
+		// this write's own result look like a pending caller change.
+		student.SnapshotDeparturePlan()
 	}
 	return base.AssertRowsAffected(result, 1, "update student departure days")
 }
@@ -1195,6 +1248,7 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 			student.DepartureDays = allowed.DepartureDays()
 			student.BusDays = allowed.BusDays()
 			student.PickupDays = allowed.PickupDays()
+			student.SnapshotDeparturePlan()
 			continue
 		}
 		// departure_days is authoritative when it carries any non-alone day:
@@ -1208,12 +1262,16 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 			student.AllowedDepartureModes = users.AllowedDepartureModesFromDeparture(departure)
 			student.BusDays = departure.BusDays()
 			student.PickupDays = departure.PickupDays()
+			student.SnapshotDeparturePlan()
 			continue
 		}
 		student.BusDays = row.BusDays.Normalize()
 		student.PickupDays = row.PickupDays.Normalize()
 		student.DepartureDays = users.DepartureDaysFromLegacy(student.BusDays, student.PickupDays)
 		student.AllowedDepartureModes = users.AllowedDepartureModesFromLegacy(student.BusDays, student.PickupDays)
+		// The hydrated plan is the baseline Update rebases untouched fields
+		// onto — see rebaseUntouchedDeparturePlan.
+		student.SnapshotDeparturePlan()
 	}
 	return nil
 }

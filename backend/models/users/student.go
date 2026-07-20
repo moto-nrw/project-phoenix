@@ -88,6 +88,16 @@ type Student struct {
 	// source of truth, and a denormalized copy would drift the moment one is
 	// removed.
 	DepartureCompanionDays map[string]bool `bun:"-" json:"-"`
+	// DepartureBaseline is NOT persisted. Reads that hydrate the departure plan
+	// record the plan they loaded here, so a later Update can tell a plan the
+	// caller INTENTIONALLY changed from one that merely rode along on a hydrated
+	// read. Without that distinction a caller which loaded the child before an
+	// unrelated concurrent companion edit committed (sickness auto-clear, status
+	// days, imports — none of which touch the plan) would re-persist its stale
+	// copy on top of the committed edit, reverting the plan or tripping the
+	// stranding check. nil means "not hydrated": no rebase is possible and the
+	// supplied fields are taken at face value, exactly as before (#1694).
+	DepartureBaseline *DeparturePlanSnapshot `bun:"-" json:"-"`
 	// PickupDays / BusDays are derived views of DepartureDays kept for consumers
 	// (and API response fields) that have not yet migrated to departure_days.
 	PickupDays    PickupDays     `bun:"pickup_days,type:jsonb,scanonly" json:"pickup_days,omitempty"` // Weekdays on which the child is picked up ("wird abgeholt")
@@ -121,6 +131,29 @@ type Student struct {
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
 	// Group relation is loaded dynamically to avoid import cycle
+}
+
+// DeparturePlanSnapshot is a normalized copy of the four departure-plan fields
+// as they were read from the database. It is pure data: it records what was
+// loaded, it decides nothing.
+type DeparturePlanSnapshot struct {
+	DepartureDays         DepartureDays
+	AllowedDepartureModes AllowedDepartureModes
+	BusDays               BusDays
+	PickupDays            PickupDays
+}
+
+// SnapshotDeparturePlan records the student's current in-memory departure plan
+// as the hydrated baseline. Every value is normalized, which also deep-copies
+// the maps, so a caller mutating a plan map in place cannot silently move the
+// baseline with it.
+func (s *Student) SnapshotDeparturePlan() {
+	s.DepartureBaseline = &DeparturePlanSnapshot{
+		DepartureDays:         s.DepartureDays.Normalize(),
+		AllowedDepartureModes: s.AllowedDepartureModes.Normalize(),
+		BusDays:               s.BusDays.Normalize(),
+		PickupDays:            s.PickupDays.Normalize(),
+	}
 }
 
 // Validate ensures student data is valid

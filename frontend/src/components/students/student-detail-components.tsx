@@ -33,6 +33,9 @@ import {
 } from "~/lib/student-companion-api";
 import { Avatar } from "~/components/ui/avatar";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StudentDetailComponents" });
 
 // =============================================================================
 // ICONS - Reusable SVG icons
@@ -675,9 +678,13 @@ export function PersonalInfoReadOnly({
   onEditClick,
 }: Readonly<PersonalInfoReadOnlyProps>) {
   // The Laufgemeinschaft lives in its own table, so it is fetched here rather
-  // than riding along on the student payload. Failure is silent: a missing
-  // "Läuft mit" row must not break the whole Stammdaten card.
+  // than riding along on the student payload. A failure must not break the rest
+  // of the Stammdaten card, but it must not read as "walks alone" either: for a
+  // child whose accompanied days are backed only by links there is no free-text
+  // note, so silently dropping the row would leave "Mit anderem Kind" standing
+  // without a name. Hence a distinct unavailable state next to the list.
   const [companions, setCompanions] = useState<StudentCompanion[]>([]);
+  const [companionsUnavailable, setCompanionsUnavailable] = useState(false);
   // Saving the Stammdaten does not remount this card and does not bring the
   // links along in the student payload, so the fetch below must be re-run on
   // every companion write — including a symmetric one made from the linked
@@ -706,10 +713,18 @@ export function PersonalInfoReadOnly({
     let cancelled = false;
     fetchStudentCompanions(student.id)
       .then((loaded) => {
-        if (!cancelled) setCompanions(loaded);
+        if (cancelled) return;
+        setCompanions(loaded);
+        setCompanionsUnavailable(false);
       })
-      .catch(() => {
-        if (!cancelled) setCompanions([]);
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setCompanions([]);
+        setCompanionsUnavailable(true);
+        logger.error("student_companions_load_failed", {
+          student_id: student.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
       });
     return () => {
       cancelled = true;
@@ -777,7 +792,17 @@ export function PersonalInfoReadOnly({
             />
           }
         />
-        {companions.length > 0 && (
+        {companionsUnavailable && (
+          <InfoItem
+            label="Läuft mit"
+            value={
+              <span className="text-sm text-gray-500">
+                Laufgemeinschaft konnte nicht geladen werden
+              </span>
+            }
+          />
+        )}
+        {!companionsUnavailable && companions.length > 0 && (
           <InfoItem
             label="Läuft mit"
             value={

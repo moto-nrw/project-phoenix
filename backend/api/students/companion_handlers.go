@@ -544,16 +544,19 @@ func (rs *Resource) reconcileCompanions(ctx context.Context, student *userModels
 // one that is filtered out. Shipping names here would leak children the caller
 // filtered away.
 //
-// A failure is logged and swallowed — losing the grouping must never fail the
-// whole student list.
-func (rs *Resource) enrichWithCompanions(ctx context.Context, responses []StudentResponse, params *studentListParams, day time.Time) {
+// A failure is NOT swallowed: the caller asked for the grouping, and empty
+// companion ids are indistinguishable from "this child walks alone". The
+// Kindersuche would file every linked child under "Ohne Laufgemeinschaft" and
+// present a transient query failure as a real departure arrangement, so the
+// request fails instead.
+func (rs *Resource) enrichWithCompanions(ctx context.Context, responses []StudentResponse, params *studentListParams, day time.Time) error {
 	if !params.includeCompanions {
-		return
+		return nil
 	}
 
 	studentIDs := collectFullAccessStudentIDs(responses)
 	if len(studentIDs) == 0 {
-		return
+		return nil
 	}
 
 	weekday := companionWeekdayForDate(day)
@@ -563,7 +566,7 @@ func (rs *Resource) enrichWithCompanions(ctx context.Context, responses []Studen
 			slog.String("error", err.Error()),
 			slog.Int("weekday", weekday),
 		)
-		return
+		return err
 	}
 
 	for i := range responses {
@@ -571,6 +574,7 @@ func (rs *Resource) enrichWithCompanions(ctx context.Context, responses []Studen
 			responses[i].CompanionStudentIDs = companions
 		}
 	}
+	return nil
 }
 
 // enrichWithCompanionLinks fills DepartureCompanions with each child's own
@@ -586,12 +590,16 @@ func (rs *Resource) enrichWithCompanions(ctx context.Context, responses []Studen
 // the same per-companion redaction getStudentCompanions applies runs here
 // before any link is attached to a response.
 //
-// A failure is logged and swallowed: an export must not fail because one
-// optional detail column could not be filled.
-func (rs *Resource) enrichWithCompanionLinks(ctx context.Context, responses []StudentResponse, accessCtx *studentAccessContext) {
+// A failure is returned, not swallowed. The caller decides: an export whose
+// columns include the departure plan MUST abort, because a child whose
+// accompanied days are backed only by links legitimately has no free-text note,
+// so departureExportCell would print a bare "Mit anderem Kind" and hand staff a
+// paper pickup list without a single name. Exports that do not carry the
+// departure column lose nothing and may continue.
+func (rs *Resource) enrichWithCompanionLinks(ctx context.Context, responses []StudentResponse, accessCtx *studentAccessContext) error {
 	studentIDs := collectFullAccessStudentIDs(responses)
 	if len(studentIDs) == 0 {
-		return
+		return nil
 	}
 
 	byStudent, err := rs.StudentService.ListCompanionsForStudents(ctx, studentIDs)
@@ -599,7 +607,7 @@ func (rs *Resource) enrichWithCompanionLinks(ctx context.Context, responses []St
 		rs.Logger.Error("failed to load departure companions for export",
 			slog.String("error", err.Error()),
 		)
-		return
+		return err
 	}
 
 	// Redaction failing must NOT fall through to the unredacted names — the
@@ -612,7 +620,7 @@ func (rs *Resource) enrichWithCompanionLinks(ctx context.Context, responses []St
 		rs.Logger.Error("failed to authorize departure companions for export",
 			slog.String("error", err.Error()),
 		)
-		return
+		return err
 	}
 
 	for i := range responses {
@@ -620,6 +628,7 @@ func (rs *Resource) enrichWithCompanionLinks(ctx context.Context, responses []St
 			responses[i].DepartureCompanions = links
 		}
 	}
+	return nil
 }
 
 // companionWeekdayForDate maps a date onto the stored 1..5 weekday.

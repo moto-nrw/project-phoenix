@@ -112,24 +112,40 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		applyActualTimesFromSnapshot(&responses[i], dataSnapshot)
 	}
 
-	// Companion links ("läuft mit") for the day being shown, so the Kindersuche
-	// can group by Laufgemeinschaft. Restricted to full-access students: a
-	// companion id points at ANOTHER child's record.
-	rs.enrichWithCompanions(r.Context(), responses, params, now)
-
-	// Optionally enrich the paginated slice with today's effective pickup times (single bulk query).
-	// Only query for students the caller has full access to. GDPR: skip redacted students.
-	if params.includePickupTimes || params.includeArrivalTimes {
-		fullAccessIDs := collectFullAccessStudentIDs(responses)
-		if params.includePickupTimes {
-			rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, now)
-		}
-		if params.includeArrivalTimes {
-			rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, now)
-		}
+	if err := rs.enrichStudentListExtras(r.Context(), responses, params, now); err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
 	}
 
 	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: params.page, PageSize: params.pageSize, Total: totalCount}, "Students retrieved successfully")
+}
+
+// enrichStudentListExtras fills the opt-in detail fields of an already
+// paginated student list.
+//
+// Companion ids ("läuft mit") for the day being shown let the Kindersuche group
+// by Laufgemeinschaft; they are restricted to full-access students because a
+// companion id points at ANOTHER child's record. Their failure is fatal (see
+// enrichWithCompanions) — an empty grouping would be presented as a real
+// departure arrangement. Pickup and arrival times are cosmetic by comparison
+// and stay best-effort.
+func (rs *Resource) enrichStudentListExtras(ctx context.Context, responses []StudentResponse, params *studentListParams, now time.Time) error {
+	if err := rs.enrichWithCompanions(ctx, responses, params, now); err != nil {
+		return err
+	}
+
+	// Single bulk query each. GDPR: skip redacted students.
+	if !params.includePickupTimes && !params.includeArrivalTimes {
+		return nil
+	}
+	fullAccessIDs := collectFullAccessStudentIDs(responses)
+	if params.includePickupTimes {
+		rs.enrichWithPickupTimes(ctx, responses, fullAccessIDs, now)
+	}
+	if params.includeArrivalTimes {
+		rs.enrichWithArrivalTimes(ctx, responses, fullAccessIDs, now)
+	}
+	return nil
 }
 
 // fetchStudentsForList fetches students based on the provided parameters. The

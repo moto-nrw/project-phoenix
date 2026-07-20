@@ -126,8 +126,14 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	rs.enrichWithCompanionLinks(r.Context(), responses, accessCtx)
 	columns := listexport.ResolveColumns(req.Columns, req.Preset)
+	// Only the departure column renders the structured "mit wem" names, so only
+	// it turns a companion-lookup failure into a document that is wrong rather
+	// than merely less detailed — see enrichWithCompanionLinks.
+	if err := rs.enrichWithCompanionLinks(r.Context(), responses, accessCtx); err != nil && exportHasColumn(columns, listexport.ColumnDeparture) {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 	enrollmentSummaries, err := rs.loadActiveEnrollmentSummaries(r, collectResponseIDs(responses), timezone.DateFromTime(today), columns)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
@@ -629,6 +635,17 @@ func sentenceCase(value string) string {
 		return ""
 	}
 	return string(unicode.ToUpper(r)) + value[size:]
+}
+
+// exportHasColumn reports whether the resolved column set carries the given
+// column.
+func exportHasColumn(columns []listexport.Column, id listexport.ColumnID) bool {
+	for _, column := range columns {
+		if column.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 // departureExportCell renders the per-weekday departure plan and appends the
