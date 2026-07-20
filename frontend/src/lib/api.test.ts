@@ -1683,6 +1683,54 @@ describe("api.ts helper functions", () => {
       expect(isCompanionsChangedBody(body)).toBe(true);
       expect(isCompanionPlanConflictBody(body)).toBe(false);
     });
+
+    // The student PUT proxy writes the privacy consent first, against a
+    // different backend transaction. A failure after that write is a partial
+    // success, and the form has to say so rather than report a blanket failure
+    // the user answers by abandoning the retry.
+    it("reads the partial-success marker off the failed save", async () => {
+      const {
+        isPrivacyConsentSaved,
+        withPrivacyConsentSavedNotice,
+        PRIVACY_CONSENT_SAVED_NOTICE,
+      } = await import("./api");
+
+      const marked = Object.assign(new Error("Fehler"), {
+        body: JSON.stringify({
+          error: "Fehler",
+          details: { privacy_consent_saved: true },
+        }),
+      });
+      const plain = Object.assign(new Error("Fehler"), {
+        body: JSON.stringify({ error: "Fehler" }),
+      });
+
+      expect(isPrivacyConsentSaved(marked)).toBe(true);
+      expect(isPrivacyConsentSaved(plain)).toBe(false);
+      expect(
+        withPrivacyConsentSavedNotice(marked, "Fehler beim Speichern."),
+      ).toBe(`${PRIVACY_CONSENT_SAVED_NOTICE} Fehler beim Speichern.`);
+      expect(
+        withPrivacyConsentSavedNotice(plain, "Fehler beim Speichern."),
+      ).toBe("Fehler beim Speichern.");
+    });
+
+    // The marker also has to survive the wrapping where the body is lost and
+    // only the message carries the JSON.
+    it("reads the marker out of the message when no body is attached", async () => {
+      const { isPrivacyConsentSaved } = await import("./api");
+
+      const fromMessage = new Error(
+        `API error (409): ${JSON.stringify({
+          error: "Konflikt",
+          details: { privacy_consent_saved: true },
+        })}`,
+      );
+      expect(isPrivacyConsentSaved(fromMessage)).toBe(true);
+      expect(isPrivacyConsentSaved(new Error("API error (500): boom"))).toBe(
+        false,
+      );
+    });
   });
 
   describe("roomService.updateRoom", () => {

@@ -550,6 +550,42 @@ describe("StudentStammdatenTab", () => {
     );
   });
 
+  // The proxy commits the privacy consent before the student PUT, in a
+  // separate backend transaction. When the student write then fails, the
+  // generic banner would tell the user nothing was saved while their consent
+  // change is already stored — and cancelling the retry leaves it there.
+  it("names the saved consent when the student write failed on top of it", async () => {
+    const onSave = vi.fn().mockRejectedValue(
+      Object.assign(new Error("Save failed"), {
+        body: JSON.stringify({
+          error: "Save failed",
+          details: { privacy_consent_saved: true },
+        }),
+      }),
+    );
+
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId("first-name"), {
+      target: { value: "X" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          /Die Datenschutzeinstellungen wurden bereits gespeichert, die übrigen Änderungen nicht\./,
+        ),
+      ).toBeInTheDocument(),
+    );
+  });
+
   it("rebuilds draft when a *different* student is selected (id changes)", () => {
     const { rerender } = render(
       <StudentStammdatenTab

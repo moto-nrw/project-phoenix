@@ -44,6 +44,7 @@ import {
   isCompanionPlanConflictBody,
   isCompanionsChanged,
   parseConflictExtensions,
+  withPrivacyConsentSavedNotice,
 } from "~/lib/api";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { LOCATION_COLORS } from "~/lib/location-helper";
@@ -810,8 +811,13 @@ export function StudentStammdatenTab({
         if (companionsStatus === "ready" && isCompanionPlanConflict(err)) {
           // The conflicts stay PENDING until the user answers the question —
           // "Abbrechen" must leave nothing behind that a later ordinary save
-          // could carry along and widen unasked.
-          setPlanConflict(companionConflictMessage(err));
+          // could carry along and widen unasked. The question is also where a
+          // committed consent write is most easily lost sight of: answering
+          // "Abbrechen" ends the save for good, so the notice has to ride along
+          // here too and not only on the outright failures below.
+          setPlanConflict(
+            withPrivacyConsentSavedNotice(err, companionConflictMessage(err)),
+          );
           setPendingExtensions(companionConflictExtensions(err));
           setSaving(false);
           return;
@@ -822,7 +828,12 @@ export function StudentStammdatenTab({
         // refused — flag the form stale so the user reloads and redoes the edit.
         if (isCompanionsChanged(err)) {
           markStale();
-          setErrors({ submit: companionsChangedMessage(err) });
+          setErrors({
+            submit: withPrivacyConsentSavedNotice(
+              err,
+              companionsChangedMessage(err),
+            ),
+          });
           setSaving(false);
           return;
         }
@@ -833,9 +844,17 @@ export function StudentStammdatenTab({
           // it names the child whose Heimweg has to be filled in first. "Bitte
           // versuchen Sie es erneut" would be wrong twice over: retrying the
           // identical save is refused again, and the instruction is lost.
-          submit: isCompanionDepartureRefusal(err)
-            ? companionDepartureMessage(err)
-            : "Fehler beim Speichern. Bitte versuchen Sie es erneut.",
+          //
+          // Either text is prefixed with the partial-success notice when the
+          // consent half of this request already committed: without it the
+          // user reads "nichts gespeichert" for a save that did change the
+          // stored Datenschutz settings.
+          submit: withPrivacyConsentSavedNotice(
+            err,
+            isCompanionDepartureRefusal(err)
+              ? companionDepartureMessage(err)
+              : "Fehler beim Speichern. Bitte versuchen Sie es erneut.",
+          ),
         });
         setSaving(false);
         return;

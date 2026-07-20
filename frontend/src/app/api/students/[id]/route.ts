@@ -20,6 +20,60 @@ import {
 } from "~/lib/student-privacy-helpers";
 
 /**
+ * Detail key the student PUT sets when it failed AFTER the consent write of the
+ * same request had already committed. The two writes are separate backend
+ * endpoints and cannot share a transaction, so the request is genuinely a
+ * partial success — and reporting it as a plain failure is what lets a user
+ * cancel the retry believing their consent change never landed. The browser
+ * reads it back out via isPrivacyConsentSaved (~/lib/api) and says so.
+ */
+const PRIVACY_CONSENT_SAVED_DETAIL = "privacy_consent_saved";
+
+/**
+ * Re-shapes a failed student PUT into the SAME wire error plus that detail.
+ *
+ * Everything the client branches on has to survive untouched: the HTTP status
+ * (`companions_changed` and the plan conflict are both 409s), the `code`, and
+ * the top-level `conflicts` list the confirmation dialog is built from. So the
+ * backend payload is parsed and re-emitted rather than replaced, and only
+ * `details` grows a key.
+ */
+function markPrivacyConsentSaved(error: unknown): Error {
+  const original = error instanceof Error ? error : new Error(String(error));
+  const status = /API error[:\s(]+(\d{3})/.exec(original.message)?.[1] ?? "500";
+
+  const jsonStart = original.message.indexOf("{");
+  let payload: Record<string, unknown> = {};
+  if (jsonStart !== -1) {
+    try {
+      payload = JSON.parse(original.message.substring(jsonStart)) as Record<
+        string,
+        unknown
+      >;
+    } catch {
+      // Not a JSON body (network error, plain-text upstream). The message below
+      // then carries the whole original text, which is what handleApiError
+      // would have shown anyway.
+      payload = {};
+    }
+  }
+
+  const details = {
+    ...((payload.details as Record<string, unknown> | undefined) ?? {}),
+    [PRIVACY_CONSENT_SAVED_DETAIL]: true,
+  };
+
+  return new Error(
+    `API error (${status}): ${JSON.stringify({
+      ...payload,
+      error: payload.error ?? payload.message ?? original.message,
+      details,
+    })}`,
+    { cause: original },
+  );
+}
+
+/**
  * Type definition for API response format
  * Backend wraps response in { status: "success", data: {...}, message: "..." }
  */
@@ -196,6 +250,13 @@ export const PUT = createPutHandler<
       // fingerprint (#1694), so once it commits, a retry of the same payload is
       // refused as `companions_changed` and costs the user a reload. Running it
       // last means a reported failure never hides a committed companion write.
+      //
+      // What that ordering cannot do is make the pair atomic: they are two
+      // backend endpoints with two transactions. So the other half of the deal
+      // is that a student PUT failing on top of a COMMITTED consent write says
+      // so (markPrivacyConsentSaved below) instead of reporting a blanket
+      // failure for a request that half succeeded.
+      let consentSaved = false;
       if (
         privacy_consent_accepted !== undefined ||
         data_retention_days !== undefined
@@ -209,6 +270,7 @@ export const PUT = createPutHandler<
             data_retention_days,
             "PUT Student",
           );
+          consentSaved = true;
         } catch (consentError) {
           logger.error("privacy consent update failed", {
             student_id: id,
@@ -227,12 +289,24 @@ export const PUT = createPutHandler<
       // Transform frontend format to backend format
       const backendData = prepareStudentForBackend(studentData);
 
-      // Call backend API to update student
-      const response = await apiPut<ApiStudentResponse>(
-        `/api/students/${id}`,
-        token,
-        backendData,
-      );
+      // Call backend API to update student. A failure here is the partial
+      // success the comment above describes whenever the consent write already
+      // landed: the request is rejected, but the stored consent is NOT the one
+      // the user saw before saving. Stamping the error is what lets the form
+      // say that instead of "Fehler beim Speichern" — the user would otherwise
+      // walk away from a consent change they never confirmed twice.
+      let response: ApiStudentResponse;
+      try {
+        response = await apiPut<ApiStudentResponse>(
+          `/api/students/${id}`,
+          token,
+          backendData,
+        );
+      } catch (studentError) {
+        throw consentSaved
+          ? markPrivacyConsentSaved(studentError)
+          : studentError;
+      }
 
       // Handle null or undefined response
       if (!response?.data) {

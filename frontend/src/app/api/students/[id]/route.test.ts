@@ -276,6 +276,66 @@ describe("PUT /api/students/[id]", () => {
     expect(mockApiPut).not.toHaveBeenCalled();
   });
 
+  // The two writes cannot share a transaction, so a student PUT that fails on
+  // top of a committed consent write is a partial success. Reporting it as a
+  // plain failure is what lets the user cancel the retry believing the consent
+  // change never landed — the marker is what the form turns into "die
+  // Datenschutzeinstellungen wurden bereits gespeichert".
+  it("marks the failure when the consent write already committed", async () => {
+    // updatePrivacyConsent is mocked at module level and resolves, so the
+    // consent half of this request commits; the student PUT is what fails.
+    mockApiPut.mockRejectedValueOnce(
+      new Error(
+        `API error (409): ${JSON.stringify({
+          error: "Die Laufgemeinschaft wurde zwischenzeitlich geändert.",
+          code: "companions_changed",
+          conflicts: [{ companion_student_id: "7" }],
+        })}`,
+      ),
+    );
+
+    const request = createMockRequest("/api/students/123", {
+      method: "PUT",
+      body: {
+        first_name: "Alice",
+        privacy_consent_accepted: true,
+        data_retention_days: 25,
+      },
+    });
+    const response = await PUT(request, createMockContext({ id: "123" }));
+
+    expect(response.status).not.toBe(200);
+    const json = await parseJsonResponse<{ error: string }>(response);
+    const payload = JSON.parse(
+      json.error.substring(json.error.indexOf("{")),
+    ) as {
+      error: string;
+      code?: string;
+      conflicts?: unknown[];
+      details?: Record<string, unknown>;
+    };
+    expect(payload.details?.privacy_consent_saved).toBe(true);
+    // Everything the browser branches on has to survive the re-shaping.
+    expect(payload.code).toBe("companions_changed");
+    expect(payload.conflicts).toHaveLength(1);
+    expect(json.error).toContain("API error (409)");
+  });
+
+  it("leaves the failure untouched when no consent was written", async () => {
+    mockApiPut.mockRejectedValueOnce(
+      new Error(`API error (400): ${JSON.stringify({ error: "invalid" })}`),
+    );
+
+    const request = createMockRequest("/api/students/123", {
+      method: "PUT",
+      body: { first_name: "Alice" },
+    });
+    const response = await PUT(request, createMockContext({ id: "123" }));
+
+    const json = await parseJsonResponse<{ error: string }>(response);
+    expect(json.error).not.toContain("privacy_consent_saved");
+  });
+
   // Everything is committed by the time the read-back runs — failing the
   // request here would send the client down its generic save-failure path for a
   // save that succeeded.

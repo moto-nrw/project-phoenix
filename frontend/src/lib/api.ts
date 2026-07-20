@@ -765,6 +765,54 @@ export function companionDepartureMessage(err: unknown): string {
   return COMPANION_DEPARTURE_FALLBACK;
 }
 
+/**
+ * The student PUT proxy writes the privacy consent of the same request first,
+ * against a different backend endpoint and therefore a different transaction.
+ * When the student write then fails, the request is a partial success: the
+ * consent is stored, the rest is not. The proxy marks that error with
+ * `details.privacy_consent_saved` (app/api/students/[id]/route.ts) so the form
+ * can say which half landed — reporting the usual blanket failure invites the
+ * user to abandon the retry and leave a consent change behind unknowingly.
+ */
+export function isPrivacyConsentSavedBody(body: string): boolean {
+  const jsonStart = body.indexOf("{");
+  if (jsonStart === -1) return false;
+  try {
+    const parsed = JSON.parse(body.substring(jsonStart)) as {
+      details?: { privacy_consent_saved?: boolean };
+    };
+    return parsed.details?.privacy_consent_saved === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Reports the same in whichever wrapping the error arrived. */
+export function isPrivacyConsentSaved(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const body = (err as Error & { body?: string }).body;
+  if (body && isPrivacyConsentSavedBody(body)) return true;
+  const match = /\{.*\}/s.exec(err.message);
+  return match ? isPrivacyConsentSavedBody(match[0]) : false;
+}
+
+/** Prefixed to the failure text so the saved half is never reported as lost. */
+export const PRIVACY_CONSENT_SAVED_NOTICE =
+  "Die Datenschutzeinstellungen wurden bereits gespeichert, die übrigen Änderungen nicht.";
+
+/**
+ * Returns the message to show for a failed student save, prefixed with the
+ * partial-success notice when the consent half of the request committed.
+ */
+export function withPrivacyConsentSavedNotice(
+  err: unknown,
+  message: string,
+): string {
+  return isPrivacyConsentSaved(err)
+    ? `${PRIVACY_CONSENT_SAVED_NOTICE} ${message}`
+    : message;
+}
+
 /** Reads the backend error envelope's message, falling back when unreadable. */
 function parseBackendMessage(body: string, fallback: string): string {
   const jsonStart = body.indexOf("{");
