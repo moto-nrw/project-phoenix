@@ -365,10 +365,50 @@ describe("StudentSearchPage — Laufgemeinschaft grouping (#1694)", () => {
     expect(groups[0]!.studentIds.sort()).toEqual(["1", "2", "3"]);
   });
 
-  it("ignores links pointing at children who are not on the page", async () => {
-    // Anna links to Ben, but the current filter left Ben out of the list —
-    // the group must not be invented from a name the page never received.
+  it("counts a companion who is not on the page instead of naming them", async () => {
+    // Anna links to Ben, but the current filter left Ben out of the list. Anna
+    // still has a Laufgemeinschaft and must not be filed under "walks alone" —
+    // that is the one reading a supervisor must never get wrong. Ben's NAME
+    // stays out: the page never received it, and shipping it here would hand
+    // back exactly the children the filter removed.
     renderWithStudents([anna, clara]);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("student-card-1")).toBeDefined(),
+    );
+
+    fireEvent.click(screen.getByTestId("filter-groupMode-companions"));
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId("student-group").length).toBe(2),
+    );
+
+    const groups = readGroups();
+    const annasGroup = groups.find((group) =>
+      group.label.includes("Anna Adler"),
+    );
+    expect(annasGroup).toBeDefined();
+    expect(annasGroup!.label).toContain("1 weiteres Kind");
+    expect(annasGroup!.label).not.toContain("Ben");
+    expect(annasGroup!.studentIds).toEqual(["1"]);
+
+    // Clara has no link at all — she is the one who really walks alone.
+    const claraGroup = groups.find((group) =>
+      group.label.includes("Ohne Laufgemeinschaft"),
+    );
+    expect(claraGroup).toBeDefined();
+    expect(claraGroup!.studentIds).toEqual(["3"]);
+  });
+
+  it("keeps a group together when the child bridging it is filtered away", async () => {
+    // A-B-C where only B knows both neighbours. With B off the page, A and C
+    // have no link between them — they would fall into separate buckets and
+    // the Laufgemeinschaft would read as two, even though it is one group of
+    // three walking home together.
+    const a = student("1", "Anna", "Adler", [2]);
+    const c = student("3", "Clara", "Cordes", [2]);
+
+    renderWithStudents([a, c]);
 
     await waitFor(() =>
       expect(screen.getByTestId("student-card-1")).toBeDefined(),
@@ -381,7 +421,32 @@ describe("StudentSearchPage — Laufgemeinschaft grouping (#1694)", () => {
     );
 
     const groups = readGroups();
-    expect(groups[0]!.label).toContain("Ohne Laufgemeinschaft");
+    expect(groups[0]!.label).toContain("Anna Adler, Clara Cordes");
+    expect(groups[0]!.label).toContain("1 weiteres Kind");
     expect(groups[0]!.studentIds.sort()).toEqual(["1", "3"]);
+  });
+
+  it("pluralizes the count of children the page is not showing", async () => {
+    // Two hidden members, one German sentence — "1 weiteres Kind" vs
+    // "2 weitere Kinder"; the wrong form reads as a bug to a school user.
+    const a = student("1", "Anna", "Adler", [2, 4]);
+
+    renderWithStudents([a, clara]);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("student-card-1")).toBeDefined(),
+    );
+
+    fireEvent.click(screen.getByTestId("filter-groupMode-companions"));
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId("student-group").length).toBe(2),
+    );
+
+    const groups = readGroups();
+    const annasGroup = groups.find((group) =>
+      group.label.includes("Anna Adler"),
+    );
+    expect(annasGroup!.label).toContain("2 weitere Kinder");
   });
 });

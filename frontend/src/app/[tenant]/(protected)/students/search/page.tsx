@@ -521,9 +521,13 @@ const NO_COMPANION_GROUP_LABEL = "Ohne Laufgemeinschaft";
  * links (union-find) and labels each resulting set with its members' names —
  * there is no group name to display, by design.
  *
- * Only children present in `students` count. A companion filtered off the page
- * cannot be named here (the list never received them), so a partly filtered
- * list shows partly filled groups rather than inventing members.
+ * A companion the filter or the pagination kept off the page still takes part
+ * in the walk, it just cannot be NAMED (the list never received them — shipping
+ * the names here would leak the children the caller filtered away). Two things
+ * depend on that: a child whose only companion is hidden must not be presented
+ * as walking alone, and a hidden child can be the bridge of an A-B-C group
+ * whose visible members A and C would otherwise fall apart. Hidden members are
+ * therefore counted into the label instead of being dropped.
  */
 function companionGroupLabels(students: Student[]): Map<string, string> {
   const parent = new Map<string, string>();
@@ -537,39 +541,66 @@ function companionGroupLabels(students: Student[]): Map<string, string> {
     const rootB = find(b);
     if (rootA !== rootB) parent.set(rootA, rootB);
   };
+  const addNode = (id: string) => {
+    if (!parent.has(id)) parent.set(id, id);
+  };
 
   const onPage = new Set(students.map((student) => String(student.id)));
-  for (const student of students)
-    parent.set(String(student.id), String(student.id));
+  for (const student of students) addNode(String(student.id));
 
   for (const student of students) {
     for (const companionId of student.companion_student_ids ?? []) {
       const companion = String(companionId);
-      if (onPage.has(companion)) union(String(student.id), companion);
+      addNode(companion);
+      union(String(student.id), companion);
     }
   }
 
   const members = new Map<string, Student[]>();
+  const hiddenCounts = new Map<string, number>();
   for (const student of students) {
     const root = find(String(student.id));
     const bucket = members.get(root);
     if (bucket) bucket.push(student);
     else members.set(root, [student]);
   }
+  for (const id of parent.keys()) {
+    if (onPage.has(id)) continue;
+    const root = find(id);
+    hiddenCounts.set(root, (hiddenCounts.get(root) ?? 0) + 1);
+  }
 
   const labels = new Map<string, string>();
-  for (const [, group] of members) {
-    // A set of one is a child that walks with nobody on this day.
+  for (const [root, group] of members) {
+    const hidden = hiddenCounts.get(root) ?? 0;
+    // A set of one with nothing hidden behind it is a child that walks with
+    // nobody on this day. With a hidden member it is a real Laufgemeinschaft
+    // we can only show in part.
     const label =
-      group.length < 2
+      group.length + hidden < 2
         ? NO_COMPANION_GROUP_LABEL
-        : group
-            .map((student) => student.name)
-            .sort((a, b) => a.localeCompare(b, "de"))
-            .join(", ");
+        : withHiddenMembers(
+            group
+              .map((student) => student.name)
+              .sort((a, b) => a.localeCompare(b, "de"))
+              .join(", "),
+            hidden,
+          );
     for (const student of group) labels.set(String(student.id), label);
   }
   return labels;
+}
+
+/**
+ * Appends the count of group members that are not on the page, so a partly
+ * filtered Laufgemeinschaft reads as incomplete instead of as the whole group.
+ * Only the count travels — the names belong to children the caller filtered out.
+ */
+function withHiddenMembers(names: string, hidden: number): string {
+  if (hidden < 1) return names;
+  const suffix =
+    hidden === 1 ? "1 weiteres Kind" : `${String(hidden)} weitere Kinder`;
+  return `${names} (+ ${suffix} nicht angezeigt)`;
 }
 
 function groupStudents(students: Student[], groupMode: GroupMode) {
