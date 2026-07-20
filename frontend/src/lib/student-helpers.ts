@@ -198,6 +198,26 @@ export function normalizeAllowedDepartureModes(
   return out;
 }
 
+/** Semantic equality of two departure plans: same modes on every weekday after
+ *  normalization, so shape noise (missing days, duplicate or unordered mode
+ *  arrays) does not read as a change. Used for dirty checks and for deciding
+ *  whether a save can have touched the Laufgemeinschaft links (#1694). */
+export function allowedDepartureModesEqual(
+  a?: AllowedDepartureModes | null,
+  b?: AllowedDepartureModes | null,
+): boolean {
+  const left = normalizeAllowedDepartureModes(a);
+  const right = normalizeAllowedDepartureModes(b);
+  return DEPARTURE_WEEKDAYS.every((day) => {
+    const leftModes = left[day.key] ?? [];
+    const rightModes = right[day.key] ?? [];
+    return (
+      leftModes.length === rightModes.length &&
+      leftModes.every((mode, idx) => mode === rightModes[idx])
+    );
+  });
+}
+
 /** Reports whether any weekday allows the accompanied ("Mit anderem Kind")
  *  departure mode. Reads the unified allowed_departure_modes when present and
  *  falls back to the exclusive departure_days, so it works on every form shape

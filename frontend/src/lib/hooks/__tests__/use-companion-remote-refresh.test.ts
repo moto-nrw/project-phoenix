@@ -29,7 +29,7 @@ describe("useCompanionRemoteRefresh", () => {
       await result.current.withOwnWrite(() => {
         notifyStudentCompanionsChanged();
         return Promise.resolve("saved");
-      });
+      }, true);
     });
 
     // The backend's own event, delivered over SSE after the commit.
@@ -52,7 +52,7 @@ describe("useCompanionRemoteRefresh", () => {
     );
 
     await act(async () => {
-      await result.current.withOwnWrite(() => Promise.resolve("saved"));
+      await result.current.withOwnWrite(() => Promise.resolve("saved"), true);
     });
 
     act(() => {
@@ -60,6 +60,59 @@ describe("useCompanionRemoteRefresh", () => {
     });
     act(() => {
       notifyStudentCompanionsChanged(); // somebody else
+    });
+
+    expect(result.current.companionsStale).toBe(true);
+  });
+
+  it("does not swallow a remote write after a save that cannot announce", async () => {
+    const onRefresh = vi.fn();
+    const { result } = renderHook(() =>
+      useCompanionRemoteRefresh({
+        active: true,
+        hasUnsavedCompanionEdits: true,
+        onRefresh,
+      }),
+    );
+
+    // A successful save that touched neither the links nor the departure
+    // plan: the backend answers it without a broadcast, so the next
+    // announcement can only be somebody else's change.
+    await act(async () => {
+      await result.current.withOwnWrite(() => Promise.resolve("saved"), false);
+    });
+
+    act(() => {
+      notifyStudentCompanionsChanged();
+    });
+
+    expect(result.current.companionsStale).toBe(true);
+  });
+
+  it("does not swallow a remote write after a failed save", async () => {
+    const onRefresh = vi.fn();
+    const { result } = renderHook(() =>
+      useCompanionRemoteRefresh({
+        active: true,
+        hasUnsavedCompanionEdits: true,
+        onRefresh,
+      }),
+    );
+
+    // A refused save produces no echo — the backend broadcasts only after a
+    // commit. The announcement that follows is a genuine remote change and
+    // must flag the draft stale instead of being consumed as an echo.
+    await act(async () => {
+      await expect(
+        result.current.withOwnWrite(
+          () => Promise.reject(new Error("save failed")),
+          true,
+        ),
+      ).rejects.toThrow("save failed");
+    });
+
+    act(() => {
+      notifyStudentCompanionsChanged();
     });
 
     expect(result.current.companionsStale).toBe(true);

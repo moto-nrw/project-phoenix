@@ -61,7 +61,7 @@ import {
   allowedDepartureToDepartureDays,
   allowedDepartureToPickupDays,
   normalizeAllowedDepartureModes,
-  DEPARTURE_WEEKDAYS,
+  allowedDepartureModesEqual,
 } from "~/lib/student-helpers";
 import type { Student } from "~/lib/api";
 
@@ -116,22 +116,6 @@ function pickupDaysEqual(
     Boolean(left.thu) === Boolean(right.thu) &&
     Boolean(left.fri) === Boolean(right.fri)
   );
-}
-
-function allowedDepartureModesEqual(
-  a?: AllowedDepartureModes | null,
-  b?: AllowedDepartureModes | null,
-): boolean {
-  const left = normalizeAllowedDepartureModes(a);
-  const right = normalizeAllowedDepartureModes(b);
-  return DEPARTURE_WEEKDAYS.every((day) => {
-    const leftModes = left[day.key] ?? [];
-    const rightModes = right[day.key] ?? [];
-    return (
-      leftModes.length === rightModes.length &&
-      leftModes.every((mode, idx) => mode === rightModes[idx])
-    );
-  });
 }
 
 // The save path of this tab goes through the generic CRUD service, which throws
@@ -683,11 +667,28 @@ export function StudentStammdatenTab({
         submitData.extend_companion_plans = extendPlans;
         submitData.confirmed_companion_extensions = confirmed;
       }
+      // Whether the backend can answer this save with a
+      // student_companions_changed echo. It broadcasts only when the write
+      // actually changed links: an edited list travels with a differing
+      // fingerprint, a confirmed extension widens a companion's plan, and a
+      // changed departure plan can trim links off weekdays it no longer allows
+      // (only possible when links exist — unknown while the load is not
+      // "ready", so that case stays conservative). A pure name or address edit
+      // resubmits the unchanged plan and is never echoed; arming the grace for
+      // it would swallow the next genuinely remote change instead.
+      const mayAnnounceCompanions =
+        companionsDirty ||
+        confirmed.length > 0 ||
+        (!allowedDepartureModesEqual(
+          originalDraft.allowed_departure_modes,
+          submitData.allowed_departure_modes,
+        ) &&
+          (companionsStatus !== "ready" || loadedCompanions.length > 0));
       try {
         // withOwnWrite: this save announces the companion change itself, and
         // reacting to our own announcement would flag the form stale for a
         // change the user just made.
-        await withOwnWrite(() => onSave(submitData));
+        await withOwnWrite(() => onSave(submitData), mayAnnounceCompanions);
         setPlanConflict(null);
         // The confirmation is one-shot: this save consumed it. Keeping it
         // would let a later unrelated save from this still-mounted form
@@ -805,6 +806,7 @@ export function StudentStammdatenTab({
       markStale,
       onSave,
       onStudentRefresh,
+      originalDraft.allowed_departure_modes,
       originalDraft.photo_consent_given,
       pendingPhotoBlob,
       pendingPhotoRemoved,

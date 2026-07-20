@@ -14,6 +14,7 @@ import {
   allowedDepartureToDepartureDays,
   allowedDepartureToPickupDays,
   normalizeAllowedDepartureModes,
+  allowedDepartureModesEqual,
   accompaniedWeekdayKeys,
 } from "~/lib/student-helpers";
 import {
@@ -217,40 +218,69 @@ export function PersonalInfoFormModal({
     try {
       const busDays = allowedDepartureToBusDays(allowedDepartureModes);
       const pickupDays = allowedDepartureToPickupDays(allowedDepartureModes);
+      // The plan this save replaces, derived from the incoming student the
+      // same way the submitted one is derived from the edited copy, so the
+      // comparison below sees plan changes and not shape noise.
+      const storedDepartureModes = normalizeAllowedDepartureModes(
+        student.allowed_departure_modes ??
+          allowedDepartureModesFromDeparture(
+            student.departure_days ??
+              departureDaysFromLegacy(student.bus_days, student.pickup_days),
+          ),
+      );
+      // Whether the backend can answer this save with a
+      // student_companions_changed echo. It broadcasts only when the write
+      // actually changed links: an edited list travels with a differing
+      // fingerprint, a confirmed extension widens a companion's plan, and a
+      // changed departure plan can trim links off weekdays it no longer
+      // allows (only possible when links exist — unknown while the load is
+      // not "ready", so that case stays conservative). An edit that touches
+      // neither list nor plan is never echoed; arming the grace for it would
+      // swallow the next genuinely remote change instead.
+      const mayAnnounceCompanions =
+        companionsDirty ||
+        confirmed.length > 0 ||
+        (!allowedDepartureModesEqual(
+          storedDepartureModes,
+          allowedDepartureModes,
+        ) &&
+          (companionsStatus !== "ready" || loadedCompanions.length > 0));
       // withOwnWrite: this save announces the companion change itself, and
       // reacting to our own announcement would flag the modal stale for a
       // change the user just made.
-      await withOwnWrite(() =>
-        onSave({
-          ...editedStudent,
-          // The submitted list REPLACES the stored one, so it must only travel
-          // when the user actually edited it. A pending or failed load stays
-          // undefined, which the page turns into "no companions key" — the
-          // backend then leaves the child's Laufgemeinschaft untouched instead of
-          // clearing it. An UNTOUCHED list stays out for the neighbouring reason:
-          // re-sending the snapshot this modal loaded would overwrite links
-          // someone else changed in the meantime, on a save that never meant to
-          // touch them.
-          companions: companionsDirty ? editedStudent.companions : undefined,
-          // What the list REPLACES, so the backend can refuse it if someone
-          // else changed the links since this modal loaded them instead of
-          // deleting their change. Travels only with the list.
-          companions_fingerprint: companionsDirty
-            ? companionsFingerprint(loadedCompanions)
-            : undefined,
-          extend_companion_plans: extendCompanionPlans,
-          confirmed_companion_extensions: confirmed,
-          allowed_departure_modes: allowedDepartureModes,
-          departure_days: allowedDepartureToDepartureDays(
-            allowedDepartureModes,
-          ),
-          bus_days: busDays,
-          buskind: busDaysHaveAny(busDays),
-          pickup_days: pickupDays,
-          pickup_status: pickupDaysHaveAny(pickupDays)
-            ? "Wird abgeholt"
-            : "Geht alleine nach Hause",
-        }),
+      await withOwnWrite(
+        () =>
+          onSave({
+            ...editedStudent,
+            // The submitted list REPLACES the stored one, so it must only travel
+            // when the user actually edited it. A pending or failed load stays
+            // undefined, which the page turns into "no companions key" — the
+            // backend then leaves the child's Laufgemeinschaft untouched instead of
+            // clearing it. An UNTOUCHED list stays out for the neighbouring reason:
+            // re-sending the snapshot this modal loaded would overwrite links
+            // someone else changed in the meantime, on a save that never meant to
+            // touch them.
+            companions: companionsDirty ? editedStudent.companions : undefined,
+            // What the list REPLACES, so the backend can refuse it if someone
+            // else changed the links since this modal loaded them instead of
+            // deleting their change. Travels only with the list.
+            companions_fingerprint: companionsDirty
+              ? companionsFingerprint(loadedCompanions)
+              : undefined,
+            extend_companion_plans: extendCompanionPlans,
+            confirmed_companion_extensions: confirmed,
+            allowed_departure_modes: allowedDepartureModes,
+            departure_days: allowedDepartureToDepartureDays(
+              allowedDepartureModes,
+            ),
+            bus_days: busDays,
+            buskind: busDaysHaveAny(busDays),
+            pickup_days: pickupDays,
+            pickup_status: pickupDaysHaveAny(pickupDays)
+              ? "Wird abgeholt"
+              : "Geht alleine nach Hause",
+          }),
+        mayAnnounceCompanions,
       );
       setPlanConflict(null);
       // One-shot: this save consumed the confirmation. The modal component

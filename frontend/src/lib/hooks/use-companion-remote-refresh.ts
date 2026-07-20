@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { subscribeStudentCompanionsChanged } from "~/lib/student-companion-api";
 
 /**
@@ -37,6 +43,11 @@ import { subscribeStudentCompanionsChanged } from "~/lib/student-companion-api";
  * replaced is still refused by the backend's fingerprint check (409
  * `companions_changed` → markStale). Being too STRICT is what costs the user
  * their work: the form would block the save they just completed.
+ *
+ * The generosity only holds because the window is armed solely after a save
+ * that can actually be echoed (see withOwnWrite's `mayAnnounce`): armed after
+ * every save, a pure name edit would spend it on suppressing a genuinely
+ * remote change instead.
  */
 const OWN_WRITE_ECHO_GRACE_MS = 10_000;
 
@@ -54,8 +65,23 @@ interface CompanionRemoteRefresh {
   readonly companionsStale: boolean;
   /** Discards the draft and reloads the stored links. */
   readonly refreshFromRemote: () => void;
-  /** Runs a save, ignoring the announcement it makes itself. */
-  readonly withOwnWrite: <T>(write: () => Promise<T>) => Promise<T>;
+  /**
+   * Runs a save, ignoring the announcement it makes itself.
+   *
+   * `mayAnnounce` says whether this save can be answered by a
+   * `student_companions_changed` echo at all. The backend announces only when
+   * the write actually changed links — an edited list, a confirmed plan
+   * extension, or a departure-plan change that trims links — while the forms
+   * resubmit their whole payload on every save. A save that cannot announce
+   * (a pure name or address edit, or a failed one) must not arm the echo
+   * grace: the next genuinely remote announcement would be consumed as the
+   * echo of a save that never made one, leaving the view stale without a
+   * warning.
+   */
+  readonly withOwnWrite: <T>(
+    write: () => Promise<T>,
+    mayAnnounce: boolean,
+  ) => Promise<T>;
   /**
    * Flags the view stale from the outside — for the backend's own verdict.
    *
@@ -84,7 +110,13 @@ export function useCompanionRemoteRefresh({
   // Deadline until which an announcement is still attributed to the write that
   // just finished — see OWN_WRITE_ECHO_GRACE_MS.
   const ownWriteEchoUntilRef = useRef(0);
-  useEffect(() => {
+  // Layout effect, not a passive one: the SSE listener below runs in its own
+  // task, and passive effects flush after paint — so between committing a
+  // render that turned the draft dirty and the passive flush, a notification
+  // could still read the PREVIOUS dirty value and refresh the draft away
+  // instead of flagging it stale. A layout effect runs synchronously with the
+  // commit, before any other task gets to observe these refs.
+  useLayoutEffect(() => {
     activeRef.current = active;
     dirtyRef.current = hasUnsavedCompanionEdits;
     refreshRef.current = onRefresh;
@@ -116,23 +148,35 @@ export function useCompanionRemoteRefresh({
     refreshRef.current();
   }, []);
 
-  const withOwnWrite = useCallback(async <T>(write: () => Promise<T>) => {
-    ownWriteRef.current = true;
-    try {
-      return await write();
-    } finally {
-      // The write's OWN announcement can still be in flight when its response
-      // is already here: the backend streams the response from the handler and
-      // only then commits and runs the after-commit hook that broadcasts
-      // student_companions_changed, so the SSE echo lands AFTER this promise
-      // settles. Clearing the suppression here alone would let the form treat
-      // its own change as a remote one and refuse the save the user just made.
-      // The draft only stops differing from the baseline once the caller's
-      // reload lands, so the window has to outlive that reload, not the fetch.
-      ownWriteEchoUntilRef.current = Date.now() + OWN_WRITE_ECHO_GRACE_MS;
-      ownWriteRef.current = false;
-    }
-  }, []);
+  const withOwnWrite = useCallback(
+    async <T>(write: () => Promise<T>, mayAnnounce: boolean) => {
+      ownWriteRef.current = true;
+      try {
+        const result = await write();
+        // The write's OWN announcement can still be in flight when its
+        // response is already here: the backend streams the response from the
+        // handler and only then commits and runs the after-commit hook that
+        // broadcasts student_companions_changed, so the SSE echo lands AFTER
+        // this promise settles. Clearing the suppression alone would let the
+        // form treat its own change as a remote one and refuse the save the
+        // user just made. The draft only stops differing from the baseline
+        // once the caller's reload lands, so the window has to outlive that
+        // reload, not the fetch.
+        //
+        // Armed only on SUCCESS and only when the save can announce at all: a
+        // failed save and a save the backend answers without a broadcast
+        // produce no echo, so a grace period after them could only ever
+        // swallow somebody else's genuine change.
+        if (mayAnnounce) {
+          ownWriteEchoUntilRef.current = Date.now() + OWN_WRITE_ECHO_GRACE_MS;
+        }
+        return result;
+      } finally {
+        ownWriteRef.current = false;
+      }
+    },
+    [],
+  );
 
   const markStale = useCallback(() => setCompanionsStale(true), []);
 
