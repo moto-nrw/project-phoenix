@@ -32,6 +32,7 @@ import {
   type StudentCompanion,
 } from "~/lib/student-companion-api";
 import { createLogger } from "~/lib/logger";
+import { CompanionPlanConflictError } from "~/lib/api";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
@@ -120,6 +121,42 @@ function allowedDepartureModesEqual(
       leftModes.every((mode, idx) => mode === rightModes[idx])
     );
   });
+}
+
+// The save path of this tab goes through the generic CRUD service, which throws
+// a plain Error carrying the HTTP status, while other callers reach the typed
+// CompanionPlanConflictError from studentService.updateStudent — detect both. A
+// 409 from this form can only be the companion-plan conflict: the form never
+// submits sick/excused, the only other conflicting field pair on the student
+// PUT.
+function isCompanionPlanConflict(err: unknown): boolean {
+  if (err instanceof CompanionPlanConflictError) return true;
+  return (
+    err instanceof Error && (err as Error & { status?: number }).status === 409
+  );
+}
+
+const COMPANION_CONFLICT_FALLBACK =
+  "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.";
+
+// Digs the backend's German conflict message out of whichever wrapping the
+// error arrived in; falls back to the generic sentence.
+function companionConflictMessage(err: unknown): string {
+  if (err instanceof CompanionPlanConflictError) return err.message;
+  if (err instanceof Error) {
+    const match = /\{.*\}/s.exec(err.message);
+    if (match) {
+      try {
+        const parsed = JSON.parse(match[0]) as { message?: string };
+        if (typeof parsed.message === "string" && parsed.message.trim()) {
+          return parsed.message;
+        }
+      } catch {
+        // Not JSON — use the fallback text.
+      }
+    }
+  }
+  return COMPANION_CONFLICT_FALLBACK;
 }
 
 // Order-independent fingerprint of a companion list, so reordering (or a
@@ -229,6 +266,10 @@ export function StudentStammdatenTab({
   >("loading");
   const [reloadCompanions, setReloadCompanions] = useState(0);
   const [extendCompanionPlans, setExtendCompanionPlans] = useState(false);
+  // Set when the backend refused because a linked child's own departure plan
+  // does not allow the requested days (409). Answering yes re-sends the same
+  // payload with extend_companion_plans — mirroring PersonalInfoFormModal.
+  const [planConflict, setPlanConflict] = useState<string | null>(null);
 
   useEffect(() => {
     if (!student.id) return;
@@ -237,6 +278,7 @@ export function StudentStammdatenTab({
     setCompanions([]);
     setLoadedCompanions([]);
     setExtendCompanionPlans(false);
+    setPlanConflict(null);
     fetchStudentCompanions(String(student.id))
       .then((loaded) => {
         if (cancelled) return;
@@ -529,14 +571,8 @@ export function StudentStammdatenTab({
   // clears photo_path + unlinks the file via the backend's
   // applyPhotoConsent. We skip the explicit DELETE in that branch — a
   // second call would 404 / no-op but adds noise.
-  const handleSubmit = useCallback(
-    async (event: React.FormEvent) => {
-      event.preventDefault();
-      if (!validateForm()) return;
-      if (privacyConsentLoadError) {
-        setErrors({ submit: privacyConsentLoadError });
-        return;
-      }
+  const performSave = useCallback(
+    async (extendPlans: boolean) => {
       setSaving(true);
       const submitData: Partial<Student> = { ...formData };
       submitData.allowed_departure_modes = normalizeAllowedDepartureModes(
@@ -562,11 +598,20 @@ export function StudentStammdatenTab({
           companion_student_id: companion.companion_student_id,
           weekdays: companion.weekdays,
         }));
-        submitData.extend_companion_plans = extendCompanionPlans;
+        submitData.extend_companion_plans = extendPlans;
       }
       try {
         await onSave(submitData);
+        setPlanConflict(null);
       } catch (err) {
+        // A companion-plan 409 is a question, not a failure: nothing was
+        // written, and re-sending with extend_companion_plans after the user
+        // confirms completes the save. Only possible when a list traveled.
+        if (companionsStatus === "ready" && isCompanionPlanConflict(err)) {
+          setPlanConflict(companionConflictMessage(err));
+          setSaving(false);
+          return;
+        }
         const message = err instanceof Error ? err.message : String(err);
         logger.error("error saving student", { error: message });
         setErrors({
@@ -629,21 +674,67 @@ export function StudentStammdatenTab({
     [
       companions,
       companionsStatus,
-      extendCompanionPlans,
       formData,
       onSave,
       onStudentRefresh,
       originalDraft.photo_consent_given,
       pendingPhotoBlob,
       pendingPhotoRemoved,
-      privacyConsentLoadError,
       student.id,
-      validateForm,
     ],
   );
 
+  const handleSubmit = useCallback(
+    async (event: React.FormEvent) => {
+      event.preventDefault();
+      if (!validateForm()) return;
+      if (privacyConsentLoadError) {
+        setErrors({ submit: privacyConsentLoadError });
+        return;
+      }
+      await performSave(extendCompanionPlans);
+    },
+    [extendCompanionPlans, performSave, privacyConsentLoadError, validateForm],
+  );
+
+  // The user confirmed widening the linked child's departure plan: repeat the
+  // identical save with the confirmation flag set.
+  const handleConfirmExtendPlans = useCallback(() => {
+    setExtendCompanionPlans(true);
+    setPlanConflict(null);
+    void performSave(true);
+  }, [performSave]);
+
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
+      {planConflict ? (
+        <div className="rounded-lg border border-[#F78C10] bg-[#F78C10]/5 p-3">
+          <p className="text-sm text-gray-900">{planConflict}</p>
+          <p className="mt-1 text-xs text-gray-600">
+            Soll „Anderes Kind“ im Heimweg des verknüpften Kindes ergänzt
+            werden? Bestehende Heimwege bleiben erhalten.
+          </p>
+          <div className="mt-2 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => setPlanConflict(null)}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              disabled={saving}
+              onClick={handleConfirmExtendPlans}
+            >
+              Ergänzen und speichern
+            </Button>
+          </div>
+        </div>
+      ) : null}
       {errors.submit ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3">
           <p className="text-sm text-red-800">{errors.submit}</p>

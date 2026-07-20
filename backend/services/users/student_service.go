@@ -63,6 +63,12 @@ type StudentService interface {
 	// ("läuft mit"), folded per companion with their weekdays and names.
 	ListCompanions(ctx context.Context, studentID int64) ([]userModels.CompanionLink, error)
 
+	// ListCompanionIDs returns just the distinct ids of the children this child
+	// is linked to, across all weekdays. Exists for the shared lock protocol,
+	// which needs the far end of every stored edge but none of the names — the
+	// name join of ListCompanions would be a wasted query per update.
+	ListCompanionIDs(ctx context.Context, studentID int64) ([]int64, error)
+
 	// TrimCompanionsToDays drops every companion link on a weekday the child's
 	// departure plan no longer allows, and reports the links that remain.
 	TrimCompanionsToDays(ctx context.Context, studentID int64, allowedDays map[string]bool) ([]userModels.CompanionLink, error)
@@ -207,6 +213,27 @@ func (s *studentService) ListCompanions(ctx context.Context, studentID int64) ([
 		return nil, ErrStudentNotFound
 	}
 	return s.companionRepo.ListLinksForStudent(ctx, studentID)
+}
+
+func (s *studentService) ListCompanionIDs(ctx context.Context, studentID int64) ([]int64, error) {
+	if studentID <= 0 {
+		return nil, ErrStudentNotFound
+	}
+	edges, err := s.companionRepo.ListForStudent(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[int64]bool, len(edges))
+	ids := make([]int64, 0, len(edges))
+	for _, edge := range edges {
+		far, ok := edge.Other(studentID)
+		if !ok || seen[far] {
+			continue
+		}
+		seen[far] = true
+		ids = append(ids, far)
+	}
+	return ids, nil
 }
 
 // TrimCompanionsToDays removes the links that the child's departure plan no

@@ -3,6 +3,8 @@ package users
 import (
 	"errors"
 	"fmt"
+
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Common error variables for the users service
@@ -64,7 +66,11 @@ var (
 	// rather than silently narrowing that child's plan: one child's edit must
 	// never change another child's departure permissions, and leaving the
 	// contradiction in place would block every later edit of that child.
-	ErrCompanionWouldLoseDeparture = errors.New("Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.") //nolint:staticcheck // ST1005: user-facing German message
+	//
+	// Re-exported from models/users: the repository's shared departure-plan
+	// write path returns the same instance, so errors.Is matches regardless of
+	// which layer refused.
+	ErrCompanionWouldLoseDeparture = userModels.ErrCompanionWouldLoseDeparture
 
 	// ErrCompanionExtensionNotAuthorized indicates the write path was asked to
 	// widen a companion's departure plan that the caller was never authorized

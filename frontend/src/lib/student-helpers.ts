@@ -582,8 +582,9 @@ export interface Student {
   // Free-text "mit wem" for the accompanied departure mode (#1694)
   departure_companion_note?: string;
   /** Children this child walks home with on the shown day (Laufgemeinschaft).
-   *  Only present when the list was fetched with include_companions. */
-  companion_student_ids?: number[];
+   *  Only present when the list was fetched with include_companions. Backend
+   *  int64 ids, carried as strings per the type-mapping rule. */
+  companion_student_ids?: string[];
   /** The child's Laufgemeinschaft. Loaded from the companions endpoint and
    *  submitted back with the departure plan it belongs to; omitting it leaves
    *  the stored links untouched. */
@@ -686,7 +687,9 @@ export function mapStudentResponse(
     custom_users_id: undefined, // Not provided by backend
     extra_info: backendStudent.extra_info,
     departure_companion_note: backendStudent.departure_companion_note,
-    companion_student_ids: backendStudent.companion_student_ids,
+    // Backend int64 ids → strings at the mapping boundary (type-mapping rule);
+    // ids above Number.MAX_SAFE_INTEGER must never live as JS numbers.
+    companion_student_ids: backendStudent.companion_student_ids?.map(String),
     birthday: backendStudent.birthday,
     health_info: backendStudent.health_info,
     supervisor_notes: backendStudent.supervisor_notes,
@@ -750,6 +753,18 @@ export function mapStudentDetailResponse(
   return student;
 }
 
+// companionIdForBackend converts a frontend string id into the int64 JSON
+// number the Go backend expects. Fails loudly on anything non-numeric or
+// beyond Number.MAX_SAFE_INTEGER — silently rounding would submit the WRONG
+// child's id.
+function companionIdForBackend(id: string): number {
+  const parsed = Number(id);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new Error(`Ungültige Kind-ID für die Laufgemeinschaft: ${id}`);
+  }
+  return parsed;
+}
+
 // Prepare frontend student for backend
 export function prepareStudentForBackend(
   student: Partial<Student> & {
@@ -765,7 +780,7 @@ export function prepareStudentForBackend(
     health_info?: string;
     supervisor_notes?: string;
     pickup_status?: string;
-    companions?: { companion_student_id: number; weekdays: string[] }[];
+    companions?: { companion_student_id: string; weekdays: string[] }[];
     extend_companion_plans?: boolean;
   },
 ): Partial<BackendStudent> {
@@ -814,8 +829,14 @@ export function prepareStudentForBackend(
     departure_companion_note: student.departure_companion_note,
     // Laufgemeinschaft ("läuft mit"). Only sent when the caller actually
     // edited it — an omitted key leaves the stored links untouched, while []
-    // clears them.
-    companions: student.companions,
+    // clears them. This is the one validated boundary where the string ids
+    // become the numbers the Go backend expects.
+    companions: student.companions?.map((companion) => ({
+      companion_student_id: companionIdForBackend(
+        companion.companion_student_id,
+      ),
+      weekdays: companion.weekdays,
+    })),
     extend_companion_plans: student.extend_companion_plans,
     // Convert empty string to undefined for date fields (Go backend expects null or valid date)
     birthday:

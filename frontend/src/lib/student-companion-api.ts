@@ -29,10 +29,24 @@ export const ALL_COMPANION_WEEKDAYS: CompanionWeekday[] =
 
 /** One companion as returned by the API. */
 export interface StudentCompanion {
-  companion_student_id: number;
+  /**
+   * Backend int64 id, carried as a string like every other id in the frontend
+   * (see the type-mapping rule in CLAUDE.md). Converted back to a number only
+   * at the validated backend boundary in prepareStudentForBackend — modeling
+   * it as a JS number would silently round ids above Number.MAX_SAFE_INTEGER.
+   */
+  companion_student_id: string;
   first_name?: string;
   last_name?: string;
   weekdays: CompanionWeekday[];
+}
+
+/** The companion entry as it arrives on the wire (backend int64 → JSON number). */
+interface RawStudentCompanion {
+  companion_student_id: number | string;
+  first_name?: string;
+  last_name?: string;
+  weekdays?: CompanionWeekday[];
 }
 
 interface ApiWrapper<T> {
@@ -107,7 +121,14 @@ export async function fetchStudentCompanions(
     headers: await authHeaders(),
     credentials: "include",
   });
-  return (await parseResponse<StudentCompanion[] | null>(response)) ?? [];
+  const raw =
+    (await parseResponse<RawStudentCompanion[] | null>(response)) ?? [];
+  return raw.map((companion) => ({
+    companion_student_id: String(companion.companion_student_id),
+    first_name: companion.first_name,
+    last_name: companion.last_name,
+    weekdays: companion.weekdays ?? [],
+  }));
 }
 
 /** Full name of a companion, falling back to the id when names are missing. */

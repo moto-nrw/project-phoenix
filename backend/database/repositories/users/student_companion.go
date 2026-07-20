@@ -25,6 +25,13 @@ type StudentCompanionRepository struct {
 
 // NewStudentCompanionRepository creates a new StudentCompanionRepository
 func NewStudentCompanionRepository(db *bun.DB) users.StudentCompanionRepository {
+	return newStudentCompanionRepository(db)
+}
+
+// newStudentCompanionRepository returns the concrete type so sibling
+// repositories in this package (StudentRepository's shared departure-plan
+// write path) can use methods that are not part of the model interface.
+func newStudentCompanionRepository(db *bun.DB) *StudentCompanionRepository {
 	repo := base.NewRepository[*users.StudentCompanion](db, "users.student_companions", "StudentCompanion")
 	repo.TenantScoped = true
 	return &StudentCompanionRepository{
@@ -221,6 +228,28 @@ func (r *StudentCompanionRepository) ReplaceForStudent(ctx context.Context, stud
 		ModelTableExpr(`users.student_companions AS "student_companion"`).
 		Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{Op: "insert student companions", Err: err}
+	}
+	return nil
+}
+
+// DeleteEdges removes the given edge rows by id. Used by the student
+// repository's departure-plan reconciliation, which drops only the edges whose
+// weekday the new plan no longer allows — ReplaceForStudent would rewrite the
+// surviving rows (new ids, reset created_at) for no reason.
+func (r *StudentCompanionRepository) DeleteEdges(ctx context.Context, edgeIDs []int64) error {
+	if len(edgeIDs) == 0 {
+		return nil
+	}
+
+	deleteQuery := base.GetDB(ctx, r.db).NewDelete().
+		Model((*users.StudentCompanion)(nil)).
+		ModelTableExpr(`users.student_companions AS "student_companion"`).
+		Where(`"student_companion".id IN (?)`, bun.List(edgeIDs))
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		deleteQuery = deleteQuery.Where(`"student_companion".tenant_id = ?`, tenantID)
+	}
+	if _, err := deleteQuery.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "delete student companion edges", Err: err}
 	}
 	return nil
 }

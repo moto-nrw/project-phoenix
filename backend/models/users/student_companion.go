@@ -22,6 +22,20 @@ var (
 	// fresh error: the handler's error table maps it to a 400, whereas an
 	// untyped error would leak malformed client input as a 500.
 	ErrCompanionStudentIDRequired = errors.New("Bitte ein Kind für die Laufgemeinschaft auswählen.") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrCompanionWouldLoseDeparture indicates that removing a link would leave
+	// the OTHER child with an accompanied ("Anderes Kind") departure plan and no
+	// remaining detail — neither another link nor a free-text note. Refused
+	// rather than silently narrowing that child's plan: one child's edit must
+	// never change another child's departure permissions, and leaving the
+	// contradiction in place would block every later edit of that child.
+	//
+	// Lives in the model layer (not services/users) because the repository's
+	// shared departure-plan write path enforces the same invariant for callers
+	// that bypass the student service (enrollment approval, imports); the
+	// services package re-exports it so existing errors.Is call sites keep
+	// matching the same instance.
+	ErrCompanionWouldLoseDeparture = errors.New("Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // CompanionWeekdayNumbers maps the weekday keys used across the departure model

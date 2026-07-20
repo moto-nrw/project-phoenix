@@ -68,21 +68,86 @@ func (rs *Resource) getStudentCompanions(w http.ResponseWriter, r *http.Request)
 }
 
 // lockCompanionRows takes the student row locks this request may need — the
-// child being edited plus every submitted companion — in one ascending-id pass.
+// child being edited, every submitted companion, AND every currently linked
+// companion — in one ascending-id pass.
 //
 // It has to run before the subject's own lock: an update that confirms an
 // extension writes the companion row too, and locking the subject first would
 // leave two requests editing children A and B, each linking the other, free to
 // acquire A→B and B→A. PostgreSQL resolves that by aborting one with a deadlock
 // error, which surfaces as a 500 on a perfectly legitimate edit.
+//
+// The CURRENT companions matter as much as the submitted ones: replacing the
+// list (or narrowing the plan, which trims links) REMOVES edges, and each
+// removal is judged by checkCompanionRemovals against the far child's other
+// links. With existing links A-B and C-B, two concurrent requests clearing A's
+// and C's lists would otherwise each observe B's other link, both pass the
+// check, and both commit — leaving B with an accompanied plan and no "mit wem"
+// detail at all. Locking B from both requests serializes them, and the second
+// one re-validates against the first one's committed state.
 func (rs *Resource) lockCompanionRows(ctx context.Context, student *userModels.Student, req *UpdateStudentRequest) error {
-	ids := []int64{student.ID}
+	var submitted []int64
 	if req.hasCompanionUpdate() {
 		for _, entry := range *req.Companions {
-			ids = append(ids, entry.CompanionStudentID)
+			submitted = append(submitted, entry.CompanionStudentID)
 		}
 	}
-	return rs.StudentService.LockStudentsForUpdate(ctx, ids)
+	return rs.lockStudentCompanionGraph(ctx, student.ID, submitted)
+}
+
+// lockStudentCompanionGraph is the shared lock protocol for every request that
+// can add or remove "läuft mit" edges: it locks the subject, the submitted
+// companions, and the far end of every stored edge in one ascending-id pass
+// (via LockStudentsForUpdate). deleteStudent uses it too — its ON DELETE
+// CASCADE removes every edge, which is a removal like any other.
+//
+// The stored-companion snapshot is read BEFORE the locks (there is no other
+// order), so an edge committed between the snapshot and the lock pass could
+// have a far end this pass never locked. One re-read under the subject's lock
+// closes that: every writer that creates or removes an edge touching this
+// child locks this child's row first (its subject or its submitted-companion
+// set contains the id), so once we hold the subject no further edges can
+// appear, and a single top-up pass over the late edges suffices.
+func (rs *Resource) lockStudentCompanionGraph(ctx context.Context, studentID int64, submitted []int64) error {
+	stored, err := rs.StudentService.ListCompanionIDs(ctx, studentID)
+	if err != nil {
+		return err
+	}
+
+	locked := make(map[int64]bool, len(submitted)+len(stored)+1)
+	ids := make([]int64, 0, len(submitted)+len(stored)+1)
+	add := func(id int64) {
+		if id <= 0 || locked[id] {
+			return
+		}
+		locked[id] = true
+		ids = append(ids, id)
+	}
+	add(studentID)
+	for _, id := range submitted {
+		add(id)
+	}
+	for _, id := range stored {
+		add(id)
+	}
+	if err := rs.StudentService.LockStudentsForUpdate(ctx, ids); err != nil {
+		return err
+	}
+
+	fresh, err := rs.StudentService.ListCompanionIDs(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	var late []int64
+	for _, id := range fresh {
+		if !locked[id] {
+			late = append(late, id)
+		}
+	}
+	if len(late) == 0 {
+		return nil
+	}
+	return rs.StudentService.LockStudentsForUpdate(ctx, late)
 }
 
 // companionConflictError carries the conflicting companions out of the update

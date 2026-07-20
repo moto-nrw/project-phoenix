@@ -28,7 +28,8 @@ const SEARCH_DEBOUNCE_MS = 300;
 const SEARCH_RESULT_LIMIT = 8;
 
 interface SearchResult {
-  id: number;
+  /** Backend int64 id, carried as a string like every other frontend id. */
+  id: string;
   name: string;
   schoolClass: string;
   /** The candidate's own plan, used to spot a mismatch before saving. */
@@ -120,11 +121,11 @@ export function CompanionPicker({
               .filter(
                 (student) =>
                   String(student.id) !== String(excludeStudentId) &&
-                  !linked.has(Number(student.id)),
+                  !linked.has(String(student.id)),
               )
               .slice(0, SEARCH_RESULT_LIMIT)
               .map((student) => ({
-                id: Number(student.id),
+                id: String(student.id),
                 name:
                   student.name?.trim() ||
                   `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim(),
@@ -192,7 +193,7 @@ export function CompanionPicker({
   );
 
   const toggleWeekday = useCallback(
-    (companionId: number, weekday: CompanionWeekday) => {
+    (companionId: string, weekday: CompanionWeekday) => {
       onChange(
         value.map((companion) => {
           if (companion.companion_student_id !== companionId) return companion;
@@ -210,7 +211,7 @@ export function CompanionPicker({
   );
 
   const removeCompanion = useCallback(
-    (companionId: number) => {
+    (companionId: string) => {
       onChange(
         value.filter(
           (companion) => companion.companion_student_id !== companionId,

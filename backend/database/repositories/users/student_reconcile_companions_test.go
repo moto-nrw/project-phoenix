@@ -1,0 +1,169 @@
+package users_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/models/users"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+)
+
+// These tests pin the SHARED departure-plan write path (#1694 review): every
+// caller of StudentRepository.Update — not just the HTTP student flow — must
+// leave the "läuft mit" edges consistent with the plan it persists. Enrollment
+// approval and imports replace AllowedDepartureModes directly on the
+// repository, so the reconciliation has to live here, not in the handler.
+
+// giveAccompaniedPlan writes an "Anderes Kind" plan (plus the required note)
+// for the given weekdays through the repository, mirroring what the HTTP flow
+// would have stored.
+func giveAccompaniedPlan(t *testing.T, db *bun.DB, ctx context.Context, studentID int64, days ...string) {
+	t.Helper()
+	repo := repositories.NewFactory(db).Student
+
+	student, err := repo.FindByID(ctx, studentID)
+	require.NoError(t, err)
+	require.NotNil(t, student)
+
+	note := "Nachbarskind"
+	student.AllowedDepartureModes = users.WithAccompaniedDays(student.AllowedDepartureModes, days)
+	student.DepartureCompanionNote = &note
+	require.NoError(t, repo.Update(ctx, student))
+}
+
+// clearStoredCompanionNote drops the free-text note straight in SQL, leaving a
+// child whose "mit wem" is answered only by the structured link — the state a
+// note-carrying child reaches once it is linked and the note is removed.
+func clearStoredCompanionNote(t *testing.T, db *bun.DB, studentID int64) {
+	t.Helper()
+	_, err := db.NewUpdate().
+		TableExpr("users.students").
+		Set("departure_companion_note = NULL").
+		Where("id = ?", studentID).
+		Exec(context.Background())
+	require.NoError(t, err)
+}
+
+// TestStudentRepository_Update_TrimsCompanionEdgesToPlan simulates a direct
+// repository writer (enrollment approval) replacing the departure plan: the
+// Tuesday edge loses its basis and must be dropped, symmetrically, while the
+// Monday edge survives.
+func TestStudentRepository_Update_TrimsCompanionEdgesToPlan(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	factory := repositories.NewFactory(db)
+
+	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Trim", "1a")
+	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "Trim", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
+	defer cleanupStudentCompanions(t, db, subject.ID, companion.ID)
+
+	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon", "tue")
+	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon", "tue")
+	require.NoError(t, factory.StudentCompanion.ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
+		newCompanionEdge(t, subject.ID, companion.ID, 1),
+		newCompanionEdge(t, subject.ID, companion.ID, 2),
+	}))
+
+	// ACT — a writer that knows nothing about companions replaces the plan
+	// with one that only allows "Anderes Kind" on Monday.
+	loaded, err := factory.Student.FindByID(ctx, subject.ID)
+	require.NoError(t, err)
+	loaded.AllowedDepartureModes = users.AllowedDepartureModes{
+		"mon": {users.DepartureAccompanied},
+		"tue": {users.DepartureBus},
+	}
+	require.NoError(t, factory.Student.Update(ctx, loaded))
+
+	// ASSERT — only the Monday edge remains, from both children's view.
+	edges, err := factory.StudentCompanion.ListForStudent(ctx, subject.ID)
+	require.NoError(t, err)
+	require.Len(t, edges, 1)
+	assert.Equal(t, 1, edges[0].Weekday)
+
+	fromCompanion, err := factory.StudentCompanion.ListForStudent(ctx, companion.ID)
+	require.NoError(t, err)
+	require.Len(t, fromCompanion, 1)
+	assert.Equal(t, 1, fromCompanion[0].Weekday)
+}
+
+// TestStudentRepository_Update_DropsAllEdgesWhenPlanLosesAccompanied pins the
+// clear path: a plan without any "Anderes Kind" day leaves no basis for any
+// link, so all edges go — legal here because the far child still carries the
+// free-text note that answers "mit wem".
+func TestStudentRepository_Update_DropsAllEdgesWhenPlanLosesAccompanied(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	factory := repositories.NewFactory(db)
+
+	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Clear", "1a")
+	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "Clear", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
+	defer cleanupStudentCompanions(t, db, subject.ID, companion.ID)
+
+	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
+	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
+	require.NoError(t, factory.StudentCompanion.ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
+		newCompanionEdge(t, subject.ID, companion.ID, 1),
+	}))
+
+	// ACT — the new plan has no accompanied day at all.
+	loaded, err := factory.Student.FindByID(ctx, subject.ID)
+	require.NoError(t, err)
+	loaded.AllowedDepartureModes = users.AllowedDepartureModes{
+		"mon": {users.DepartureBus},
+	}
+	require.NoError(t, factory.Student.Update(ctx, loaded))
+
+	edges, err := factory.StudentCompanion.ListForStudent(ctx, subject.ID)
+	require.NoError(t, err)
+	assert.Empty(t, edges, "a plan without an accompanied day must not keep any edge")
+}
+
+// TestStudentRepository_Update_RefusesStrandingCompanion pins the guard rail:
+// when the dropped edge is the far child's ONLY "mit wem" detail (no note, no
+// other link), the whole update is refused with the shared sentinel — exactly
+// like the service-level removal check — instead of silently leaving that
+// child with a self-contradicting plan.
+func TestStudentRepository_Update_RefusesStrandingCompanion(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	factory := repositories.NewFactory(db)
+
+	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "Strand", "1a")
+	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "Strand", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
+	defer cleanupStudentCompanions(t, db, subject.ID, companion.ID)
+
+	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
+	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
+	require.NoError(t, factory.StudentCompanion.ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
+		newCompanionEdge(t, subject.ID, companion.ID, 1),
+	}))
+	// The companion's "mit wem" is now answered ONLY by the link.
+	clearStoredCompanionNote(t, db, companion.ID)
+
+	loaded, err := factory.Student.FindByID(ctx, subject.ID)
+	require.NoError(t, err)
+	loaded.AllowedDepartureModes = users.AllowedDepartureModes{
+		"mon": {users.DepartureBus},
+	}
+
+	// ACT + ASSERT — refused with the shared sentinel; the edge survives.
+	err = factory.Student.Update(ctx, loaded)
+	require.ErrorIs(t, err, users.ErrCompanionWouldLoseDeparture)
+
+	edges, listErr := factory.StudentCompanion.ListForStudent(ctx, subject.ID)
+	require.NoError(t, listErr)
+	assert.Len(t, edges, 1, "a refused update must not have dropped the edge")
+}

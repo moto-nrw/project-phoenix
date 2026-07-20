@@ -1020,17 +1020,6 @@ var errStudentReassigned = errors.New("student reassigned out of caller's scope 
 // against the LOCKED row rather than the pre-transaction snapshot, so a
 // concurrent edit cannot slip a stale decision past. It writes nothing.
 func (rs *Resource) lockStudentForUpdate(ctx context.Context, student *users.Student, req *UpdateStudentRequest, userPermissions []string) (*users.Student, error) {
-	// Acquire the photo-feature advisory lock only when consent is
-	// actually toggling. Name/notes edits must not queue behind
-	// feature disable/purge.
-	consentChanging := req.PhotoConsentGiven != nil &&
-		(*req.PhotoConsentGiven) != (student.PhotoConsentGivenAt != nil)
-	if consentChanging {
-		if err := rs.StudentService.LockPhotoFeature(ctx); err != nil {
-			return nil, err
-		}
-	}
-
 	fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1062,6 +1051,20 @@ func (rs *Resource) lockStudentForUpdate(ctx context.Context, student *users.Stu
 // snapshot write. It returns one of the package sentinel errors for the racy
 // paths the outer switch maps to specific status codes.
 func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, student *users.Student, person *users.Person, req *UpdateStudentRequest, userPermissions []string, personUpdated bool, statusHistoryNow time.Time) error {
+	// The photo-feature advisory lock comes FIRST, before any student row lock,
+	// and only when consent is actually toggling (name/notes edits must not
+	// queue behind a feature disable/purge). The photo upload and delete
+	// transactions acquire LockPhotoFeature and THEN their row lock
+	// (FindByIDForUpdate); taking a row lock here first would invert that order
+	// and let a consent update and a concurrent upload deadlock each other.
+	consentChanging := req.PhotoConsentGiven != nil &&
+		(*req.PhotoConsentGiven) != (student.PhotoConsentGivenAt != nil)
+	if consentChanging {
+		if err := rs.StudentService.LockPhotoFeature(ctx); err != nil {
+			return err
+		}
+	}
+
 	// Before ANY row lock of this request: a companion update writes the linked
 	// child too (a confirmed extension widens their departure plan), so subject
 	// and companions have to be locked in one deterministic order or two
@@ -1293,45 +1296,79 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Capture the photo path from the locked row (not the pre-tx snapshot)
-	// so a concurrent upload can't orphan a new file on disk. The unlink
-	// itself runs after the OUTER tenant tx commits.
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		// FOR UPDATE row-locks against any in-flight upload tx. We either
-		// observe its committed photo_path or it sees our deleted row and
-		// aborts.
-		fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
-		if err != nil {
-			return err
-		}
-		var photoToRemove string
-		if fresh.PhotoPath != nil {
-			photoToRemove = *fresh.PhotoPath
-		}
-
-		if err := rs.StudentService.Delete(ctx, student.ID); err != nil {
-			return err
-		}
-
-		// Person delete failure must not fail the request. The student row
-		// is already gone, leaving the person orphaned is recoverable.
-		if err := rs.PersonService.Delete(ctx, student.PersonID); err != nil {
-			slog.Default().Error("failed to delete associated person record",
-				slog.Int64("person_id", student.PersonID),
-				slog.String("error", err.Error()))
-		}
-
-		rs.StudentPhotos.ScheduleUnlinkAfterCommit(ctx, photoToRemove)
-		return nil
+		return rs.deleteStudentTx(ctx, student)
 	}); err != nil {
-		if common.IsConstraintViolation(err) {
-			renderError(w, r, common.ErrorConflictMessage("Kind kann nicht gelöscht werden: Kind hat aktive Besuche, Einschreibungen oder andere verknüpfte Daten"))
-			return
-		}
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, deleteStudentTxErrorRenderer(err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Student deleted successfully")
+}
+
+// deleteStudentTx performs the locked student delete inside the caller's
+// tenant transaction.
+//
+// Deleting the row also deletes every "läuft mit" edge via ON DELETE CASCADE —
+// a removal that reaches into OTHER children's records like any list edit
+// does. So it joins the shared lock protocol first (subject plus every linked
+// companion, ascending), then refuses when a surviving child would be left
+// with an accompanied plan and no "mit wem" detail; otherwise the cascade
+// would silently bypass the removal protection and every later edit of that
+// child would fail on the note invariant.
+//
+// The photo path is captured from the locked row (not the pre-tx snapshot) so
+// a concurrent upload can't orphan a new file on disk; the unlink itself runs
+// after the OUTER tenant tx commits.
+func (rs *Resource) deleteStudentTx(ctx context.Context, student *users.Student) error {
+	if err := rs.lockStudentCompanionGraph(ctx, student.ID, nil); err != nil {
+		return err
+	}
+	if err := rs.StudentService.CheckCompanionTrim(ctx, student.ID, nil); err != nil {
+		return err
+	}
+
+	// FOR UPDATE row-locks against any in-flight upload tx. We either
+	// observe its committed photo_path or it sees our deleted row and
+	// aborts.
+	fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
+	if err != nil {
+		return err
+	}
+	var photoToRemove string
+	if fresh.PhotoPath != nil {
+		photoToRemove = *fresh.PhotoPath
+	}
+
+	if err := rs.StudentService.Delete(ctx, student.ID); err != nil {
+		return err
+	}
+
+	// Person delete failure must not fail the request. The student row
+	// is already gone, leaving the person orphaned is recoverable.
+	if err := rs.PersonService.Delete(ctx, student.PersonID); err != nil {
+		slog.Default().Error("failed to delete associated person record",
+			slog.Int64("person_id", student.PersonID),
+			slog.String("error", err.Error()))
+	}
+
+	rs.StudentPhotos.ScheduleUnlinkAfterCommit(ctx, photoToRemove)
+	return nil
+}
+
+// deleteStudentTxErrorRenderer maps the deleteStudentTx transaction error to
+// the wire response. WithTenantTx has already rolled everything back.
+func deleteStudentTxErrorRenderer(err error) render.Renderer {
+	switch {
+	// A linked child would be stranded (accompanied plan, no note, no other
+	// link). The German sentinel text tells the user which precondition to
+	// fix first.
+	case errors.Is(err, userService.ErrCompanionWouldLoseDeparture):
+		return common.ErrorConflictMessage(err.Error())
+	case common.IsConstraintViolation(err):
+		return common.ErrorConflictMessage("Kind kann nicht gelöscht werden: Kind hat aktive Besuche, Einschreibungen oder andere verknüpfte Daten")
+	default:
+		return common.ErrorInternalServer(err)
+	}
 }

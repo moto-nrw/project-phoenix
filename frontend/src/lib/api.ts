@@ -728,7 +728,9 @@ export const studentService = {
     id: string,
     student: Partial<Student> & {
       // Laufgemeinschaft rides along with the departure plan it belongs to.
-      companions?: { companion_student_id: number; weekdays: string[] }[];
+      // Ids stay strings here; prepareStudentForBackend converts them at the
+      // validated backend boundary.
+      companions?: { companion_student_id: string; weekdays: string[] }[];
       extend_companion_plans?: boolean;
     },
   ): Promise<Student> => {

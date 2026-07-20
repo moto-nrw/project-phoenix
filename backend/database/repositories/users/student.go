@@ -44,6 +44,12 @@ const (
 type StudentRepository struct {
 	*base.Repository[*users.Student]
 	db *bun.DB
+	// companions backs the departure-plan reconciliation in Update: trimming a
+	// plan has to trim the "läuft mit" edges that lose their basis, and that
+	// must happen in the one write path EVERY caller passes through — the
+	// student service's HTTP flow, but also enrollment approval, imports, and
+	// any other direct repository writer (#1694).
+	companions *StudentCompanionRepository
 }
 
 // NewStudentRepository creates a new StudentRepository
@@ -53,6 +59,7 @@ func NewStudentRepository(db *bun.DB) users.StudentRepository {
 	return &StudentRepository{
 		Repository: repo,
 		db:         db,
+		companions: newStudentCompanionRepository(db),
 	}
 }
 
@@ -299,13 +306,34 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 	// rejected against the stale accompanied mode it never sent (#1694).
 	r.alignDeparturePlanForValidation(student, currentDeparture)
 
+	// Reconcile the "läuft mit" edges with the plan that is about to be
+	// persisted. This is the shared write path every departure-plan writer
+	// passes through — the HTTP student flow trims links itself before calling
+	// Update (making this a no-op there), but enrollment approval, imports and
+	// other direct repository callers replace the plan without knowing links
+	// exist, and would otherwise leave edges the stored plan forbids (the
+	// Kindersuche would keep grouping the child contrary to its Stammdaten).
+	// Stranding a linked child refuses the whole update with
+	// ErrCompanionWouldLoseDeparture, exactly like the service-level check.
+	trim, err := r.planCompanionReconcile(ctx, student)
+	if err != nil {
+		return err
+	}
+
 	// A structured "läuft mit" link satisfies the accompanied-requires-a-note
 	// invariant just like the free-text note does, but it lives in another table
 	// and is not part of the model. Derive it HERE, the one layer every update
 	// passes through, so a caller that knows nothing about companions (status
 	// days, sick/excused auto-clear, care-request approval, imports) can still
-	// save a child whose "mit wem" is answered by a link (#1694).
-	if err := r.applyCompanionLinkFlag(ctx, student); err != nil {
+	// save a child whose "mit wem" is answered by a link (#1694). When the
+	// reconcile pass already loaded the edges, its survivor count is
+	// authoritative — an EXISTS probe would still see the edges the trim is
+	// about to drop. Never CLEAR a flag the caller set: extendAccompaniedDays
+	// asserts it for an edge that is written later in the same transaction, so
+	// the stored edges legitimately don't show it yet.
+	if trim != nil {
+		student.DepartureCompanionLinked = student.DepartureCompanionLinked || trim.remaining > 0
+	} else if err := r.applyCompanionLinkFlag(ctx, student); err != nil {
 		return err
 	}
 
@@ -317,7 +345,139 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 	if err := r.Repository.Update(ctx, student); err != nil {
 		return err
 	}
-	return r.persistDepartureDays(ctx, student, currentDeparture)
+	if err := r.persistDepartureDays(ctx, student, currentDeparture); err != nil {
+		return err
+	}
+	// Drop the trimmed edges only after the plan write succeeded, so a
+	// validation or persistence failure never leaves links deleted for a plan
+	// that was never stored. Callers run inside the request's tenant
+	// transaction, so plan and trim still commit or roll back together.
+	if trim != nil {
+		return r.companions.DeleteEdges(ctx, trim.dropIDs)
+	}
+	return nil
+}
+
+// companionTrim is the outcome of planCompanionReconcile: the edge rows the new
+// departure plan no longer allows, plus how many links the child keeps.
+type companionTrim struct {
+	dropIDs   []int64
+	remaining int
+}
+
+// planCompanionReconcile determines which "läuft mit" edges lose their basis
+// under the departure plan this update is about to persist, and refuses the
+// update when dropping one would strand the child at the FAR end (accompanied
+// plan, no note, no other link left) — the same rule services/users
+// checkCompanionRemovals enforces for the HTTP path.
+//
+// Returns nil when it did not evaluate the edges (plan untouched, plan allows
+// every weekday, or the table predates this schema); the caller then falls back
+// to the EXISTS-based link flag probe.
+func (r *StudentRepository) planCompanionReconcile(ctx context.Context, student *users.Student) (*companionTrim, error) {
+	planTouched := student.AllowedDepartureModes != nil ||
+		student.DepartureDays != nil ||
+		student.BusDays != nil ||
+		student.PickupDays != nil ||
+		student.PickupStatus != nil
+	if student.ID <= 0 || !planTouched {
+		return nil, nil
+	}
+
+	// alignDeparturePlanForValidation already rewrote the in-memory plan to the
+	// one persistDepartureDays will store, so this reads the effective plan.
+	accompanied := users.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)
+	if len(accompanied) == len(users.PickupDayOrder) {
+		// Every weekday still allows "Anderes Kind" — no edge can lose its
+		// basis, so skip the edge query on this common widening path.
+		return nil, nil
+	}
+
+	// The table landed in 1.15.208 and the migration tests exercise historical
+	// schemas with the current model; an absent table means no links.
+	exists, err := r.hasCompanionTable(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, nil
+	}
+
+	edges, err := r.companions.ListForStudent(ctx, student.ID)
+	if err != nil {
+		return nil, err
+	}
+	if len(edges) == 0 {
+		return &companionTrim{}, nil
+	}
+
+	trim := &companionTrim{}
+	keptFar := make(map[int64]bool, len(edges))
+	droppedFar := make(map[int64]bool, len(edges))
+	for _, edge := range edges {
+		far, ok := edge.Other(student.ID)
+		if !ok {
+			continue
+		}
+		if accompanied[users.CompanionWeekdayKeys[edge.Weekday]] {
+			keptFar[far] = true
+			continue
+		}
+		trim.dropIDs = append(trim.dropIDs, edge.ID)
+		droppedFar[far] = true
+	}
+	trim.remaining = len(keptFar)
+	if len(trim.dropIDs) == 0 {
+		return trim, nil
+	}
+
+	// Only links that disappear COMPLETELY can strand the far child — a link
+	// that merely loses a weekday still answers "mit wem".
+	removed := make([]int64, 0, len(droppedFar))
+	for far := range droppedFar {
+		if !keptFar[far] {
+			removed = append(removed, far)
+		}
+	}
+	if len(removed) == 0 {
+		return trim, nil
+	}
+	if err := r.checkCompanionStranding(ctx, student.ID, removed); err != nil {
+		return nil, err
+	}
+	return trim, nil
+}
+
+// checkCompanionStranding refuses when any of the removed far children would be
+// left with an accompanied departure plan and no remaining "mit wem" detail.
+// Mirrors services/users checkCompanionRemovals; both return the shared
+// users.ErrCompanionWouldLoseDeparture sentinel.
+func (r *StudentRepository) checkCompanionStranding(ctx context.Context, studentID int64, removed []int64) error {
+	counts, err := r.companions.CompanionCountsExcluding(ctx, removed, studentID)
+	if err != nil {
+		return err
+	}
+	companions, err := r.FindByIDs(ctx, removed)
+	if err != nil {
+		return err
+	}
+	for _, id := range removed {
+		if counts[id] > 0 {
+			continue // still walks with someone else
+		}
+		companion := companions[id]
+		if companion == nil {
+			continue // deleted or another tenant — nothing left to strand
+		}
+		if companion.DepartureCompanionNote != nil && strings.TrimSpace(*companion.DepartureCompanionNote) != "" {
+			continue // the free-text note carries the detail
+		}
+		if len(users.AccompaniedWeekdays(companion.AllowedDepartureModes, companion.DepartureDays)) == 0 {
+			continue // their plan does not claim "Anderes Kind" anywhere
+		}
+		return users.ErrCompanionWouldLoseDeparture
+	}
+	return nil
 }
 
 // alignDeparturePlanForValidation rewrites the in-memory departure plan to the
@@ -1132,15 +1292,9 @@ func (r *StudentRepository) applyCompanionLinkFlag(ctx context.Context, student 
 	// schemas with the current model, so probe it like the optional departure
 	// columns are probed. Absent table means no links, which keeps the note
 	// requirement in force — failing closed.
-	var exists bool
-	if err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT EXISTS (
-			SELECT 1
-			FROM information_schema.tables
-			WHERE table_schema = 'users' AND table_name = 'student_companions'
-		)
-	`).Scan(ctx, &exists); err != nil {
-		return &modelBase.DatabaseError{Op: "check student companions table", Err: err}
+	exists, err := r.hasCompanionTable(ctx)
+	if err != nil {
+		return err
 	}
 	if !exists {
 		return nil
@@ -1159,6 +1313,24 @@ func (r *StudentRepository) applyCompanionLinkFlag(ctx context.Context, student 
 
 	student.DepartureCompanionLinked = linked
 	return nil
+}
+
+// hasCompanionTable reports whether users.student_companions exists. The table
+// landed in 1.15.208 and the migration tests exercise historical schemas with
+// the current model, so every companion read in this repository is guarded by
+// this probe.
+func (r *StudentRepository) hasCompanionTable(ctx context.Context) (bool, error) {
+	var exists bool
+	if err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.tables
+			WHERE table_schema = 'users' AND table_name = 'student_companions'
+		)
+	`).Scan(ctx, &exists); err != nil {
+		return false, &modelBase.DatabaseError{Op: "check student companions table", Err: err}
+	}
+	return exists, nil
 }
 
 func (r *StudentRepository) hasStudentColumn(ctx context.Context, column string) (bool, error) {

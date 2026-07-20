@@ -112,6 +112,7 @@ describe("student-companion-api", () => {
         mockFetchResponse({
           data: [
             {
+              // The backend serializes the int64 id as a JSON number …
               companion_student_id: 7,
               first_name: "Lina",
               last_name: "Klein",
@@ -131,7 +132,8 @@ describe("student-companion-api", () => {
         }),
       );
       expect(result).toHaveLength(1);
-      expect(result[0]!.companion_student_id).toBe(7);
+      // … and the client maps it to a string like every other backend id.
+      expect(result[0]!.companion_student_id).toBe("7");
       expect(result[0]!.weekdays).toEqual(["mon", "tue"]);
     });
 
@@ -141,7 +143,9 @@ describe("student-companion-api", () => {
 
       const result = await fetchStudentCompanions("42");
 
-      expect(result).toEqual(payload);
+      expect(result).toEqual([
+        { companion_student_id: "3", weekdays: ["fri"] },
+      ]);
     });
 
     it("returns an empty array when the payload is null", async () => {
@@ -232,7 +236,7 @@ describe("student-companion-api", () => {
     it("joins first and last name", () => {
       expect(
         companionDisplayName({
-          companion_student_id: 7,
+          companion_student_id: "7",
           first_name: "Lina",
           last_name: "Klein",
           weekdays: [],
@@ -243,7 +247,7 @@ describe("student-companion-api", () => {
     it("uses whichever name part exists", () => {
       expect(
         companionDisplayName({
-          companion_student_id: 7,
+          companion_student_id: "7",
           first_name: "Lina",
           weekdays: [],
         }),
@@ -253,7 +257,7 @@ describe("student-companion-api", () => {
     it("falls back to the id when no name is present", () => {
       expect(
         companionDisplayName({
-          companion_student_id: 7,
+          companion_student_id: "7",
           weekdays: [],
         }),
       ).toBe("Kind #7");
@@ -262,7 +266,7 @@ describe("student-companion-api", () => {
     it("falls back to the id when the names are blank", () => {
       expect(
         companionDisplayName({
-          companion_student_id: 9,
+          companion_student_id: "9",
           first_name: "",
           last_name: "  ",
           weekdays: [],
