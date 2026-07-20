@@ -43,11 +43,13 @@ vi.mock("./student-form-fields", () => ({
   DepartureSection: ({
     companions,
     onCompanionsChange,
+    onChange,
   }: {
     companions?: { companion_student_id: string; weekdays: string[] }[];
     onCompanionsChange?: (
       next: { companion_student_id: string; weekdays: string[] }[],
     ) => void;
+    onChange?: (next: Record<string, string[]>) => void;
   }) => (
     <div>
       <span data-testid="companion-count">{companions?.length ?? 0}</span>
@@ -61,6 +63,14 @@ vi.mock("./student-form-fields", () => ({
         }
       >
         edit
+      </button>
+      {/* Drops Tuesday from the plan without touching the picker. */}
+      <button
+        type="button"
+        data-testid="narrow-plan"
+        onClick={() => onChange?.({ mon: ["accompanied"] })}
+      >
+        narrow
       </button>
     </div>
   ),
@@ -80,16 +90,29 @@ const student = {
   bus_days: {},
 } as ExtendedStudent;
 
+// A child accompanied on Monday AND Tuesday, so the plan can be narrowed to
+// Monday alone without the picker being touched.
+const accompaniedStudent = {
+  ...student,
+  allowed_departure_modes: {
+    mon: ["accompanied"],
+    tue: ["accompanied"],
+  },
+} as ExtendedStudent;
+
 function companion(id: string) {
   return { companion_student_id: id, weekdays: ["mon"] as const };
 }
 
-async function renderOpenModal(onSave = vi.fn().mockResolvedValue(undefined)) {
+async function renderOpenModal(
+  onSave = vi.fn().mockResolvedValue(undefined),
+  studentProp: ExtendedStudent = student,
+) {
   render(
     <PersonalInfoFormModal
       isOpen
       onClose={vi.fn()}
-      student={student}
+      student={studentProp}
       onSave={onSave}
     />,
   );
@@ -223,6 +246,43 @@ describe("PersonalInfoFormModal — remote companion changes", () => {
     expect(
       await screen.findByText(/zwischenzeitlich an anderer Stelle geändert/),
     ).toBeInTheDocument();
+  });
+
+  // Narrowing the plan is a pending DELETE of every link on the days it drops
+  // (the backend trims them), so it has to protect the draft exactly like an
+  // edited list does. Refetching here would make the other person's brand-new
+  // Tuesday link this save's own baseline — and then trim it away.
+  it("blocks the save when only the departure plan was narrowed", async () => {
+    fetchStudentCompanionsMock.mockResolvedValueOnce([companion("2")]);
+    const onSave = await renderOpenModal(
+      vi.fn().mockResolvedValue(undefined),
+      accompaniedStudent,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("companion-count").textContent).toBe("1"),
+    );
+
+    fireEvent.click(screen.getByTestId("narrow-plan"));
+
+    // Someone else adds a link on the weekday this draft is about to drop.
+    fetchStudentCompanionsMock.mockResolvedValueOnce([
+      companion("2"),
+      companion("3"),
+    ]);
+    act(() => {
+      notifyStudentCompanionsChanged();
+    });
+
+    expect(
+      await screen.findByText(/zwischenzeitlich an anderer Stelle geändert/),
+    ).toBeInTheDocument();
+    // No refetch: the loaded list stays the baseline, so it cannot be swapped
+    // for one that already contains the foreign link.
+    expect(fetchStudentCompanionsMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByText("Speichern"));
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
+    expect(onSave).not.toHaveBeenCalled();
   });
 
   it("does not flag itself stale for the announcement its own save makes", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
@@ -37,6 +37,24 @@ import type { AllowedDepartureModes } from "~/lib/student-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PersonalInfoFormModal" });
+
+// The departure plan of a student in the one shape everything here compares
+// and submits. Derived identically for the stored copy and the edited one, so
+// a comparison between them sees plan changes and not shape noise.
+function departureModesOf(
+  source: Pick<
+    ExtendedStudent,
+    "allowed_departure_modes" | "departure_days" | "bus_days" | "pickup_days"
+  >,
+): AllowedDepartureModes {
+  return normalizeAllowedDepartureModes(
+    source.allowed_departure_modes ??
+      allowedDepartureModesFromDeparture(
+        source.departure_days ??
+          departureDaysFromLegacy(source.bus_days, source.pickup_days),
+      ),
+  );
+}
 
 interface PersonalInfoFormModalProps {
   readonly isOpen: boolean;
@@ -140,6 +158,31 @@ export function PersonalInfoFormModal({
     companionsFingerprint(loadedCompanions) !==
       companionsFingerprint(editedStudent.companions ?? []);
 
+  // A departure plan the USER changed is a companion-conflicting edit too, even
+  // while the picker itself is untouched: the backend TRIMS the stored links to
+  // the weekdays the submitted plan allows, so such a draft is a pending delete
+  // of every link on the days it dropped.
+  //
+  // Without this, a remote companion write would be answered by a plain refetch
+  // (nothing "dirty" to protect), and the refreshed list would silently become
+  // the baseline this save claims: the fingerprint then describes the very edge
+  // the other person just added on a removed weekday, the backend has nothing
+  // left to refuse the save by, and the trim deletes their link. Treat it like
+  // an edited list — keep the loaded baseline, flag the modal stale, make the
+  // user reload and redo the narrowing deliberately.
+  //
+  // An UNTOUCHED plan stays out: the reset effect above keeps the draft equal
+  // to the incoming student's plan, so this is false for it and unrelated saves
+  // are not blocked by somebody else's legitimate companion change.
+  const departurePlanDirty = useMemo(
+    () =>
+      !allowedDepartureModesEqual(
+        departureModesOf(student),
+        departureModesOf(editedStudent),
+      ),
+    [student, editedStudent],
+  );
+
   // The modal can stay open while someone else edits the same child's links,
   // and the list it submits REPLACES the stored one. Reacting to companion
   // writes is what keeps an edit from saving on top of a snapshot that no
@@ -158,7 +201,7 @@ export function PersonalInfoFormModal({
       // reloads in place when it is handed another child — that new form must
       // not inherit the previous child's conflict warning.
       resetKey: student.id,
-      hasUnsavedCompanionEdits: companionsDirty,
+      hasUnsavedCompanionEdits: companionsDirty || departurePlanDirty,
       // Both halves of what a save submits about the Laufgemeinschaft: the list
       // itself and the plan the backend trims it to. The picker stays usable
       // while a save runs (only the button is disabled), so this is what tells
@@ -184,16 +227,7 @@ export function PersonalInfoFormModal({
       );
       return;
     }
-    const allowedDepartureModes = normalizeAllowedDepartureModes(
-      editedStudent.allowed_departure_modes ??
-        allowedDepartureModesFromDeparture(
-          editedStudent.departure_days ??
-            departureDaysFromLegacy(
-              editedStudent.bus_days,
-              editedStudent.pickup_days,
-            ),
-        ),
-    );
+    const allowedDepartureModes = departureModesOf(editedStudent);
     // "Mit anderem Kind" needs to say with whom (#1694) — either a linked
     // child (better: structured, symmetric) or the free-text note for someone
     // who is not a child of this school. The cover is per weekday, exactly as
@@ -239,13 +273,7 @@ export function PersonalInfoFormModal({
       // The plan this save replaces, derived from the incoming student the
       // same way the submitted one is derived from the edited copy, so the
       // comparison below sees plan changes and not shape noise.
-      const storedDepartureModes = normalizeAllowedDepartureModes(
-        student.allowed_departure_modes ??
-          allowedDepartureModesFromDeparture(
-            student.departure_days ??
-              departureDaysFromLegacy(student.bus_days, student.pickup_days),
-          ),
-      );
+      const storedDepartureModes = departureModesOf(student);
       // A plan the USER changed, as opposed to the untouched copy this modal
       // resubmits on every save. Only the former may remove links.
       const planEdited = !allowedDepartureModesEqual(
@@ -467,20 +495,7 @@ export function PersonalInfoFormModal({
                   setConfirmedExtensions(confirmed);
                   setPendingExtensions([]);
                   updateField("extend_companion_plans", true);
-                  void submit(
-                    normalizeAllowedDepartureModes(
-                      editedStudent.allowed_departure_modes ??
-                        allowedDepartureModesFromDeparture(
-                          editedStudent.departure_days ??
-                            departureDaysFromLegacy(
-                              editedStudent.bus_days,
-                              editedStudent.pickup_days,
-                            ),
-                        ),
-                    ),
-                    true,
-                    confirmed,
-                  );
+                  void submit(departureModesOf(editedStudent), true, confirmed);
                 }}
                 className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:opacity-50"
               >
