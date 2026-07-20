@@ -332,10 +332,11 @@ type DecisionServiceConfig struct {
 	AccountRoleRepo          authModels.AccountRoleRepository
 	RoleRepo                 authModels.RoleRepository
 	OutboxEnqueuer           platformModels.OutboxEnqueuer
-	// Broadcaster announces student_companions_changed after an approved
-	// enrollment sync replaced a child's departure plan (the write that can
-	// trim "läuft mit" links). Nil-safe: without it the sync still works,
-	// open companion views just stay stale until their next manual refresh.
+	// Broadcaster announces student_updated + student_companions_changed after
+	// an approved enrollment sync replaced a child's departure plan (the write
+	// that can trim "läuft mit" links). Nil-safe: without it the sync still
+	// works, open student and companion views just stay stale until their next
+	// manual refresh.
 	Broadcaster realtime.Broadcaster
 	FrontendURL string                   // not used by parent-facing emails today; kept for future admin links
 	ParentsURL  string                   // status link in approved/waitlisted/rejected emails. Falls back to FrontendURL when empty.

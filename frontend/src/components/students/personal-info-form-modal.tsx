@@ -153,6 +153,10 @@ export function PersonalInfoFormModal({
       // first load is still in flight — that request can have been answered
       // before the remote write landed.
       active: isOpen,
+      // Closing is the usual end of a stale flag here, but the modal also
+      // reloads in place when it is handed another child — that new form must
+      // not inherit the previous child's conflict warning.
+      resetKey: student.id,
       hasUnsavedCompanionEdits: companionsDirty,
       onRefresh: reloadCompanionsFromRemote,
     });

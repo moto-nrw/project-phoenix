@@ -542,6 +542,10 @@ export function StudentStammdatenTab({
       // Always listening, including while the first load is still in flight —
       // that request can have been answered before the remote write landed.
       active: true,
+      // This tab is never unmounted between children (the master-detail list
+      // just selects another one), so the child id is what ends a stale flag
+      // here — `active` never goes false.
+      resetKey: String(student.id),
       hasUnsavedCompanionEdits: companionsDirty,
       onRefresh: reloadCompanionsFromRemote,
     });

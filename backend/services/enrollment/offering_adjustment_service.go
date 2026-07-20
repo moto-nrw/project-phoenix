@@ -324,7 +324,7 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 			// showing the pre-sync links. After-commit: a rolled-back sync
 			// (including the replacement-error return below) fires nothing.
 			if planSynced {
-				s.deferStudentCompanionsChanged(ctx, student.ID)
+				s.deferStudentPlanBroadcasts(ctx, student.ID)
 			}
 			if terr != nil {
 				s.Logger.Warn("decision: approved child targeted-field sync had errors",
@@ -347,13 +347,22 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 	return s.RequestChildRepo.FindByID(ctx, child.ID)
 }
 
-// deferStudentCompanionsChanged announces, after the surrounding tenant
+// deferStudentPlanBroadcasts announces, after the surrounding tenant
 // transaction commits, that an enrollment sync replaced a child's departure
-// plan and the repository may have trimmed its Laufgemeinschaft — the signal
-// every mounted "läuft mit" view refetches on. Mirrors the master-data-review
-// and care-request emitters: fire-and-forget, a lost event costs a stale card,
-// never data.
-func (s *decisionService) deferStudentCompanionsChanged(ctx context.Context, studentID int64) {
+// plan. Two events, because they invalidate different caches — exactly like
+// the master-data-review and care-request emitters:
+//
+//   - student_updated: the plan itself lives on the student record, so the
+//     student detail and database caches that feed an OPEN staff editor must
+//     refetch. Without it the editor keeps the pre-sync plan and resubmits it
+//     whole on the next unrelated save (an address edit), reverting the
+//     approved change.
+//   - student_companions_changed: a narrowed plan makes the repository trim
+//     "läuft mit" links, which are rows on ANOTHER child's card too — the
+//     signal every mounted companion view refetches on.
+//
+// Fire-and-forget: a lost event costs a stale card, never data.
+func (s *decisionService) deferStudentPlanBroadcasts(ctx context.Context, studentID int64) {
 	if s.Broadcaster == nil {
 		return
 	}
@@ -363,8 +372,16 @@ func (s *decisionService) deferStudentCompanionsChanged(ctx context.Context, stu
 			return
 		}
 		source := "enrollment_sync"
-		event := realtime.NewEvent(realtime.EventStudentCompanionsChanged, "", realtime.EventData{Source: &source})
-		if err := s.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+		studentEvent := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{Source: &source})
+		if err := s.Broadcaster.BroadcastToTenant(tenantID, studentEvent); err != nil {
+			s.Logger.Warn("decision: failed to broadcast student update",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int64("student_id", studentID),
+				slog.String("error", err.Error()),
+			)
+		}
+		companionEvent := realtime.NewEvent(realtime.EventStudentCompanionsChanged, "", realtime.EventData{Source: &source})
+		if err := s.Broadcaster.BroadcastToTenant(tenantID, companionEvent); err != nil {
 			s.Logger.Warn("decision: failed to broadcast student companions change",
 				slog.Int64("tenant_id", tenantID),
 				slog.Int64("student_id", studentID),

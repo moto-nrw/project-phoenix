@@ -59,6 +59,16 @@ const OWN_WRITE_ECHO_GRACE_MS = 10_000;
 interface CompanionRemoteRefreshOptions {
   /** False while the view is not showing the links (a closed modal). */
   readonly active: boolean;
+  /**
+   * Identity of the record whose links are shown — the student id in practice.
+   *
+   * A stale flag is a statement about ONE child's draft, and the editable views
+   * are reused across children without unmounting (the master-detail tab stays
+   * `active` and simply reloads for the next selection). Without this key the
+   * warning survives the switch and blocks saving a form the user has not even
+   * edited yet. Changing it resets the flag exactly like closing the view does.
+   */
+  readonly resetKey?: string | number;
   /** True while the draft differs from the loaded snapshot. */
   readonly hasUnsavedCompanionEdits: boolean;
   /** Refetches the stored links and resets the draft to them. */
@@ -102,6 +112,7 @@ interface CompanionRemoteRefresh {
 
 export function useCompanionRemoteRefresh({
   active,
+  resetKey,
   hasUnsavedCompanionEdits,
   onRefresh,
 }: CompanionRemoteRefreshOptions): CompanionRemoteRefresh {
@@ -139,10 +150,21 @@ export function useCompanionRemoteRefresh({
     refreshRef.current = onRefresh;
   });
 
-  // A closed modal keeps its stale flag out of the way: it reloads on open.
+  // A closed modal keeps its stale flag out of the way: it reloads on open —
+  // and so does a view that switched to another child, which loads that child's
+  // links from scratch. Both leave nothing the old flag could still describe.
+  // The echo grace goes with it: it was armed by a save on the PREVIOUS record,
+  // so leaving it running would let it answer for a write it cannot be the echo
+  // of.
   useEffect(() => {
     if (!active) setCompanionsStale(false);
   }, [active]);
+
+  useEffect(() => {
+    setCompanionsStale(false);
+    ownWriteEchoUntilRef.current = 0;
+    ownWriteSettledAtRef.current = 0;
+  }, [resetKey]);
 
   useEffect(
     () =>

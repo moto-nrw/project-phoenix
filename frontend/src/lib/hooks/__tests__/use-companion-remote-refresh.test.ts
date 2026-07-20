@@ -190,6 +190,34 @@ describe("useCompanionRemoteRefresh", () => {
     }
   });
 
+  it("drops the stale flag when the view switches to another child", () => {
+    // The Stammdaten tab stays mounted and `active` while the master-detail
+    // list selects another child, so `active` never ends the flag there. A
+    // warning about the previous child's draft would block saving a form the
+    // user has not touched yet.
+    const onRefresh = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ id, dirty }: { id: string; dirty: boolean }) =>
+        useCompanionRemoteRefresh({
+          active: true,
+          resetKey: id,
+          hasUnsavedCompanionEdits: dirty,
+          onRefresh,
+        }),
+      { initialProps: { id: "1", dirty: true } },
+    );
+
+    act(() => {
+      notifyStudentCompanionsChanged();
+    });
+    expect(result.current.companionsStale).toBe(true);
+
+    // Another child selected: its form loads its own links from scratch.
+    rerender({ id: "2", dirty: false });
+
+    expect(result.current.companionsStale).toBe(false);
+  });
+
   it("refetches instead of flagging while nothing is edited", () => {
     const onRefresh = vi.fn();
     const { result } = renderHook(() =>
