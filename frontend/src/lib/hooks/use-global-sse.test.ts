@@ -496,6 +496,29 @@ describe("useGlobalSSE — companion announcements", () => {
     }
   });
 
+  it("announces a display refresh for student_updated, so linked names stay honest", async () => {
+    const { subscribeStudentCompanionDisplayChanged } =
+      await import("~/lib/student-companion-api");
+    renderHook(() => useGlobalSSE());
+    const listener = vi.fn();
+    const unsubscribe = subscribeStudentCompanionDisplayChanged(listener);
+
+    try {
+      // Renaming or reassigning a linked child leaves every edge untouched, so
+      // no companion event follows — but the entry another child's card shows
+      // for them is now wrong, and after a group change possibly no longer
+      // visible to this viewer at all. The separate bus is what lets read-only
+      // cards refetch for it while forms keep their drafts.
+      fireSSE(makeEvent("student_updated", { student_id: "s1" }));
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally {
+      unsubscribe();
+    }
+  });
+
   it("revalidates the Kindersuche list, which carries its grouping in-band", () => {
     renderHook(() => useGlobalSSE());
 

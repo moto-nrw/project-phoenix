@@ -28,21 +28,23 @@ import { subscribeStudentCompanionsChanged } from "~/lib/student-companion-api";
  *   explicit reload — a wrong list saved silently is far worse than a form the
  *   user has to fill in again.
  *
- * A write made by the caller itself announces on the same bus, so it is
- * suppressed via {@link CompanionRemoteRefresh.withOwnWrite}: the caller
- * reloads after its own save anyway, and marking itself stale would leave the
- * user staring at a conflict warning for their own change.
+ * A write made by the caller itself announces on the same bus. That echo is not
+ * a conflict — marking the view stale for the user's own change would leave
+ * them staring at a warning about themselves — so
+ * {@link CompanionRemoteRefresh.withOwnWrite} downgrades it to a plain refetch:
+ * it is the first signal that is certainly post-commit, which the caller's own
+ * reload right after the save is not.
  */
 /**
  * How long after a own save its announcement is still treated as the echo of
  * that save rather than as a remote edit.
  *
- * Generous on purpose: swallowing one genuinely remote announcement in this
- * window costs nothing that matters — the caller reloads the stored links after
- * its own save anyway, and a save built on a snapshot that a remote write has
- * replaced is still refused by the backend's fingerprint check (409
- * `companions_changed` → markStale). Being too STRICT is what costs the user
- * their work: the form would block the save they just completed.
+ * Generous on purpose: an announcement misread as our own echo in this window
+ * still refetches the stored links, it merely skips the stale warning — and a
+ * save built on a snapshot that a remote write has replaced is refused by the
+ * backend's fingerprint check anyway (409 `companions_changed` → markStale).
+ * Being too STRICT is what costs the user their work: the form would block the
+ * save they just completed.
  *
  * The generosity only holds because the window is armed solely after a save
  * that can actually be echoed (see withOwnWrite's `mayAnnounce`): armed after
@@ -66,7 +68,8 @@ interface CompanionRemoteRefresh {
   /** Discards the draft and reloads the stored links. */
   readonly refreshFromRemote: () => void;
   /**
-   * Runs a save, ignoring the announcement it makes itself.
+   * Runs a save, treating the announcement it makes itself as a post-commit
+   * refetch rather than as a remote conflict.
    *
    * `mayAnnounce` says whether this save can be answered by a
    * `student_companions_changed` echo at all. The backend announces only when
@@ -75,8 +78,8 @@ interface CompanionRemoteRefresh {
    * resubmit their whole payload on every save. A save that cannot announce
    * (a pure name or address edit, or a failed one) must not arm the echo
    * grace: the next genuinely remote announcement would be consumed as the
-   * echo of a save that never made one, leaving the view stale without a
-   * warning.
+   * echo of a save that never made one, refreshing the view instead of warning
+   * about a draft built on links that no longer exist.
    */
   readonly withOwnWrite: <T>(
     write: () => Promise<T>,
@@ -135,6 +138,24 @@ export function useCompanionRemoteRefresh({
           // The SSE echo of our own save. Consume the grace with it so a
           // genuinely remote write arriving right after is judged normally.
           ownWriteEchoUntilRef.current = 0;
+          // Refetch instead of returning: the caller starts its reload the
+          // moment withOwnWrite resolves, but the response is streamed from the
+          // handler BEFORE the outer tenant transaction commits (see
+          // withOwnWrite below), so that reload can still read the pre-save
+          // edges and record them as the new baseline. This echo is the first
+          // signal that is guaranteed to be post-commit — the broadcast runs in
+          // the after-commit hook — so it is exactly the point at which the
+          // stored links are worth re-reading.
+          //
+          // Unconditional, dirty draft or not: the flag is stale here anyway
+          // (it compares against the pre-save baseline the reload is about to
+          // replace), and what the user "loses" is at most whatever they typed
+          // in the few hundred milliseconds between their own save landing and
+          // its echo. Marking stale instead would put a conflict warning on the
+          // screen for the user's own change, which is the one thing this hook
+          // exists to avoid.
+          setCompanionsStale(false);
+          refreshRef.current();
           return;
         }
         if (dirtyRef.current) setCompanionsStale(true);

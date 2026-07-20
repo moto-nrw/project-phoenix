@@ -27,7 +27,10 @@ import { mutate } from "swr";
 import { useSession } from "next-auth/react";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
-import { notifyStudentCompanionsChanged } from "~/lib/student-companion-api";
+import {
+  notifyStudentCompanionDisplayChanged,
+  notifyStudentCompanionsChanged,
+} from "~/lib/student-companion-api";
 import type { SSEEvent, SSEHookState } from "~/lib/sse-types";
 import { createLogger } from "~/lib/logger";
 
@@ -171,6 +174,17 @@ export function useGlobalSSE(): SSEHookState {
           scope: "student_detail",
         });
       });
+
+      // A renamed or reassigned child changes what the OTHER children's
+      // Laufgemeinschaft entries show, without changing a single link — so no
+      // student_companions_changed follows, and the SWR invalidation above does
+      // not reach the links either (own table, fetched outside SWR, keyed on a
+      // student id this write never changes). Read-only cards would keep the
+      // old name indefinitely, and after a group reassignment even one the
+      // backend would now redact for this viewer. Announced on the separate
+      // display bus: forms react to the companion bus by discarding drafts, and
+      // any rename in the school must not cost a user their work.
+      notifyStudentCompanionDisplayChanged();
     }
 
     if (hasPendingCompanionEvent.current) {

@@ -11,7 +11,7 @@ import { notifyStudentCompanionsChanged } from "~/lib/student-companion-api";
  * has already resolved.
  */
 describe("useCompanionRemoteRefresh", () => {
-  it("ignores the SSE echo of its own save that arrives after the response", async () => {
+  it("refetches on the SSE echo of its own save without flagging it stale", async () => {
     const onRefresh = vi.fn();
     const { result } = renderHook(() =>
       useCompanionRemoteRefresh({
@@ -37,8 +37,39 @@ describe("useCompanionRemoteRefresh", () => {
       notifyStudentCompanionsChanged();
     });
 
+    // No conflict warning for the user's own change — but the echo IS the first
+    // signal that runs after the commit, while the caller's own reload starts on
+    // a response the backend streams before it. So it refetches: the announcement
+    // during the save is suppressed outright, the post-commit one reloads.
     expect(result.current.companionsStale).toBe(false);
-    expect(onRefresh).not.toHaveBeenCalled();
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("reloads on its own echo even while the draft still differs", async () => {
+    const onRefresh = vi.fn();
+    const { result } = renderHook(() =>
+      useCompanionRemoteRefresh({
+        active: true,
+        // The caller's post-save reload has not landed yet, so the draft is
+        // still measured against the pre-save baseline. Skipping the refetch
+        // here is what would leave the form recording the PRE-commit list as
+        // its new snapshot — the reload it started itself may well have read
+        // the links before the outer transaction committed.
+        hasUnsavedCompanionEdits: true,
+        onRefresh,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.withOwnWrite(() => Promise.resolve("saved"), true);
+    });
+
+    act(() => {
+      notifyStudentCompanionsChanged();
+    });
+
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+    expect(result.current.companionsStale).toBe(false);
   });
 
   it("still flags a remote write that follows its own echo", async () => {

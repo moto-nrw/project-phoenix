@@ -211,6 +211,47 @@ export function notifyStudentCompanionsChanged(): void {
   for (const listener of [...companionChangeListeners]) listener();
 }
 
+/**
+ * Consumers that render companion data read-only and therefore want to re-read
+ * it when the LINKED CHILDREN changed, not the links — see
+ * {@link notifyStudentCompanionDisplayChanged}.
+ */
+const companionDisplayListeners = new Set<() => void>();
+
+/**
+ * Subscribe to changes of the data a companion entry DISPLAYS. Returns the
+ * unsubscribe function, so a React effect can return it directly.
+ */
+export function subscribeStudentCompanionDisplayChanged(
+  listener: () => void,
+): () => void {
+  companionDisplayListeners.add(listener);
+  return () => {
+    companionDisplayListeners.delete(listener);
+  };
+}
+
+/**
+ * Announce that the CHILDREN behind the stored links may have changed, while
+ * the links themselves did not.
+ *
+ * A rename or a group reassignment of a linked child emits only
+ * `student_updated` — the edges are untouched, so no companion announcement
+ * follows. The fetching card keys its request on its own student id, which such
+ * a write never changes, so without this signal it keeps rendering the name it
+ * loaded: after a group reassignment that can even keep showing a name the
+ * backend would now redact for this viewer.
+ *
+ * Deliberately separate from {@link notifyStudentCompanionsChanged}: an editing
+ * form answers THAT announcement by discarding its draft or blocking the save,
+ * which must not happen for a rename somewhere in the school. This bus is for
+ * read-only views only.
+ */
+export function notifyStudentCompanionDisplayChanged(): void {
+  // Copy first: a listener may unsubscribe while we iterate.
+  for (const listener of [...companionDisplayListeners]) listener();
+}
+
 export async function fetchStudentCompanions(
   studentId: string,
 ): Promise<StudentCompanion[]> {

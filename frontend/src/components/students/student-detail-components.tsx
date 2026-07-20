@@ -27,6 +27,7 @@ import {
   companionDisplayName,
   fetchStudentCompanions,
   formatCompanionWeekdays,
+  subscribeStudentCompanionDisplayChanged,
   subscribeStudentCompanionsChanged,
   type StudentCompanion,
 } from "~/lib/student-companion-api";
@@ -682,13 +683,24 @@ export function PersonalInfoReadOnly({
   // every companion write — including a symmetric one made from the linked
   // child's card. The counter is the effect's second trigger.
   const [companionsRevalidation, setCompanionsRevalidation] = useState(0);
-  useEffect(
-    () =>
-      subscribeStudentCompanionsChanged(() => {
-        setCompanionsRevalidation((count) => count + 1);
-      }),
-    [],
-  );
+  useEffect(() => {
+    const revalidate = () => setCompanionsRevalidation((count) => count + 1);
+    // Two buses, because two different writes make this card stale. The links
+    // themselves change on a companion write; what the links DISPLAY changes on
+    // a plain student write — a linked child renamed or moved to another group
+    // emits only student_updated, and this effect's student id stays the same,
+    // so the old name would otherwise survive here forever. After a group
+    // reassignment that name can be one a fresh request would redact for the
+    // viewing supervisor, which makes the refetch a visibility fix, not a
+    // cosmetic one.
+    const unsubscribeCompanions = subscribeStudentCompanionsChanged(revalidate);
+    const unsubscribeDisplay =
+      subscribeStudentCompanionDisplayChanged(revalidate);
+    return () => {
+      unsubscribeCompanions();
+      unsubscribeDisplay();
+    };
+  }, []);
   useEffect(() => {
     if (!student.id) return;
     let cancelled = false;
