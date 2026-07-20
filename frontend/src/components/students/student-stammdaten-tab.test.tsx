@@ -796,6 +796,40 @@ describe("StudentStammdatenTab — companion plan conflicts", () => {
     });
   });
 
+  it("drops the conflicts when the question is dismissed", async () => {
+    // "Abbrechen" is a NO. Keeping the named children around would widen the
+    // linked child's Heimweg on the next ordinary save — a cross-child write
+    // the user declined.
+    const onSave = vi
+      .fn()
+      .mockRejectedValueOnce(
+        conflictError({ body: JSON.stringify(conflictPayload) }),
+      )
+      .mockResolvedValue(undefined);
+
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+    await waitFor(() => expect(fetchStudentCompanionsMock).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByTestId("first-name"), {
+      target: { value: "Maja" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Abbrechen" }));
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    expect(onSave.mock.calls[1]![0]).toMatchObject({
+      confirmed_companion_extensions: [],
+    });
+  });
+
   it("confirms nothing when neither body nor message can be read", async () => {
     // The safe direction: an unreadable conflict means the backend asks again
     // rather than the form widening a child's plan nobody agreed to.

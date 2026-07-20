@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { PersonalInfoFormModal } from "./personal-info-form-modal";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import type { StudentCompanion } from "~/lib/student-companion-api";
+import { CompanionPlanConflictError } from "~/lib/api";
 
 const { fetchStudentCompanionsMock } = vi.hoisted(() => ({
   // Unreachable by default, exactly like the un-mocked network call these
@@ -616,6 +617,66 @@ describe("PersonalInfoFormModal", () => {
       fireEvent.change(textarea, { target: { value: "Neue Info" } });
 
       expect(textarea.value).toBe("Neue Info");
+    });
+  });
+});
+
+// A companion-plan 409 is a question ("may we widen the linked child's own
+// Heimweg?"), and the answer decides whether a write lands on a DIFFERENT
+// child. Dismissing it must leave nothing behind that a later save carries.
+describe("PersonalInfoFormModal — companion plan conflicts", () => {
+  const student: ExtendedStudent = {
+    id: "123",
+    name: "Max Mustermann",
+    first_name: "Max",
+    second_name: "Mustermann",
+    school_class: "3a",
+    current_location: "Raum 1",
+    bus: false,
+    birthday: "2015-05-15",
+    buskind: false,
+    sick: false,
+    pickup_status: "Wird abgeholt",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("drops the conflicts when the question is dismissed", async () => {
+    const onSave = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new CompanionPlanConflictError(
+          JSON.stringify({
+            error:
+              "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+            conflicts: [{ student_id: 42, weekdays: ["mon", "tue"] }],
+          }),
+        ),
+      )
+      .mockResolvedValue(undefined);
+
+    render(
+      <PersonalInfoFormModal
+        isOpen={true}
+        onClose={vi.fn()}
+        student={student}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByRole("button", { name: "Ergänzen und speichern" });
+
+    // The banner's "Abbrechen" sits above the footer's — dismissing the
+    // question, not the modal.
+    fireEvent.click(screen.getAllByRole("button", { name: "Abbrechen" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    expect(onSave.mock.calls[1]![0]).toMatchObject({
+      confirmed_companion_extensions: [],
     });
   });
 });

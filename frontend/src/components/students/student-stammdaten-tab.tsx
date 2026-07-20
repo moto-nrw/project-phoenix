@@ -291,6 +291,13 @@ export function StudentStammdatenTab({
   const [confirmedExtensions, setConfirmedExtensions] = useState<
     CompanionExtensionConfirmation[]
   >([]);
+  // The children and weekdays the OPEN question is about — not yet approved.
+  // They become confirmed extensions only when the user clicks "Ergänzen und
+  // speichern"; merging them on arrival would let "Abbrechen" leave a yes
+  // behind that widens another child's Heimweg on the next ordinary save.
+  const [pendingExtensions, setPendingExtensions] = useState<
+    CompanionExtensionConfirmation[]
+  >([]);
   // Set when the backend refused because a linked child's own departure plan
   // does not allow the requested days (409). Answering yes re-sends the same
   // payload with extend_companion_plans — mirroring PersonalInfoFormModal.
@@ -304,6 +311,7 @@ export function StudentStammdatenTab({
     setLoadedCompanions([]);
     setExtendCompanionPlans(false);
     setConfirmedExtensions([]);
+    setPendingExtensions([]);
     setPlanConflict(null);
     fetchStudentCompanions(String(student.id))
       .then((loaded) => {
@@ -696,18 +704,17 @@ export function StudentStammdatenTab({
         // in the meantime) on a stale yes instead of asking a fresh question.
         setExtendCompanionPlans(false);
         setConfirmedExtensions([]);
+        setPendingExtensions([]);
       } catch (err) {
         // A companion-plan 409 is a question, not a failure: nothing was
         // written, and re-sending with extend_companion_plans after the user
         // confirms completes the save. Only possible when a list traveled.
         if (companionsStatus === "ready" && isCompanionPlanConflict(err)) {
+          // The conflicts stay PENDING until the user answers the question —
+          // "Abbrechen" must leave nothing behind that a later ordinary save
+          // could carry along and widen unasked.
           setPlanConflict(companionConflictMessage(err));
-          setConfirmedExtensions((current) =>
-            mergeCompanionConfirmations(
-              current,
-              companionConflictExtensions(err),
-            ),
-          );
+          setPendingExtensions(companionConflictExtensions(err));
           setSaving(false);
           return;
         }
@@ -852,16 +859,25 @@ export function StudentStammdatenTab({
     // list that went stale.
     if (companionsStale) {
       setPlanConflict(null);
+      setPendingExtensions([]);
       setErrors({
         submit:
           "Die Laufgemeinschaft wurde zwischenzeitlich an anderer Stelle geändert. Bitte oben neu laden und die Änderung wiederholen.",
       });
       return;
     }
+    // The yes happens HERE: only now do the conflicts the question named
+    // become confirmed extensions.
+    const confirmed = mergeCompanionConfirmations(
+      confirmedExtensions,
+      pendingExtensions,
+    );
+    setConfirmedExtensions(confirmed);
+    setPendingExtensions([]);
     setExtendCompanionPlans(true);
     setPlanConflict(null);
-    void performSave(true, confirmedExtensions);
-  }, [companionsStale, confirmedExtensions, performSave]);
+    void performSave(true, confirmed);
+  }, [companionsStale, confirmedExtensions, pendingExtensions, performSave]);
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
@@ -877,7 +893,13 @@ export function StudentStammdatenTab({
               type="button"
               variant="outline"
               size="md"
-              onClick={() => setPlanConflict(null)}
+              onClick={() => {
+                // Dismissing the question is a NO: drop the conflicts with it,
+                // so the next save asks again instead of widening the linked
+                // child's Heimweg on a yes that was never given.
+                setPlanConflict(null);
+                setPendingExtensions([]);
+              }}
             >
               Abbrechen
             </Button>

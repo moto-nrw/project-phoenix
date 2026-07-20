@@ -46,10 +46,13 @@ import { subscribeStudentCompanionsChanged } from "~/lib/student-companion-api";
  * Being too STRICT is what costs the user their work: the form would block the
  * save they just completed.
  *
- * The generosity only holds because the window is armed solely after a save
- * that can actually be echoed (see withOwnWrite's `mayAnnounce`): armed after
- * every save, a pure name edit would spend it on suppressing a genuinely
- * remote change instead.
+ * The generosity only holds because of two limits. The window is armed solely
+ * after a save that can actually be echoed (see withOwnWrite's `mayAnnounce`) —
+ * armed after every save, a pure name edit would spend it on suppressing a
+ * genuinely remote change instead. And an announcement in the window is only
+ * ATTRIBUTED to our save, never verified as its echo (the bus carries no
+ * correlation id), so it may reset only a draft that already existed when the
+ * save settled; see the listener.
  */
 const OWN_WRITE_ECHO_GRACE_MS = 10_000;
 
@@ -113,6 +116,12 @@ export function useCompanionRemoteRefresh({
   // Deadline until which an announcement is still attributed to the write that
   // just finished — see OWN_WRITE_ECHO_GRACE_MS.
   const ownWriteEchoUntilRef = useRef(0);
+  // When the last own write settled, and when the current draft started
+  // differing from the loaded snapshot (0 while it does not). A draft that was
+  // born AFTER the save cannot be the one the save wrote, so the echo must not
+  // reset it — see the listener below.
+  const ownWriteSettledAtRef = useRef(0);
+  const dirtySinceRef = useRef(0);
   // Layout effect, not a passive one: the SSE listener below runs in its own
   // task, and passive effects flush after paint — so between committing a
   // render that turned the draft dirty and the passive flush, a notification
@@ -121,6 +130,11 @@ export function useCompanionRemoteRefresh({
   // commit, before any other task gets to observe these refs.
   useLayoutEffect(() => {
     activeRef.current = active;
+    if (hasUnsavedCompanionEdits && !dirtyRef.current) {
+      dirtySinceRef.current = Date.now();
+    } else if (!hasUnsavedCompanionEdits) {
+      dirtySinceRef.current = 0;
+    }
     dirtyRef.current = hasUnsavedCompanionEdits;
     refreshRef.current = onRefresh;
   });
@@ -138,6 +152,24 @@ export function useCompanionRemoteRefresh({
           // The SSE echo of our own save. Consume the grace with it so a
           // genuinely remote write arriving right after is judged normally.
           ownWriteEchoUntilRef.current = 0;
+          // ...but only the draft the save actually wrote may be reset by it.
+          // The bus carries no correlation id (the announcement is untargeted
+          // on purpose — links are symmetric), so an event landing in this
+          // window is ATTRIBUTED to our save rather than verified as its echo.
+          // A draft that started differing only after the save settled is
+          // therefore work this echo cannot account for: resetting it would
+          // throw away edits the user made after their save, and a foreign
+          // announcement arriving first would do it for somebody else's write.
+          // Keep it. The baseline then stays the possibly pre-commit list, but
+          // that costs nothing silently: the save carries the fingerprint of
+          // exactly that list, so the backend refuses it with 409
+          // `companions_changed` (→ markStale) instead of overwriting anyone.
+          if (
+            dirtyRef.current &&
+            dirtySinceRef.current > ownWriteSettledAtRef.current
+          ) {
+            return;
+          }
           // Refetch instead of returning: the caller starts its reload the
           // moment withOwnWrite resolves, but the response is streamed from the
           // handler BEFORE the outer tenant transaction commits (see
@@ -189,7 +221,9 @@ export function useCompanionRemoteRefresh({
         // produce no echo, so a grace period after them could only ever
         // swallow somebody else's genuine change.
         if (mayAnnounce) {
-          ownWriteEchoUntilRef.current = Date.now() + OWN_WRITE_ECHO_GRACE_MS;
+          const settledAt = Date.now();
+          ownWriteSettledAtRef.current = settledAt;
+          ownWriteEchoUntilRef.current = settledAt + OWN_WRITE_ECHO_GRACE_MS;
         }
         return result;
       } finally {

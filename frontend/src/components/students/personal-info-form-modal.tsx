@@ -64,6 +64,13 @@ export function PersonalInfoFormModal({
   const [confirmedExtensions, setConfirmedExtensions] = useState<
     CompanionExtensionConfirmation[]
   >([]);
+  // The children and weekdays the OPEN question is about — not yet approved.
+  // They only become confirmed extensions when the user clicks "Ergänzen und
+  // speichern"; merging them on arrival would let "Abbrechen" leave a yes
+  // behind that widens another child's Heimweg on the next ordinary save.
+  const [pendingExtensions, setPendingExtensions] = useState<
+    CompanionExtensionConfirmation[]
+  >([]);
   // The submitted list REPLACES the stored one, so saving is blocked until the
   // stored links are known: an empty list from a pending or failed load would
   // silently delete the child's Laufgemeinschaft.
@@ -97,6 +104,7 @@ export function PersonalInfoFormModal({
       );
       setPlanConflict(null);
       setConfirmedExtensions([]);
+      setPendingExtensions([]);
     }
   }, [isOpen, student]);
 
@@ -287,15 +295,16 @@ export function PersonalInfoFormModal({
       // stays mounted across open/close, so a stale list would ride along
       // with a later save and re-widen a companion's plan unasked.
       setConfirmedExtensions([]);
+      setPendingExtensions([]);
       onClose();
     } catch (err) {
       if (err instanceof CompanionPlanConflictError) {
         // Not a failure: ask, then repeat the same save confirming exactly the
-        // children and weekdays the message named.
+        // children and weekdays the message named. The conflicts stay PENDING
+        // until that yes — "Abbrechen" must leave nothing behind that a later
+        // ordinary save could carry along and widen unasked.
         setPlanConflict(err.message);
-        setConfirmedExtensions((current) =>
-          mergeCompanionConfirmations(current, err.conflicts),
-        );
+        setPendingExtensions(err.conflicts);
         return;
       }
       logger.error("failed to save personal information", {
@@ -408,7 +417,13 @@ export function PersonalInfoFormModal({
             <div className="mt-2 flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setPlanConflict(null)}
+                onClick={() => {
+                  // Dismissing the question is a NO: drop the conflicts with
+                  // it, so the next save asks again instead of widening the
+                  // linked child's Heimweg on a yes that was never given.
+                  setPlanConflict(null);
+                  setPendingExtensions([]);
+                }}
                 className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50"
               >
                 Abbrechen
@@ -420,6 +435,14 @@ export function PersonalInfoFormModal({
                   // Same reason as in handleSave — the confirmed retry
                   // re-sends the very list that went stale.
                   if (companionsStale) return;
+                  // The yes happens HERE: only now do the conflicts the
+                  // question named become confirmed extensions.
+                  const confirmed = mergeCompanionConfirmations(
+                    confirmedExtensions,
+                    pendingExtensions,
+                  );
+                  setConfirmedExtensions(confirmed);
+                  setPendingExtensions([]);
                   updateField("extend_companion_plans", true);
                   void submit(
                     normalizeAllowedDepartureModes(
@@ -433,7 +456,7 @@ export function PersonalInfoFormModal({
                         ),
                     ),
                     true,
-                    confirmedExtensions,
+                    confirmed,
                   );
                 }}
                 className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:opacity-50"

@@ -149,6 +149,47 @@ describe("useCompanionRemoteRefresh", () => {
     expect(result.current.companionsStale).toBe(true);
   });
 
+  it("keeps a draft that was started after the save out of the echo's reach", async () => {
+    // The bus carries no correlation id, so an announcement in the grace window
+    // is only ATTRIBUTED to our save — it may be somebody else's write arriving
+    // first. Either way it cannot account for edits the user made AFTER their
+    // save settled, so those must survive it. (The baseline then stays the
+    // pre-echo list, and a save built on it is refused by the backend's
+    // fingerprint check rather than overwriting anyone.)
+    vi.useFakeTimers();
+    try {
+      const onRefresh = vi.fn();
+      const { result, rerender } = renderHook(
+        ({ dirty }: { dirty: boolean }) =>
+          useCompanionRemoteRefresh({
+            active: true,
+            hasUnsavedCompanionEdits: dirty,
+            onRefresh,
+          }),
+        { initialProps: { dirty: false } },
+      );
+
+      await act(async () => {
+        await result.current.withOwnWrite(() => Promise.resolve("saved"), true);
+      });
+
+      // The user starts a NEW edit after their save landed.
+      act(() => {
+        vi.advanceTimersByTime(50);
+      });
+      rerender({ dirty: true });
+
+      act(() => {
+        notifyStudentCompanionsChanged();
+      });
+
+      expect(onRefresh).not.toHaveBeenCalled();
+      expect(result.current.companionsStale).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("refetches instead of flagging while nothing is edited", () => {
     const onRefresh = vi.fn();
     const { result } = renderHook(() =>
