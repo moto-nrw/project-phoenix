@@ -113,9 +113,16 @@ func (s *TimetableBridgeService) notScheduledForEndedSessions(
 		return nil, nil
 	}
 
-	rows, err := s.deps.InstanceStudents.FindExpectedByInstanceIDs(ctx, instanceIDs)
+	// Not just the 'expected' rows: a broad day status (sick / excused / class
+	// trip) is reported before anything knows whether the child was booked into
+	// care, so a child the plan never booked can already sit here as 'absent'
+	// with the status day owning the row. Ending the block is what resolves
+	// that, and MarkNotScheduled can only undo the false absence on rows this
+	// query hands it (#1747 review). Complete() has the same reach because it
+	// loads the instance's full roster.
+	rows, err := s.deps.InstanceStudents.FindNotScheduledCandidatesByInstanceIDs(ctx, instanceIDs)
 	if err != nil {
-		return nil, &ScheduleError{Op: "complete bridged instances: load expected students", Err: err}
+		return nil, &ScheduleError{Op: "complete bridged instances: load candidate students", Err: err}
 	}
 	if len(rows) == 0 {
 		return nil, nil

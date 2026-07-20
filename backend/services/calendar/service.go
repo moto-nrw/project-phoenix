@@ -16,6 +16,7 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -67,8 +68,11 @@ type Config struct {
 	InstanceStaffRepo    scheduleModels.InstanceStaffRepository
 	InstanceStudentRepo  scheduleModels.InstanceStudentRepository
 	ActivityInstanceRepo scheduleModels.ActivityInstanceRepository
-	UserContext          usercontext.UserContextService
-	DB                   *bun.DB
+	// CareDays judges unfinished timetable blocks against the care plan; a
+	// completed block is read from its persisted marker instead (#1747).
+	CareDays    scheduleSvc.CareDayService
+	UserContext usercontext.UserContextService
+	DB          *bun.DB
 }
 
 type service struct {
@@ -820,22 +824,70 @@ func (s *service) staffTimetableEvents(ctx context.Context, staffID int64, from,
 	return events, nil
 }
 
+// parentCareDays resolves the care-plan verdict for every child in the window,
+// so an unfinished block can be judged against the plan. Returns an empty map
+// when no care-day service is wired, which keeps the previous behaviour (show
+// the event) instead of silently hiding care from parents.
+func (s *service) parentCareDays(
+	ctx context.Context, children []*parentModels.ChildSummary, from, to timezone.Date,
+) (map[int64]map[timezone.Date]scheduleSvc.CareDayStatus, error) {
+	empty := map[int64]map[timezone.Date]scheduleSvc.CareDayStatus{}
+	if s.cfg.CareDays == nil {
+		return empty, nil
+	}
+	studentIDs := distinctChildStudentIDs(children)
+	if len(studentIDs) == 0 {
+		return empty, nil
+	}
+	careDays, err := s.cfg.CareDays.ResolveForRange(ctx, studentIDs, from, to)
+	if err != nil {
+		return nil, err
+	}
+	return careDays, nil
+}
+
+// notScheduledForParent reports whether a timetable block must stay out of the
+// parent calendar because the care plan does not book the child that day
+// (#1747). Showing a care event for a day their child was never booked into is
+// the same false claim the attendance history refuses to make.
+//
+// The verdict has two sources, mirroring instanceStudentCareDay in
+// api/timetable: a completed block is frozen — ending it wrote the marker, and
+// a later care-plan edit must not rewrite what a finished day meant — while a
+// planned or running block carries no marker yet and is judged against the
+// current plan. Either way only a row still 'expected' can be hidden: a
+// check-in or a hand-made decision tells its own story and outranks the plan.
+//
+// A cancelled care day ("kommt heute nicht") is deliberately NOT hidden. The
+// day was booked, so the block still exists for that child — same reason
+// ending a block still writes their absence (CareDayStatus.ExemptFromAbsence).
+func notScheduledForParent(
+	instance *scheduleModels.ActivityInstance,
+	row *scheduleModels.InstanceStudent,
+	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
+) bool {
+	if row.Status != scheduleModels.AttendanceStatusExpected {
+		return false
+	}
+	if instance.Status == scheduleModels.InstanceStatusCompleted {
+		return row.NotScheduled
+	}
+	return careDays[row.StudentID][instance.Date] == scheduleSvc.CareDayNotScheduled
+}
+
 func (s *service) parentTimetableEvents(ctx context.Context, children []*parentModels.ChildSummary, from, to timezone.Date) ([]Event, error) {
 	events := []Event{}
 	seen := make(map[string]struct{})
+	careDays, err := s.parentCareDays(ctx, children, from, to)
+	if err != nil {
+		return nil, err
+	}
 	for _, child := range children {
 		rows, err := s.cfg.InstanceStudentRepo.FindByStudentAndDateRange(ctx, child.StudentID, from, to)
 		if err != nil {
 			return nil, err
 		}
 		for _, row := range rows {
-			// A block that ended stamped this marker on the children the care
-			// plan did not book that day (#1747). Showing the parent a care
-			// event for a day their child was never booked into is the same
-			// false claim the attendance history refuses to make.
-			if row.NotScheduled && row.Status == scheduleModels.AttendanceStatusExpected {
-				continue
-			}
 			key := fmt.Sprintf("%d:%d", child.StudentID, row.InstanceID)
 			if _, ok := seen[key]; ok {
 				continue
@@ -846,6 +898,9 @@ func (s *service) parentTimetableEvents(ctx context.Context, children []*parentM
 				return nil, err
 			}
 			if instance.Status == scheduleModels.InstanceStatusCancelled {
+				continue
+			}
+			if notScheduledForParent(instance, row, careDays) {
 				continue
 			}
 			timetableID := formatID(instance.ID)

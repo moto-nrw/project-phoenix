@@ -1375,6 +1375,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		InstanceStaffRepo:    repos.InstanceStaff,
 		InstanceStudentRepo:  repos.InstanceStudent,
 		ActivityInstanceRepo: repos.ActivityInstance,
+		CareDays:             careDayService,
 		UserContext:          userContextService,
 		DB:                   db,
 	})

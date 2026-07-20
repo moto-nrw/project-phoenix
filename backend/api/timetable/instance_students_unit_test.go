@@ -79,6 +79,9 @@ func (f *fakeRepo) FindByInstanceID(context.Context, int64) ([]*schedule.Instanc
 func (f *fakeRepo) FindExpectedByInstanceIDs(context.Context, []int64) ([]*schedule.InstanceStudent, error) {
 	panic("unused")
 }
+func (f *fakeRepo) FindNotScheduledCandidatesByInstanceIDs(context.Context, []int64) ([]*schedule.InstanceStudent, error) {
+	panic("unused")
+}
 func (f *fakeRepo) CountNonAbsentByInstanceIDs(context.Context, []int64) (map[int64]int, error) {
 	panic("unused")
 }

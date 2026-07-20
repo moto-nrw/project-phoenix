@@ -1237,6 +1237,81 @@ func TestInstanceStudentRepository_FindExpectedByInstanceIDs_TenantScoped(t *tes
 	assert.Empty(t, rows, "row from tenant 1 must not leak to tenant 2")
 }
 
+// The session-end bridge feeds this result straight into MarkNotScheduled, so
+// the two predicates have to agree: an absence a day status still owns is a row
+// that write can take back, and reading only 'expected' rows hid exactly those
+// children from the bridge — leaving a never-booked child a false absence in
+// their history and exports (#1747 review).
+func TestInstanceStudentRepository_FindNotScheduledCandidatesByInstanceIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	factory := repositories.NewFactory(db)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	date := timezone.NewDate(2026, 10, 16)
+	inst, cleanupInst := createInstanceFixture(t, db, "candidates", date)
+	defer cleanupInst()
+
+	suffix := time.Now().UnixNano()
+	expectedStudent := testpkg.CreateTestStudent(t, db, "Exp", fmt.Sprintf("Cand-%d", suffix), "3a")
+	sickStudent := testpkg.CreateTestStudent(t, db, "Sick", fmt.Sprintf("Cand-%d", suffix+1), "3a")
+	manualStudent := testpkg.CreateTestStudent(t, db, "Manual", fmt.Sprintf("Cand-%d", suffix+2), "3a")
+	presentStudent := testpkg.CreateTestStudent(t, db, "Pres", fmt.Sprintf("Cand-%d", suffix+3), "3a")
+	defer testpkg.CleanupActivityFixtures(t, db,
+		expectedStudent.ID, sickStudent.ID, manualStudent.ID, presentStudent.ID)
+
+	create := func(studentID int64, status string) *scheduleModels.InstanceStudent {
+		row := &scheduleModels.InstanceStudent{InstanceID: inst.ID, StudentID: studentID, Status: status}
+		row.SetTenantID(1)
+		require.NoError(t, repo.Create(ctx, row))
+		return row
+	}
+
+	expectedRow := create(expectedStudent.ID, scheduleModels.AttendanceStatusExpected)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", expectedRow.ID)
+	sickRow := create(sickStudent.ID, scheduleModels.AttendanceStatusExpected)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", sickRow.ID)
+	manualRow := create(manualStudent.ID, scheduleModels.AttendanceStatusAbsent)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", manualRow.ID)
+	presentRow := create(presentStudent.ID, scheduleModels.AttendanceStatusPresent)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", presentRow.ID)
+
+	sick := &activeModels.StudentStatusDay{
+		StudentID: sickStudent.ID, Date: date, Status: activeModels.StudentStatusDaySick,
+		ReportedAt: time.Date(2026, 10, 16, 7, 0, 0, 0, time.UTC), Source: activeModels.StudentStatusSourcePlanned,
+	}
+	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, sick))
+
+	got, err := repo.FindByID(ctx, sickRow.ID)
+	require.NoError(t, err)
+	require.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status, "precondition: the sick report writes the absence")
+
+	rows, err := repo.FindNotScheduledCandidatesByInstanceIDs(ctx, []int64{inst.ID})
+	require.NoError(t, err)
+	ids := make(map[int64]bool, len(rows))
+	for _, row := range rows {
+		ids[row.ID] = true
+	}
+	assert.True(t, ids[expectedRow.ID], "an expected row is the ordinary candidate")
+	assert.True(t, ids[sickRow.ID], "a status-day-owned absence is still resolvable")
+	assert.False(t, ids[manualRow.ID], "a hand-made absence decision is nobody else's to undo")
+	assert.False(t, ids[presentRow.ID], "an observed check-in tells its own story")
+
+	t.Run("empty input returns empty slice without DB roundtrip", func(t *testing.T) {
+		empty, err := repo.FindNotScheduledCandidatesByInstanceIDs(ctx, nil)
+		require.NoError(t, err)
+		assert.Empty(t, empty)
+	})
+
+	t.Run("tenant scoped", func(t *testing.T) {
+		leaked, err := repo.FindNotScheduledCandidatesByInstanceIDs(testpkg.TenantContext(2), []int64{inst.ID})
+		require.NoError(t, err)
+		assert.Empty(t, leaked, "rows from tenant 1 must not leak to tenant 2")
+	})
+}
+
 func TestInstanceStudentRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

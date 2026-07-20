@@ -110,6 +110,42 @@ func (r *InstanceStudentRepository) FindExpectedByInstanceIDs(ctx context.Contex
 	return rows, nil
 }
 
+// FindNotScheduledCandidatesByInstanceIDs implements
+// schedule.InstanceStudentRepository: every row ending a block may still
+// resolve — 'expected', or 'absent' while a broad day status still owns it.
+//
+// The WHERE mirrors MarkNotScheduled's row predicate on purpose: the session-end
+// bridge feeds this result straight into that write, so a shape the write can
+// change must not be missing here. Reading only 'expected' rows hid children
+// whose day status had already stamped a false absence on them (#1747).
+func (r *InstanceStudentRepository) FindNotScheduledCandidatesByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*schedule.InstanceStudent, error) {
+	if len(instanceIDs) == 0 {
+		return []*schedule.InstanceStudent{}, nil
+	}
+	var rows []*schedule.InstanceStudent
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(modelTblInstanceStudent).
+		Where(`"instance_student".instance_id IN (?)`, bun.List(instanceIDs)).
+		WhereGroup(" AND ", func(group *bun.SelectQuery) *bun.SelectQuery {
+			return group.
+				WhereOr(`"instance_student".status = ?`, schedule.AttendanceStatusExpected).
+				WhereOr(`("instance_student".status = ? AND "instance_student".student_status_day_id IS NOT NULL)`,
+					schedule.AttendanceStatusAbsent)
+		}).
+		OrderExpr(`"instance_student".instance_id ASC, "instance_student".student_id ASC`)
+
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find not scheduled candidates by instance ids",
+			Err: err,
+		}
+	}
+	return rows, nil
+}
+
 // CountNonAbsentByInstanceIDs groups instance_students by instance_id and
 // returns the count of rows with status != 'absent' per instance. One query
 // with GROUP BY, mirroring InstanceStaffRepository.CountNonAbsentByInstanceIDs

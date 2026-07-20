@@ -161,6 +161,21 @@ type InstanceStudentRepository interface {
 	// modification exception attached.
 	FindExpectedByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*InstanceStudent, error)
 
+	// FindNotScheduledCandidatesByInstanceIDs returns every row that ending a
+	// block may still resolve: rows still 'expected', plus rows a broad day
+	// status (sick / excused / class trip) already flipped to 'absent' and
+	// still owns (student_status_day_id IS NOT NULL). Tenant-scoped, empty
+	// slice for empty input.
+	//
+	// It exists because 'expected' alone is not the candidate set. ApplyStatusDay
+	// runs before anything knows whether the child was booked into care that
+	// day, so a child who was never booked can already sit there as 'absent'.
+	// The session-end bridge has to see those rows too, or MarkNotScheduled
+	// never gets the chance to undo that false absence (#1747). The predicate
+	// deliberately mirrors MarkNotScheduled's WHERE — a row this query omits is
+	// a row that write could not have changed anyway.
+	FindNotScheduledCandidatesByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*InstanceStudent, error)
+
 	// CountNonAbsentByInstanceIDs groups rows by instance_id and returns the
 	// count of rows with status != 'absent' per instance, mirroring
 	// InstanceStaffRepository.CountNonAbsentByInstanceIDs. Instances with

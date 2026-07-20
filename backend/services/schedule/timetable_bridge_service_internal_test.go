@@ -37,15 +37,15 @@ func (f *bridgeInstanceRepoStub) CompleteActiveByActiveGroupIDs(_ context.Contex
 type bridgeStudentRepoStub struct {
 	scheduleModel.InstanceStudentRepository
 
-	expected      []*scheduleModel.InstanceStudent
+	candidates    []*scheduleModel.InstanceStudent
 	markErr       error
 	gotExclusions []scheduleModel.StudentInstanceRef
 	gotMarked     []scheduleModel.StudentInstanceRef
 	calls         *[]string
 }
 
-func (f *bridgeStudentRepoStub) FindExpectedByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStudent, error) {
-	return f.expected, nil
+func (f *bridgeStudentRepoStub) FindNotScheduledCandidatesByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStudent, error) {
+	return f.candidates, nil
 }
 
 func (f *bridgeStudentRepoStub) MarkNotScheduled(_ context.Context, refs []scheduleModel.StudentInstanceRef) error {
@@ -112,7 +112,7 @@ func TestTimetableBridgeCompletesOnlyAfterFinalizingAttendance(t *testing.T) {
 	instances.byActiveGroup[activeGroupID].ID = instanceID
 
 	students := &bridgeStudentRepoStub{
-		expected: []*scheduleModel.InstanceStudent{
+		candidates: []*scheduleModel.InstanceStudent{
 			{InstanceID: instanceID, StudentID: bookedStudent},
 			{InstanceID: instanceID, StudentID: notBookedChild},
 			{InstanceID: instanceID, StudentID: cancelledChild},
@@ -150,6 +150,63 @@ func TestTimetableBridgeCompletesOnlyAfterFinalizingAttendance(t *testing.T) {
 	// it is indistinguishable from an ordinary expected row, and the next
 	// writer of `status` would silently create or destroy the fact.
 	assert.Equal(t, students.gotExclusions, students.gotMarked)
+}
+
+// A broad day status (sick / excused / class trip) is reported before anything
+// knows whether the child was booked into care, so ApplyStatusDay can already
+// have flipped a never-booked child's row to 'absent'. Ending the block is what
+// resolves that — but only for rows the bridge actually looks at. Reading only
+// 'expected' rows left the false absence standing in the history and the
+// exports (#1747 review).
+func TestTimetableBridgeUndoesStatusDayAbsenceForUnbookedChild(t *testing.T) {
+	const (
+		activeGroupID  int64 = 8803
+		instanceID     int64 = 7703
+		statusDayID    int64 = 3301
+		notBookedChild int64 = 5504
+	)
+	date := timezone.NewDate(2026, 4, 21)
+	calls := make([]string, 0, 3)
+
+	instances := &bridgeInstanceRepoStub{
+		byActiveGroup: map[int64]*scheduleModel.ActivityInstance{
+			activeGroupID: {Date: date, Title: "Hausaufgaben"},
+		},
+		completed: 1,
+		calls:     &calls,
+	}
+	instances.byActiveGroup[activeGroupID].ID = instanceID
+
+	statusDay := statusDayID
+	students := &bridgeStudentRepoStub{
+		candidates: []*scheduleModel.InstanceStudent{{
+			InstanceID:         instanceID,
+			StudentID:          notBookedChild,
+			Status:             scheduleModel.AttendanceStatusAbsent,
+			StudentStatusDayID: &statusDay,
+		}},
+		calls: &calls,
+	}
+
+	svc := NewTimetableBridgeService(TimetableBridgeDependencies{
+		Instances:        instances,
+		InstanceStudents: students,
+		CareDays: &bridgeCareDayStub{byStudent: map[int64]CareDayStatus{
+			notBookedChild: CareDayNotScheduled,
+		}},
+	})
+
+	_, err := svc.CompleteActiveByActiveGroupIDs(
+		context.Background(), []int64{activeGroupID}, time.Now(),
+	)
+	require.NoError(t, err)
+
+	ref := scheduleModel.StudentInstanceRef{StudentID: notBookedChild, InstanceID: instanceID}
+	assert.Equal(t, []scheduleModel.StudentInstanceRef{ref}, students.gotMarked,
+		"the status-day absence must reach MarkNotScheduled, or it stays in the history")
+	// MarkNotScheduled resets the row to 'expected'; without the same exclusion
+	// the bulk absent update would immediately write the absence back.
+	assert.Equal(t, []scheduleModel.StudentInstanceRef{ref}, students.gotExclusions)
 }
 
 func TestTimetableBridgeDoesNotCompleteWhenAttendanceFinalizationFails(t *testing.T) {
