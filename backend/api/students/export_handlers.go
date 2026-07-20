@@ -127,12 +127,21 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	columns := listexport.ResolveColumns(req.Columns, req.Preset)
-	// Only the departure column renders the structured "mit wem" names, so only
-	// it turns a companion-lookup failure into a document that is wrong rather
-	// than merely less detailed — see enrichWithCompanionLinks.
-	if err := rs.enrichWithCompanionLinks(r.Context(), responses, accessCtx); err != nil && exportHasColumn(columns, listexport.ColumnDeparture) {
-		renderError(w, r, common.ErrorInternalServer(err))
-		return
+	// Only the departure column renders the structured "mit wem" names — it is
+	// the single reader of DepartureCompanions — so any other column pays for
+	// the links of every exported child, their far-end students and the
+	// authorization behind them and then throws the result away. At the export
+	// cap of 5.000 rows that is the most expensive lookup in this handler, so
+	// it is skipped outright rather than merely tolerated when it fails.
+	//
+	// Which is also why the failure aborts HERE: it now only runs where a
+	// missing name makes the document wrong rather than merely less detailed —
+	// see enrichWithCompanionLinks.
+	if exportHasColumn(columns, listexport.ColumnDeparture) {
+		if err := rs.enrichWithCompanionLinks(r.Context(), responses, accessCtx); err != nil {
+			renderError(w, r, common.ErrorInternalServer(err))
+			return
+		}
 	}
 	enrollmentSummaries, err := rs.loadActiveEnrollmentSummaries(r, collectResponseIDs(responses), timezone.DateFromTime(today), columns)
 	if err != nil {

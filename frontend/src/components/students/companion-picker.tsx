@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Plus, Search, X } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -79,11 +79,28 @@ export function CompanionPicker({
   const dayOptions = COMPANION_WEEKDAYS.filter((day) =>
     allowedDays.includes(day.value),
   );
+  // Content identity of the plan's accompanied days: the prop is a fresh array
+  // on every render, so only this tells a real plan change from a re-render.
+  const allowedKey = dayOptions.map((day) => day.value).join("|");
+  const lastAllowedKeyRef = useRef(allowedKey);
 
-  // Drop weekdays that the plan no longer allows, so unticking "Anderes Kind"
+  // Drop weekdays that a PLAN EDIT just took away, so unticking "Anderes Kind"
   // for Thursday cannot leave a Thursday link behind. Entries left without any
   // day disappear entirely — a link on no day is not a link.
+  //
+  // Bound to a CHANGE of the allowed days on purpose, never to `value`: the
+  // list is also replaced wholesale when the stored links are re-fetched after
+  // a remote write, and that list is current while the plan above can still be
+  // the pre-write one the page has not revalidated yet. Trimming the fresh list
+  // against the stale plan would delete a link somebody else just created — and
+  // since the save then carries the fingerprint of exactly that freshly loaded
+  // list, the backend's baseline check would see a matching baseline and accept
+  // the deletion instead of refusing it. An untouched plan removes nothing
+  // here; a narrowed plan that is actually saved is trimmed by the backend,
+  // against the baseline it was given.
   useEffect(() => {
+    if (lastAllowedKeyRef.current === allowedKey) return;
+    lastAllowedKeyRef.current = allowedKey;
     const trimmed = value
       .map((companion) => ({
         ...companion,
@@ -97,7 +114,7 @@ export function CompanionPicker({
           companion.weekdays.length !== value[index]?.weekdays.length,
       );
     if (changed) onChange(trimmed);
-  }, [allowedDays, value, onChange]);
+  }, [allowedKey, allowedDays, value, onChange]);
 
   // Debounced child search. The current child and everyone already linked are
   // filtered out client-side so the list only offers valid additions.
@@ -203,7 +220,15 @@ export function CompanionPicker({
           const next = companion.weekdays.includes(weekday)
             ? companion.weekdays.filter((day) => day !== weekday)
             : [...companion.weekdays, weekday];
-          const weekdays = allowedDays.filter((day) => next.includes(day));
+          // Mo..Fr order, and deliberately not filtered to allowedDays: a day
+          // the plan above does not currently allow has no checkbox in this
+          // row, so ticking another one is no statement about it. A list loaded
+          // after a remote write can carry such a day while the plan prop is
+          // still the pre-write one — dropping it here would delete somebody
+          // else's day on the back of an unrelated tick.
+          const weekdays = COMPANION_WEEKDAYS.filter((day) =>
+            next.includes(day.value),
+          ).map((day) => day.value);
           // Unticking the last day is how the user says "not this child after
           // all". Keeping the entry with an empty day list would look like a
           // valid edit and then fail the save with a message the row cannot
@@ -213,7 +238,7 @@ export function CompanionPicker({
         }),
       );
     },
-    [value, allowedDays, onChange],
+    [value, onChange],
   );
 
   const removeCompanion = useCallback(
