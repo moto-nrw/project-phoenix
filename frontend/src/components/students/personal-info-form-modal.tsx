@@ -340,8 +340,15 @@ export function PersonalInfoFormModal({
         />
         <DepartureSection
           companions={editedStudent.companions}
-          onCompanionsChange={(companions) =>
-            updateField("companions", companions)
+          // Editable ONLY once the stored links are known. While the fetch is
+          // pending the picker would start from an empty list and be
+          // overwritten the moment it resolves; after a failed load the edit is
+          // discarded silently, because submit deliberately sends
+          // `companions: undefined` rather than delete links it never read.
+          onCompanionsChange={
+            companionsStatus === "ready"
+              ? (companions) => updateField("companions", companions)
+              : undefined
           }
           companionStudentId={student.id}
           onCompanionExtensionConfirmed={(confirmation) => {

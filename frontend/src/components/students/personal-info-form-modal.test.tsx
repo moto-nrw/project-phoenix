@@ -2,6 +2,21 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { PersonalInfoFormModal } from "./personal-info-form-modal";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
+import type { StudentCompanion } from "~/lib/student-companion-api";
+
+const { fetchStudentCompanionsMock } = vi.hoisted(() => ({
+  // Unreachable by default, exactly like the un-mocked network call these
+  // tests used to make: the stored links stay unknown, which is the state
+  // every suite below assumes.
+  fetchStudentCompanionsMock: vi.fn<
+    (studentId: string) => Promise<StudentCompanion[]>
+  >(() => Promise.reject(new Error("companions unavailable"))),
+}));
+
+vi.mock("~/lib/student-companion-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/student-companion-api")>()),
+  fetchStudentCompanions: fetchStudentCompanionsMock,
+}));
 
 // Mock FormModal
 vi.mock("~/components/ui/form-modal", () => ({
@@ -442,6 +457,94 @@ describe("PersonalInfoFormModal", () => {
           }),
         );
       });
+    });
+  });
+
+  describe("Laufgemeinschaft editability", () => {
+    // The submitted companion list REPLACES the stored one. Editing it before
+    // the stored links are on screen would either be overwritten the moment
+    // the fetch resolves, or — after a failed load — be dropped without a word,
+    // because the save deliberately sends no companion list it never read.
+    // So the picker only appears once the load succeeded.
+    const accompaniedStudentProps = {
+      allowed_departure_modes: { mon: ["accompanied"] },
+    } as unknown as Partial<ExtendedStudent>;
+
+    it("offers the picker once the stored links are loaded", async () => {
+      fetchStudentCompanionsMock.mockResolvedValue([
+        { companion_student_id: "42", first_name: "Lina", weekdays: ["mon"] },
+      ]);
+
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent(accompaniedStudentProps)}
+          onSave={mockOnSave}
+        />,
+      );
+
+      expect(
+        await screen.findByRole("button", { name: /Kind hinzufügen/ }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Lina")).toBeInTheDocument();
+    });
+
+    it("keeps the picker read-only while the companions are still loading", async () => {
+      let resolveCompanions: (companions: StudentCompanion[]) => void = () =>
+        undefined;
+      fetchStudentCompanionsMock.mockImplementation(
+        () =>
+          new Promise<StudentCompanion[]>((resolve) => {
+            resolveCompanions = resolve;
+          }),
+      );
+
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent(accompaniedStudentProps)}
+          onSave={mockOnSave}
+        />,
+      );
+
+      // The accompanied day IS selected, so the only reason the picker is
+      // missing is the pending load.
+      expect(
+        screen.getByRole("checkbox", { name: "Montag: Anderes Kind" }),
+      ).toBeChecked();
+      expect(
+        screen.queryByRole("button", { name: /Kind hinzufügen/ }),
+      ).not.toBeInTheDocument();
+
+      resolveCompanions([]);
+
+      expect(
+        await screen.findByRole("button", { name: /Kind hinzufügen/ }),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps the picker read-only after the companions failed to load", async () => {
+      fetchStudentCompanionsMock.mockRejectedValue(new Error("500"));
+
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent(accompaniedStudentProps)}
+          onSave={mockOnSave}
+        />,
+      );
+
+      // The user is told why the section is missing instead of being handed an
+      // empty list that would look like "no links exist".
+      expect(
+        await screen.findByText(/Laufgemeinschaft konnte nicht geladen werden/),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Kind hinzufügen/ }),
+      ).not.toBeInTheDocument();
     });
   });
 
