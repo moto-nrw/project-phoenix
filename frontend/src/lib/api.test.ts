@@ -1296,9 +1296,9 @@ describe("api.ts helper functions", () => {
 
     // The "läuft mit" links are stored in their own table and are absent from
     // this response, and the backend also trims links a shrunken departure plan
-    // no longer allows — so a successful update has to tell every mounted
+    // no longer allows — so a departure-plan update has to tell every mounted
     // companion view to refetch, or it renders the pre-save list (#1694).
-    it("announces a companion change after a successful update", async () => {
+    it("announces a companion change after a departure plan update", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({ data: { id: 1, first_name: "Updated" } }),
@@ -1317,7 +1317,72 @@ describe("api.ts helper functions", () => {
       const unsubscribe = subscribeStudentCompanionsChanged(listener);
       const restore = setupBrowserEnv();
       try {
+        await studentService.updateStudent("1", {
+          first_name: "Updated",
+          departure_days: { mon: "accompanied" },
+        });
+        expect(listener).toHaveBeenCalledTimes(1);
+      } finally {
+        unsubscribe();
+        restore();
+      }
+    });
+
+    // The announcement is not a free refetch: an open Laufgemeinschaft form
+    // answers it by discarding its draft, or by blocking the save while the
+    // draft is dirty. A payload that cannot touch a link — a sick flag, a
+    // rename, a photo — must therefore stay silent, or an unrelated action in
+    // the same tab costs the user the edit they are in the middle of (#1694).
+    it("stays silent for an update that cannot change companions", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: { id: 1, first_name: "Updated" } }),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+      const { subscribeStudentCompanionsChanged } =
+        await import("./student-companion-api");
+
+      const listener = vi.fn();
+      const unsubscribe = subscribeStudentCompanionsChanged(listener);
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.updateStudent("1", { sick: true });
         await studentService.updateStudent("1", { first_name: "Updated" });
+        expect(listener).not.toHaveBeenCalled();
+      } finally {
+        unsubscribe();
+        restore();
+      }
+    });
+
+    // An edited list travels as `companions` and replaces the stored one, so it
+    // is the one payload that certainly changed the links.
+    it("announces a companion change when a list is submitted", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: { id: 1, first_name: "Updated" } }),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+      const { subscribeStudentCompanionsChanged } =
+        await import("./student-companion-api");
+
+      const listener = vi.fn();
+      const unsubscribe = subscribeStudentCompanionsChanged(listener);
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.updateStudent("1", { companions: [] });
         expect(listener).toHaveBeenCalledTimes(1);
       } finally {
         unsubscribe();

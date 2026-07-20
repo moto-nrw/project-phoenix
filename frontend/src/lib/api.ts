@@ -45,6 +45,39 @@ import {
 // Logger instance for API client
 const logger = createLogger({ component: "ApiClient" });
 
+/**
+ * Whether a student PUT payload can change "läuft mit" links at all (#1694).
+ *
+ * The announcement is not a harmless refetch: an open Laufgemeinschaft form
+ * answers it by discarding its draft, or — when the draft is dirty — by
+ * blocking the save until the user reloads. Firing it after every student
+ * write would do that for a sick flag, a rename or a photo upload, none of
+ * which can touch a link, and would cost the user work for a change that
+ * never happened.
+ *
+ * Three payload shapes CAN change links, mirroring what the backend broadcasts
+ * on: a submitted list (it replaces the stored one), a confirmed plan
+ * extension (it widens a linked child's plan), and a departure-plan change
+ * (the backend trims links off weekdays the new plan no longer allows).
+ * Everything else stays silent — a genuinely remote change still arrives via
+ * the post-commit `student_companions_changed` SSE event.
+ */
+function studentUpdateMayChangeCompanions(
+  student: Partial<Student> & {
+    companions?: unknown;
+    confirmed_companion_extensions?: CompanionExtensionConfirmation[];
+  },
+): boolean {
+  return (
+    student.companions !== undefined ||
+    (student.confirmed_companion_extensions?.length ?? 0) > 0 ||
+    student.allowed_departure_modes !== undefined ||
+    student.departure_days !== undefined ||
+    student.bus_days !== undefined ||
+    student.pickup_days !== undefined
+  );
+}
+
 // Helper function to safely handle errors
 function handleApiError(error: unknown, context: string): Error {
   // Extract error details
@@ -1082,8 +1115,11 @@ export const studentService = {
         // The "läuft mit" links are not part of this response, and a departure
         // plan write can change them even when the caller sent no `companions`
         // list (the backend trims links the new plan no longer allows). Tell
-        // every mounted companion view to refetch instead of leaving it stale.
-        notifyStudentCompanionsChanged();
+        // every mounted companion view to refetch instead of leaving it stale —
+        // but only for a payload that can actually have changed them.
+        if (studentUpdateMayChangeCompanions(student)) {
+          notifyStudentCompanionsChanged();
+        }
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
@@ -1093,7 +1129,9 @@ export const studentService = {
         const mappedResponse = mapSingleStudentResponse({
           data: response.data as unknown as BackendStudent,
         });
-        notifyStudentCompanionsChanged();
+        if (studentUpdateMayChangeCompanions(student)) {
+          notifyStudentCompanionsChanged();
+        }
         return mappedResponse;
       }
     } catch (error) {
