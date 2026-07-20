@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -26,6 +27,19 @@ func accompaniedPlanBody(extra map[string]any) map[string]any {
 		body[k] = v
 	}
 	return body
+}
+
+// mondayLinkFingerprint is the fingerprint of the STORED list a companion
+// submission replaces — every request that carries `companions` has to say what
+// state it started from, or it gets no lost-update protection at all. All the
+// links in this file are Monday links, so the stored state is fully described by
+// the ids it holds (no ids = the empty list a child starts with).
+func mondayLinkFingerprint(ids ...int64) string {
+	links := make([]userModels.CompanionLink, 0, len(ids))
+	for _, id := range ids {
+		links = append(links, userModels.CompanionLink{CompanionStudentID: id, Weekdays: []string{"mon"}})
+	}
+	return userModels.CompanionLinksFingerprint(links)
 }
 
 func putStudent(t *testing.T, tc *testContext, studentID int64, body map[string]any) {
@@ -58,6 +72,7 @@ func TestUpdateStudent_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
 			"companions": []map[string]any{
 				{"companion_student_id": companion.ID, "weekdays": []string{"mon"}},
 			},
+			"companions_fingerprint": mondayLinkFingerprint(),
 		}))
 		assert.True(t, tc.broadcaster.HasEventType(realtime.EventStudentCompanionsChanged),
 			"writing a new link must announce student_companions_changed")
@@ -80,6 +95,7 @@ func TestUpdateStudent_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
 			"companions": []map[string]any{
 				{"companion_student_id": companion.ID, "weekdays": []string{"mon"}},
 			},
+			"companions_fingerprint": mondayLinkFingerprint(companion.ID),
 		}))
 		assert.False(t, tc.broadcaster.HasEventType(realtime.EventStudentCompanionsChanged),
 			"a replacement that writes the same links changed nothing to announce")
@@ -88,7 +104,8 @@ func TestUpdateStudent_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
 	t.Run("clearing the links announces the change", func(t *testing.T) {
 		tc.broadcaster.Reset()
 		putStudent(t, tc, student.ID, accompaniedPlanBody(map[string]any{
-			"companions": []map[string]any{},
+			"companions":             []map[string]any{},
+			"companions_fingerprint": mondayLinkFingerprint(companion.ID),
 		}))
 		assert.True(t, tc.broadcaster.HasEventType(realtime.EventStudentCompanionsChanged),
 			"dropping a link must announce student_companions_changed")
@@ -111,6 +128,7 @@ func TestDeleteStudent_AnnouncesCompanionChange(t *testing.T) {
 		"companions": []map[string]any{
 			{"companion_student_id": companion.ID, "weekdays": []string{"mon"}},
 		},
+		"companions_fingerprint": mondayLinkFingerprint(),
 	}))
 
 	// The link is the only "mit wem" answer the partner would be left with, so

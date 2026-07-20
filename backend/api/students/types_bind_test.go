@@ -125,8 +125,15 @@ func TestUpdateStudentRequestBind_CompanionCount(t *testing.T) {
 		return &list
 	}
 
+	// The fingerprint is mandatory alongside a list (see the dedicated test
+	// below), so it travels with every fixture that expects acceptance.
+	fingerprint := ""
+
 	t.Run("a list at the cap is accepted", func(t *testing.T) {
-		req := &UpdateStudentRequest{Companions: entries(usersService.MaxStudentCompanions)}
+		req := &UpdateStudentRequest{
+			Companions:            entries(usersService.MaxStudentCompanions),
+			CompanionsFingerprint: &fingerprint,
+		}
 		require.NoError(t, req.Bind(nil))
 	})
 
@@ -138,6 +145,33 @@ func TestUpdateStudentRequestBind_CompanionCount(t *testing.T) {
 	t.Run("no companions key is untouched", func(t *testing.T) {
 		req := &UpdateStudentRequest{}
 		require.NoError(t, req.Bind(nil))
+	})
+}
+
+// TestUpdateStudentRequestBind_CompanionsFingerprint pins the snapshot claim
+// that makes the replacement semantics safe for HTTP callers.
+//
+// The service treats the fingerprint as optional because system callers derive
+// the list from the stored state themselves. A user-built list without one gets
+// no lost-update protection at all: two staff members starting from the same
+// snapshot would both submit everything they saw, and the later write would
+// delete the earlier one's committed links without anything objecting.
+func TestUpdateStudentRequestBind_CompanionsFingerprint(t *testing.T) {
+	list := []CompanionEntry{{CompanionStudentID: 7, Weekdays: []string{"mon"}}}
+
+	t.Run("a list without a fingerprint is rejected", func(t *testing.T) {
+		req := &UpdateStudentRequest{Companions: &list}
+		require.ErrorIs(t, req.Bind(nil), errCompanionsFingerprintRequired)
+	})
+
+	t.Run("the empty fingerprint of an empty list is a claim, not an omission", func(t *testing.T) {
+		empty := ""
+		req := &UpdateStudentRequest{Companions: &[]CompanionEntry{}, CompanionsFingerprint: &empty}
+		require.NoError(t, req.Bind(nil))
+	})
+
+	t.Run("no list needs no fingerprint", func(t *testing.T) {
+		require.NoError(t, (&UpdateStudentRequest{}).Bind(nil))
 	})
 }
 

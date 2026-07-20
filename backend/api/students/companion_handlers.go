@@ -123,6 +123,36 @@ func validateCompanionEntries(entries *[]CompanionEntry) error {
 	return nil
 }
 
+// errCompanionsFingerprintRequired is returned when an HTTP caller submits a
+// replacement list without saying what it replaces.
+var errCompanionsFingerprintRequired = errors.New("companions_fingerprint is required when companions is present")
+
+// validateCompanionsFingerprint requires the snapshot claim that makes the
+// replacement semantics safe.
+//
+// ExpectedFingerprint is documented as optional in the service because system
+// callers (trims, enrollment approval) derive the list from the stored state
+// themselves and have nothing to compare against. For an HTTP caller that
+// optionality is a hole: a nil fingerprint skips the comparison entirely, so
+// two staff members editing the same child from the same snapshot both submit
+// everything they saw and the second write deletes the first one's committed
+// links — the exact lost update the fingerprint exists to prevent. Our own
+// forms always send it; a stale build or a direct API client would not, and
+// would silently get the unprotected path.
+//
+// The empty string is a valid claim, not a missing one: it is the fingerprint
+// of an empty list, which is what a child with no Laufgemeinschaft yet loads.
+// Only the absent key is refused, which is why this takes the pointer.
+func validateCompanionsFingerprint(entries *[]CompanionEntry, fingerprint *string) error {
+	if entries == nil {
+		return nil
+	}
+	if fingerprint == nil {
+		return errCompanionsFingerprintRequired
+	}
+	return nil
+}
+
 // getStudentCompanions returns the children this child walks home with.
 //
 // Read access follows the same scope rules as the rest of the child's data —
@@ -144,7 +174,61 @@ func (rs *Resource) getStudentCompanions(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	links, err = rs.redactUnreadableCompanionNames(r, links)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServerWrap("failed to authorize departure companions", err))
+		return
+	}
+
 	common.Respond(w, r, http.StatusOK, toCompanionResponses(links), "Departure companions retrieved")
+}
+
+// redactUnreadableCompanionNames strips the name of every linked child the
+// caller may not read, leaving the id and the weekdays.
+//
+// Access to the SUBJECT is not access to the far end of its links. Linking
+// across groups is the whole point of a Laufgemeinschaft, so with
+// gdpr.student_data_scope at its restrictive default a group supervisor
+// legitimately reads the child in front of them while the linked child belongs
+// to a group they do not supervise — its first and last name are that other
+// child's personal data and must not ride along on this response.
+//
+// Redacting rather than dropping the entry keeps the link itself visible: the
+// caller may see THAT this child walks home with someone (they may edit the
+// list, and an entry that silently disappeared would be deleted on the next
+// save), just not who. The response fields are `omitempty`, so a redacted
+// companion arrives without name keys — the same shape the Kindersuche already
+// handles for a companion it cannot resolve.
+//
+// The predicate is the one the student list uses for has_full_access
+// (DetermineStudentAccess), resolved ONCE for the request, so N companions cost
+// one extra student read and no extra permission lookups.
+func (rs *Resource) redactUnreadableCompanionNames(r *http.Request, links []userModels.CompanionLink) ([]userModels.CompanionLink, error) {
+	if len(links) == 0 {
+		return links, nil
+	}
+
+	ids := make([]int64, 0, len(links))
+	for _, link := range links {
+		ids = append(ids, link.CompanionStudentID)
+	}
+	companions, err := rs.StudentService.GetByIDs(r.Context(), ids)
+	if err != nil {
+		return nil, err
+	}
+
+	accessCtx := rs.determineStudentAccess(r)
+	for i := range links {
+		// A companion that could not be loaded stays redacted: without its
+		// group there is nothing to authorize against, and guessing in the
+		// permissive direction would leak the very name this guards.
+		if accessCtx.HasFullAccessToStudent(companions[links[i].CompanionStudentID]) {
+			continue
+		}
+		links[i].FirstName = ""
+		links[i].LastName = ""
+	}
+	return links, nil
 }
 
 // lockCompanionRows takes the student row locks this request may need — the
