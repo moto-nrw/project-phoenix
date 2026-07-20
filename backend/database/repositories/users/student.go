@@ -374,8 +374,8 @@ type companionTrim struct {
 // planCompanionReconcile determines which "läuft mit" edges lose their basis
 // under the departure plan this update is about to persist, and refuses the
 // update when dropping one would strand the child at the FAR end (accompanied
-// plan, no note, no other link left) — the same rule services/users
-// checkCompanionRemovals enforces for the HTTP path.
+// plan on that weekday, no note, no other link on that weekday) — the same
+// rule services/users checkCompanionRemovals enforces for the HTTP path.
 //
 // Returns nil when it did not evaluate the edges (plan untouched, plan allows
 // every weekday, or the table predates this schema); the caller then falls back
@@ -418,8 +418,8 @@ func (r *StudentRepository) planCompanionReconcile(ctx context.Context, student 
 	}
 
 	trim := &companionTrim{keptDays: make(map[string]bool, len(users.PickupDayOrder))}
-	keptFar := make(map[int64]bool, len(edges))
-	droppedFar := make(map[int64]bool, len(edges))
+	removedDays := make(map[int64][]string, len(edges))
+	removed := make([]int64, 0, len(edges))
 	for _, edge := range edges {
 		far, ok := edge.Other(student.ID)
 		if !ok {
@@ -427,40 +427,36 @@ func (r *StudentRepository) planCompanionReconcile(ctx context.Context, student 
 		}
 		day := users.CompanionWeekdayKeys[edge.Weekday]
 		if accompanied[day] {
-			keptFar[far] = true
 			trim.keptDays[day] = true
 			continue
 		}
 		trim.dropIDs = append(trim.dropIDs, edge.ID)
-		droppedFar[far] = true
+		if _, seen := removedDays[far]; !seen {
+			removed = append(removed, far)
+		}
+		removedDays[far] = append(removedDays[far], day)
 	}
 	if len(trim.dropIDs) == 0 {
 		return trim, nil
 	}
-
-	// Only links that disappear COMPLETELY can strand the far child — a link
-	// that merely loses a weekday still answers "mit wem".
-	removed := make([]int64, 0, len(droppedFar))
-	for far := range droppedFar {
-		if !keptFar[far] {
-			removed = append(removed, far)
-		}
-	}
-	if len(removed) == 0 {
-		return trim, nil
-	}
-	if err := r.checkCompanionStranding(ctx, student.ID, removed); err != nil {
+	if err := r.checkCompanionStranding(ctx, student.ID, removed, removedDays); err != nil {
 		return nil, err
 	}
 	return trim, nil
 }
 
-// checkCompanionStranding refuses when any of the removed far children would be
-// left with an accompanied departure plan and no remaining "mit wem" detail.
-// Mirrors services/users checkCompanionRemovals; both return the shared
+// checkCompanionStranding refuses when any removed edge would leave its far
+// child with an accompanied departure plan and no remaining "mit wem" detail
+// FOR THAT WEEKDAY. The cover is per day (Student.Validate): an edge the far
+// child keeps on Monday — with this subject or anyone else — does not answer
+// for an accompanied Tuesday whose edge is being dropped. Mirrors
+// services/users checkCompanionRemovals; both return the shared
 // users.ErrCompanionWouldLoseDeparture sentinel.
-func (r *StudentRepository) checkCompanionStranding(ctx context.Context, studentID int64, removed []int64) error {
-	counts, err := r.companions.CompanionCountsExcluding(ctx, removed, studentID)
+func (r *StudentRepository) checkCompanionStranding(ctx context.Context, studentID int64, removed []int64, removedDays map[int64][]string) error {
+	if len(removed) == 0 {
+		return nil
+	}
+	covered, err := r.companions.CompanionDaysCoveredExcluding(ctx, removed, studentID)
 	if err != nil {
 		return err
 	}
@@ -469,20 +465,23 @@ func (r *StudentRepository) checkCompanionStranding(ctx context.Context, student
 		return err
 	}
 	for _, id := range removed {
-		if counts[id] > 0 {
-			continue // still walks with someone else
-		}
 		companion := companions[id]
 		if companion == nil {
 			continue // deleted or another tenant — nothing left to strand
 		}
 		if companion.DepartureCompanionNote != nil && strings.TrimSpace(*companion.DepartureCompanionNote) != "" {
-			continue // the free-text note carries the detail
+			continue // the free-text note carries the detail for every day
 		}
-		if len(users.AccompaniedWeekdays(companion.AllowedDepartureModes, companion.DepartureDays)) == 0 {
-			continue // their plan does not claim "Anderes Kind" anywhere
+		accompanied := users.AccompaniedWeekdays(companion.AllowedDepartureModes, companion.DepartureDays)
+		for _, day := range removedDays[id] {
+			if !accompanied[day] {
+				continue // their plan does not claim "Anderes Kind" on this day
+			}
+			if covered[id][day] {
+				continue // another companion walks with them on this day
+			}
+			return users.ErrCompanionWouldLoseDeparture
 		}
-		return users.ErrCompanionWouldLoseDeparture
 	}
 	return nil
 }

@@ -539,10 +539,15 @@ export function StudentStammdatenTab({
       {
         // A link answers "mit wem" too — without this, an accompanied plan
         // backed only by a Laufgemeinschaft could never be saved from this tab.
-        // While the stored links are unknown, claiming "none" would block an
-        // unrelated edit for the wrong reason; the backend re-checks the rule
-        // against the stored links either way.
-        hasCompanionLink: companionsStatus !== "ready" || companions.length > 0,
+        // The cover is per weekday (a Monday link says nothing about an
+        // accompanied Tuesday), so the union of the linked days travels, not a
+        // boolean. While the stored links are unknown, claiming "none" would
+        // block an unrelated edit for the wrong reason; the backend re-checks
+        // the rule against the stored links either way.
+        companionLinkDays:
+          companionsStatus !== "ready"
+            ? "unknown"
+            : companions.flatMap((companion) => companion.weekdays),
       },
     );
     setErrors(next);
@@ -632,6 +637,12 @@ export function StudentStammdatenTab({
       try {
         await onSave(submitData);
         setPlanConflict(null);
+        // The confirmation is one-shot: this save consumed it. Keeping it
+        // would let a later unrelated save from this still-mounted form
+        // re-widen a companion's plan (possibly narrowed again by someone else
+        // in the meantime) on a stale yes instead of asking a fresh question.
+        setExtendCompanionPlans(false);
+        setConfirmedExtensions([]);
       } catch (err) {
         // A companion-plan 409 is a question, not a failure: nothing was
         // written, and re-sending with extend_companion_plans after the user

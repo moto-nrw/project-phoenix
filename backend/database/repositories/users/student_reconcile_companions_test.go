@@ -128,6 +128,48 @@ func TestStudentRepository_Update_DropsAllEdgesWhenPlanLosesAccompanied(t *testi
 	assert.Empty(t, edges, "a plan without an accompanied day must not keep any edge")
 }
 
+// TestStudentRepository_Update_RefusesStrandingCompanionWeekday pins that the
+// stranding check of the shared write path is per weekday: an edge the pair
+// keeps on Monday does not answer for the far child's accompanied Tuesday when
+// the Tuesday edge is being dropped, so the update is refused even though the
+// pair stays linked.
+func TestStudentRepository_Update_RefusesStrandingCompanionWeekday(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	factory := repositories.NewFactory(db)
+
+	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "StrandDay", "1a")
+	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "StrandDay", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
+	defer cleanupStudentCompanions(t, db, subject.ID, companion.ID)
+
+	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon", "tue")
+	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon", "tue")
+	require.NoError(t, factory.StudentCompanion.ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
+		newCompanionEdge(t, subject.ID, companion.ID, 1),
+		newCompanionEdge(t, subject.ID, companion.ID, 2),
+	}))
+	// Both of the companion's accompanied days are answered ONLY by the edges.
+	clearStoredCompanionNote(t, db, companion.ID)
+
+	loaded, err := factory.Student.FindByID(ctx, subject.ID)
+	require.NoError(t, err)
+	loaded.AllowedDepartureModes = users.AllowedDepartureModes{
+		"mon": {users.DepartureAccompanied},
+		"tue": {users.DepartureBus},
+	}
+
+	// ACT + ASSERT — refused; both edges survive.
+	err = factory.Student.Update(ctx, loaded)
+	require.ErrorIs(t, err, users.ErrCompanionWouldLoseDeparture)
+
+	edges, listErr := factory.StudentCompanion.ListForStudent(ctx, subject.ID)
+	require.NoError(t, listErr)
+	assert.Len(t, edges, 2, "a refused update must not have dropped the Tuesday edge")
+}
+
 // TestStudentRepository_Update_RefusesStrandingCompanion pins the guard rail:
 // when the dropped edge is the far child's ONLY "mit wem" detail (no note, no
 // other link), the whole update is refused with the shared sentinel — exactly

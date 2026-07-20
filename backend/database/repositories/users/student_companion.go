@@ -174,6 +174,60 @@ func (r *StudentCompanionRepository) CompanionCountsExcluding(ctx context.Contex
 	return counts, nil
 }
 
+// CompanionDaysCoveredExcluding returns, per requested student, the weekday
+// keys on which they keep at least one edge to a child other than excludeID.
+//
+// This is the per-day counterpart of CompanionCountsExcluding, and it exists
+// because the accompanied-requires-a-note invariant is checked PER WEEKDAY
+// (Student.Validate): a Monday link is no answer for an accompanied Tuesday.
+// Removal checks therefore need to know which days survive, not merely whether
+// any companion survives at all.
+func (r *StudentCompanionRepository) CompanionDaysCoveredExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]map[string]bool, error) {
+	covered := make(map[int64]map[string]bool, len(studentIDs))
+	if len(studentIDs) == 0 {
+		return covered, nil
+	}
+
+	var edges []*users.StudentCompanion
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&edges).
+		ModelTableExpr(`users.student_companions AS "student_companion"`).
+		Where(`("student_companion".student_low_id IN (?) OR "student_companion".student_high_id IN (?))`,
+			bun.List(studentIDs), bun.List(studentIDs))
+
+	query = base.WithTenantFilter(ctx, query, "student_companion")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list student companion days", Err: err}
+	}
+
+	requested := make(map[int64]bool, len(studentIDs))
+	for _, id := range studentIDs {
+		requested[id] = true
+	}
+
+	for _, edge := range edges {
+		day, ok := users.CompanionWeekdayKeys[edge.Weekday]
+		if !ok {
+			continue
+		}
+		for _, pair := range [2][2]int64{
+			{edge.StudentLowID, edge.StudentHighID},
+			{edge.StudentHighID, edge.StudentLowID},
+		} {
+			near, far := pair[0], pair[1]
+			if !requested[near] || far == excludeID {
+				continue
+			}
+			if covered[near] == nil {
+				covered[near] = make(map[string]bool, len(users.PickupDayOrder))
+			}
+			covered[near][day] = true
+		}
+	}
+	return covered, nil
+}
+
 // ReplaceForStudent makes the given edges the child's complete companion set:
 // every existing edge touching the student is removed first, then the new set is
 // inserted.

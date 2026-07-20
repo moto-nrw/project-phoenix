@@ -302,6 +302,103 @@ func TestStudentService_ReplaceCompanions_RefusesOrphaningCompanion(t *testing.T
 	require.NoError(t, err)
 }
 
+// TestStudentService_ReplaceCompanions_RefusesStrandingRemovedWeekday pins that
+// the removal check is per weekday, mirroring Student.Validate's cover check. A
+// pair that stays linked on Monday still strands the far child on Tuesday when
+// the Tuesday edge was their only "mit wem" answer for that day — the surviving
+// Monday link must not vouch for it.
+func TestStudentService_ReplaceCompanions_RefusesStrandingRemovedWeekday(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	service := newCompanionTestService(db)
+
+	subject := testpkg.CreateTestStudent(t, db, "DaySubject", "Companion", "1a")
+	companion := testpkg.CreateTestStudent(t, db, "DayCompanion", "Companion", "1a")
+	third := testpkg.CreateTestStudent(t, db, "DayThird", "Companion", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID, third.ID)
+	defer cleanupCompanionEdges(t, db, subject.ID, companion.ID, third.ID)
+
+	setAccompaniedDays(t, db, ctx, subject.ID, "mon", "tue")
+	setAccompaniedDays(t, db, ctx, companion.ID, "mon", "tue")
+	setAccompaniedDays(t, db, ctx, third.ID, "tue")
+
+	_, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon", "tue"}}},
+	})
+	require.NoError(t, err)
+
+	// Both of the companion's accompanied days are now answered ONLY by the
+	// subject's edges.
+	clearCompanionNote(t, db, companion.ID)
+
+	// ACT — the subject keeps the link but drops its Tuesday.
+	_, err = service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
+	})
+	assert.ErrorIs(t, err, usersService.ErrCompanionWouldLoseDeparture)
+
+	// The refusal happens before any write: the Tuesday edge is still there.
+	links, err := service.ListCompanions(ctx, companion.ID)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, []string{"mon", "tue"}, links[0].Weekdays)
+
+	// A THIRD child covering the removed Tuesday makes the same narrowing legal
+	// — coverage counts per day, not per surviving companion.
+	_, err = service.ReplaceCompanions(ctx, third.ID, usersService.CompanionUpdate{
+		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"tue"}}},
+	})
+	require.NoError(t, err)
+
+	_, err = service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
+	})
+	require.NoError(t, err)
+}
+
+// TestStudentService_CheckCompanionTrim_RefusesStrandingRemovedWeekday pins the
+// per-weekday rule for the plan-narrowing path: the subject dropping "Anderes
+// Kind" from Tuesday trims the Tuesday edge, and the surviving Monday edge of
+// the SAME pair must not count as the far child's Tuesday answer.
+func TestStudentService_CheckCompanionTrim_RefusesStrandingRemovedWeekday(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	service := newCompanionTestService(db)
+
+	subject := testpkg.CreateTestStudent(t, db, "TrimDaySubject", "Companion", "1a")
+	companion := testpkg.CreateTestStudent(t, db, "TrimDayCompanion", "Companion", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
+	defer cleanupCompanionEdges(t, db, subject.ID, companion.ID)
+
+	setAccompaniedDays(t, db, ctx, subject.ID, "mon", "tue")
+	setAccompaniedDays(t, db, ctx, companion.ID, "mon", "tue")
+
+	_, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon", "tue"}}},
+	})
+	require.NoError(t, err)
+	clearCompanionNote(t, db, companion.ID)
+
+	assert.ErrorIs(t,
+		service.CheckCompanionTrim(ctx, subject.ID, map[string]bool{"mon": true}),
+		usersService.ErrCompanionWouldLoseDeparture,
+	)
+	assert.ErrorIs(t, func() error {
+		_, err := service.TrimCompanionsToDays(ctx, subject.ID, map[string]bool{"mon": true})
+		return err
+	}(), usersService.ErrCompanionWouldLoseDeparture)
+
+	// Nothing was trimmed by the refused calls.
+	links, err := service.ListCompanions(ctx, companion.ID)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, []string{"mon", "tue"}, links[0].Weekdays)
+}
+
 // TestStudentService_CheckCompanionTrim_RefusesOrphaningCompanion pins the same
 // rule for the path where the client narrows its own departure plan WITHOUT
 // submitting a list. The trim drops whole links too, and it runs after the

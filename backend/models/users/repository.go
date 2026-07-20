@@ -350,6 +350,11 @@ type StudentCompanionRepository interface {
 	// CompanionCountsExcluding returns, per student, the number of DISTINCT
 	// other children they are linked to, ignoring links to excludeID.
 	CompanionCountsExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]int, error)
+
+	// CompanionDaysCoveredExcluding returns, per student, the weekday keys on
+	// which they keep at least one edge to a child other than excludeID. The
+	// "mit wem" cover is per weekday, so removal checks need this per-day view.
+	CompanionDaysCoveredExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]map[string]bool, error)
 }
 
 // StudentRetentionSetting is the projection used by the GDPR visit-cleanup

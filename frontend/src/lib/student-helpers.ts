@@ -206,13 +206,22 @@ export function allowedModesIncludeAccompanied(
   allowed?: AllowedDepartureModes | null,
   departureDays?: DepartureDays | null,
 ): boolean {
-  for (const day of DEPARTURE_WEEKDAYS) {
-    if (allowed?.[day.key]?.includes("accompanied")) return true;
-  }
-  for (const day of DEPARTURE_WEEKDAYS) {
-    if (departureDays?.[day.key] === "accompanied") return true;
-  }
-  return false;
+  return accompaniedWeekdayKeys(allowed, departureDays).length > 0;
+}
+
+/** The weekdays on which the plan allows the accompanied ("Mit anderem Kind")
+ *  departure mode, in Mon..Fri order. The "mit wem" requirement is checked PER
+ *  DAY — a Monday link answers nothing for an accompanied Tuesday — so callers
+ *  validating companion coverage need the days, not just a boolean (#1694). */
+export function accompaniedWeekdayKeys(
+  allowed?: AllowedDepartureModes | null,
+  departureDays?: DepartureDays | null,
+): DepartureDayKey[] {
+  return DEPARTURE_WEEKDAYS.filter(
+    (day) =>
+      (allowed?.[day.key]?.includes("accompanied") ?? false) ||
+      departureDays?.[day.key] === "accompanied",
+  ).map((day) => day.key);
 }
 
 /** Folds the legacy bus/pickup maps into the unified map. Pickup wins on a

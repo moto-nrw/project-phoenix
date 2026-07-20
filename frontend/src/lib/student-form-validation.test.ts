@@ -87,6 +87,49 @@ describe("validateStudentForm", () => {
     expect(errors.departure_companion_note).toBeUndefined();
   });
 
+  it("accepts links covering every accompanied day without a note", () => {
+    const errors = validateStudentForm(
+      {
+        data_retention_days: 30,
+        allowed_departure_modes: { mon: ["accompanied"], tue: ["accompanied"] },
+      },
+      {},
+      { companionLinkDays: ["mon", "tue"] },
+    );
+
+    expect(errors.departure_companion_note).toBeUndefined();
+  });
+
+  it("requires a note for an accompanied day no link covers", () => {
+    // A Monday link answers nothing for an accompanied Tuesday — the cover is
+    // per weekday, mirroring the backend's Student.Validate.
+    const errors = validateStudentForm(
+      {
+        data_retention_days: 30,
+        allowed_departure_modes: { mon: ["accompanied"], tue: ["accompanied"] },
+      },
+      {},
+      { companionLinkDays: ["mon"] },
+    );
+
+    expect(errors.departure_companion_note).toBe(
+      "Bitte angeben, mit welchem Kind das Kind nach Hause geht",
+    );
+  });
+
+  it("skips the companion check while the stored links are unknown", () => {
+    const errors = validateStudentForm(
+      {
+        data_retention_days: 30,
+        allowed_departure_modes: { mon: ["accompanied"] },
+      },
+      {},
+      { companionLinkDays: "unknown" },
+    );
+
+    expect(errors.departure_companion_note).toBeUndefined();
+  });
+
   it("does not require a companion note without an accompanied day", () => {
     const errors = validateStudentForm({
       data_retention_days: 30,

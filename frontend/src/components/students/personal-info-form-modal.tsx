@@ -14,7 +14,7 @@ import {
   allowedDepartureToDepartureDays,
   allowedDepartureToPickupDays,
   normalizeAllowedDepartureModes,
-  allowedModesIncludeAccompanied,
+  accompaniedWeekdayKeys,
 } from "~/lib/student-helpers";
 import {
   fetchStudentCompanions,
@@ -63,10 +63,14 @@ export function PersonalInfoFormModal({
   >("loading");
   const [reloadCompanions, setReloadCompanions] = useState(0);
 
-  // Reset form when modal opens with new student data
+  // Reset form when modal opens with new student data. The confirmation state
+  // resets too — a yes given in an earlier session of this modal must not
+  // carry over into a new edit.
   useEffect(() => {
     if (isOpen) {
       setEditedStudent(student);
+      setPlanConflict(null);
+      setConfirmedExtensions([]);
     }
   }, [isOpen, student]);
 
@@ -114,16 +118,24 @@ export function PersonalInfoFormModal({
     );
     // "Mit anderem Kind" needs to say with whom (#1694) — either a linked
     // child (better: structured, symmetric) or the free-text note for someone
-    // who is not a child of this school.
+    // who is not a child of this school. The cover is per weekday, exactly as
+    // the backend checks it: a Monday link answers nothing for an accompanied
+    // Tuesday, so every accompanied day must be covered by a link or the note.
     //
     // Skipped while the stored links are unknown: claiming "nobody is linked"
     // from a pending or failed load would block an unrelated edit with a wrong
     // reason. The backend re-checks the same rule against the stored links.
+    const coveredDays = new Set(
+      (editedStudent.companions ?? []).flatMap(
+        (companion) => companion.weekdays,
+      ),
+    );
     if (
       companionsStatus === "ready" &&
-      allowedModesIncludeAccompanied(allowedDepartureModes) &&
-      (editedStudent.companions?.length ?? 0) === 0 &&
-      !editedStudent.departure_companion_note?.trim()
+      !editedStudent.departure_companion_note?.trim() &&
+      accompaniedWeekdayKeys(allowedDepartureModes).some(
+        (day) => !coveredDays.has(day),
+      )
     ) {
       toast.error(
         "Bitte ein Kind verknüpfen oder angeben, mit welcher Person das Kind nach Hause geht",
@@ -166,6 +178,10 @@ export function PersonalInfoFormModal({
           : "Geht alleine nach Hause",
       });
       setPlanConflict(null);
+      // One-shot: this save consumed the confirmation. The modal component
+      // stays mounted across open/close, so a stale list would ride along
+      // with a later save and re-widen a companion's plan unasked.
+      setConfirmedExtensions([]);
       onClose();
     } catch (err) {
       if (err instanceof CompanionPlanConflictError) {
