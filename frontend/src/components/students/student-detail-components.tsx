@@ -27,6 +27,7 @@ import {
   companionDisplayName,
   fetchStudentCompanions,
   formatCompanionWeekdays,
+  subscribeStudentCompanionsChanged,
   type StudentCompanion,
 } from "~/lib/student-companion-api";
 import { Avatar } from "~/components/ui/avatar";
@@ -676,6 +677,18 @@ export function PersonalInfoReadOnly({
   // than riding along on the student payload. Failure is silent: a missing
   // "Läuft mit" row must not break the whole Stammdaten card.
   const [companions, setCompanions] = useState<StudentCompanion[]>([]);
+  // Saving the Stammdaten does not remount this card and does not bring the
+  // links along in the student payload, so the fetch below must be re-run on
+  // every companion write — including a symmetric one made from the linked
+  // child's card. The counter is the effect's second trigger.
+  const [companionsRevalidation, setCompanionsRevalidation] = useState(0);
+  useEffect(
+    () =>
+      subscribeStudentCompanionsChanged(() => {
+        setCompanionsRevalidation((count) => count + 1);
+      }),
+    [],
+  );
   useEffect(() => {
     if (!student.id) return;
     let cancelled = false;
@@ -689,7 +702,7 @@ export function PersonalInfoReadOnly({
     return () => {
       cancelled = true;
     };
-  }, [student.id]);
+  }, [student.id, companionsRevalidation]);
 
   const birthdayDisplay = student.birthday
     ? new Date(student.birthday).toLocaleDateString("de-DE", {

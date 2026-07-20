@@ -171,6 +171,46 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return unwrap<T>(payload);
 }
 
+/**
+ * Consumers that want to be told when the stored "läuft mit" links may have
+ * changed. Module-level and process-wide on purpose — see
+ * {@link notifyStudentCompanionsChanged}.
+ */
+const companionChangeListeners = new Set<() => void>();
+
+/**
+ * Subscribe to companion-link changes. Returns the unsubscribe function, so a
+ * React effect can return it directly.
+ */
+export function subscribeStudentCompanionsChanged(
+  listener: () => void,
+): () => void {
+  companionChangeListeners.add(listener);
+  return () => {
+    companionChangeListeners.delete(listener);
+  };
+}
+
+/**
+ * Announce that the stored links may have changed, so every mounted view that
+ * renders them refetches.
+ *
+ * Companion links live in their own table and do NOT ride along on the student
+ * payload, so refreshing the student is not enough — without this a read-only
+ * card keeps showing the pre-save list until it is remounted. Every writer of a
+ * student's departure plan must call this, not just the ones that send a
+ * `companions` list: the backend also TRIMS links whose weekday the new plan no
+ * longer allows.
+ *
+ * Deliberately untargeted (no student id): links are symmetric, so a save on
+ * one child changes the other child's list too, and a broad refetch is cheaper
+ * than tracking which ids a write touched.
+ */
+export function notifyStudentCompanionsChanged(): void {
+  // Copy first: a listener may unsubscribe while we iterate.
+  for (const listener of [...companionChangeListeners]) listener();
+}
+
 export async function fetchStudentCompanions(
   studentId: string,
 ): Promise<StudentCompanion[]> {

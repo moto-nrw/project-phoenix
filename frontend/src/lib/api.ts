@@ -37,6 +37,7 @@ import type { BackendRoom } from "./room-helpers";
 import { handleAuthFailure } from "./auth-failure";
 import {
   ALL_COMPANION_WEEKDAYS,
+  notifyStudentCompanionsChanged,
   type CompanionExtensionConfirmation,
   type CompanionWeekday,
 } from "./student-companion-api";
@@ -900,6 +901,11 @@ export const studentService = {
         const mappedResponse = mapSingleStudentResponse({
           data: actualData,
         });
+        // The "läuft mit" links are not part of this response, and a departure
+        // plan write can change them even when the caller sent no `companions`
+        // list (the backend trims links the new plan no longer allows). Tell
+        // every mounted companion view to refetch instead of leaving it stale.
+        notifyStudentCompanionsChanged();
         return mappedResponse;
       } else {
         // Server-side: use axios with the API URL directly
@@ -909,6 +915,7 @@ export const studentService = {
         const mappedResponse = mapSingleStudentResponse({
           data: response.data as unknown as BackendStudent,
         });
+        notifyStudentCompanionsChanged();
         return mappedResponse;
       }
     } catch (error) {

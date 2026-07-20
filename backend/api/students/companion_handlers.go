@@ -29,6 +29,37 @@ type CompanionResponse struct {
 // this code (and off the conflicts list the other 409 carries).
 const CodeCompanionLockBusy = "companion_lock_busy"
 
+// companionPlanErrorRenderer maps the two companion sentinels that ANY
+// departure-plan write can raise to their wire response, and returns nil for
+// every other error so the caller can keep classifying.
+//
+// StudentRepository.Update reconciles the "läuft mit" edges on behalf of every
+// caller, so these are NOT specific to the student PUT: care-request approval
+// and master-data review replace a departure plan too and hit exactly the same
+// two conditions. Both are expected and user-actionable — routing them through
+// a default branch would answer them with a 500. Every flow that can end up in
+// StudentRepository.Update must consult this first (#1694).
+func companionPlanErrorRenderer(err error) render.Renderer {
+	switch {
+	// Removing the day would leave the OTHER child with an accompanied
+	// departure plan and no "mit wem" detail at all. Nothing was written; the
+	// user has to give that child a note (or another link) first. The German
+	// sentinel text goes straight to the UI.
+	case errors.Is(err, usersService.ErrCompanionWouldLoseDeparture):
+		return common.ErrorInvalidRequest(err)
+	// A linked child was being edited elsewhere and this transaction could not
+	// wait for its row without risking a deadlock. Nothing was written and the
+	// same request succeeds once the other edit commits, so this is a retriable
+	// conflict — never a 500. It carries a code because it shares its status
+	// with the companion-plan question (which the client answers with
+	// extend_companion_plans): without the code the client would ask the user
+	// whether to widen another child's plan for what is really a lock collision.
+	case errors.Is(err, usersService.ErrCompanionLockBusy):
+		return common.ErrorConflictWithCode(err, CodeCompanionLockBusy)
+	}
+	return nil
+}
+
 // CompanionConflictResponse is the 409 body: the companions whose own departure
 // plan does not permit the requested days. The client turns it into the
 // "Tom darf donnerstags noch nicht mit anderen Kindern gehen. Ergänzen?"

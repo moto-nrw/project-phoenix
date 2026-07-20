@@ -1185,20 +1185,10 @@ func updateStudentTxErrorRenderer(err error) render.Renderer {
 		errors.Is(err, users.ErrCompanionStudentIDRequired),
 		errors.Is(err, users.ErrCompanionInvalidWeekday):
 		return common.ErrorInvalidRequest(err)
-	// Removing a link would leave the OTHER child with an accompanied departure
-	// plan and no "mit wem" detail at all. Nothing was written; the user has to
-	// give that child a note (or another link) first.
-	case errors.Is(err, userService.ErrCompanionWouldLoseDeparture):
-		return common.ErrorInvalidRequest(err)
-	// A linked child was being edited elsewhere and this transaction could not
-	// wait for its row without risking a deadlock. Nothing was written and the
-	// same request succeeds once the other edit commits, so this is a retriable
-	// conflict — never a 500. It carries a code because it shares its status
-	// with the companion-plan question (which the client answers with
-	// extend_companion_plans): without the code the client would ask the user
-	// whether to widen another child's plan for what is really a lock collision.
-	case errors.Is(err, userService.ErrCompanionLockBusy):
-		return common.ErrorConflictWithCode(err, CodeCompanionLockBusy)
+	// The two sentinels every departure-plan write shares (stranded companion,
+	// locked companion row) — classified once, in companionPlanErrorRenderer.
+	case companionPlanErrorRenderer(err) != nil:
+		return companionPlanErrorRenderer(err)
 	default:
 		return common.ErrorInternalServer(err)
 	}

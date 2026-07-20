@@ -1294,6 +1294,37 @@ describe("api.ts helper functions", () => {
       }
     });
 
+    // The "läuft mit" links are stored in their own table and are absent from
+    // this response, and the backend also trims links a shrunken departure plan
+    // no longer allows — so a successful update has to tell every mounted
+    // companion view to refetch, or it renders the pre-save list (#1694).
+    it("announces a companion change after a successful update", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: { id: 1, first_name: "Updated" } }),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+      const { subscribeStudentCompanionsChanged } =
+        await import("./student-companion-api");
+
+      const listener = vi.fn();
+      const unsubscribe = subscribeStudentCompanionsChanged(listener);
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.updateStudent("1", { first_name: "Updated" });
+        expect(listener).toHaveBeenCalledTimes(1);
+      } finally {
+        unsubscribe();
+        restore();
+      }
+    });
+
     it("throws error on API failure", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
