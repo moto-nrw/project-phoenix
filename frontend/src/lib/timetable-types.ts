@@ -61,6 +61,28 @@ export function isCareDayExpected(
   return status !== "not_scheduled" && status !== "cancelled";
 }
 
+/**
+ * True when a row belongs in the "heute nicht eingeplant" group instead of its
+ * nominal attendance group — the same split the header count
+ * (notScheduledStudentsCount) applies (#1747).
+ *
+ * An "expected" row is grouped by the plain verdict. An "absent" row normally
+ * tells its own story, but the backend hands out "not_scheduled" for one kind
+ * of absence: the one a sick / excused / class-trip day status wrote onto a day
+ * the child was never booked into care, before the block ended and undid it.
+ * That absence is a claim about care that was never owed, so it is grouped with
+ * the non-bookings rather than shown as a real absence.
+ */
+export function isNotScheduledRow(
+  status: InstanceAttendanceStatus,
+  careDayStatus: CareDayStatus | null | undefined,
+): boolean {
+  if (status === "expected") {
+    return !isCareDayExpected(careDayStatus);
+  }
+  return status === "absent" && careDayStatus === "not_scheduled";
+}
+
 export interface InstanceStudentSummary {
   studentId: string;
   status: InstanceAttendanceStatus;

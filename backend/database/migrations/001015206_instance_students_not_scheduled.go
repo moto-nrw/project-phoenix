@@ -43,9 +43,12 @@ func init() {
 //
 // not_scheduled is written by exactly the two paths that decide it (instance
 // Complete and the nightly session-end bridge) and read by everything else. It
-// stays FALSE for every existing row: migration 1.15.205 already flipped the
-// legacy completed+expected rows to 'absent', which is the state the regular
-// completion path would have written for them.
+// starts FALSE for every existing row, which is only half the legacy story:
+// migration 1.15.205 flipped the completed+expected rows the care plan booked
+// to 'absent', and 1.15.207 — which needs this column — stamps the rows it
+// did not book. The split is deliberate: 205 must never invent an absence for
+// a child who was never booked, and it cannot record why it spared them until
+// the column exists.
 func instanceStudentsNotScheduledUp(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.15.206: Adding not_scheduled column to schedule.instance_students (#1747)...")
 

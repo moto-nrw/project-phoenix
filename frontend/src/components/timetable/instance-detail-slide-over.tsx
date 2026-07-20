@@ -73,7 +73,7 @@ import type {
   InstanceStudentSummary,
   InstanceStatus,
 } from "~/lib/timetable-types";
-import { isCareDayExpected } from "~/lib/timetable-types";
+import { isNotScheduledRow } from "~/lib/timetable-types";
 
 export type LifecycleAction = "start" | "complete" | "cancel";
 
@@ -225,6 +225,9 @@ function attendanceSubstatusLabel(
 function careDayLabel(status: InstanceStudentSummary["careDayStatus"]): string {
   return status === "cancelled" ? "Heute abgemeldet" : "Heute nicht eingeplant";
 }
+
+/** Neutral surface for rows grouped as "heute nicht eingeplant". */
+const NOT_SCHEDULED_TONE = "border-gray-200 bg-gray-50 text-gray-600";
 
 function attendanceTone(status: InstanceStudentSummary["status"]): string {
   switch (status) {
@@ -433,15 +436,17 @@ export function InstanceDetailSlideOver({
       expected: students.filter(
         (student) =>
           student.status === "expected" &&
-          isCareDayExpected(student.careDayStatus),
+          !isNotScheduledRow(student.status, student.careDayStatus),
       ),
-      notScheduled: students.filter(
-        (student) =>
-          student.status === "expected" &&
-          !isCareDayExpected(student.careDayStatus),
+      notScheduled: students.filter((student) =>
+        isNotScheduledRow(student.status, student.careDayStatus),
       ),
       present: students.filter((student) => student.status === "present"),
-      absent: students.filter((student) => student.status === "absent"),
+      absent: students.filter(
+        (student) =>
+          student.status === "absent" &&
+          !isNotScheduledRow(student.status, student.careDayStatus),
+      ),
     }),
     [students],
   );
@@ -919,9 +924,12 @@ function StudentGroup({
         return (
           <div
             key={student.studentId}
-            className={`flex flex-wrap items-center justify-between gap-2 ${NESTED_SURFACE_BASE} px-3 py-2 ${attendanceTone(
-              student.status,
-            )}`}
+            className={`flex flex-wrap items-center justify-between gap-2 ${NESTED_SURFACE_BASE} px-3 py-2 ${
+              // A non-booking is not an attendance outcome: a row that landed
+              // here carrying a status-day 'absent' must not be tinted like a
+              // real absence (#1747).
+              careDayGroup ? NOT_SCHEDULED_TONE : attendanceTone(student.status)
+            }`}
           >
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold text-gray-900">

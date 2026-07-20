@@ -12,6 +12,57 @@ const (
 	backfillCompletedExpectedAttendanceDescription = "Flip legacy 'expected' attendance rows on completed timetable instances to 'absent' — the absence the old force-start path never wrote (#1747)."
 )
 
+// legacyCareDayBookedPredicate is the SQL form of "the care plan booked this
+// child into the OGS on this instance's date" (#1747). It is written against
+// the aliases `student` (schedule.instance_students) and `instance`
+// (schedule.activity_instances) and shared by 1.15.205 and 1.15.207, which
+// split the same population along exactly this line: booked rows become
+// absences, unbooked rows become non-booking markers. Keeping one predicate is
+// what guarantees no legacy row lands in both buckets or in neither.
+//
+// It mirrors carePlans.statusFor: an exception on the date (timed = came,
+// timeless = cancelled a booked day) or a weekly row on the date's ISO weekday
+// means booked; no weekly plan at all is CareDayUnknown, which counts as
+// booked because a missing plan may not erase an absence.
+const legacyCareDayBookedPredicate = `(
+			EXISTS (
+				SELECT 1 FROM schedule.student_arrival_exceptions AS arrival_exception
+				WHERE arrival_exception.student_id = student.student_id
+					AND arrival_exception.tenant_id = student.tenant_id
+					AND arrival_exception.exception_date = instance.date
+			)
+			OR EXISTS (
+				SELECT 1 FROM schedule.student_pickup_exceptions AS pickup_exception
+				WHERE pickup_exception.student_id = student.student_id
+					AND pickup_exception.tenant_id = student.tenant_id
+					AND pickup_exception.exception_date = instance.date
+			)
+			OR EXISTS (
+				SELECT 1 FROM schedule.student_arrival_schedules AS arrival_plan
+				WHERE arrival_plan.student_id = student.student_id
+					AND arrival_plan.tenant_id = student.tenant_id
+					AND arrival_plan.weekday = EXTRACT(ISODOW FROM instance.date)
+			)
+			OR EXISTS (
+				SELECT 1 FROM schedule.student_pickup_schedules AS pickup_plan
+				WHERE pickup_plan.student_id = student.student_id
+					AND pickup_plan.tenant_id = student.tenant_id
+					AND pickup_plan.weekday = EXTRACT(ISODOW FROM instance.date)
+			)
+			OR (
+				NOT EXISTS (
+					SELECT 1 FROM schedule.student_arrival_schedules AS any_arrival_plan
+					WHERE any_arrival_plan.student_id = student.student_id
+						AND any_arrival_plan.tenant_id = student.tenant_id
+				)
+				AND NOT EXISTS (
+					SELECT 1 FROM schedule.student_pickup_schedules AS any_pickup_plan
+					WHERE any_pickup_plan.student_id = student.student_id
+						AND any_pickup_plan.tenant_id = student.tenant_id
+				)
+			)
+		)`
+
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     backfillCompletedExpectedAttendanceVersion,
@@ -44,9 +95,22 @@ func init() {
 // absence nobody recorded, on a day that is long over.
 //
 // Flipping such a row to 'absent' restores what the normal completion path
-// would have written. They get no marker: 1.15.206 defaults not_scheduled to
-// FALSE, which is correct — nothing in the old data claimed these children
-// were unbooked.
+// would have written — but ONLY for a child that day's care plan actually
+// booked into the OGS. Group- and year-wide assignments (#1838) put every
+// member on every occurrence of a block, so a legacy row on a weekday the
+// child was never booked for is not a missed absence: writing 'absent' there
+// invents the exact false claim this feature exists to prevent, in a
+// migration that cannot be rolled back. Those rows are left alone here and
+// stamped with the non-booking marker by 1.15.207, once the column exists.
+//
+// The booking evidence is the same the runtime derivation reads
+// (services/schedule/care_day_resolver.go): a weekly arrival or pickup row on
+// the instance's ISO weekday, or any arrival/pickup exception on that exact
+// date — a timed one says the child came, a timeless "kommt heute nicht" says
+// the day WAS booked and the child cancelled, which is an absence to record
+// either way. A child with no weekly plan at all is CareDayUnknown, which the
+// derivation treats as expected: the plan cannot say anything, so the absence
+// stands.
 //
 // Not every completed+expected row is legacy, though. The attendance PATCH
 // endpoint has always been able to set a row back to 'expected' AFTER its
@@ -74,7 +138,8 @@ func backfillCompletedExpectedAttendanceUp(ctx context.Context, db *bun.DB) erro
 			AND instance.status = 'completed'
 			AND student.status = 'expected'
 			AND instance.completed_at IS NOT NULL
-			AND student.updated_at <= instance.completed_at;
+			AND student.updated_at <= instance.completed_at
+			AND ` + legacyCareDayBookedPredicate + `;
 	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed backfilling expected attendance on completed instances: %w", err)

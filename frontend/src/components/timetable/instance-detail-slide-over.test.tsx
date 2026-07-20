@@ -217,6 +217,52 @@ describe("InstanceDetailSlideOver", () => {
     ).not.toBeInTheDocument();
   });
 
+  // A sick/excused report flips every still-expected slot of the day to
+  // "absent", including the slots of children the care plan never booked that
+  // weekday. The backend hands those rows a "not_scheduled" verdict until the
+  // block ends and undoes them; showing them under "Fehlt" would claim an
+  // absence from care that was never owed (#1747).
+  it("groups a status-day absence on an unbooked day as not scheduled", () => {
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({
+          students: [
+            {
+              studentId: "24",
+              status: "absent",
+              substatus: "sick",
+              careDayStatus: "not_scheduled",
+            },
+            { studentId: "25", status: "absent", careDayStatus: "unknown" },
+          ],
+          studentIds: ["24", "25"],
+          expectedStudentsCount: 0,
+          notScheduledStudentsCount: 1,
+          presentStudentsCount: 0,
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onAttendancePatch={vi.fn()}
+        studentNames={
+          new Map([
+            ["24", "Nina Ohne Betreuung"],
+            ["25", "Ole Fehlt Wirklich"],
+          ])
+        }
+        editDeferred={false}
+      />,
+    );
+
+    // Group header plus the row label of the falsely absent child.
+    expect(screen.getAllByText(/Heute nicht eingeplant/)).toHaveLength(2);
+    expect(
+      screen.queryByRole("button", { name: /Nina Ohne Betreuung/ }),
+    ).not.toBeInTheDocument();
+    // The genuine absence keeps its own group and its own label.
+    expect(screen.getByText("Ole Fehlt Wirklich")).toBeInTheDocument();
+    expect(screen.getAllByText("Abgemeldet").length).toBeGreaterThan(0);
+  });
+
   it("marks spontaneous instances in the detail header", () => {
     render(
       <InstanceDetailSlideOver
