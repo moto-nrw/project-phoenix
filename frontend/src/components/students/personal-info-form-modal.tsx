@@ -17,6 +17,7 @@ import {
   accompaniedWeekdayKeys,
 } from "~/lib/student-helpers";
 import {
+  companionsFingerprint,
   fetchStudentCompanions,
   mergeCompanionConfirmations,
   type CompanionExtensionConfirmation,
@@ -61,6 +62,11 @@ export function PersonalInfoFormModal({
   const [companionsStatus, setCompanionsStatus] = useState<
     "loading" | "ready" | "error"
   >("loading");
+  // The list as it was loaded, so an untouched one can be left out of the save
+  // instead of overwriting whatever someone else changed in the meantime.
+  const [loadedCompanions, setLoadedCompanions] = useState<StudentCompanion[]>(
+    [],
+  );
   const [reloadCompanions, setReloadCompanions] = useState(0);
 
   // Reset form when modal opens with new student data. The confirmation state
@@ -92,10 +98,12 @@ export function PersonalInfoFormModal({
     if (!isOpen || !student.id) return;
     let cancelled = false;
     setCompanionsStatus("loading");
+    setLoadedCompanions([]);
     fetchStudentCompanions(student.id)
       .then((companions: StudentCompanion[]) => {
         if (cancelled) return;
         setEditedStudent((prev) => ({ ...prev, companions }));
+        setLoadedCompanions(companions);
         setCompanionsStatus("ready");
       })
       .catch((err: unknown) => {
@@ -109,6 +117,11 @@ export function PersonalInfoFormModal({
       cancelled = true;
     };
   }, [isOpen, student.id, reloadCompanions]);
+
+  const companionsDirty =
+    companionsStatus === "ready" &&
+    companionsFingerprint(loadedCompanions) !==
+      companionsFingerprint(editedStudent.companions ?? []);
 
   const updateField = <K extends keyof ExtendedStudent>(
     field: K,
@@ -173,11 +186,14 @@ export function PersonalInfoFormModal({
       await onSave({
         ...editedStudent,
         // The submitted list REPLACES the stored one, so it must only travel
-        // when it IS the stored one. A pending or failed load stays undefined,
-        // which the page turns into "no companions key" — the backend then
-        // leaves the child's Laufgemeinschaft untouched instead of clearing it.
-        companions:
-          companionsStatus === "ready" ? editedStudent.companions : undefined,
+        // when the user actually edited it. A pending or failed load stays
+        // undefined, which the page turns into "no companions key" — the
+        // backend then leaves the child's Laufgemeinschaft untouched instead of
+        // clearing it. An UNTOUCHED list stays out for the neighbouring reason:
+        // re-sending the snapshot this modal loaded would overwrite links
+        // someone else changed in the meantime, on a save that never meant to
+        // touch them.
+        companions: companionsDirty ? editedStudent.companions : undefined,
         extend_companion_plans: extendCompanionPlans,
         confirmed_companion_extensions: confirmed,
         allowed_departure_modes: allowedDepartureModes,

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/stretchr/testify/require"
 )
 
@@ -105,5 +106,37 @@ func TestStudentRequestBind_AccompaniedRequiresCompanionNote(t *testing.T) {
 			DepartureDays:         &days,
 		}
 		require.ErrorIs(t, req.Bind(nil), users.ErrDepartureCompanionNoteRequired)
+	})
+}
+
+// TestUpdateStudentRequestBind_CompanionCount pins the companion-list bound at
+// the request boundary. The service enforces the same cap, but only AFTER the
+// handler has row-locked every submitted id — a caller could otherwise name
+// hundreds of children and hold their rows until the eventual 400.
+func TestUpdateStudentRequestBind_CompanionCount(t *testing.T) {
+	entries := func(n int) *[]CompanionEntry {
+		list := make([]CompanionEntry, 0, n)
+		for i := range n {
+			list = append(list, CompanionEntry{
+				CompanionStudentID: int64(i + 1),
+				Weekdays:           []string{"mon"},
+			})
+		}
+		return &list
+	}
+
+	t.Run("a list at the cap is accepted", func(t *testing.T) {
+		req := &UpdateStudentRequest{Companions: entries(usersService.MaxStudentCompanions)}
+		require.NoError(t, req.Bind(nil))
+	})
+
+	t.Run("a list over the cap is rejected before any lock", func(t *testing.T) {
+		req := &UpdateStudentRequest{Companions: entries(usersService.MaxStudentCompanions + 1)}
+		require.ErrorIs(t, req.Bind(nil), usersService.ErrTooManyCompanions)
+	})
+
+	t.Run("no companions key is untouched", func(t *testing.T) {
+		req := &UpdateStudentRequest{}
+		require.NoError(t, req.Bind(nil))
 	})
 }

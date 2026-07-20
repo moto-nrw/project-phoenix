@@ -27,7 +27,7 @@ import {
   uploadStudentPhoto,
 } from "~/lib/student-api";
 import {
-  ALL_COMPANION_WEEKDAYS,
+  companionsFingerprint,
   fetchStudentCompanions,
   mergeCompanionConfirmations,
   type CompanionExtensionConfirmation,
@@ -201,21 +201,6 @@ function companionConflictExtensions(
     if (match) return parseConflictExtensions(match[0]);
   }
   return [];
-}
-
-// Order-independent fingerprint of a companion list, so reordering (or a
-// re-fetch handing the same links back in another order) is not mistaken for an
-// edit. Used both for the dirty check and to keep the two in sync.
-function companionsFingerprint(companions: StudentCompanion[]): string {
-  return companions
-    .map((companion) => {
-      const days = ALL_COMPANION_WEEKDAYS.filter((day) =>
-        companion.weekdays.includes(day),
-      );
-      return `${companion.companion_student_id}:${days.join(",")}`;
-    })
-    .sort()
-    .join("|");
 }
 
 function buildDraft(
@@ -650,14 +635,24 @@ export function StudentStammdatenTab({
       ) {
         delete submitData.photo_consent_given;
       }
-      // Only when the stored list is known. A pending or failed load leaves the
-      // key off entirely, which the backend reads as "don't touch the links"
-      // instead of "delete them all".
       if (companionsStatus === "ready") {
-        submitData.companions = companions.map((companion) => ({
-          companion_student_id: companion.companion_student_id,
-          weekdays: companion.weekdays,
-        }));
+        // Only when the user actually EDITED the list. It replaces the stored
+        // one wholesale, so an untouched snapshot must not travel: someone else
+        // may have changed the links since this form loaded, and re-sending the
+        // stale copy on an unrelated save (an address edit) would silently
+        // revert their change — the row locks serialize the writes but cannot
+        // see that ours is stale. An omitted key means "don't touch the links",
+        // which is exactly what an unedited list should do. A pending or failed
+        // load stays out for the same reason (there it would read as "delete
+        // them all").
+        if (companionsDirty) {
+          submitData.companions = companions.map((companion) => ({
+            companion_student_id: companion.companion_student_id,
+            weekdays: companion.weekdays,
+          }));
+        }
+        // Inert without a companion list, and the retry after a plan conflict
+        // always carries one (the conflict can only arise from an edited list).
         submitData.extend_companion_plans = extendPlans;
         submitData.confirmed_companion_extensions = confirmed;
       }
@@ -746,6 +741,7 @@ export function StudentStammdatenTab({
     },
     [
       companions,
+      companionsDirty,
       companionsStatus,
       formData,
       onSave,

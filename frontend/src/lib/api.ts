@@ -572,8 +572,28 @@ export function parseConflictExtensions(
 export const COMPANION_LOCK_BUSY_CODE = "companion_lock_busy";
 
 /**
- * Reports whether a 409 body IS the companion-plan question rather than the
- * lock collision.
+ * Reports whether a complete 409 RESPONSE BODY is the companion-plan question.
+ *
+ * Strict on purpose: the conflict list has to actually be there. The student PUT
+ * answers 409 for several unrelated reasons (companion_lock_busy, the
+ * SICK_EXCUSED_CONFLICT code, and whatever a later feature adds), and typing one
+ * of those as a CompanionPlanConflictError would replace its real contract with
+ * an empty confirmation the user cannot answer. Only the untouched body reaches
+ * this function, so "no list in it" means "not this conflict" — the response
+ * then follows the generic error path and keeps its own message.
+ */
+export function isCompanionPlanConflictResponse(body: string): boolean {
+  return parseConflictExtensions(body).length > 0;
+}
+
+/**
+ * Reports whether a 409 body FRAGMENT is the companion-plan question rather than
+ * the lock collision.
+ *
+ * For callers that no longer hold the untouched response — the generic CRUD
+ * service reduces it to a message and an attached body, either of which may
+ * have lost the list. Use isCompanionPlanConflictResponse whenever the whole
+ * body is available.
  *
  * The status alone does not say so: the student PUT also answers 409 for
  * ErrCompanionLockBusy (a linked child is being edited elsewhere — retriable,
@@ -843,12 +863,12 @@ export const studentService = {
           // extend_companion_plans after the user confirms. Typed so the modal
           // can tell it apart from a real error. Nothing was written — the
           // handler checks before its first write. A 409 WITHOUT that list is a
-          // different conflict (a linked child locked by a concurrent edit) and
-          // falls through to the generic error path, which shows its retriable
-          // message instead of an unanswerable question.
+          // different conflict (a linked child locked by a concurrent edit, a
+          // sick/excused clash, …) and falls through to the generic error path,
+          // which shows its own message instead of an unanswerable question.
           if (
             response.status === 409 &&
-            isCompanionPlanConflictBody(errorText)
+            isCompanionPlanConflictResponse(errorText)
           ) {
             throw new CompanionPlanConflictError(errorText);
           }

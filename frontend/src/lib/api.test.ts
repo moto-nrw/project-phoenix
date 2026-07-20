@@ -1323,6 +1323,63 @@ describe("api.ts helper functions", () => {
         restore();
       }
     });
+
+    // The student PUT answers 409 for several unrelated reasons. Only the one
+    // carrying a conflict list is the companion question the caller can answer
+    // with extend_companion_plans; typing another 409 as that error would hand
+    // the user an empty, unanswerable confirmation instead of the real message.
+    it("types only a 409 carrying conflicts as the companion question", async () => {
+      const respondWith = async (body: string) => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 409,
+          text: () => Promise.resolve(body),
+        });
+        const { getSession } = await import("next-auth/react");
+        vi.mocked(getSession).mockResolvedValue({
+          user: { token: "test-token" },
+        } as never);
+        const { studentService } = await import("./api");
+        const restore = setupBrowserEnv();
+        try {
+          return await studentService
+            .updateStudent("1", {
+              first_name: "Test",
+              second_name: "Student",
+              school_class: "1a",
+              name: "Test Student",
+              current_location: "",
+            })
+            .then(() => null)
+            .catch((err: unknown) => err);
+        } finally {
+          restore();
+        }
+      };
+
+      const { CompanionPlanConflictError } = await import("./api");
+
+      const companionConflict = await respondWith(
+        JSON.stringify({
+          error:
+            "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+          conflicts: [{ student_id: 42, weekdays: ["mon"] }],
+        }),
+      );
+      expect(companionConflict).toBeInstanceOf(CompanionPlanConflictError);
+
+      // A different 409 (sick + excused) keeps its own contract.
+      const sickExcused = await respondWith(
+        JSON.stringify({
+          error: "a student cannot be both sick and excused at the same time",
+          code: "SICK_EXCUSED_CONFLICT",
+        }),
+      );
+      expect(sickExcused).not.toBeInstanceOf(CompanionPlanConflictError);
+      expect((sickExcused as Error).message).toContain(
+        "cannot be both sick and excused",
+      );
+    });
   });
 
   describe("roomService.updateRoom", () => {

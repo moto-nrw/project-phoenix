@@ -77,6 +77,28 @@ export function mergeCompanionConfirmations(
   }));
 }
 
+/**
+ * Order-independent fingerprint of a companion list, so reordering (or a
+ * re-fetch handing the same links back in another order) is not mistaken for an
+ * edit.
+ *
+ * Every form that can submit the list needs it: the submitted list REPLACES the
+ * stored one, so it may only travel when the user actually edited it — sending
+ * the loaded snapshot on an unrelated save would overwrite whatever someone
+ * else changed in the meantime.
+ */
+export function companionsFingerprint(companions: StudentCompanion[]): string {
+  return companions
+    .map((companion) => {
+      const days = ALL_COMPANION_WEEKDAYS.filter((day) =>
+        companion.weekdays.includes(day),
+      );
+      return `${companion.companion_student_id}:${days.join(",")}`;
+    })
+    .sort()
+    .join("|");
+}
+
 /** The companion entry as it arrives on the wire (backend int64 → JSON number). */
 interface RawStudentCompanion {
   companion_student_id: number | string;

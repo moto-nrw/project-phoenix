@@ -50,6 +50,25 @@ type CompanionEntry struct {
 	Weekdays           []string `json:"weekdays"`
 }
 
+// validateCompanionEntries bounds the submitted list at the request boundary.
+//
+// The cap is a service rule (ErrTooManyCompanions), but the service only sees
+// the list AFTER lockCompanionRows has taken a FOR UPDATE lock on every
+// submitted id. Without this check a group supervisor authorized to edit one
+// child could name hundreds of other children of the school and lock all of
+// them for the length of the transaction before earning the eventual 400 —
+// blocking unrelated writes on rows they may not even read. Counting needs no
+// database, so it belongs before the locks.
+func validateCompanionEntries(entries *[]CompanionEntry) error {
+	if entries == nil {
+		return nil
+	}
+	if len(*entries) > usersService.MaxStudentCompanions {
+		return usersService.ErrTooManyCompanions
+	}
+	return nil
+}
+
 // getStudentCompanions returns the children this child walks home with.
 //
 // Read access follows the same scope rules as the rest of the child's data —

@@ -514,6 +514,9 @@ func (req *UpdateStudentRequest) Bind(_ *http.Request) error {
 	if err := validateDepartureCompanionNote(req.DepartureCompanionNote); err != nil {
 		return err
 	}
+	if err := validateCompanionEntries(req.Companions); err != nil {
+		return err
+	}
 	// Guardian fields are deprecated - allow empty strings for clearing
 	// Empty strings will be converted to nil in the update handler
 	return nil

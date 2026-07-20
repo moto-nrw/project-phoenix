@@ -139,9 +139,13 @@ vi.mock("./student-form-fields", () => ({
   DepartureSection: ({
     days,
     onChange,
+    onCompanionsChange,
   }: {
     days?: Record<string, string[]> | null;
     onChange: (v: Record<string, string[]>) => void;
+    onCompanionsChange?: (
+      companions: { companion_student_id: string; weekdays: string[] }[],
+    ) => void;
   }) => (
     <div data-testid="departure-section">
       <span data-testid="departure-mon">{days?.mon ?? "alone"}</span>
@@ -152,6 +156,19 @@ vi.mock("./student-form-fields", () => ({
       >
         set-mon-bus
       </button>
+      {onCompanionsChange ? (
+        <button
+          type="button"
+          data-testid="companion-add"
+          onClick={() =>
+            onCompanionsChange([
+              { companion_student_id: "7", weekdays: ["mon"] },
+            ])
+          }
+        >
+          add-companion
+        </button>
+      ) : null}
     </div>
   ),
   // EnrollmentConsentsSection: read-only consent display rendered
@@ -780,6 +797,78 @@ describe("StudentStammdatenTab — companion plan conflicts", () => {
     expect(onSave.mock.calls[1]![0]).toMatchObject({
       extend_companion_plans: true,
       confirmed_companion_extensions: [],
+    });
+  });
+});
+
+// Staleness suite. The submitted companion list REPLACES the stored one, so it
+// may only travel when this form actually edited it: someone else may have
+// changed the links since the load, and re-sending the loaded snapshot on an
+// unrelated save would silently revert their change (the backend row-locks the
+// writes, but a lock cannot tell that ours is stale).
+describe("StudentStammdatenTab — companion list staleness", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fetchStudentPrivacyConsentMock.mockResolvedValue(null);
+    fetchStudentEnrollmentExtraFieldsMock.mockResolvedValue([]);
+    validateStudentFormMock.mockReturnValue({});
+    fetchStudentCompanionsMock.mockResolvedValue([
+      { companion_student_id: "42", weekdays: ["mon"] },
+    ]);
+    handleStudentFormSubmitMock.mockImplementation(
+      async (
+        event: Event & { preventDefault: () => void },
+        _formData: Partial<Student>,
+        validate: () => boolean,
+        save: (data: Partial<Student>) => Promise<void>,
+        setSaving: (v: boolean) => void,
+      ) => {
+        event.preventDefault();
+        if (!validate()) return;
+        setSaving(true);
+        await save(_formData);
+        setSaving(false);
+      },
+    );
+  });
+
+  async function saveAfter(
+    edit: () => void,
+  ): Promise<ReturnType<typeof vi.fn>> {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+    await waitFor(() => expect(fetchStudentCompanionsMock).toHaveBeenCalled());
+    edit();
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    return onSave;
+  }
+
+  it("omits the companion list from a save that did not touch it", async () => {
+    const onSave = await saveAfter(() =>
+      fireEvent.change(screen.getByTestId("address-street"), {
+        target: { value: "Neue Straße 1" },
+      }),
+    );
+
+    // No key at all — the backend leaves the stored links alone. An empty list
+    // would delete them, the loaded list would overwrite a concurrent edit.
+    expect(onSave.mock.calls[0]![0]).not.toHaveProperty("companions");
+  });
+
+  it("sends the companion list once the user edited it", async () => {
+    const onSave = await saveAfter(() =>
+      fireEvent.click(screen.getByTestId("companion-add")),
+    );
+
+    expect(onSave.mock.calls[0]![0]).toMatchObject({
+      companions: [{ companion_student_id: "7", weekdays: ["mon"] }],
     });
   });
 });

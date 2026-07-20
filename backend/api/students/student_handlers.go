@@ -1088,9 +1088,10 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 
 	// Apply the request to the locked row in memory FIRST. Nothing is written
 	// yet, which is what lets the companion check below refuse the whole update
-	// before any of it lands: this runs inside the middleware's tenant
-	// transaction, and that commits on every non-5xx response — a 409 raised
-	// after a write would keep that write.
+	// before any of it lands. updateStudent additionally marks the surrounding
+	// tenant transaction for rollback on every error, so a late refusal cannot
+	// leave a partial write behind either — checking first keeps the refusal
+	// cheap, the rollback makes it safe.
 	applyStudentFieldUpdates(req, fresh)
 	authorizedExtensions, err := rs.checkCompanionConflicts(ctx, fresh, req, userPermissions)
 	if err != nil {
@@ -1280,6 +1281,15 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.applyStudentUpdate(ctx, tenantID, student, person, req, userPermissions, personResult.updated, statusHistoryNow)
 	}); err != nil {
+		// This handler runs inside TenantTxMiddleware's transaction, and the
+		// WithTenantTx above only REUSES it (tenant/tx.go) — returning an error
+		// from the closure rolls nothing back, and the middleware commits on
+		// every non-5xx response. applyStudentUpdate writes before its last
+		// validation (companions, person, status history all land before
+		// StudentService.Update can raise ErrDepartureCompanionNoteRequired), so
+		// without this a refused PUT would answer 400/409 and still keep those
+		// writes. A rejected update must leave nothing behind.
+		tenant.MarkRollback(r.Context())
 		renderError(w, r, updateStudentTxErrorRenderer(err))
 		return
 	}
@@ -1309,6 +1319,10 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.deleteStudentTx(ctx, student)
 	}); err != nil {
+		// Same reason as updateStudent: the surrounding transaction belongs to
+		// the middleware and commits on every non-5xx response, so the 409 paths
+		// below have to request the rollback themselves.
+		tenant.MarkRollback(r.Context())
 		renderError(w, r, deleteStudentTxErrorRenderer(err))
 		return
 	}
@@ -1367,7 +1381,8 @@ func (rs *Resource) deleteStudentTx(ctx context.Context, student *users.Student)
 }
 
 // deleteStudentTxErrorRenderer maps the deleteStudentTx transaction error to
-// the wire response. WithTenantTx has already rolled everything back.
+// the wire response. The caller has requested the rollback (tenant.MarkRollback),
+// so nothing this transaction touched is committed.
 func deleteStudentTxErrorRenderer(err error) render.Renderer {
 	switch {
 	// A linked child would be stranded (accompanied plan, no note, no other
