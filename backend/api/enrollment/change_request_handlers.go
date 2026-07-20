@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type ChangeRequestResponse struct {
@@ -258,7 +259,7 @@ func (rs *Resource) reviewChangeRequest(w http.ResponseWriter, r *http.Request, 
 		return reviewErr
 	})
 	if err != nil {
-		mapChangeRequestError(w, r, err)
+		mapChangeRequestWriteError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, toChangeRequestResponse(agg, true, true), "Change request reviewed")
@@ -313,6 +314,24 @@ func toChangeRequestResponse(agg *enrollmentService.ChangeRequestAggregate, incl
 		resp.Request = &request
 	}
 	return resp
+}
+
+// mapChangeRequestWriteError is mapChangeRequestError for the handlers that
+// MUTATE (approve/reject, admin data correction).
+//
+// runInTenantTx only REUSES the transaction TenantTxMiddleware opened for the
+// request (tenant/tx.go), so returning an error from the closure rolls nothing
+// back, and the middleware commits on every response below 500. Both flows
+// write before their last validation can fail: applyApprovedChange updates the
+// guardian and child rows before SyncApprovedChildData rebuilds the departure
+// plan, and that rebuild is what raises the companion sentinels (400/409). Left
+// alone, a refused review would answer 400 and still commit the guardian,
+// contact, schedule, and child writes while the change request stays pending.
+// A refused write must leave nothing behind, for the same reason updateStudent
+// marks the rollback itself.
+func mapChangeRequestWriteError(w http.ResponseWriter, r *http.Request, err error) {
+	tenant.MarkRollback(r.Context())
+	mapChangeRequestError(w, r, err)
 }
 
 func mapChangeRequestError(w http.ResponseWriter, r *http.Request, err error) {
