@@ -12,14 +12,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The legacy repair (1.15.205 + 1.15.207) splits untouched 'expected' rows on a
-// completed instance along the care plan that was already on file when the
-// instance finished: a child the plan booked that day did not come and gets the
-// absence the old force-completion path never wrote; a child the plan never
-// booked was never expected, so writing 'absent' would invent the false absence
-// the whole of #1747 exists to prevent — they get the non-booking marker
-// instead. A child with no plan at all cannot be judged: a plan deleted since
-// leaves no trace, so neither migration touches that row.
+// The legacy repair (1.15.205) acts only on positive evidence: a child the care
+// plan already booked that day did not come and gets the absence the old
+// force-completion path never wrote.
+//
+// Everyone else is left exactly as they are. A child the current plan does not
+// book that weekday is NOT stamped as a non-booking, because a weekday entry
+// deleted since leaves no trace anywhere — it is indistinguishable from one
+// that never existed, and the marker cannot be undone. A child with no plan at
+// all is the same problem in a louder form.
 func TestBackfillCompletedAttendanceSplitsByCarePlan(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
@@ -69,7 +70,6 @@ func TestBackfillCompletedAttendanceSplitsByCarePlan(t *testing.T) {
 	})
 
 	require.NoError(t, backfillCompletedExpectedAttendanceUp(ctx, db))
-	require.NoError(t, backfillNotScheduledMarkerUp(ctx, db))
 
 	assertRow := func(key, wantStatus string, wantMarker bool) {
 		t.Helper()
@@ -83,7 +83,7 @@ func TestBackfillCompletedAttendanceSplitsByCarePlan(t *testing.T) {
 	}
 
 	assertRow("booked", scheduleModel.AttendanceStatusAbsent, false)
-	assertRow("unbooked", scheduleModel.AttendanceStatusExpected, true)
+	assertRow("unbooked", scheduleModel.AttendanceStatusExpected, false)
 	assertRow("planless", scheduleModel.AttendanceStatusExpected, false)
 }
 
@@ -137,7 +137,6 @@ func TestBackfillCompletedAttendanceSkipsPlansWrittenAfterCompletion(t *testing.
 	})
 
 	require.NoError(t, backfillCompletedExpectedAttendanceUp(ctx, db))
-	require.NoError(t, backfillNotScheduledMarkerUp(ctx, db))
 
 	for _, key := range []string{"booked", "unbooked"} {
 		var status string
@@ -152,9 +151,8 @@ func TestBackfillCompletedAttendanceSkipsPlansWrittenAfterCompletion(t *testing.
 }
 
 // A row somebody reset to 'expected' by hand AFTER the instance finished is a
-// deliberate decision, not a leftover of the old path. Neither migration may
-// touch it — 205 cannot be rolled back, and 207 would relabel a real
-// expectation as a day the child was never booked into care.
+// deliberate decision, not a leftover of the old path. The migration may not
+// touch it — it cannot be rolled back.
 func TestBackfillCompletedAttendanceSkipsPostCompletionEdits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
@@ -186,7 +184,6 @@ func TestBackfillCompletedAttendanceSkipsPostCompletionEdits(t *testing.T) {
 	})
 
 	require.NoError(t, backfillCompletedExpectedAttendanceUp(ctx, db))
-	require.NoError(t, backfillNotScheduledMarkerUp(ctx, db))
 
 	var status string
 	var notScheduled bool

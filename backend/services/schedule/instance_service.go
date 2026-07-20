@@ -276,6 +276,12 @@ func (s *instanceService) getLogger() *slog.Logger {
 // A child whose day was explicitly cancelled is NOT in this list: that is a
 // reported absence and has to be written, or it vanishes from the attendance
 // history and the exports (see CareDayStatus.ExemptFromAbsence).
+//
+// Neither is a child whose row somebody set by hand (ManualStatusAt). Staff can
+// set an unbooked slot back to 'expected' — "the plan is wrong, this child is
+// coming" — and that decision outranks the derivation: the row is a genuine
+// expectation, so it must take the ordinary expected → absent path rather than
+// be spared it and stamped as a non-booking (#1747 review).
 func (s *instanceService) notScheduledStudentIDs(
 	ctx context.Context, instance *scheduleModel.ActivityInstance,
 ) ([]int64, error) {
@@ -289,7 +295,13 @@ func (s *instanceService) notScheduledStudentIDs(
 
 	studentIDs := make([]int64, 0, len(rows))
 	for _, row := range rows {
+		if row.ManualStatusAt != nil {
+			continue
+		}
 		studentIDs = append(studentIDs, row.StudentID)
+	}
+	if len(studentIDs) == 0 {
+		return nil, nil
 	}
 
 	careDay, err := s.deps.CareDayService.ResolveForDate(ctx, studentIDs, instance.Date)

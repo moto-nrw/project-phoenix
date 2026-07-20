@@ -236,8 +236,18 @@ func (rs *Resource) mirrorSessionToTimetable(ctx context.Context, activeGroup *a
 	rs.broadcastMirroredInstance(ctx, realtime.EventInstanceStarted, inst, activeGroup)
 }
 
+// completeMirroredTimetableInstance ends the timetable side of an RFID session
+// the kiosk just closed.
+//
+// It goes through the bridge rather than stamping the instance completed
+// directly (#1747 review). Completion is not a status flip: the bridge
+// finalizes the attendance first — genuinely expected children flip to
+// 'absent', children the care plan does not book that day keep their expected
+// row and are stamped as non-bookings. Marking the instance completed on its
+// own would leave every expected row behind, which readers show as an
+// unfinished day and which no later path ever repairs.
 func (rs *Resource) completeMirroredTimetableInstance(ctx context.Context, activeGroupID int64) {
-	if activeGroupID <= 0 || rs.TimetableData == nil {
+	if activeGroupID <= 0 || rs.TimetableData == nil || rs.TimetableBridge == nil {
 		return
 	}
 	inst, err := rs.TimetableData.GetInstanceByActiveGroupID(ctx, activeGroupID)
@@ -251,15 +261,21 @@ func (rs *Resource) completeMirroredTimetableInstance(ctx context.Context, activ
 		return
 	}
 	now := time.Now()
-	inst.Status = scheduleModel.InstanceStatusCompleted
-	inst.CompletedAt = &now
-	if err := rs.TimetableData.MarkInstanceCompleted(ctx, inst.ID, now); err != nil {
+	completed, err := rs.TimetableBridge.CompleteActiveByActiveGroupIDs(ctx, []int64{activeGroupID}, now)
+	if err != nil {
 		slog.Default().WarnContext(ctx, "failed to complete mirrored timetable instance",
 			slog.Int64("instance_id", inst.ID),
 			slog.String("error", err.Error()),
 		)
 		return
 	}
+	if completed == 0 {
+		// Already completed by another path — nothing was finalized here, so
+		// re-announcing it would be a phantom event.
+		return
+	}
+	inst.Status = scheduleModel.InstanceStatusCompleted
+	inst.CompletedAt = &now
 	rs.broadcastMirroredInstance(ctx, realtime.EventInstanceCompleted, inst, &active.Group{RoomID: inst.RoomID})
 }
 

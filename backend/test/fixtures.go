@@ -2806,6 +2806,10 @@ type InstanceStudentOpts struct {
 	// writes. A manual decision and a check-in both clear it, so a nil value
 	// is what separates "a human decided this" from "a day status did".
 	StudentStatusDayID *int64
+	// ManualStatusAt reproduces an attendance PATCH: a human set this row's
+	// status by hand. Completion must leave such a row alone rather than stamp
+	// it as a non-booking (#1747).
+	ManualStatusAt *time.Time
 }
 
 // CreateTestInstanceStudent inserts one instance_students row. Status defaults
@@ -2831,6 +2835,7 @@ func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID 
 		Status:             status,
 		NotScheduled:       opt.NotScheduled,
 		StudentStatusDayID: opt.StudentStatusDayID,
+		ManualStatusAt:     opt.ManualStatusAt,
 	}
 	row.SetTenantID(1)
 

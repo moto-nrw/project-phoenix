@@ -116,8 +116,10 @@ func (r *InstanceStudentRepository) FindExpectedByInstanceIDs(ctx context.Contex
 //
 // The WHERE mirrors MarkNotScheduled's row predicate on purpose: the session-end
 // bridge feeds this result straight into that write, so a shape the write can
-// change must not be missing here. Reading only 'expected' rows hid children
-// whose day status had already stamped a false absence on them (#1747).
+// change must not be missing here, and a shape it refuses to touch — a
+// hand-decided row — must not be in here either. Reading only 'expected' rows
+// hid children whose day status had already stamped a false absence on them
+// (#1747).
 func (r *InstanceStudentRepository) FindNotScheduledCandidatesByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*schedule.InstanceStudent, error) {
 	if len(instanceIDs) == 0 {
 		return []*schedule.InstanceStudent{}, nil
@@ -127,6 +129,7 @@ func (r *InstanceStudentRepository) FindNotScheduledCandidatesByInstanceIDs(ctx 
 		Model(&rows).
 		ModelTableExpr(modelTblInstanceStudent).
 		Where(`"instance_student".instance_id IN (?)`, bun.List(instanceIDs)).
+		Where(`"instance_student".manual_status_at IS NULL`).
 		WhereGroup(" AND ", func(group *bun.SelectQuery) *bun.SelectQuery {
 			return group.
 				WhereOr(`"instance_student".status = ?`, schedule.AttendanceStatusExpected).
@@ -562,6 +565,15 @@ func (r *InstanceStudentRepository) UpdateAttendanceFields(
 	if patch.Status != nil {
 		q = q.Set(`status = ?`, *patch.Status)
 		clearStatusDayProvenance = true
+		// A human decided this row's status. Record that, and drop any
+		// non-booking marker the completion had stamped: staff setting an
+		// unbooked slot back to 'expected' is precisely the override the marker
+		// must not survive, and ending the block later must not re-stamp it
+		// (MarkNotScheduled skips rows carrying manual_status_at). Without both
+		// writes the decision vanishes from the completed-instance views, the
+		// child's history and the exports (#1747 review).
+		q = q.Set(`manual_status_at = ?`, time.Now().UTC()).
+			Set(`not_scheduled = FALSE`)
 	}
 	switch {
 	case patch.SubstatusClear:
@@ -641,9 +653,12 @@ func (r *InstanceStudentRepository) BulkUpdateStatus(
 // with the provenance that would otherwise let ReleaseStatusDay write it back.
 // A child owed no care that day cannot be absent from it, excused or not.
 //
-// Everything else is left alone: a manual PATCH decision (it clears
-// student_status_day_id, so it is not status-day-owned) and an observed
-// check-in must never be relabelled as a non-booking.
+// Everything else is left alone: a manual PATCH decision and an observed
+// check-in must never be relabelled as a non-booking. A hand-set status is
+// excluded by manual_status_at rather than by its value — staff can set an
+// unbooked slot back to 'expected', which is otherwise the exact shape this
+// write claims (#1747 review). Such a row stays a genuine expectation and takes
+// the ordinary expected → absent path.
 func (r *InstanceStudentRepository) MarkNotScheduled(ctx context.Context, refs []schedule.StudentInstanceRef) error {
 	if len(refs) == 0 {
 		return nil
@@ -657,6 +672,7 @@ func (r *InstanceStudentRepository) MarkNotScheduled(ctx context.Context, refs [
 		Set(`substatus = CASE WHEN "instance_student".student_status_day_id IS NOT NULL THEN NULL ELSE "instance_student".substatus END`).
 		Set(`student_status_day_id = NULL`).
 		Set(`updated_at = ?`, time.Now().UTC()).
+		Where(`"instance_student".manual_status_at IS NULL`).
 		WhereGroup(" AND ", func(group *bun.UpdateQuery) *bun.UpdateQuery {
 			return group.
 				WhereOr(`"instance_student".status = ?`, schedule.AttendanceStatusExpected).

@@ -201,3 +201,32 @@ func TestCareDayStatusExemptFromAbsence_OnlyNonBookings(t *testing.T) {
 	assert.False(t, CareDayUnknown.ExemptFromAbsence())
 	assert.False(t, CareDayStatus("").ExemptFromAbsence())
 }
+
+// Staff setting an unbooked slot back to 'expected' means "the plan is wrong,
+// this child is coming". The row then looks exactly like the automatic state,
+// so the decision is recognized by its own stamp — and it outranks the
+// derivation both while the block runs and once it is over (#1747 review).
+func TestAttendanceRowCareDay_ManualDecisionOutranksThePlan(t *testing.T) {
+	stamp := time.Date(2026, 4, 20, 13, 0, 0, 0, time.UTC)
+
+	manual := &schedule.InstanceStudent{
+		Status:         schedule.AttendanceStatusExpected,
+		ManualStatusAt: &stamp,
+	}
+	assert.Equal(t, CareDayUnknown, AttendanceRowCareDay(false, manual, CareDayNotScheduled),
+		"a running block must show the hand-set expectation, not the plan it overrides")
+
+	// The same row after completion: it was never stamped as a non-booking, so
+	// it stays an ordinary expectation in the history.
+	marked := &schedule.InstanceStudent{
+		Status:         schedule.AttendanceStatusExpected,
+		NotScheduled:   true,
+		ManualStatusAt: &stamp,
+	}
+	assert.Equal(t, CareDayUnknown, AttendanceRowCareDay(true, marked, CareDayNotScheduled),
+		"a hand-decided row is never read back as a non-booking")
+
+	// Without the stamp nothing changes for the automatic rows.
+	auto := &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected}
+	assert.Equal(t, CareDayNotScheduled, AttendanceRowCareDay(false, auto, CareDayNotScheduled))
+}

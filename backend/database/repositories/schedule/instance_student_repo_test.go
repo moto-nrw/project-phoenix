@@ -844,6 +844,65 @@ func TestInstanceStudentRepository_MarkNotScheduled_KeepsDecidedOutcomes(t *test
 	}
 }
 
+// Staff can PATCH an unbooked slot back to 'expected' — "the plan is wrong,
+// this child is coming". That decision lands on the same status the automatic
+// state carries, so completion can only tell them apart by the manual_status_at
+// stamp the PATCH writes. Stamping the non-booking over it would hide a
+// deliberate expectation from the completed-instance views, the child's history
+// and the exports (#1747 review).
+func TestInstanceStudentRepository_MarkNotScheduled_KeepsManualExpected(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	date := timezone.NewDate(2026, 10, 16)
+	inst, cleanupInst := createInstanceFixture(t, db, "not-scheduled-manual", date)
+	defer cleanupInst()
+
+	student := testpkg.CreateTestStudent(t, db, "Manuell", fmt.Sprintf("Erwartet-%d", time.Now().UnixNano()), "3a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	row := &scheduleModels.InstanceStudent{
+		InstanceID: inst.ID,
+		StudentID:  student.ID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+		// The slot already carries the marker from an earlier completion.
+		NotScheduled: true,
+	}
+	row.SetTenantID(1)
+	require.NoError(t, repo.Create(ctx, row))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+	expected := scheduleModels.AttendanceStatusExpected
+	require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID, scheduleModels.AttendanceFieldPatch{
+		Status: &expected,
+	}))
+
+	got, err := repo.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.ManualStatusAt, "the PATCH must record that a human decided this row")
+	require.False(t, got.NotScheduled, "and must drop the marker it overrides")
+
+	// The row is no longer a candidate the completion may resolve...
+	candidates, err := repo.FindNotScheduledCandidatesByInstanceIDs(ctx, []int64{inst.ID})
+	require.NoError(t, err)
+	for _, candidate := range candidates {
+		assert.NotEqual(t, row.ID, candidate.ID, "a hand-decided row must not be offered to the completion")
+	}
+
+	// ...and the write itself refuses it even when a caller passes it anyway.
+	require.NoError(t, repo.MarkNotScheduled(ctx, []scheduleModels.StudentInstanceRef{
+		{StudentID: student.ID, InstanceID: inst.ID},
+	}))
+
+	got, err = repo.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	assert.False(t, got.NotScheduled, "the manual expectation stays a genuine expectation")
+	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got.Status)
+}
+
 func TestInstanceStudentRepository_UpdateAttendanceFields(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

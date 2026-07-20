@@ -24,12 +24,16 @@ type TimetableBridgeDependencies struct {
 // path that kicks a running session off a device or an activity.
 //
 // It exists so that no caller can stamp an instance completed without
-// finalizing its attendance first. Readers treat a row still 'expected' on a
-// COMPLETED instance as the frozen "war an dem Tag nicht eingeplant" marker
-// (#1747) — the operations roster, the child's attendance history, the exports.
-// A path that completes an instance while leaving genuinely expected rows
-// behind therefore does not merely skip an absence, it relabels those children
-// as never booked and drops them out of the history.
+// finalizing its attendance first: genuinely expected children flip to
+// 'absent', children the care plan does not book that day keep their expected
+// row and carry the frozen not_scheduled marker instead (#1747). A path that
+// only flips the instance status leaves every expected row behind — an absence
+// nobody recorded and a non-booking nobody wrote down, on a day that is over
+// and that no later path revisits.
+//
+// Every caller that ends an active.group outside the instance lifecycle service
+// goes through here: the nightly session-end job, the force-start path, and the
+// kiosk's "Sitzung beenden" (api/iot/sessions).
 type TimetableBridgeService struct {
 	deps TimetableBridgeDependencies
 }

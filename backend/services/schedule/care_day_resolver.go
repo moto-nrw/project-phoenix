@@ -85,6 +85,11 @@ func (s CareDayStatus) ExemptFromAbsence() bool { return s == CareDayNotSchedule
 // IS the verdict. Reading the current care plan there would let a later plan
 // edit relabel a finished day.
 //
+// A row somebody set by hand (ManualStatusAt) reports unknown regardless of
+// what the plan says: staff setting an unbooked slot back to 'expected' means
+// "the plan is wrong, this child is coming", and the planner must show that
+// instead of the derivation it overrides (#1747 review).
+//
 // A row that already carries a real attendance status tells its own story and
 // reports unknown — with one exception: an absence a broad day status (sick /
 // excused / class trip) wrote and still owns. ApplyStatusDay stamps every
@@ -96,6 +101,9 @@ func (s CareDayStatus) ExemptFromAbsence() bool { return s == CareDayNotSchedule
 // one, and a manual absence is never relabelled.
 func AttendanceRowCareDay(instanceCompleted bool, row *schedule.InstanceStudent, planVerdict CareDayStatus) CareDayStatus {
 	if row == nil {
+		return CareDayUnknown
+	}
+	if row.ManualStatusAt != nil {
 		return CareDayUnknown
 	}
 	if instanceCompleted {

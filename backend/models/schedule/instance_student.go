@@ -65,6 +65,19 @@ type InstanceStudent struct {
 	// only while it is NotScheduled AND still 'expected'; once somebody checks
 	// the child in or decides the slot by hand, that decision tells the story.
 	NotScheduled bool `bun:"not_scheduled,notnull,default:false" json:"not_scheduled"`
+	// ManualStatusAt records that a human set this row's Status by hand through
+	// the attendance PATCH endpoint. It is not about WHICH status was chosen —
+	// it is the fact that a person chose it.
+	//
+	// It exists because "still 'expected'" is the population ending a block
+	// stamps as a non-booking, and it is also what staff write when they set an
+	// unbooked slot back to expected ("this child IS coming, the plan is
+	// wrong"). Without this column the completion cannot tell the automatic
+	// state from the deliberate one and would relabel the decision as a day the
+	// child was never booked, hiding the row from the history and the exports.
+	// A row carrying this stamp is never marked NotScheduled; it takes the
+	// ordinary expected → absent path like any other genuine expectation.
+	ManualStatusAt *time.Time `bun:"manual_status_at" json:"manual_status_at,omitempty"`
 	// StudentStatusDayID marks a broad day status that owns the slot absence.
 	// Manual slot decisions keep this nil and therefore win over later broad
 	// status changes.
@@ -164,8 +177,9 @@ type InstanceStudentRepository interface {
 	// FindNotScheduledCandidatesByInstanceIDs returns every row that ending a
 	// block may still resolve: rows still 'expected', plus rows a broad day
 	// status (sick / excused / class trip) already flipped to 'absent' and
-	// still owns (student_status_day_id IS NOT NULL). Tenant-scoped, empty
-	// slice for empty input.
+	// still owns (student_status_day_id IS NOT NULL), excluding rows a human
+	// decided by hand (manual_status_at). Tenant-scoped, empty slice for empty
+	// input.
 	//
 	// It exists because 'expected' alone is not the candidate set. ApplyStatusDay
 	// runs before anything knows whether the child was booked into care that
@@ -244,8 +258,9 @@ type InstanceStudentRepository interface {
 	// stamped too and reset to 'expected', dropping substatus and status-day
 	// provenance: those statuses are written before anything knows whether the
 	// child was booked, and a child owed no care that day cannot be absent from
-	// it. A child who was checked in or decided by hand keeps their outcome —
-	// overwriting it would claim they were never booked.
+	// it. A child who was checked in keeps their outcome, and so does any row
+	// carrying manual_status_at — staff can set an unbooked slot back to
+	// 'expected', and stamping over that would claim they were never booked.
 	//
 	// Idempotent, tenant-scoped, and a no-op on an empty slice.
 	MarkNotScheduled(ctx context.Context, refs []StudentInstanceRef) error

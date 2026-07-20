@@ -15,11 +15,10 @@ const (
 // legacyCareDayBookedPredicate is the SQL form of "a care-plan row that was
 // already on file when this instance completed books this child into the OGS on
 // its date" (#1747). It is written against the aliases `student`
-// (schedule.instance_students) and `instance` (schedule.activity_instances) and
-// shared by 1.15.205 and 1.15.207, which split the legacy population along
-// exactly this line: booked rows become absences, unbooked rows become
-// non-booking markers. Keeping one predicate is what guarantees no legacy row
-// lands in both buckets.
+// (schedule.instance_students) and `instance` (schedule.activity_instances).
+// Only positive evidence is actionable: a booked row that stayed 'expected' is
+// the absence the old force-completion path forgot. The complement is NOT the
+// mirror image — see the note on the missing non-booking backfill below.
 //
 // It mirrors carePlans.statusFor, minus its CareDayUnknown branch: an exception
 // on the date (timed = came, timeless = cancelled a booked day) or a weekly row
@@ -52,24 +51,21 @@ const legacyCareDayBookedPredicate = `(
 			)
 		)`
 
-// legacyCarePlanHasWeeklyPlanPredicate says the child has a weekly care plan at
-// all — the difference between "not booked that weekday" and "no plan on file",
-// which the runtime derivation answers with CareDayUnknown. Only 1.15.207 needs
-// it: concluding "was not booked" requires a plan that could have booked them.
-const legacyCarePlanHasWeeklyPlanPredicate = `(
-			EXISTS (
-				SELECT 1 FROM schedule.student_arrival_schedules AS any_arrival_plan
-				WHERE any_arrival_plan.student_id = student.student_id
-					AND any_arrival_plan.tenant_id = student.tenant_id
-			)
-			OR EXISTS (
-				SELECT 1 FROM schedule.student_pickup_schedules AS any_pickup_plan
-				WHERE any_pickup_plan.student_id = student.student_id
-					AND any_pickup_plan.tenant_id = student.tenant_id
-			)
-		)`
+// There is deliberately no companion migration stamping the not_scheduled
+// marker on the legacy rows this one leaves behind (#1747 review).
+//
+// Doing so would have to read a MISSING weekly row as "was not booked that
+// weekday", and the plan tables keep no history: a Monday entry deleted last
+// week is byte-for-byte indistinguishable from one that never existed, and
+// legacyCarePlanSettledPredicate cannot see a deletion — it can only inspect
+// rows that are still there. Stamping on that basis would irreversibly hide a
+// genuine historical attendance record behind a marker nobody can undo.
+//
+// So those rows keep their plain 'expected' state, which is exactly what the
+// old force-completion path left behind. Every block completed from #1747 on
+// records its own verdict at the time it ends, where the evidence is real.
 
-// legacyCarePlanSettledPredicate is the guard that keeps both backfills from
+// legacyCarePlanSettledPredicate is the guard that keeps the backfill from
 // judging a historical day by today's care plan (#1747 review).
 //
 // The plan tables carry no validity interval: a weekly row added, retimed, or
@@ -84,11 +80,11 @@ const legacyCarePlanHasWeeklyPlanPredicate = `(
 // instance.completed_at. A NULL timestamp (the columns are only DEFAULT NOW())
 // says nothing about when the row appeared and counts as unsettled.
 //
-// Deletions leave no trace anywhere, which is why "the child has no plan at
-// all" is deliberately not treated as evidence by either migration: a plan
-// deleted after the fact is indistinguishable from one that never existed. Rows
-// whose care plan cannot be judged this way are simply left as they are —
-// unchanged 'expected' rows are the status quo, a wrong verdict is not.
+// Deletions leave no trace anywhere, which is why the absence of a plan row is
+// deliberately never treated as evidence: a plan deleted after the fact is
+// indistinguishable from one that never existed. Rows whose care plan cannot be
+// judged this way are simply left as they are — unchanged 'expected' rows are
+// the status quo, a wrong verdict is not.
 const legacyCarePlanSettledPredicate = `(
 			NOT EXISTS (
 				SELECT 1 FROM schedule.student_arrival_schedules AS touched_arrival_plan
@@ -175,8 +171,9 @@ func init() {
 // member on every occurrence of a block, so a legacy row on a weekday the
 // child was never booked for is not a missed absence: writing 'absent' there
 // invents the exact false claim this feature exists to prevent, in a
-// migration that cannot be rolled back. Those rows are left alone here and
-// stamped with the non-booking marker by 1.15.207, once the column exists.
+// migration that cannot be rolled back. Those rows are left alone — and are
+// not stamped as non-bookings either, for the reason spelled out above
+// legacyCarePlanSettledPredicate.
 //
 // The booking evidence is the same the runtime derivation reads
 // (services/schedule/care_day_resolver.go): a weekly arrival or pickup row on

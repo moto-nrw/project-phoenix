@@ -877,6 +877,13 @@ func notScheduledForParent(
 	if row.Status != scheduleModels.AttendanceStatusExpected && row.StudentStatusDayID == nil {
 		return false
 	}
+	// Staff can set an unbooked slot back to 'expected' — "the plan is wrong,
+	// this child is coming". That IS the hand-made decision, even though it
+	// lands on the same status the automatic state carries, so it has to be
+	// recognized by its own stamp (#1747 review).
+	if row.ManualStatusAt != nil {
+		return false
+	}
 	if instance.Status == scheduleModels.InstanceStatusCompleted {
 		return row.NotScheduled
 	}
