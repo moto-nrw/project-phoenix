@@ -27,6 +27,7 @@ import { mutate } from "swr";
 import { useSession } from "next-auth/react";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
+import { notifyStudentCompanionsChanged } from "~/lib/student-companion-api";
 import type { SSEEvent, SSEHookState } from "~/lib/sse-types";
 import { createLogger } from "~/lib/logger";
 
@@ -167,6 +168,14 @@ export function useGlobalSSE(): SSEHookState {
           scope: "student_detail",
         });
       });
+      // The Laufgemeinschaft ("läuft mit") lives in its own table and is
+      // fetched outside SWR, so invalidating student-detail-* does not bring
+      // it along — and the fetching card keys its effect on the student id,
+      // which a remote edit never changes. Announcing the change on the same
+      // bus a local save uses gives every mounted card one shared
+      // revalidation path, so a link added in another tab, browser or by
+      // another staff member stops being invisible until remount (#1694).
+      notifyStudentCompanionsChanged();
     }
 
     // Arrival schedule changes affect derived "Kommt heute nicht" badges and

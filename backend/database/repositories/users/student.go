@@ -295,6 +295,21 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 		return fmt.Errorf("student cannot be nil")
 	}
 
+	// Take the subject's row lock BEFORE reading its stored departure plan or its
+	// edges, so both reads see the state this update actually overwrites.
+	// Without it a caller that hydrated the student earlier (FindByID hydrates
+	// the plan, so planTouched is true even for an unrelated write such as
+	// autoClearStudentSickness) re-persists its cached plan: the row UPDATE
+	// blocks on a concurrent companion transaction, commits the pre-change plan
+	// on top of it, while planCompanionReconcile — reading before that
+	// transaction committed — never saw the new edge and so left it in place.
+	// The result is an edge the stored plan forbids. Locking first makes the two
+	// reads agree with the write: the edge is either trimmed along with the plan
+	// or the update is refused by the stranding check.
+	if err := r.lockSubjectForDepartureWrite(ctx, student); err != nil {
+		return err
+	}
+
 	currentDeparture, err := r.findCurrentDepartureState(ctx, student.ID)
 	if err != nil {
 		return err
@@ -365,6 +380,39 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 	return nil
 }
 
+// departurePlanTouched reports whether this update carries a departure plan at
+// all. Every plan-resolving step keys off it: a caller that loaded no plan
+// leaves all four fields nil and must not have the stored plan rewritten.
+func departurePlanTouched(student *users.Student) bool {
+	return student.AllowedDepartureModes != nil ||
+		student.DepartureDays != nil ||
+		student.BusDays != nil ||
+		student.PickupDays != nil ||
+		student.PickupStatus != nil
+}
+
+// lockSubjectForDepartureWrite takes the subject's row lock when this update
+// will (re)write the departure columns — a plan was supplied, or a companion
+// note was, which persistDepartureDays resolves against the STORED plan and
+// therefore rewrites the same columns.
+//
+// It is the first lock this transaction takes, which is also what
+// lockCompanionFarEnds assumes ("the subject's row is normally already locked
+// by the caller"): every companion writer then walks the far ends in ascending
+// id order from a held subject, and only downward acquisitions go NOWAIT.
+// Callers that already hold the row (the HTTP path's lockStudentForUpdate)
+// re-acquire it for free. A missing row is not an error here — the subsequent
+// UPDATE simply matches nothing, exactly as before.
+func (r *StudentRepository) lockSubjectForDepartureWrite(ctx context.Context, student *users.Student) error {
+	if student.ID <= 0 || (!departurePlanTouched(student) && student.DepartureCompanionNote == nil) {
+		return nil
+	}
+	if _, err := r.FindByIDForUpdate(ctx, student.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	return nil
+}
+
 // companionTrim is the outcome of planCompanionReconcile: the edge rows the new
 // departure plan no longer allows, plus the weekdays on which the child keeps a
 // link (its structured "mit wem" answer, per day).
@@ -383,12 +431,7 @@ type companionTrim struct {
 // every weekday, or the table predates this schema); the caller then falls back
 // to the EXISTS-based link flag probe.
 func (r *StudentRepository) planCompanionReconcile(ctx context.Context, student *users.Student) (*companionTrim, error) {
-	planTouched := student.AllowedDepartureModes != nil ||
-		student.DepartureDays != nil ||
-		student.BusDays != nil ||
-		student.PickupDays != nil ||
-		student.PickupStatus != nil
-	if student.ID <= 0 || !planTouched {
+	if student.ID <= 0 || !departurePlanTouched(student) {
 		return nil, nil
 	}
 
@@ -554,12 +597,7 @@ func (r *StudentRepository) checkCompanionStranding(ctx context.Context, student
 // plan stays the no-op persistDepartureDays expects. All four fields are
 // scanonly, so the rewrite never leaks into the base Update's column set (#1694).
 func (r *StudentRepository) alignDeparturePlanForValidation(student *users.Student, current *studentDepartureState) {
-	planTouched := student.AllowedDepartureModes != nil ||
-		student.DepartureDays != nil ||
-		student.BusDays != nil ||
-		student.PickupDays != nil ||
-		student.PickupStatus != nil
-	if !planTouched {
+	if !departurePlanTouched(student) {
 		return
 	}
 	allowed := resolveAllowedDepartureModes(student, current)
@@ -578,11 +616,7 @@ func (r *StudentRepository) alignDeparturePlanForValidation(student *users.Stude
 // is a no-op, preserving the previous "don't clobber what wasn't provided"
 // behavior — except that an orphan companion note is still cleared (see below).
 func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *users.Student, current *studentDepartureState) error {
-	planTouched := student.AllowedDepartureModes != nil ||
-		student.DepartureDays != nil ||
-		student.BusDays != nil ||
-		student.PickupDays != nil ||
-		student.PickupStatus != nil
+	planTouched := departurePlanTouched(student)
 
 	// Resolve the plan that will be in effect after this write: from the request
 	// (merged with the stored state) when a plan field was provided, otherwise the
