@@ -995,6 +995,11 @@ export interface BackendUpdateRequest {
   /** Laufgemeinschaft: the child's complete "läuft mit" list. Omit to leave
    *  the links untouched; [] clears them. */
   companions?: { companion_student_id: number; weekdays: string[] }[];
+  /** Fingerprint of the companion list the client loaded before building
+   *  `companions`. Mandatory whenever `companions` is present (including []) —
+   *  the backend rejects the update without it. Build it with
+   *  `companionsFingerprint()`. */
+  companions_fingerprint?: string;
   /** Confirms widening a linked child's own departure plan (answer to the 409
    *  conflict). */
   extend_companion_plans?: boolean;

@@ -20,6 +20,7 @@ func init() {
 		Description: studentCompanionsDescription,
 		DependsOn: []string{
 			UsersStudentsVersion,                // both FK targets
+			compositePKIndexesVersion,           // UNIQUE(tenant_id, id) backing the composite FKs
 			refreshTokenRotationRecoveryVersion, // latest development migration before this branch
 		},
 	})
@@ -74,11 +75,23 @@ func studentCompanionsUp(ctx context.Context, db *bun.DB) error {
 		CREATE TABLE IF NOT EXISTS users.student_companions (
 			id              BIGSERIAL PRIMARY KEY,
 			tenant_id       BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
-			student_low_id  BIGINT NOT NULL REFERENCES users.students(id) ON DELETE CASCADE,
-			student_high_id BIGINT NOT NULL REFERENCES users.students(id) ON DELETE CASCADE,
+			student_low_id  BIGINT NOT NULL,
+			student_high_id BIGINT NOT NULL,
 			weekday         SMALLINT NOT NULL CHECK (weekday BETWEEN 1 AND 5),
 			created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			-- Composite FKs, not single-column ones: RLS only vets the row's own
+			-- tenant_id, so a plain REFERENCES users.students(id) would still
+			-- accept a child owned by another school on any write path that
+			-- bypasses the service (inherited CRUD, import, repair). Referencing
+			-- (tenant_id, id) makes the database itself reject a cross-tenant
+			-- edge, so recursive grouping can never surface a foreign member.
+			CONSTRAINT fk_student_companions_low
+				FOREIGN KEY (tenant_id, student_low_id)
+				REFERENCES users.students(tenant_id, id) ON DELETE CASCADE,
+			CONSTRAINT fk_student_companions_high
+				FOREIGN KEY (tenant_id, student_high_id)
+				REFERENCES users.students(tenant_id, id) ON DELETE CASCADE,
 			CONSTRAINT student_companions_ordered CHECK (student_low_id < student_high_id),
 			CONSTRAINT student_companions_unique_pair_weekday
 				UNIQUE (tenant_id, student_low_id, student_high_id, weekday)
