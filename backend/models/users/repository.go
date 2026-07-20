@@ -164,6 +164,15 @@ type StudentRepository interface {
 	// consent withdrawals from another tab.
 	FindByIDForUpdate(ctx context.Context, id int64) (*Student, error)
 
+	// VerifyCompanionStrandingBatch decides the "läuft mit" stranding verdicts
+	// that the departure-plan writes of a coordinated multi-child edit deferred
+	// into the CompanionStrandingBatch on ctx, now that every plan change and
+	// edge removal of that edit is applied. Returns
+	// ErrCompanionWouldLoseDeparture when a linked child is genuinely left
+	// without a "mit wem" detail, and nil when no batch is open. Callers that
+	// opened a batch MUST call this before committing.
+	VerifyCompanionStrandingBatch(ctx context.Context) error
+
 	// FindByIDForUpdateNoWait is FindByIDForUpdate that fails immediately
 	// (PostgreSQL 55P03) instead of waiting when the row is already locked.
 	// Used only where waiting would invert the ascending-id order every

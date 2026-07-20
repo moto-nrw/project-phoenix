@@ -170,6 +170,91 @@ func TestStudentRepository_Update_RefusesStrandingCompanionWeekday(t *testing.T)
 	assert.Len(t, edges, 2, "a refused update must not have dropped the Tuesday edge")
 }
 
+// TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval pins the
+// coordinated multi-child edit (enrollment change-request approval): two
+// children linked only to each other, both dropping the accompanied mode in the
+// SAME approval, are a valid change. Applied child by child, the first write
+// sees the second still carrying its old accompanied plan and would refuse — so
+// inside an open batch the verdict is deferred and decided against the final
+// plans, where nobody claims "Anderes Kind" anymore.
+func TestStudentRepository_Update_BatchAllowsCoordinatedCompanionRemoval(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	factory := repositories.NewFactory(db)
+
+	first := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "BatchOK", "1a")
+	second := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "BatchOK", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, first.ID, second.ID)
+	defer cleanupStudentCompanions(t, db, first.ID, second.ID)
+
+	giveAccompaniedPlan(t, db, ctx, first.ID, "mon")
+	giveAccompaniedPlan(t, db, ctx, second.ID, "mon")
+	require.NoError(t, factory.StudentCompanion.ReplaceForStudent(ctx, first.ID, []*users.StudentCompanion{
+		newCompanionEdge(t, first.ID, second.ID, 1),
+	}))
+	// Neither child has any other "mit wem" detail than the shared edge.
+	clearStoredCompanionNote(t, db, first.ID)
+	clearStoredCompanionNote(t, db, second.ID)
+
+	// ACT — one approval, applied child after the other.
+	batchCtx, _ := users.ContextWithCompanionStrandingBatch(ctx)
+	for _, id := range []int64{first.ID, second.ID} {
+		loaded, err := factory.Student.FindByID(batchCtx, id)
+		require.NoError(t, err)
+		loaded.AllowedDepartureModes = users.AllowedDepartureModes{
+			"mon": {users.DepartureBus},
+		}
+		require.NoError(t, factory.Student.Update(batchCtx, loaded),
+			"a coordinated removal must not be refused against a half-applied batch")
+	}
+
+	// ASSERT — the batch verdict passes and the shared edge is gone.
+	require.NoError(t, factory.Student.VerifyCompanionStrandingBatch(batchCtx))
+
+	edges, err := factory.StudentCompanion.ListForStudent(ctx, first.ID)
+	require.NoError(t, err)
+	assert.Empty(t, edges, "the edge lost its basis on both sides and must be gone")
+}
+
+// TestStudentRepository_Update_BatchStillRefusesStrandingCompanion pins that
+// deferring is not weakening: a child the batch leaves with an accompanied day,
+// no note and no remaining link still refuses the whole coordinated edit — just
+// at the batch verdict instead of at the individual write.
+func TestStudentRepository_Update_BatchStillRefusesStrandingCompanion(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	factory := repositories.NewFactory(db)
+
+	subject := testpkg.CreateTestStudent(t, db, "ReconcileSubject", "BatchStrand", "1a")
+	companion := testpkg.CreateTestStudent(t, db, "ReconcileCompanion", "BatchStrand", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
+	defer cleanupStudentCompanions(t, db, subject.ID, companion.ID)
+
+	giveAccompaniedPlan(t, db, ctx, subject.ID, "mon")
+	giveAccompaniedPlan(t, db, ctx, companion.ID, "mon")
+	require.NoError(t, factory.StudentCompanion.ReplaceForStudent(ctx, subject.ID, []*users.StudentCompanion{
+		newCompanionEdge(t, subject.ID, companion.ID, 1),
+	}))
+	// The companion keeps its accompanied Monday, answered ONLY by the link.
+	clearStoredCompanionNote(t, db, companion.ID)
+
+	batchCtx, _ := users.ContextWithCompanionStrandingBatch(ctx)
+	loaded, err := factory.Student.FindByID(batchCtx, subject.ID)
+	require.NoError(t, err)
+	loaded.AllowedDepartureModes = users.AllowedDepartureModes{
+		"mon": {users.DepartureBus},
+	}
+
+	// ACT — the individual write no longer decides; the batch verdict does.
+	require.NoError(t, factory.Student.Update(batchCtx, loaded))
+	assert.ErrorIs(t, factory.Student.VerifyCompanionStrandingBatch(batchCtx),
+		users.ErrCompanionWouldLoseDeparture)
+}
+
 // TestStudentRepository_Update_RefusesStrandingCompanion pins the guard rail:
 // when the dropped edge is the far child's ONLY "mit wem" detail (no note, no
 // other link), the whole update is refused with the shared sentinel — exactly

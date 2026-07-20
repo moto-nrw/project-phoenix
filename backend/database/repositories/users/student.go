@@ -602,10 +602,30 @@ func (r *StudentRepository) lockCompanionFarEnds(ctx context.Context, studentID 
 // for an accompanied Tuesday whose edge is being dropped. Mirrors
 // services/users checkCompanionRemovals; both return the shared
 // users.ErrCompanionWouldLoseDeparture sentinel.
+//
+// Inside a coordinated multi-child write (an open users.CompanionStrandingBatch
+// on the context) the verdict is DEFERRED rather than decided here: the far
+// child may be another member of the same batch whose own plan change — the one
+// that makes this removal legitimate — has not been applied yet. The batch's
+// owner decides every deferred verdict against the final state via
+// VerifyCompanionStrandingBatch before it commits.
 func (r *StudentRepository) checkCompanionStranding(ctx context.Context, studentID int64, removed []int64, removedDays map[int64][]string) error {
 	if len(removed) == 0 {
 		return nil
 	}
+	if batch := users.CompanionStrandingBatchFromContext(ctx); batch != nil {
+		for _, id := range removed {
+			batch.Defer(id, removedDays[id])
+		}
+		return nil
+	}
+	return r.checkCompanionStrandingNow(ctx, studentID, removed, removedDays)
+}
+
+// checkCompanionStrandingNow is the verdict itself, evaluated against the state
+// the database has right now. Edges of studentID are ignored as cover because
+// the caller is about to delete them; pass 0 to count every stored edge.
+func (r *StudentRepository) checkCompanionStrandingNow(ctx context.Context, studentID int64, removed []int64, removedDays map[int64][]string) error {
 	covered, err := r.companions.CompanionDaysCoveredExcluding(ctx, removed, studentID)
 	if err != nil {
 		return err
@@ -634,6 +654,35 @@ func (r *StudentRepository) checkCompanionStranding(ctx context.Context, student
 		}
 	}
 	return nil
+}
+
+// VerifyCompanionStrandingBatch decides the stranding verdicts the writes of a
+// coordinated multi-child edit deferred into the users.CompanionStrandingBatch
+// carried by ctx (see checkCompanionStranding). Without an open batch — every
+// single-child write — it is a no-op.
+//
+// It re-runs the very same check, but now against the state the whole batch
+// leaves behind: every member's departure plan is written and every edge the
+// batch trims is deleted, so a child whose accompanied day went away in the same
+// edit passes, while a child genuinely left with an accompanied day, no note and
+// no remaining link on that day still fails with
+// users.ErrCompanionWouldLoseDeparture. Nothing is excluded from the coverage
+// read here — unlike the per-write check, which has to ignore edges its own
+// caller is about to delete, this runs after those deletions.
+//
+// The caller runs inside the request's tenant transaction, so a refusal rolls
+// the coordinated edit back as a whole.
+func (r *StudentRepository) VerifyCompanionStrandingBatch(ctx context.Context) error {
+	batch := users.CompanionStrandingBatchFromContext(ctx)
+	if batch == nil {
+		return nil
+	}
+	removed, removedDays := batch.Pending()
+	if len(removed) == 0 {
+		return nil
+	}
+	// studentID 0 excludes nobody: every edge that still exists counts as cover.
+	return r.checkCompanionStrandingNow(ctx, 0, removed, removedDays)
 }
 
 // alignDeparturePlanForValidation rewrites the in-memory departure plan to the

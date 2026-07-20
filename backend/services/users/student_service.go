@@ -48,6 +48,13 @@ type StudentService interface {
 	// end of every stored edge, in one ascending-id pass.
 	LockCompanionGraph(ctx context.Context, subjectIDs []int64, additional []int64) error
 
+	// VerifyCompanionStrandingBatch decides the deferred stranding verdicts of a
+	// coordinated multi-child write (a userModels.CompanionStrandingBatch opened
+	// on the context) against the final state of every child in it. Returns
+	// ErrCompanionWouldLoseDeparture when a linked child would really be left
+	// without a "mit wem" detail; a no-op without an open batch.
+	VerifyCompanionStrandingBatch(ctx context.Context) error
+
 	// Create persists a new student.
 	Create(ctx context.Context, student *userModels.Student) error
 
@@ -300,6 +307,14 @@ func (s *studentService) LockCompanionGraph(ctx context.Context, subjectIDs []in
 		return nil
 	}
 	return s.LockStudentsForUpdateBelow(ctx, late, maxLocked)
+}
+
+// VerifyCompanionStrandingBatch hands the decision to the repository, which is
+// the layer that deferred the verdicts in the first place (every departure-plan
+// write passes through it) and the only one that can re-read the plans and edges
+// the batch left behind.
+func (s *studentService) VerifyCompanionStrandingBatch(ctx context.Context) error {
+	return s.studentRepo.VerifyCompanionStrandingBatch(ctx)
 }
 
 // companionIDsOfMany collects the far ends of every stored edge of the given

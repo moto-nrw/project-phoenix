@@ -61,11 +61,15 @@ type CorrectApprovedChildDataInput struct {
 	ActorAccountID    int64
 }
 
-// CompanionGraphLocker takes the student row locks a companion-touching write
-// needs, in the global ascending-id order every companion writer follows.
-// Implemented by services/users studentService (LockCompanionGraph).
-type CompanionGraphLocker interface {
+// CompanionGraphCoordinator carries the two things a write that touches several
+// children's "läuft mit" graph at once needs from the student domain: the row
+// locks, in the global ascending-id order every companion writer follows, and
+// the decision of the stranding verdicts the per-child writes deferred while the
+// coordinated edit was still half-applied.
+// Implemented by services/users studentService.
+type CompanionGraphCoordinator interface {
 	LockCompanionGraph(ctx context.Context, subjectIDs []int64, additional []int64) error
+	VerifyCompanionStrandingBatch(ctx context.Context) error
 }
 
 type ChangeRequestDecisionApplier interface {
@@ -113,7 +117,7 @@ type ChangeRequestServiceConfig struct {
 	GuardianProfileRepo      userModels.GuardianProfileRepository
 	GuardianPhoneRepo        userModels.GuardianPhoneNumberRepository
 	DecisionService          ChangeRequestDecisionApplier
-	CompanionGraphLocker     CompanionGraphLocker
+	CompanionGraphLocker     CompanionGraphCoordinator
 	Settings                 RequestSettingsResolver
 	OutboxEnqueuer           platformModels.OutboxEnqueuer
 	FrontendURL              string
@@ -1125,6 +1129,32 @@ func (s *changeRequestService) lockApprovedStudents(ctx context.Context, childre
 	return nil
 }
 
+// beginCompanionStrandingBatch opens the deferred-verdict scope the per-child
+// departure-plan writes below record into, and returns the context they have to
+// run with. Without a coordinator there is nothing that could decide the
+// deferred verdicts later, so no batch is opened and every write keeps deciding
+// its own verdict immediately (the pre-batch behavior).
+func (s *changeRequestService) beginCompanionStrandingBatch(ctx context.Context) context.Context {
+	if s.CompanionGraphLocker == nil {
+		return ctx
+	}
+	batchCtx, _ := userModels.ContextWithCompanionStrandingBatch(ctx)
+	return batchCtx
+}
+
+// verifyCompanionStrandingBatch decides the verdicts deferred into the batch on
+// ctx. The companion sentinels stay reachable through the wrap, so the handler
+// answers the actionable 4xx instead of a blind 500.
+func (s *changeRequestService) verifyCompanionStrandingBatch(ctx context.Context) error {
+	if s.CompanionGraphLocker == nil {
+		return nil
+	}
+	if err := s.CompanionGraphLocker.VerifyCompanionStrandingBatch(ctx); err != nil {
+		return fmt.Errorf("change request approve: verify companion links: %w", err)
+	}
+	return nil
+}
+
 func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enrollmentModels.ChangeRequest, input ReviewChangeRequestInput) error {
 	req, err := s.RequestRepo.FindByIDForUpdate(ctx, row.RequestID)
 	if err != nil {
@@ -1215,6 +1245,15 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 		return err
 	}
 
+	// One approval is ONE edit of the whole family, applied child by child. A
+	// child dropping the accompanied mode drops the "läuft mit" edges that lose
+	// their basis — including edges to a SIBLING in the same approval whose own
+	// plan change has not been applied yet. Judged per child, that valid
+	// coordinated change looks like it strands the sibling and the whole
+	// approval is refused. So defer the verdicts and decide them once below,
+	// against the final plans of every child (#1694).
+	ctx = s.beginCompanionStrandingBatch(ctx)
+
 	newlyWaitlisted := make(map[int64]struct{})
 	for i, existing := range children {
 		next := prepared.Children[i]
@@ -1291,6 +1330,15 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 			}
 		}
 	}
+
+	// Every child of the approval is applied — the plans are stored and the
+	// edges they no longer allow are gone. Now the deferred verdicts can be
+	// decided against that final state; a child genuinely left without a "mit
+	// wem" detail still refuses the approval and rolls the transaction back.
+	if err := s.verifyCompanionStrandingBatch(ctx); err != nil {
+		return err
+	}
+
 	if len(newlyWaitlisted) > 0 {
 		refreshedChildren, err := s.RequestChildRepo.ListByRequestID(ctx, req.ID)
 		if err != nil {
