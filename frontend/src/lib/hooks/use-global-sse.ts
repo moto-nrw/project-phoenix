@@ -188,6 +188,23 @@ export function useGlobalSSE(): SSEHookState {
       // rename, photo upload or sick flag in the school would cost users
       // their work for changes that never touched the links.
       notifyStudentCompanionsChanged();
+
+      // The Kindersuche is the one companion view that does NOT fetch the links
+      // separately: its grouping rides along inside the student list response
+      // (companion_student_ids, only with include_companions=true), so the
+      // announcement above never reaches it. Deleting a linked child announces
+      // ONLY student_companions_changed — no student_updated, no checkin — so
+      // without this the open "Nach Laufgemeinschaft" view keeps listing the
+      // deleted child, and every grouping the delete changed, until something
+      // unrelated revalidates the list.
+      mutate(
+        (key) => typeof key === "string" && key.includes("search-students-"),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "student_companions",
+        });
+      });
     }
 
     // Arrival schedule changes affect derived "Kommt heute nicht" badges and

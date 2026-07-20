@@ -495,4 +495,28 @@ describe("useGlobalSSE — companion announcements", () => {
       unsubscribe();
     }
   });
+
+  it("revalidates the Kindersuche list, which carries its grouping in-band", () => {
+    renderHook(() => useGlobalSSE());
+
+    // Deleting a linked child announces ONLY this event — no student_updated,
+    // no checkin — and the Kindersuche reads companion_student_ids out of its
+    // own search-students-* response instead of fetching the links. Without the
+    // invalidation an open "Nach Laufgemeinschaft" view keeps the deleted child.
+    fireSSE(makeEvent("student_companions_changed", { student_id: "s1" }));
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const matchers = mockMutate.mock.calls
+      .map(([matcher]) => matcher)
+      .filter(
+        (matcher): matcher is (key: unknown) => boolean =>
+          typeof matcher === "function",
+      );
+    // Tenant-prefixed by useSWRAuth, hence the prefix in the probe key.
+    expect(
+      matchers.some((matcher) => matcher("t1:search-students--all-")),
+    ).toBe(true);
+  });
 });

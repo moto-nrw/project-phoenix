@@ -27,6 +27,19 @@ import { subscribeStudentCompanionsChanged } from "~/lib/student-companion-api";
  * reloads after its own save anyway, and marking itself stale would leave the
  * user staring at a conflict warning for their own change.
  */
+/**
+ * How long after a own save its announcement is still treated as the echo of
+ * that save rather than as a remote edit.
+ *
+ * Generous on purpose: swallowing one genuinely remote announcement in this
+ * window costs nothing that matters — the caller reloads the stored links after
+ * its own save anyway, and a save built on a snapshot that a remote write has
+ * replaced is still refused by the backend's fingerprint check (409
+ * `companions_changed` → markStale). Being too STRICT is what costs the user
+ * their work: the form would block the save they just completed.
+ */
+const OWN_WRITE_ECHO_GRACE_MS = 10_000;
+
 interface CompanionRemoteRefreshOptions {
   /** False while the view is not showing the links (a closed modal). */
   readonly active: boolean;
@@ -68,6 +81,9 @@ export function useCompanionRemoteRefresh({
   const dirtyRef = useRef(hasUnsavedCompanionEdits);
   const refreshRef = useRef(onRefresh);
   const ownWriteRef = useRef(false);
+  // Deadline until which an announcement is still attributed to the write that
+  // just finished — see OWN_WRITE_ECHO_GRACE_MS.
+  const ownWriteEchoUntilRef = useRef(0);
   useEffect(() => {
     activeRef.current = active;
     dirtyRef.current = hasUnsavedCompanionEdits;
@@ -83,6 +99,12 @@ export function useCompanionRemoteRefresh({
     () =>
       subscribeStudentCompanionsChanged(() => {
         if (!activeRef.current || ownWriteRef.current) return;
+        if (Date.now() < ownWriteEchoUntilRef.current) {
+          // The SSE echo of our own save. Consume the grace with it so a
+          // genuinely remote write arriving right after is judged normally.
+          ownWriteEchoUntilRef.current = 0;
+          return;
+        }
         if (dirtyRef.current) setCompanionsStale(true);
         else refreshRef.current();
       }),
@@ -99,6 +121,15 @@ export function useCompanionRemoteRefresh({
     try {
       return await write();
     } finally {
+      // The write's OWN announcement can still be in flight when its response
+      // is already here: the backend streams the response from the handler and
+      // only then commits and runs the after-commit hook that broadcasts
+      // student_companions_changed, so the SSE echo lands AFTER this promise
+      // settles. Clearing the suppression here alone would let the form treat
+      // its own change as a remote one and refuse the save the user just made.
+      // The draft only stops differing from the baseline once the caller's
+      // reload lands, so the window has to outlive that reload, not the fetch.
+      ownWriteEchoUntilRef.current = Date.now() + OWN_WRITE_ECHO_GRACE_MS;
       ownWriteRef.current = false;
     }
   }, []);
