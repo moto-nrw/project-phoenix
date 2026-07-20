@@ -17,6 +17,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // endSessionActiveServiceStub answers the two calls the session-end handler
@@ -99,5 +100,30 @@ func TestEndActivitySessionCompletesTimetableBeforeEndingSession(t *testing.T) {
 		require.Equal(t, http.StatusInternalServerError, rr.Code)
 		assert.Equal(t, []string{"timetable"}, order,
 			"the session must not be ended — its SSE fires before the transaction commits")
+	})
+
+	// The tenant middleware rolls back on its own only for 5xx. A 4xx from the
+	// session end after the bridge already completed the instance would commit a
+	// completed timetable block next to a session that is still open (#1747
+	// review), so that path has to ask for the rollback itself.
+	t.Run("a 4xx after the bridge asks for a rollback", func(t *testing.T) {
+		var order []string
+		rs := newResource(t, nil, &order)
+		rs.ActiveService.(*endSessionActiveServiceStub).endErr = &activeSvc.ActiveError{
+			Op:  "EndActivitySession",
+			Err: activeSvc.ErrActiveGroupAlreadyEnded,
+		}
+
+		req := endSessionRequest(t)
+		req = req.WithContext(tenant.WithRollbackMarker(req.Context()))
+		rr := httptest.NewRecorder()
+
+		rs.endActivitySession(rr, req)
+
+		require.Less(t, rr.Code, http.StatusInternalServerError,
+			"already-ended maps to a 4xx, which the middleware would otherwise commit")
+		assert.Equal(t, []string{"timetable", "session"}, order)
+		assert.True(t, tenant.RollbackRequested(req.Context()),
+			"the completed timetable instance must not survive a failed session end")
 	})
 }

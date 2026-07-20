@@ -396,7 +396,7 @@ func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, d
 			return &ActiveError{Op: operation, Err: err}
 		}
 
-		if err := s.completeForceEndedTimetableMirrors(txCtx, endedSessionIDs); err != nil {
+		if err := s.completeTimetableMirrorsForEndedSessions(txCtx, endedSessionIDs); err != nil {
 			return &ActiveError{Op: operation, Err: err}
 		}
 
@@ -424,13 +424,22 @@ func appendActiveGroupIDs(ids []int64, more ...int64) []int64 {
 	return ids
 }
 
-func (s *service) completeForceEndedTimetableMirrors(ctx context.Context, endedSessionIDs []int64) error {
+// completeTimetableMirrorsForEndedSessions closes the schedule side of every
+// active.group this service just ended: the bridge finalizes the attendance
+// (expected → absent, non-bookings spared per #1747) and only then stamps the
+// instance completed.
+//
+// Every path that ends a session has to come through here — force-start,
+// kiosk timeout and the abandoned-session sweep alike. A session that ends
+// without it leaves the mirrored instance active forever with its expected
+// rows unfinalized, and nothing downstream ever repairs that.
+func (s *service) completeTimetableMirrorsForEndedSessions(ctx context.Context, endedSessionIDs []int64) error {
 	if s.TimetableBridgeCompleter == nil || len(endedSessionIDs) == 0 {
 		return nil
 	}
 	completed, err := s.TimetableBridgeCompleter.CompleteActiveByActiveGroupIDs(ctx, endedSessionIDs, time.Now())
 	if err != nil {
-		return fmt.Errorf("complete force-ended timetable mirrors: %w", err)
+		return fmt.Errorf("complete timetable mirrors for ended sessions: %w", err)
 	}
 	if completed > 0 {
 		s.getLogger().InfoContext(ctx, "completed timetable mirrors for force-ended activity sessions",
@@ -995,6 +1004,17 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 		if activeErr, ok := err.(*ActiveError); ok {
 			return nil, activeErr
 		}
+		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
+	}
+
+	// The timetable side closes FIRST, before anything is announced (#1747
+	// review). A timed-out session is still a session end: without the bridge
+	// the mirrored instance stays active indefinitely and its expected rows are
+	// never finalized. Running it ahead of the checkouts and the session end
+	// keeps the failure-prone half in front of the SSE events at the bottom of
+	// this function, so a bridge error never announces an end that the
+	// enclosing transaction then rolls back.
+	if err := s.completeTimetableMirrorsForEndedSessions(ctx, []int64{sessionID}); err != nil {
 		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
 	}
 

@@ -13,6 +13,7 @@ import (
 	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // startActivitySession handles starting an activity session on a device
@@ -98,8 +99,13 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// End the session
+	// End the session. Anything failing from here on leaves a completed
+	// timetable instance next to a session that is still open, so the
+	// transaction has to go — and the tenant middleware only rolls back on its
+	// own for 5xx. ErrorRenderer maps "already ended" and friends to 4xx, which
+	// would commit exactly that split state (#1747 review).
 	if err := rs.ActiveService.EndActivitySession(r.Context(), currentSession.ID); err != nil {
+		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}

@@ -297,6 +297,61 @@ func TestProcessSessionTimeoutByID_ReturnsCheckoutAndEndErrors(t *testing.T) {
 	})
 }
 
+// A timed-out session is a session end like any other: the mirrored timetable
+// instance has to be completed through the bridge, or it stays active forever
+// with its expected rows unfinalized (#1747 review). Both timeout entry points
+// (the kiosk /timeout endpoint and the abandoned-session sweep) come through
+// ProcessSessionTimeoutByID, so one guard covers both.
+func TestProcessSessionTimeoutByID_CompletesTimetableMirrorBeforeEndingSession(t *testing.T) {
+	ctx := context.Background()
+	activeGroup := &activeModels.Group{Model: modelBase.Model{ID: 100}}
+
+	newService := func(order *[]string, bridgeErr error) *service {
+		return &service{ServiceDependencies: ServiceDependencies{
+			Logger: slog.Default(),
+			GroupRepo: &mockGroupRepository{
+				findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
+					return activeGroup, nil
+				},
+				endSessionFunc: func(context.Context, int64) error {
+					*order = append(*order, "session")
+					return nil
+				},
+			},
+			VisitRepo: &mockVisitRepository{},
+			TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
+				completeFunc: func(_ context.Context, activeGroupIDs []int64, _ time.Time) (int64, error) {
+					assert.Equal(t, []int64{100}, activeGroupIDs)
+					*order = append(*order, "timetable")
+					return 1, bridgeErr
+				},
+			},
+		}}
+	}
+
+	t.Run("closes the timetable first", func(t *testing.T) {
+		var order []string
+
+		result, err := newService(&order, nil).ProcessSessionTimeoutByID(ctx, 100)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, []string{"timetable", "session"}, order)
+	})
+
+	t.Run("a failing bridge leaves the session open", func(t *testing.T) {
+		var order []string
+
+		result, err := newService(&order, errors.New("bridge down")).ProcessSessionTimeoutByID(ctx, 100)
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "bridge down")
+		assert.Equal(t, []string{"timetable"}, order,
+			"the session must not be ended while its timetable side is unfinished")
+	})
+}
+
 func TestUpdateSessionActivity_RepositoryMissesAreMapped(t *testing.T) {
 	ctx := context.Background()
 	missErr := &modelBase.DatabaseError{Op: "update last activity - session not found", Err: sql.ErrNoRows}
@@ -778,7 +833,7 @@ func TestTransferForceStartedActivityState_PropagatesTransferErrors(t *testing.T
 	})
 }
 
-func TestCompleteForceEndedTimetableMirrors_PropagatesRepositoryError(t *testing.T) {
+func TestCompleteTimetableMirrorsForEndedSessions_PropagatesRepositoryError(t *testing.T) {
 	expectedErr := errors.New("bridge update failed")
 	svc := &service{ServiceDependencies: ServiceDependencies{TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
 		completeFunc: func(_ context.Context, activeGroupIDs []int64, _ time.Time) (int64, error) {
@@ -788,10 +843,10 @@ func TestCompleteForceEndedTimetableMirrors_PropagatesRepositoryError(t *testing
 	}},
 	}
 
-	err := svc.completeForceEndedTimetableMirrors(context.Background(), []int64{10, 20})
+	err := svc.completeTimetableMirrorsForEndedSessions(context.Background(), []int64{10, 20})
 
 	require.ErrorIs(t, err, expectedErr)
-	assert.Contains(t, err.Error(), "complete force-ended timetable mirrors")
+	assert.Contains(t, err.Error(), "complete timetable mirrors for ended sessions")
 }
 
 func TestTransferActiveSupervisorsBetweenGroups_ErrorBranches(t *testing.T) {
