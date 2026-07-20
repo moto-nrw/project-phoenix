@@ -529,6 +529,30 @@ export function StudentStammdatenTab({
         companionsFingerprint(companions),
     [companions, companionsStatus, loadedCompanions],
   );
+  // A departure plan the USER changed is a companion-conflicting edit too, even
+  // while the picker itself is untouched: the backend TRIMS the stored links to
+  // the weekdays the submitted plan allows, so such a draft is a pending delete
+  // of every link on the days it dropped.
+  //
+  // Without this, a remote companion write would be answered by a plain refetch
+  // (nothing "dirty" to protect), and the refreshed list would silently become
+  // the baseline this save claims: the fingerprint then describes the very edge
+  // the other person just added on the removed weekday, the backend has nothing
+  // left to refuse the save by, and the trim deletes their link. Treat it like
+  // an edited list — keep the loaded baseline, flag the view stale, make the
+  // user reload and redo the narrowing deliberately.
+  //
+  // An UNTOUCHED plan stays out: the rebase effect above keeps it equal to the
+  // server's, so this comparison is false for it and unrelated saves are not
+  // blocked by somebody else's legitimate companion change.
+  const departurePlanDirty = useMemo(
+    () =>
+      !allowedDepartureModesEqual(
+        originalDraft.allowed_departure_modes,
+        formData.allowed_departure_modes,
+      ),
+    [originalDraft.allowed_departure_modes, formData.allowed_departure_modes],
+  );
   // This form stays mounted while other people work on the same child, and the
   // links it submits REPLACE the stored ones. Without listening to companion
   // writes, an edit started before a remote change would save on top of a
@@ -546,7 +570,7 @@ export function StudentStammdatenTab({
       // just selects another one), so the child id is what ends a stale flag
       // here — `active` never goes false.
       resetKey: String(student.id),
-      hasUnsavedCompanionEdits: companionsDirty,
+      hasUnsavedCompanionEdits: companionsDirty || departurePlanDirty,
       onRefresh: reloadCompanionsFromRemote,
     });
   const isDirty = useMemo(() => {

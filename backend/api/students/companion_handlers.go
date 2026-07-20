@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -668,8 +669,15 @@ func (rs *Resource) enrichWithCompanionLinks(ctx context.Context, responses []St
 // the Kindersuche on a Sunday is looking ahead at the coming week. Returning
 // nothing there would make the Laufgemeinschaft grouping look broken (every
 // child in "Ohne Laufgemeinschaft") for a reason no one can see.
+//
+// The instant is moved to Berlin first: it comes from rs.Now, which is
+// time.Now in production (a container clock that is normally UTC) and an
+// arbitrary injected clock in tests. Reading Weekday() off that location would
+// spend the late Berlin evening — already the next calendar day here — querying
+// yesterday's links and grouping the children by the wrong day's
+// Laufgemeinschaft.
 func companionWeekdayForDate(day time.Time) int {
-	switch day.Weekday() {
+	switch day.In(timezone.Berlin).Weekday() {
 	case time.Tuesday:
 		return 2
 	case time.Wednesday:
