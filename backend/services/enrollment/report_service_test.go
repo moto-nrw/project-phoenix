@@ -1084,3 +1084,53 @@ func TestClassRosterRowCombinesCompanionsAndNote(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Mo: Mit anderem Kind, Di: Mit anderem Kind (mit: Mia Schulz (Mo); Dienstags mit Nachbarskind Tom)", row.Departure)
 }
+
+// TestClassRosterRowDropsCompanionDaysOutsideThePhasePlan pins that the roster
+// never prints a "läuft mit" day the plan on the same line forbids. The plan
+// comes from the approved enrollment phase while the links belong to the live
+// child and follow every later Stammdaten edit, so the two sources can disagree
+// — and a sheet that says "Di: Bus" and "dienstags mit Mia" at once is worse
+// than one that says nothing about Tuesday (#1694).
+func TestClassRosterRowDropsCompanionDaysOutsideThePhasePlan(t *testing.T) {
+	schemaID := int64(88)
+	req := &enrollmentModels.Request{
+		Model:       baseModels.Model{ID: 10},
+		SchemaID:    &schemaID,
+		SubmittedAt: time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
+	}
+	child := &enrollmentModels.RequestChild{
+		Model:     baseModels.Model{ID: 20},
+		RequestID: 10,
+		FirstName: "Lina",
+		LastName:  "Muster",
+		Status:    enrollmentModels.ChildStatusApproved,
+		CustomData: map[string]any{
+			"departure": map[string]any{
+				"mon": []any{"accompanied"},
+				"tue": []any{"bus"},
+			},
+		},
+	}
+	student := &userModels.Student{
+		Model:       baseModels.Model{ID: 100},
+		PersonID:    200,
+		SchoolClass: "1a",
+	}
+	person := &userModels.Person{FirstName: "Lina", LastName: "Muster"}
+	enrollment := &classRosterApprovedEnrollment{request: req, child: child}
+	schemas := map[int64]*enrollmentModels.FormSchema{
+		schemaID: {
+			Fields: []enrollmentModels.FormField{
+				{Key: "departure", Target: enrollmentModels.TargetStudentAllowedDepartureModes, Type: enrollmentModels.FormFieldWeekdayMultiMode, AppliesToCh: true},
+			},
+		},
+	}
+	companions := []userModels.CompanionLink{
+		{CompanionStudentID: 7, FirstName: "Mia", LastName: "Schulz", Weekdays: []string{userModels.PickupDayMonday, userModels.PickupDayTuesday}},
+	}
+
+	row, err := classRosterRow(student, person, "", enrollment, nil, schemas, nil, companions)
+
+	require.NoError(t, err)
+	assert.Equal(t, "Mo: Mit anderem Kind, Di: Bus (mit: Mia Schulz (Mo))", row.Departure)
+}

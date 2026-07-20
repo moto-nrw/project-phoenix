@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -474,6 +475,53 @@ export function StudentStammdatenTab({
     () => buildDraft(student, photosEnabled, serverConsent),
     [student, photosEnabled, serverConsent],
   );
+  // The departure plan this form last saw on the server. Everything below reads
+  // it to tell a plan the USER changed from one that merely rode along on the
+  // load — the same distinction the backend draws with DepartureBaseline.
+  const serverPlanRef = useRef<AllowedDepartureModes | undefined>(
+    originalDraft.allowed_departure_modes,
+  );
+  // Rebase an UNTOUCHED departure plan onto the server's.
+  //
+  // This form stays mounted while other people work on the same child, and the
+  // main reset effect is gated on student.id so a background refetch cannot wipe
+  // unsaved edits. The plan therefore keeps the value it was loaded with. Every
+  // save resubmits it — and the backend TRIMS the links to the weekdays the
+  // submitted plan allows. So after someone else widened the plan and linked a
+  // child on the new day, an unrelated edit here (an address, a note) would
+  // silently delete that fresh link: the companion list itself stays out of such
+  // a save, and without a list there is no fingerprint for the backend to refuse
+  // it by.
+  //
+  // Only a plan the user has NOT touched is rebased; a real edit still wins and
+  // is saved as the deliberate change it is. The submitted plan is derived
+  // entirely from allowed_departure_modes, so that is the field the comparison
+  // turns on; the legacy views follow it exactly like the picker's own handler
+  // keeps them in step.
+  useEffect(() => {
+    const previous = serverPlanRef.current;
+    const next = originalDraft.allowed_departure_modes;
+    serverPlanRef.current = next;
+    if (allowedDepartureModesEqual(previous, next)) return;
+    setFormData((prev) => {
+      if (!allowedDepartureModesEqual(prev.allowed_departure_modes, previous)) {
+        return prev;
+      }
+      const busDays = allowedDepartureToBusDays(next);
+      const pickupDays = allowedDepartureToPickupDays(next);
+      return {
+        ...prev,
+        allowed_departure_modes: next,
+        departure_days: allowedDepartureToDepartureDays(next),
+        bus_days: busDays,
+        bus: busDaysHaveAny(busDays),
+        pickup_days: pickupDays,
+        pickup_status: pickupDaysHaveAny(pickupDays)
+          ? "Wird abgeholt"
+          : "Geht alleine nach Hause",
+      };
+    });
+  }, [originalDraft.allowed_departure_modes]);
   const companionsDirty = useMemo(
     () =>
       companionsStatus === "ready" &&
@@ -657,7 +705,10 @@ export function StudentStammdatenTab({
         // see that ours is stale. An omitted key means "don't touch the links",
         // which is exactly what an unedited list should do. A pending or failed
         // load stays out for the same reason (there it would read as "delete
-        // them all").
+        // them all"). The plan that DOES travel on every save cannot delete a
+        // link behind that omission either: an untouched plan is rebased onto
+        // the server's before it is submitted (see the rebase effect above), so
+        // it never trims a weekday somebody else has since opened.
         if (companionsDirty) {
           submitData.companions = companions.map((companion) => ({
             companion_student_id: companion.companion_student_id,

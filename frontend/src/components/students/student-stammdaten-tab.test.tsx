@@ -1362,4 +1362,83 @@ describe("StudentStammdatenTab — photo orchestration", () => {
     const submitted = onSave.mock.calls[0]![0] as Partial<Student>;
     expect(Object.keys(submitted)).not.toContain("photo_consent_given");
   });
+
+  it("rebases an untouched departure plan onto the refreshed student", async () => {
+    // Somebody else widened the plan (and linked a child on the new day) while
+    // this form sat open on an address edit. The form resubmits the plan on
+    // every save and the backend trims the links to it, so a stale plan here
+    // would delete that fresh link.
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = render(
+      <StudentStammdatenTab
+        student={makeStudent({
+          allowed_departure_modes: { mon: ["accompanied"] },
+        })}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    rerender(
+      <StudentStammdatenTab
+        student={makeStudent({
+          allowed_departure_modes: {
+            mon: ["accompanied"],
+            tue: ["accompanied"],
+          },
+        })}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId("address-city"), {
+      target: { value: "Bonn" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const submitted = onSave.mock.calls[0]![0] as Partial<Student>;
+    expect(submitted.allowed_departure_modes).toEqual({
+      mon: ["accompanied"],
+      tue: ["accompanied"],
+    });
+  });
+
+  it("keeps a locally edited departure plan when the student refreshes", async () => {
+    // The other half of the rule: a plan the user actually changed is their
+    // edit and must survive a background refetch — the rebase may only move a
+    // plan nobody touched.
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = render(
+      <StudentStammdatenTab
+        student={makeStudent({
+          allowed_departure_modes: { mon: ["accompanied"] },
+        })}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("departure-set-mon-bus"));
+
+    rerender(
+      <StudentStammdatenTab
+        student={makeStudent({
+          allowed_departure_modes: {
+            mon: ["accompanied"],
+            tue: ["accompanied"],
+          },
+        })}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const submitted = onSave.mock.calls[0]![0] as Partial<Student>;
+    expect(submitted.allowed_departure_modes).toEqual({ mon: ["bus"] });
+  });
 });

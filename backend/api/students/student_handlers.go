@@ -1124,7 +1124,8 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	// and companions have to be locked in one deterministic order or two
 	// requests linking the same pair deadlock each other. Locking them here also
 	// freezes the rows the companion authorization below judges, so the check
-	// pass and the write pass cannot disagree.
+	// pass and the write pass cannot disagree. A request that cannot touch a
+	// link takes none of those locks (see lockCompanionRows).
 	if err := rs.lockCompanionRows(ctx, student, req); err != nil {
 		return err
 	}

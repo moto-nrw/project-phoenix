@@ -1444,6 +1444,13 @@ func classRosterDepartureFromStudent(student *userModels.Student, companions []u
 // no free-text note (the note requirement is satisfied per weekday by a link),
 // so a roster built from the note alone would print "Mit anderem Kind" with no
 // name on the sheet staff carry to the door.
+//
+// The links are printed only for the weekdays the rendered plan actually allows
+// "Anderes Kind". They are the CURRENT links of the live child, while the plan
+// may come from the approved enrollment phase — a plan that says Monday
+// accompanied and Tuesday bus, next to a link the child gained on Tuesday since,
+// would contradict itself on the same line. Filtering is the honest reading: a
+// day the printed plan does not allow has no "mit wem" to print.
 func classRosterFormatDeparture(allowed userModels.AllowedDepartureModes, fallback userModels.DepartureDays, companionNote *string, companions []userModels.CompanionLink) string {
 	modeLabels := map[userModels.DepartureMode]string{
 		userModels.DepartureAlone:       "zu Fuß",
@@ -1479,7 +1486,11 @@ func classRosterFormatDeparture(allowed userModels.AllowedDepartureModes, fallba
 		summary = strings.Join(parts, ", ")
 	}
 	details := make([]string, 0, 2)
-	if linked := userModels.FormatCompanionLinks(companions); linked != "" {
+	// Read off `allowed` alone: the summary above is rendered from it, and the
+	// exclusive fallback was already folded into it when it was empty. Passing
+	// the fallback here as well could admit a day the summary never printed.
+	onPlan := userModels.FilterCompanionLinksToDays(companions, userModels.AccompaniedWeekdays(allowed, nil))
+	if linked := userModels.FormatCompanionLinks(onPlan); linked != "" {
 		details = append(details, linked)
 	}
 	if companionNote != nil && strings.TrimSpace(*companionNote) != "" {

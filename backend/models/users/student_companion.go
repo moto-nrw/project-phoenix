@@ -226,6 +226,37 @@ func CompanionDaysFromLinks(links []CompanionLink) map[string]bool {
 	return days
 }
 
+// FilterCompanionLinksToDays keeps only the weekdays the given set allows and
+// drops a link that has none left. Pure derivation: it writes nothing and never
+// widens.
+//
+// It exists for readers that render a companion list NEXT TO a departure plan
+// the links were not reconciled against — the class roster prints a plan taken
+// from the approved enrollment phase, while the links belong to the live child
+// and follow every later Stammdaten edit. Printing them unfiltered puts "Di:
+// Bus" and "läuft dienstags mit Mia" on the same line of the sheet staff carry
+// to the door. The update path has no use for this: there the links are trimmed
+// against the plan being written (TrimCompanionsToDays), which also refuses to
+// strand the child at the far end.
+func FilterCompanionLinksToDays(links []CompanionLink, allowedDays map[string]bool) []CompanionLink {
+	filtered := make([]CompanionLink, 0, len(links))
+	for _, link := range links {
+		kept := make([]string, 0, len(link.Weekdays))
+		for _, day := range link.Weekdays {
+			if allowedDays[day] {
+				kept = append(kept, day)
+			}
+		}
+		if len(kept) == 0 {
+			continue
+		}
+		copied := link
+		copied.Weekdays = kept
+		filtered = append(filtered, copied)
+	}
+	return filtered
+}
+
 // CompanionLinksFingerprint is an order-independent fingerprint of a companion
 // list: the state a client read, in one comparable string.
 //

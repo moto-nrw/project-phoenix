@@ -270,6 +270,21 @@ func (rs *Resource) redactCompanionNames(ctx context.Context, accessCtx *student
 // detail at all. Locking B from both requests serializes them, and the second
 // one re-validates against the first one's committed state.
 func (rs *Resource) lockCompanionRows(ctx context.Context, student *userModels.Student, req *UpdateStudentRequest) error {
+	// A request that cannot touch a link needs none of it. applyCompanionUpdate
+	// still reconciles for such a request, but against a plan this request does
+	// not write: the trim finds nothing to drop and no edge is created or
+	// removed, so the only row it writes is the subject's own. Taking the graph
+	// lock anyway would make a sick or excused toggle wait behind an unrelated
+	// companion edit of a linked child — and the NOWAIT top-up pass could refuse
+	// it outright with companion_lock_busy for a write that cannot touch a
+	// companion at all. Every writer that creates or removes an edge touching
+	// this child locks THIS child's row too (that is what LockCompanionGraph
+	// guarantees), so the subject row lock this request takes anyway
+	// (lockStudentForUpdate) already serializes us against them.
+	if !req.touchesCompanions() {
+		return nil
+	}
+
 	var submitted []int64
 	if req.hasCompanionUpdate() {
 		for _, entry := range *req.Companions {
