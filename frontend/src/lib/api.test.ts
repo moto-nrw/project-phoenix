@@ -1411,6 +1411,67 @@ describe("api.ts helper functions", () => {
         "cannot be both sick and excused",
       );
     });
+
+    // The stranded-companion refusal is an instruction, not a failure: it names
+    // the child whose Heimweg has to be filled in before this link can go. It
+    // must survive the trip to the form intact, and only it — every other 400
+    // keeps the generic handling.
+    it("types only the coded 400 as the stranded-companion refusal", async () => {
+      const respondWith = async (body: string) => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 400,
+          text: () => Promise.resolve(body),
+        });
+        const { getSession } = await import("next-auth/react");
+        vi.mocked(getSession).mockResolvedValue({
+          user: { token: "test-token" },
+        } as never);
+        const { studentService } = await import("./api");
+        const restore = setupBrowserEnv();
+        try {
+          return await studentService
+            .updateStudent("1", {
+              first_name: "Test",
+              second_name: "Student",
+              school_class: "1a",
+              name: "Test Student",
+              current_location: "",
+            })
+            .then(() => null)
+            .catch((err: unknown) => err);
+        } finally {
+          restore();
+        }
+      };
+
+      const { CompanionDepartureRefusedError, isCompanionDepartureRefusal } =
+        await import("./api");
+
+      const stranded = await respondWith(
+        JSON.stringify({
+          status: "error",
+          error:
+            "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
+          code: "companion_would_lose_departure",
+        }),
+      );
+      expect(stranded).toBeInstanceOf(CompanionDepartureRefusedError);
+      expect(isCompanionDepartureRefusal(stranded)).toBe(true);
+      // The German instruction reaches the form verbatim, without the
+      // "API error 400:" prefix the generic branch would add.
+      expect((stranded as Error).message).toBe(
+        "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
+      );
+
+      const otherBadRequest = await respondWith(
+        JSON.stringify({ status: "error", error: "invalid weekday" }),
+      );
+      expect(otherBadRequest).not.toBeInstanceOf(
+        CompanionDepartureRefusedError,
+      );
+      expect(isCompanionDepartureRefusal(otherBadRequest)).toBe(false);
+    });
   });
 
   describe("roomService.updateRoom", () => {

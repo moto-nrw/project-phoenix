@@ -29,6 +29,14 @@ type CompanionResponse struct {
 // this code (and off the conflicts list the other 409 carries).
 const CodeCompanionLockBusy = "companion_lock_busy"
 
+// CodeCompanionWouldLoseDeparture marks the 400 raised when removing a link
+// would leave the OTHER child with an accompanied departure plan and no way to
+// say who it walks home with. The client keys the user-actionable German
+// message off this code: the save paths reduce a failed student PUT to a
+// generic "Fehler beim Speichern", which hides the one instruction that lets
+// the user get out of the refusal (fix that child's Heimweg first).
+const CodeCompanionWouldLoseDeparture = "companion_would_lose_departure"
+
 // companionPlanErrorRenderer maps the two companion sentinels that ANY
 // departure-plan write can raise to their wire response, and returns nil for
 // every other error so the caller can keep classifying.
@@ -44,9 +52,10 @@ func companionPlanErrorRenderer(err error) render.Renderer {
 	// Removing the day would leave the OTHER child with an accompanied
 	// departure plan and no "mit wem" detail at all. Nothing was written; the
 	// user has to give that child a note (or another link) first. The German
-	// sentinel text goes straight to the UI.
+	// sentinel text goes straight to the UI, and the code lets the client tell
+	// this expected refusal apart from any other 400 the write can produce.
 	case errors.Is(err, usersService.ErrCompanionWouldLoseDeparture):
-		return common.ErrorInvalidRequest(err)
+		return common.ErrorInvalidRequestWithCode(err, CodeCompanionWouldLoseDeparture)
 	// A linked child was being edited elsewhere and this transaction could not
 	// wait for its row without risking a deadlock. Nothing was written and the
 	// same request succeeds once the other edit commits, so this is a retriable

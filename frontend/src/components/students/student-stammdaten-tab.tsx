@@ -35,7 +35,9 @@ import {
 } from "~/lib/student-companion-api";
 import { createLogger } from "~/lib/logger";
 import {
+  companionDepartureMessage,
   CompanionPlanConflictError,
+  isCompanionDepartureRefusal,
   isCompanionPlanConflictBody,
   parseConflictExtensions,
 } from "~/lib/api";
@@ -683,16 +685,33 @@ export function StudentStammdatenTab({
         const message = err instanceof Error ? err.message : String(err);
         logger.error("error saving student", { error: message });
         setErrors({
-          submit: "Fehler beim Speichern. Bitte versuchen Sie es erneut.",
+          // The stranded-companion refusal is expected and user-actionable —
+          // it names the child whose Heimweg has to be filled in first. "Bitte
+          // versuchen Sie es erneut" would be wrong twice over: retrying the
+          // identical save is refused again, and the instruction is lost.
+          submit: isCompanionDepartureRefusal(err)
+            ? companionDepartureMessage(err)
+            : "Fehler beim Speichern. Bitte versuchen Sie es erneut.",
         });
         setSaving(false);
         return;
       }
-      // The links are now the stored ones. student.id doesn't change on a
-      // refetch, so the load effect won't re-run — move the snapshot forward
-      // here or the form stays permanently dirty after a companion edit.
+      // Re-read the stored links instead of promoting the list we hold to the
+      // new baseline. student.id doesn't change on a refetch, so the load
+      // effect won't re-run on its own, and the form would otherwise stay
+      // permanently dirty after a companion edit — but `companions` is NOT
+      // always what the backend now stores. Two ways it diverges: the backend
+      // TRIMS every link whose weekday the new plan no longer allows, and a
+      // plan-only save carries no companions list at all (unticking the last
+      // accompanied day unmounts CompanionPicker before its trimming effect
+      // runs, so the local list keeps the deleted links and stays clean).
+      // Recording that array would show the deleted children again the moment
+      // "Anderes Kind" is re-enabled in this still-mounted form and send them
+      // back on the next save. The reload also carries the failure path: an
+      // unreadable list flips the status to "error" rather than passing for
+      // the stored one.
       if (companionsStatus === "ready") {
-        setLoadedCompanions(companions);
+        setReloadCompanions((count) => count + 1);
       }
 
       const consentNowOn = Boolean(formData.photo_consent_given);

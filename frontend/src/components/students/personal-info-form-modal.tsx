@@ -23,7 +23,11 @@ import {
   type CompanionExtensionConfirmation,
   type StudentCompanion,
 } from "~/lib/student-companion-api";
-import { CompanionPlanConflictError } from "~/lib/api";
+import {
+  companionDepartureMessage,
+  CompanionPlanConflictError,
+  isCompanionDepartureRefusal,
+} from "~/lib/api";
 import type { AllowedDepartureModes } from "~/lib/student-helpers";
 import { createLogger } from "~/lib/logger";
 
@@ -224,6 +228,14 @@ export function PersonalInfoFormModal({
       logger.error("failed to save personal information", {
         error: err instanceof Error ? err.message : String(err),
       });
+      // The stranded-companion refusal is expected and user-actionable: the
+      // backend names the child whose Heimweg has to be filled in before this
+      // link can go. Swallowing it into the generic text would leave the user
+      // guessing what to change.
+      if (isCompanionDepartureRefusal(err)) {
+        toast.error(companionDepartureMessage(err));
+        return;
+      }
       toast.error("Fehler beim Speichern der persönlichen Informationen");
     } finally {
       setIsSaving(false);

@@ -573,6 +573,95 @@ export function parseConflictExtensions(
 export const COMPANION_LOCK_BUSY_CODE = "companion_lock_busy";
 
 /**
+ * The backend's stable code for the OTHER expected companion refusal
+ * (api/students: CodeCompanionWouldLoseDeparture): removing a link would leave
+ * the linked child with an accompanied departure plan and no note and no other
+ * link. A 400, not a 409 — nothing to confirm, the user has to fix that child's
+ * Heimweg first. Kept in sync by hand — the wire contract is the string.
+ */
+export const COMPANION_WOULD_LOSE_DEPARTURE_CODE =
+  "companion_would_lose_departure";
+
+/** Shown only when the refusal arrived without a readable message. */
+const COMPANION_DEPARTURE_FALLBACK =
+  "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.";
+
+/**
+ * Raised when a student write was refused because it would strand a linked
+ * child. Typed like the plan conflict so the forms can keep the backend's
+ * German instruction instead of decaying it into "Fehler beim Speichern" — the
+ * message names the precondition, and without it the user has no way to tell
+ * what has to change before the save can succeed.
+ */
+export class CompanionDepartureRefusedError extends Error {
+  constructor(body: string) {
+    super(parseBackendMessage(body, COMPANION_DEPARTURE_FALLBACK));
+    this.name = "CompanionDepartureRefusedError";
+  }
+}
+
+/**
+ * Reports whether an error is that refusal, in whichever wrapping it arrived:
+ * the typed error from studentService.updateStudent, or the plain Error the
+ * generic CRUD service throws with the untouched body attached (and, for
+ * callers that lost the body, the JSON embedded in the message).
+ *
+ * Keyed off the CODE, never the status: the student PUT answers 400 for every
+ * other rejected field too, and those keep their own generic handling.
+ */
+export function isCompanionDepartureRefusal(err: unknown): boolean {
+  if (err instanceof CompanionDepartureRefusedError) return true;
+  if (!(err instanceof Error)) return false;
+  const body = (err as Error & { body?: string }).body;
+  if (body && isCompanionDepartureBody(body)) return true;
+  const match = /\{.*\}/s.exec(err.message);
+  return match ? isCompanionDepartureBody(match[0]) : false;
+}
+
+/** Reports whether a response body carries the stranded-companion code. */
+export function isCompanionDepartureBody(body: string): boolean {
+  return bodyHasCode(body, COMPANION_WOULD_LOSE_DEPARTURE_CODE);
+}
+
+/** The German instruction the refusal carries, dug out of the same wrappings. */
+export function companionDepartureMessage(err: unknown): string {
+  if (err instanceof CompanionDepartureRefusedError) return err.message;
+  if (err instanceof Error) {
+    const body = (err as Error & { body?: string }).body;
+    if (body) {
+      const fromBody = parseBackendMessage(body, "");
+      if (fromBody) return fromBody;
+    }
+    const match = /\{.*\}/s.exec(err.message);
+    if (match) {
+      const fromMessage = parseBackendMessage(match[0], "");
+      if (fromMessage) return fromMessage;
+    }
+  }
+  return COMPANION_DEPARTURE_FALLBACK;
+}
+
+/** Reads the backend error envelope's message, falling back when unreadable. */
+function parseBackendMessage(body: string, fallback: string): string {
+  const jsonStart = body.indexOf("{");
+  if (jsonStart === -1) return fallback;
+  try {
+    const parsed = JSON.parse(body.substring(jsonStart)) as {
+      error?: string;
+      message?: string;
+    };
+    for (const candidate of [parsed.error, parsed.message]) {
+      if (typeof candidate === "string" && candidate.trim()) {
+        return candidate.trim();
+      }
+    }
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
  * Reports whether a complete 409 RESPONSE BODY is the companion-plan question.
  *
  * Strict on purpose: the conflict list has to actually be there. The student PUT
@@ -874,6 +963,17 @@ export const studentService = {
             throw new CompanionPlanConflictError(errorText);
           }
 
+          // A 400 CARRYING THE STRANDED-COMPANION CODE is the other expected
+          // companion refusal: removing a link would leave the linked child
+          // with an accompanied plan and nothing that says who it walks home
+          // with. Nothing was written and the message names what has to be
+          // fixed first, so it is typed too — the generic branch below folds
+          // the body into "API error 400: …", which the forms then replace
+          // with an opaque "Fehler beim Speichern" the user cannot act on.
+          if (response.status === 400 && isCompanionDepartureBody(errorText)) {
+            throw new CompanionDepartureRefusedError(errorText);
+          }
+
           // Try to parse error text as JSON for more detailed error
           try {
             const errorJson = JSON.parse(errorText) as { error?: string };
@@ -923,6 +1023,10 @@ export const studentService = {
       // keep its type so the caller can offer the confirmation instead of a
       // generic error toast.
       if (error instanceof CompanionPlanConflictError) throw error;
+      // Same reasoning for the stranded-companion refusal: it is an instruction
+      // for the user, and handleApiError would strip it down to a generic
+      // message.
+      if (error instanceof CompanionDepartureRefusedError) throw error;
       throw handleApiError(error, `Error updating student ${id}`);
     }
   },

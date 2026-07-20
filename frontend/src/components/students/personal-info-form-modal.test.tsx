@@ -307,6 +307,41 @@ describe("PersonalInfoFormModal", () => {
       });
     });
 
+    // The stranded-companion refusal is user-actionable: it says which child's
+    // Heimweg has to be filled in before the link can be removed. The generic
+    // save-failed toast would leave that instruction unread and the user with
+    // no way to resolve the refusal.
+    it("keeps the backend message when a link would strand the other child", async () => {
+      const { CompanionDepartureRefusedError } = await import("~/lib/api");
+      mockOnSave.mockRejectedValue(
+        new CompanionDepartureRefusedError(
+          JSON.stringify({
+            status: "error",
+            error:
+              "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
+            code: "companion_would_lose_departure",
+          }),
+        ),
+      );
+
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent()}
+          onSave={mockOnSave}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Speichern"));
+
+      await waitFor(() => {
+        expect(mockToast.error).toHaveBeenCalledWith(
+          "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
+        );
+      });
+    });
+
     it("shows loading state while saving", async () => {
       mockOnSave.mockImplementation(
         () => new Promise((resolve) => setTimeout(resolve, 100)),

@@ -871,6 +871,57 @@ describe("StudentStammdatenTab — companion list staleness", () => {
       companions: [{ companion_student_id: "7", weekdays: ["mon"] }],
     });
   });
+
+  // A departure-plan save can change the stored links without carrying a
+  // companions list: the backend TRIMS every link whose weekday the new plan no
+  // longer allows, and the picker unmounts with the last accompanied day before
+  // it can trim the local copy. Promoting the list this form still holds to the
+  // new baseline would resurrect the deleted children here. student.id does not
+  // change on a refetch, so only an explicit reload re-reads them.
+  it("re-reads the stored links after a save instead of trusting the local list", async () => {
+    await saveAfter(() =>
+      fireEvent.click(screen.getByTestId("departure-set-mon-bus")),
+    );
+
+    await waitFor(() =>
+      expect(fetchStudentCompanionsMock).toHaveBeenCalledTimes(2),
+    );
+  });
+
+  // The stranded-companion 400 is an instruction, not a failure: it names the
+  // child whose Heimweg has to be filled in first. "Bitte versuchen Sie es
+  // erneut" would be wrong twice — the identical retry is refused again, and
+  // the only way out of the refusal is lost.
+  it("shows the backend message when a link would strand the other child", async () => {
+    const refusal = new Error(
+      "API error 400: Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht.",
+    ) as Error & { status?: number; body?: string };
+    refusal.status = 400;
+    refusal.body = JSON.stringify({
+      status: "error",
+      error:
+        "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
+      code: "companion_would_lose_departure",
+    });
+
+    const onSave = vi.fn().mockRejectedValue(refusal);
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+    await waitFor(() => expect(fetchStudentCompanionsMock).toHaveBeenCalled());
+    fireEvent.click(screen.getByTestId("companion-add"));
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    expect(
+      await screen.findByText(
+        "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
+      ),
+    ).toBeInTheDocument();
+  });
 });
 
 // Photo orchestration suite. The default global useTenantSafe mock returns
