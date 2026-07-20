@@ -312,6 +312,44 @@ describe("PlannedNowSection", () => {
     ).toBeInTheDocument();
   });
 
+  it("labels a not-scheduled child by the care day, not by the absence the status day reports", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            expectedStudentsCount: 1,
+            notScheduledStudentsCount: 1,
+            rosterPreview: [
+              plannedInstance.rosterPreview[0]!,
+              {
+                ...plannedInstance.rosterPreview[0]!,
+                studentId: "student-2",
+                studentName: "Jonas Weber",
+                // The status-day layer owns this false absence: the child is
+                // simply not booked today, so the backend reports "absent"
+                // alongside the not_scheduled verdict.
+                status: "absent",
+                careDayStatus: "not_scheduled",
+              },
+            ],
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    // Showing "Abwesend" here would contradict the not-scheduled count in the
+    // header and the full roster, which groups the row with the other
+    // not-scheduled children (#1747).
+    expect(screen.getByText("Nicht eingeplant")).toBeInTheDocument();
+    expect(screen.queryByText("Abwesend")).toBeNull();
+    expect(
+      screen.getByText("1 erwartet · 1 heute nicht eingeplant"),
+    ).toBeInTheDocument();
+  });
+
   it("keeps a present child expected even when the care plan says otherwise", () => {
     render(
       <PlannedNowSection

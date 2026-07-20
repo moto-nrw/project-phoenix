@@ -486,22 +486,25 @@ function rosterDotColor(row: TimetableRosterRow) {
   if (row.currentlyPresent || row.status === "present") {
     return LOCATION_COLORS.GROUP_ROOM;
   }
-  if (row.status === "absent") {
-    return LOCATION_COLORS.HOME;
-  }
+  // The care-day verdict wins over "absent": a child the care plan leaves out
+  // today is reported as absent by the status-day layer, but it is not a real
+  // absence and must match the "nicht eingeplant" count in the header (#1747).
   if (isNotScheduled(row)) {
     return LOCATION_COLORS.UNKNOWN;
+  }
+  if (row.status === "absent") {
+    return LOCATION_COLORS.HOME;
   }
   return "#D1D5DB";
 }
 
 function rosterStatusLabel(row: TimetableRosterRow) {
   if (row.currentlyPresent || row.status === "present") return "Anwesend";
-  if (row.status === "absent") return "Abwesend";
   if (isNotScheduled(row)) {
     return row.careDayStatus === "cancelled"
       ? "Abgemeldet"
       : "Nicht eingeplant";
   }
+  if (row.status === "absent") return "Abwesend";
   return "Erwartet";
 }
