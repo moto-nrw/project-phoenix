@@ -14,6 +14,7 @@ import {
 import {
   COMPANION_WEEKDAYS,
   companionDisplayName,
+  type CompanionExtensionConfirmation,
   type CompanionWeekday,
   type StudentCompanion,
 } from "~/lib/student-companion-api";
@@ -49,7 +50,7 @@ export function CompanionPicker({
   onChange,
   allowedDays,
   excludeStudentId,
-  onExtendPlansChange,
+  onExtensionConfirmed,
   disabled = false,
 }: Readonly<{
   value: StudentCompanion[];
@@ -59,10 +60,11 @@ export function CompanionPicker({
   /** The child being edited, filtered out of the search results. */
   excludeStudentId?: string;
   /**
-   * Called when the user confirmed widening a companion's own departure plan.
-   * The host sends it along so the backend may perform that write.
+   * Called when the user confirmed widening a companion's own departure plan,
+   * with the child and the weekdays the question named. The host sends both
+   * along: the backend only widens what the confirmation actually covers.
    */
-  onExtendPlansChange?: (extend: boolean) => void;
+  onExtensionConfirmed?: (confirmation: CompanionExtensionConfirmation) => void;
   disabled?: boolean;
 }>) {
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -195,15 +197,19 @@ export function CompanionPicker({
   const toggleWeekday = useCallback(
     (companionId: string, weekday: CompanionWeekday) => {
       onChange(
-        value.map((companion) => {
-          if (companion.companion_student_id !== companionId) return companion;
+        value.flatMap((companion) => {
+          if (companion.companion_student_id !== companionId)
+            return [companion];
           const next = companion.weekdays.includes(weekday)
             ? companion.weekdays.filter((day) => day !== weekday)
             : [...companion.weekdays, weekday];
-          return {
-            ...companion,
-            weekdays: allowedDays.filter((day) => next.includes(day)),
-          };
+          const weekdays = allowedDays.filter((day) => next.includes(day));
+          // Unticking the last day is how the user says "not this child after
+          // all". Keeping the entry with an empty day list would look like a
+          // valid edit and then fail the save with a message the row cannot
+          // even show, so the link goes with its last day.
+          if (weekdays.length === 0) return [];
+          return [{ ...companion, weekdays }];
         }),
       );
     },
@@ -304,7 +310,10 @@ export function CompanionPicker({
               variant="primary"
               size="md"
               onClick={() => {
-                onExtendPlansChange?.(true);
+                onExtensionConfirmed?.({
+                  companion_student_id: pending.result.id,
+                  weekdays: pending.missingDays,
+                });
                 commitCompanion(pending.result);
               }}
             >

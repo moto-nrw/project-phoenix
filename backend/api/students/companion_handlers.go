@@ -180,7 +180,7 @@ var errCompanionExtendForbidden = errors.New("Für ein verknüpftes Kind fehlt d
 // that never passed this check cannot be widened.
 //
 // `student` must already carry the plan resolved from this request.
-func (rs *Resource) checkCompanionConflicts(ctx context.Context, student *userModels.Student, req *UpdateStudentRequest, userPermissions []string) (map[int64]bool, error) {
+func (rs *Resource) checkCompanionConflicts(ctx context.Context, student *userModels.Student, req *UpdateStudentRequest, userPermissions []string) (map[int64]map[string]bool, error) {
 	accompaniedDays := userModels.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)
 
 	// Removal-only paths. Both drop links without a submitted list to validate —
@@ -204,12 +204,45 @@ func (rs *Resource) checkCompanionConflicts(ctx context.Context, student *userMo
 		return nil, err
 	}
 	if len(conflicts) == 0 {
-		return map[int64]bool{}, nil
+		return map[int64]map[string]bool{}, nil
 	}
-	if !req.ExtendCompanionPlans {
+	// Ask again whenever the current conflicts are not covered by what the user
+	// actually confirmed. The confirmation was answered against an unlocked
+	// snapshot, so a conflict that appeared (or grew a weekday) in the meantime
+	// was never on screen — extending it would widen a child's departure
+	// permission nobody agreed to. A 409 with the CURRENT set puts the question
+	// back where it belongs; nothing is written either way.
+	if !req.ExtendCompanionPlans || !companionConflictsConfirmed(conflicts, req.ConfirmedCompanionExtensions) {
 		return nil, &companionConflictError{Conflicts: conflicts}
 	}
 	return rs.authorizeCompanionExtension(ctx, conflicts, userPermissions)
+}
+
+// companionConflictsConfirmed reports whether every conflicting weekday of every
+// conflicting companion appears in the set the client confirmed. Extra confirmed
+// entries are fine — they only mean a conflict resolved itself in the meantime.
+func companionConflictsConfirmed(conflicts []usersService.CompanionConflict, confirmed []CompanionEntry) bool {
+	byStudent := make(map[int64]map[string]bool, len(confirmed))
+	for _, entry := range confirmed {
+		days := byStudent[entry.CompanionStudentID]
+		if days == nil {
+			days = make(map[string]bool, len(entry.Weekdays))
+			byStudent[entry.CompanionStudentID] = days
+		}
+		for _, day := range entry.Weekdays {
+			days[day] = true
+		}
+	}
+
+	for _, conflict := range conflicts {
+		days := byStudent[conflict.StudentID]
+		for _, day := range conflict.Weekdays {
+			if !days[day] {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // authorizeCompanionExtension gates the ONE companion write this endpoint can
@@ -228,8 +261,9 @@ func (rs *Resource) checkCompanionConflicts(ctx context.Context, student *userMo
 // narrow its plan between this pass and the write pass — the second validation
 // inside ReplaceCompanions sees byte-identical rows and therefore the identical
 // conflict set. The returned set is passed on as CompanionUpdate.
-// AuthorizedExtensions so that assumption is enforced rather than trusted.
-func (rs *Resource) authorizeCompanionExtension(ctx context.Context, conflicts []usersService.CompanionConflict, userPermissions []string) (map[int64]bool, error) {
+// AuthorizedExtensions so that assumption is enforced rather than trusted, down
+// to the individual weekdays these conflicts name.
+func (rs *Resource) authorizeCompanionExtension(ctx context.Context, conflicts []usersService.CompanionConflict, userPermissions []string) (map[int64]map[string]bool, error) {
 	ids := make([]int64, 0, len(conflicts))
 	for _, conflict := range conflicts {
 		ids = append(ids, conflict.StudentID)
@@ -239,16 +273,23 @@ func (rs *Resource) authorizeCompanionExtension(ctx context.Context, conflicts [
 	if err != nil {
 		return nil, err
 	}
-	authorized := make(map[int64]bool, len(ids))
-	for _, id := range ids {
-		companion := companions[id]
+	authorized := make(map[int64]map[string]bool, len(ids))
+	for _, conflict := range conflicts {
+		companion := companions[conflict.StudentID]
 		if companion == nil {
 			return nil, usersService.ErrCompanionNotFound
 		}
 		if ok, _ := canUpdateStudent(ctx, userPermissions, companion, rs.UserContextService); !ok {
 			return nil, errCompanionExtendForbidden
 		}
-		authorized[id] = true
+		days := authorized[conflict.StudentID]
+		if days == nil {
+			days = make(map[string]bool, len(conflict.Weekdays))
+			authorized[conflict.StudentID] = days
+		}
+		for _, day := range conflict.Weekdays {
+			days[day] = true
+		}
 	}
 	return authorized, nil
 }
@@ -262,7 +303,7 @@ func (rs *Resource) authorizeCompanionExtension(ctx context.Context, conflicts [
 //
 // `student` must already carry the plan resolved from this request;
 // `authorizedExtensions` is what checkCompanionConflicts returned.
-func (rs *Resource) applyCompanionUpdate(ctx context.Context, student *userModels.Student, req *UpdateStudentRequest, authorizedExtensions map[int64]bool) error {
+func (rs *Resource) applyCompanionUpdate(ctx context.Context, student *userModels.Student, req *UpdateStudentRequest, authorizedExtensions map[int64]map[string]bool) error {
 	accompaniedDays := userModels.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)
 
 	// The plan no longer allows leaving with another child anywhere: the links
@@ -275,7 +316,7 @@ func (rs *Resource) applyCompanionUpdate(ctx context.Context, student *userModel
 		}); err != nil {
 			return err
 		}
-		student.DepartureCompanionLinked = false
+		student.DepartureCompanionDays = nil
 		return nil
 	}
 
@@ -289,7 +330,7 @@ func (rs *Resource) applyCompanionUpdate(ctx context.Context, student *userModel
 		if err != nil {
 			return err
 		}
-		student.DepartureCompanionLinked = len(links) > 0
+		student.DepartureCompanionDays = userModels.CompanionDaysFromLinks(links)
 		return nil
 	}
 
@@ -307,7 +348,7 @@ func (rs *Resource) applyCompanionUpdate(ctx context.Context, student *userModel
 		return &companionConflictError{Conflicts: conflicts}
 	}
 
-	student.DepartureCompanionLinked = len(links) > 0
+	student.DepartureCompanionDays = userModels.CompanionDaysFromLinks(links)
 	return nil
 }
 

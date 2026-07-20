@@ -403,12 +403,18 @@ type CompanionUpdate struct {
 	// and must never happen silently.
 	ExtendCompanionPlans bool
 
-	// AuthorizedExtensions are the companion ids whose departure plan the CALLER
-	// was authorized to widen, checked against the same locked rows this update
-	// writes. nil means "no restriction" and is for system callers only; an
-	// HTTP caller always sets it, so a companion that slipped into the write
-	// pass without passing authorization fails loudly instead of being widened.
-	AuthorizedExtensions map[int64]bool
+	// AuthorizedExtensions are the WEEKDAYS per companion that the caller was
+	// both authorized and explicitly confirmed to widen, checked against the same
+	// locked rows this update writes. nil means "no restriction" and is for
+	// system callers only; an HTTP caller always sets it, so a companion — or a
+	// weekday of one — that slipped into the write pass without passing
+	// authorization and confirmation fails loudly instead of being widened.
+	//
+	// Per weekday, not per companion: the confirmation the human answered names
+	// concrete days ("Tom darf donnerstags noch nicht …"), so a conflict that
+	// grew a further day between the question and the answer must not ride along
+	// on the earlier yes.
+	AuthorizedExtensions map[int64]map[string]bool
 }
 
 // CompanionConflict names a companion whose departure plan does not permit
@@ -446,8 +452,13 @@ func (s *studentService) ReplaceCompanions(ctx context.Context, studentID int64,
 		// pass and this one, and what stops two requests from acquiring the same
 		// pair of rows in opposite orders.
 		for _, conflict := range conflicts {
-			if update.AuthorizedExtensions != nil && !update.AuthorizedExtensions[conflict.StudentID] {
-				return nil, fmt.Errorf("%w: student %d", ErrCompanionExtensionNotAuthorized, conflict.StudentID)
+			if update.AuthorizedExtensions != nil {
+				authorized := update.AuthorizedExtensions[conflict.StudentID]
+				for _, day := range conflict.Weekdays {
+					if !authorized[day] {
+						return nil, fmt.Errorf("%w: student %d, weekday %s", ErrCompanionExtensionNotAuthorized, conflict.StudentID, day)
+					}
+				}
 			}
 			if err := s.extendAccompaniedDays(ctx, conflict.StudentID, conflict.Weekdays); err != nil {
 				return nil, err
@@ -675,9 +686,12 @@ func (s *studentService) extendAccompaniedDays(ctx context.Context, companionID 
 	companion.AllowedDepartureModes = userModels.WithAccompaniedDays(
 		companion.AllowedDepartureModes, missing,
 	)
-	// The link we are about to write IS the "mit wem" detail, so the
-	// accompanied-needs-a-note invariant is satisfied without inventing text.
-	companion.DepartureCompanionLinked = true
+	// The links we are about to write ARE the "mit wem" detail for exactly these
+	// weekdays, so the accompanied-needs-a-note invariant is satisfied for them
+	// without inventing text. Days the companion already had accompanied stay
+	// uncovered here on purpose — the repository probes the stored edges for
+	// those, which is the only thing that can honestly answer for them.
+	companion.MarkDepartureCompanionDays(days...)
 	return s.studentRepo.Update(ctx, companion)
 }
 

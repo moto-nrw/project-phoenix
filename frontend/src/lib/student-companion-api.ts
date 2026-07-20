@@ -41,6 +41,42 @@ export interface StudentCompanion {
   weekdays: CompanionWeekday[];
 }
 
+/**
+ * One confirmed answer to "may we add 'Anderes Kind' to this child's own
+ * Heimweg?" — the child and the weekdays the question actually named.
+ *
+ * It travels with the save because the backend re-checks the conflicts against
+ * freshly locked rows: a conflict that appeared while the user was reading the
+ * question was never on screen, so the backend asks again instead of widening
+ * a child nobody agreed to.
+ */
+export interface CompanionExtensionConfirmation {
+  companion_student_id: string;
+  weekdays: CompanionWeekday[];
+}
+
+/**
+ * Folds a new confirmation into the ones already given, merging the weekdays of
+ * a child that is confirmed twice. Order is irrelevant — the backend only asks
+ * whether a conflicting day is covered.
+ */
+export function mergeCompanionConfirmations(
+  current: CompanionExtensionConfirmation[],
+  incoming: CompanionExtensionConfirmation[],
+): CompanionExtensionConfirmation[] {
+  const byStudent = new Map<string, Set<CompanionWeekday>>();
+  for (const entry of [...current, ...incoming]) {
+    const days =
+      byStudent.get(entry.companion_student_id) ?? new Set<CompanionWeekday>();
+    for (const day of entry.weekdays) days.add(day);
+    byStudent.set(entry.companion_student_id, days);
+  }
+  return [...byStudent].map(([companion_student_id, days]) => ({
+    companion_student_id,
+    weekdays: ALL_COMPANION_WEEKDAYS.filter((day) => days.has(day)),
+  }));
+}
+
 /** The companion entry as it arrives on the wire (backend int64 → JSON number). */
 interface RawStudentCompanion {
   companion_student_id: number | string;

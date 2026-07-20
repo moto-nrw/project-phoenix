@@ -610,6 +610,10 @@ function StudentDetailPageContent() {
           }
         : {}),
       extend_companion_plans: editedStudent.extend_companion_plans ?? false,
+      // The confirmation is only worth as much as what it names: the backend
+      // widens a companion's plan only for these children and weekdays.
+      confirmed_companion_extensions:
+        editedStudent.confirmed_companion_extensions ?? [],
       health_info: editedStudent.health_info,
       supervisor_notes: editedStudent.supervisor_notes,
       extra_info: editedStudent.extra_info,

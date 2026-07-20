@@ -35,6 +35,11 @@ import {
 export { mapRoomResponse } from "./room-helpers";
 import type { BackendRoom } from "./room-helpers";
 import { handleAuthFailure } from "./auth-failure";
+import {
+  ALL_COMPANION_WEEKDAYS,
+  type CompanionExtensionConfirmation,
+  type CompanionWeekday,
+} from "./student-companion-api";
 
 // Logger instance for API client
 const logger = createLogger({ component: "ApiClient" });
@@ -519,9 +524,43 @@ export interface Room {
  * after the user confirms.
  */
 export class CompanionPlanConflictError extends Error {
+  /**
+   * The conflicting children and weekdays exactly as the backend reported them.
+   * The confirmation has to name them again on the retry, so the backend can
+   * tell "the user agreed to this" apart from "this appeared afterwards".
+   */
+  readonly conflicts: CompanionExtensionConfirmation[];
+
   constructor(body: string) {
     super(parseConflictMessage(body));
     this.name = "CompanionPlanConflictError";
+    this.conflicts = parseConflictExtensions(body);
+  }
+}
+
+/**
+ * Reads the 409 body's conflict list into the confirmation shape. Anything
+ * unparsable yields an empty list, which makes the retry ask again rather than
+ * confirm something we could not read.
+ */
+export function parseConflictExtensions(
+  body: string,
+): CompanionExtensionConfirmation[] {
+  try {
+    const parsed = JSON.parse(body) as {
+      conflicts?: { student_id?: number | string; weekdays?: string[] }[];
+    };
+    return (parsed.conflicts ?? [])
+      .filter((conflict) => conflict.student_id !== undefined)
+      .map((conflict) => ({
+        companion_student_id: String(conflict.student_id),
+        weekdays: (conflict.weekdays ?? []).filter(
+          (day): day is CompanionWeekday =>
+            ALL_COMPANION_WEEKDAYS.includes(day as CompanionWeekday),
+        ),
+      }));
+  } catch {
+    return [];
   }
 }
 
@@ -732,6 +771,7 @@ export const studentService = {
       // validated backend boundary.
       companions?: { companion_student_id: string; weekdays: string[] }[];
       extend_companion_plans?: boolean;
+      confirmed_companion_extensions?: CompanionExtensionConfirmation[];
     },
   ): Promise<Student> => {
     const useProxyApi = globalThis.window !== undefined;

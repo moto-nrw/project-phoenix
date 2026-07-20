@@ -1,7 +1,10 @@
 // lib/student-helpers.ts
 // Type definitions and helper functions for students
 
-import type { StudentCompanion } from "./student-companion-api";
+import type {
+  CompanionExtensionConfirmation,
+  StudentCompanion,
+} from "./student-companion-api";
 import {
   LOCATION_STATUSES,
   parseLocation,
@@ -433,6 +436,11 @@ export interface BackendStudent {
   companions?: { companion_student_id: number; weekdays: string[] }[];
   /** Write-only: confirms widening a linked child's own departure plan. */
   extend_companion_plans?: boolean;
+  /** Write-only: the children and weekdays that confirmation actually covered. */
+  confirmed_companion_extensions?: {
+    companion_student_id: number;
+    weekdays: string[];
+  }[];
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -591,6 +599,9 @@ export interface Student {
   companions?: StudentCompanion[];
   /** Write-only: confirms widening a linked child's own departure plan. */
   extend_companion_plans?: boolean;
+  /** Write-only: the children and weekdays that confirmation actually covered.
+   *  Without them the backend treats the confirmation as unanswered. */
+  confirmed_companion_extensions?: CompanionExtensionConfirmation[];
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -782,6 +793,7 @@ export function prepareStudentForBackend(
     pickup_status?: string;
     companions?: { companion_student_id: string; weekdays: string[] }[];
     extend_companion_plans?: boolean;
+    confirmed_companion_extensions?: CompanionExtensionConfirmation[];
   },
 ): Partial<BackendStudent> {
   return {
@@ -838,6 +850,14 @@ export function prepareStudentForBackend(
       weekdays: companion.weekdays,
     })),
     extend_companion_plans: student.extend_companion_plans,
+    // What the user confirmed, not just that they confirmed something: the
+    // backend refuses to widen a conflict these entries do not cover.
+    confirmed_companion_extensions: student.confirmed_companion_extensions?.map(
+      (entry) => ({
+        companion_student_id: companionIdForBackend(entry.companion_student_id),
+        weekdays: entry.weekdays,
+      }),
+    ),
     // Convert empty string to undefined for date fields (Go backend expects null or valid date)
     birthday:
       student.birthday && student.birthday.trim() !== ""
@@ -928,6 +948,11 @@ export interface BackendUpdateRequest {
   /** Confirms widening a linked child's own departure plan (answer to the 409
    *  conflict). */
   extend_companion_plans?: boolean;
+  /** The children and weekdays that confirmation covered. */
+  confirmed_companion_extensions?: {
+    companion_student_id: number;
+    weekdays: string[];
+  }[];
 }
 
 // Map privacy consent from backend to frontend

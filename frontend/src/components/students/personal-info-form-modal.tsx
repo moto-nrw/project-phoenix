@@ -18,6 +18,8 @@ import {
 } from "~/lib/student-helpers";
 import {
   fetchStudentCompanions,
+  mergeCompanionConfirmations,
+  type CompanionExtensionConfirmation,
   type StudentCompanion,
 } from "~/lib/student-companion-api";
 import { CompanionPlanConflictError } from "~/lib/api";
@@ -46,6 +48,13 @@ export function PersonalInfoFormModal({
   // does not allow the requested days. Answering yes re-sends the identical
   // payload with the confirmation flag.
   const [planConflict, setPlanConflict] = useState<string | null>(null);
+  // WHAT the user confirmed, not just that they did: the backend widens a
+  // companion's plan only for the children and weekdays listed here, so a
+  // conflict that appeared while the question was on screen is refused again
+  // instead of riding along on the earlier yes.
+  const [confirmedExtensions, setConfirmedExtensions] = useState<
+    CompanionExtensionConfirmation[]
+  >([]);
   // The submitted list REPLACES the stored one, so saving is blocked until the
   // stored links are known: an empty list from a pending or failed load would
   // silently delete the child's Laufgemeinschaft.
@@ -124,12 +133,14 @@ export function PersonalInfoFormModal({
     await submit(
       allowedDepartureModes,
       editedStudent.extend_companion_plans ?? false,
+      confirmedExtensions,
     );
   };
 
   const submit = async (
     allowedDepartureModes: AllowedDepartureModes,
     extendCompanionPlans: boolean,
+    confirmed: CompanionExtensionConfirmation[],
   ) => {
     setIsSaving(true);
     try {
@@ -144,6 +155,7 @@ export function PersonalInfoFormModal({
         companions:
           companionsStatus === "ready" ? editedStudent.companions : undefined,
         extend_companion_plans: extendCompanionPlans,
+        confirmed_companion_extensions: confirmed,
         allowed_departure_modes: allowedDepartureModes,
         departure_days: allowedDepartureToDepartureDays(allowedDepartureModes),
         bus_days: busDays,
@@ -157,8 +169,12 @@ export function PersonalInfoFormModal({
       onClose();
     } catch (err) {
       if (err instanceof CompanionPlanConflictError) {
-        // Not a failure: ask, then repeat the same save with the flag set.
+        // Not a failure: ask, then repeat the same save confirming exactly the
+        // children and weekdays the message named.
         setPlanConflict(err.message);
+        setConfirmedExtensions((current) =>
+          mergeCompanionConfirmations(current, err.conflicts),
+        );
         return;
       }
       logger.error("failed to save personal information", {
@@ -254,6 +270,7 @@ export function PersonalInfoFormModal({
                         ),
                     ),
                     true,
+                    confirmedExtensions,
                   );
                 }}
                 className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:opacity-50"
@@ -311,9 +328,12 @@ export function PersonalInfoFormModal({
             updateField("companions", companions)
           }
           companionStudentId={student.id}
-          onExtendCompanionPlansChange={(extend) =>
-            updateField("extend_companion_plans", extend)
-          }
+          onCompanionExtensionConfirmed={(confirmation) => {
+            updateField("extend_companion_plans", true);
+            setConfirmedExtensions((current) =>
+              mergeCompanionConfirmations(current, [confirmation]),
+            );
+          }}
           days={
             editedStudent.allowed_departure_modes ??
             allowedDepartureModesFromDeparture(

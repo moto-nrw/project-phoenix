@@ -27,6 +27,7 @@ import {
 } from "~/lib/student-helpers";
 import { CompanionPicker } from "./companion-picker";
 import type {
+  CompanionExtensionConfirmation,
   CompanionWeekday,
   StudentCompanion,
 } from "~/lib/student-companion-api";
@@ -754,7 +755,7 @@ export function DepartureSection({
   companions,
   onCompanionsChange,
   companionStudentId,
-  onExtendCompanionPlansChange,
+  onCompanionExtensionConfirmed,
 }: Readonly<{
   days?: AllowedDepartureModes | null;
   onChange: (value: AllowedDepartureModes) => void;
@@ -772,8 +773,11 @@ export function DepartureSection({
   onCompanionsChange?: (next: StudentCompanion[]) => void;
   /** The child being edited, filtered out of the companion search. */
   companionStudentId?: string;
-  /** Confirmation to widen a linked child's own departure plan. */
-  onExtendCompanionPlansChange?: (extend: boolean) => void;
+  /** The user confirmed widening a linked child's own departure plan, for the
+   *  named child and weekdays. */
+  onCompanionExtensionConfirmed?: (
+    confirmation: CompanionExtensionConfirmation,
+  ) => void;
 }>) {
   const normalized = normalizeAllowedDepartureModes(days);
   const anySelected = DEPARTURE_WEEKDAYS.some(
@@ -867,7 +871,7 @@ export function DepartureSection({
             onChange={onCompanionsChange}
             allowedDays={accompaniedWeekdays(normalized)}
             excludeStudentId={companionStudentId}
-            onExtendPlansChange={onExtendCompanionPlansChange}
+            onExtensionConfirmed={onCompanionExtensionConfirmed}
           />
         </div>
       )}

@@ -387,3 +387,108 @@ func TestStudentService_ReplaceCompanions_EnforcesLimitOnBothEnds(t *testing.T) 
 	})
 	require.NoError(t, err)
 }
+
+// TestStudentService_ReplaceCompanions_ExtensionIsPerWeekday pins that the
+// caller's confirmation authorizes the WEEKDAYS it named and nothing else. The
+// companion rows are unlocked while a human answers the question, so the
+// conflict can grow a day in the meantime — widening that day too would change
+// a child's departure permission nobody was asked about (#1694).
+func TestStudentService_ReplaceCompanions_ExtensionIsPerWeekday(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	service := newCompanionTestService(db)
+	studentRepo := repositories.NewFactory(db).Student
+
+	subject := testpkg.CreateTestStudent(t, db, "PerDaySubject", "Companion", "1a")
+	companion := testpkg.CreateTestStudent(t, db, "PerDayCompanion", "Companion", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
+	defer cleanupCompanionEdges(t, db, subject.ID, companion.ID)
+
+	setAccompaniedDays(t, db, ctx, subject.ID, "mon", "tue")
+	// The companion allows neither day, so both are conflicts — but only Monday
+	// was confirmed.
+	setAccompaniedDays(t, db, ctx, companion.ID, "fri")
+
+	links := []userModels.CompanionLink{
+		{CompanionStudentID: companion.ID, Weekdays: []string{"mon", "tue"}},
+	}
+	_, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+		Links:                links,
+		AccompaniedDays:      map[string]bool{"mon": true, "tue": true},
+		ExtendCompanionPlans: true,
+		AuthorizedExtensions: map[int64]map[string]bool{companion.ID: {"mon": true}},
+	})
+	assert.ErrorIs(t, err, usersService.ErrCompanionExtensionNotAuthorized)
+
+	stored, err := studentRepo.FindByID(ctx, companion.ID)
+	require.NoError(t, err)
+	allowed := userModels.AccompaniedWeekdays(stored.AllowedDepartureModes, stored.DepartureDays)
+	assert.False(t, allowed["mon"], "nothing may have been widened")
+	assert.False(t, allowed["tue"], "the unconfirmed day especially")
+
+	// Confirming both days makes the identical request go through.
+	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+		Links:                links,
+		AccompaniedDays:      map[string]bool{"mon": true, "tue": true},
+		ExtendCompanionPlans: true,
+		AuthorizedExtensions: map[int64]map[string]bool{companion.ID: {"mon": true, "tue": true}},
+	})
+	require.NoError(t, err)
+	require.Empty(t, conflicts)
+
+	stored, err = studentRepo.FindByID(ctx, companion.ID)
+	require.NoError(t, err)
+	allowed = userModels.AccompaniedWeekdays(stored.AllowedDepartureModes, stored.DepartureDays)
+	assert.True(t, allowed["mon"])
+	assert.True(t, allowed["tue"])
+	assert.True(t, allowed["fri"], "extension stays additive")
+}
+
+// TestStudentUpdate_CompanionLinkCoversOnlyItsWeekdays pins that a link answers
+// "mit wem" for its own weekdays only. A child that walks with someone on
+// Monday but claims "Anderes Kind" on Tuesday as well still has no answer for
+// Tuesday, so the departure plan must not be saveable without one.
+func TestStudentUpdate_CompanionLinkCoversOnlyItsWeekdays(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	service := newCompanionTestService(db)
+	studentRepo := repositories.NewFactory(db).Student
+
+	subject := testpkg.CreateTestStudent(t, db, "CoverSubject", "Companion", "1a")
+	companion := testpkg.CreateTestStudent(t, db, "CoverCompanion", "Companion", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
+	defer cleanupCompanionEdges(t, db, subject.ID, companion.ID)
+
+	setAccompaniedDays(t, db, ctx, subject.ID, "mon", "tue")
+	setAccompaniedDays(t, db, ctx, companion.ID, "mon")
+
+	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
+	})
+	require.NoError(t, err)
+	require.Empty(t, conflicts)
+
+	// The Monday link is now the subject's only "mit wem" detail — Tuesday has
+	// none.
+	clearCompanionNote(t, db, subject.ID)
+
+	fresh, err := studentRepo.FindByID(ctx, subject.ID)
+	require.NoError(t, err)
+	require.Nil(t, fresh.DepartureCompanionNote)
+	fresh.SchoolClass = "2c"
+
+	err = studentRepo.Update(ctx, fresh)
+	assert.ErrorIs(t, err, userModels.ErrDepartureCompanionNoteRequired,
+		"the uncovered accompanied Tuesday must still demand an answer")
+
+	// Dropping the uncovered day (or covering it) makes the same save work.
+	fresh.AllowedDepartureModes = userModels.AllowedDepartureModes{
+		"mon": []userModels.DepartureMode{userModels.DepartureAccompanied},
+	}
+	fresh.DepartureDays = nil
+	require.NoError(t, studentRepo.Update(ctx, fresh))
+}

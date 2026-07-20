@@ -328,12 +328,17 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 	// save a child whose "mit wem" is answered by a link (#1694). When the
 	// reconcile pass already loaded the edges, its survivor count is
 	// authoritative — an EXISTS probe would still see the edges the trim is
-	// about to drop. Never CLEAR a flag the caller set: extendAccompaniedDays
+	// about to drop. Never CLEAR a day the caller set: extendAccompaniedDays
 	// asserts it for an edge that is written later in the same transaction, so
-	// the stored edges legitimately don't show it yet.
+	// the stored edges legitimately don't show it yet. The cover is per weekday,
+	// because a Monday link is no answer for an accompanied Tuesday.
 	if trim != nil {
-		student.DepartureCompanionLinked = student.DepartureCompanionLinked || trim.remaining > 0
-	} else if err := r.applyCompanionLinkFlag(ctx, student); err != nil {
+		for day, kept := range trim.keptDays {
+			if kept {
+				student.MarkDepartureCompanionDays(day)
+			}
+		}
+	} else if err := r.applyCompanionLinkDays(ctx, student); err != nil {
 		return err
 	}
 
@@ -359,10 +364,11 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 }
 
 // companionTrim is the outcome of planCompanionReconcile: the edge rows the new
-// departure plan no longer allows, plus how many links the child keeps.
+// departure plan no longer allows, plus the weekdays on which the child keeps a
+// link (its structured "mit wem" answer, per day).
 type companionTrim struct {
-	dropIDs   []int64
-	remaining int
+	dropIDs  []int64
+	keptDays map[string]bool
 }
 
 // planCompanionReconcile determines which "läuft mit" edges lose their basis
@@ -411,7 +417,7 @@ func (r *StudentRepository) planCompanionReconcile(ctx context.Context, student 
 		return &companionTrim{}, nil
 	}
 
-	trim := &companionTrim{}
+	trim := &companionTrim{keptDays: make(map[string]bool, len(users.PickupDayOrder))}
 	keptFar := make(map[int64]bool, len(edges))
 	droppedFar := make(map[int64]bool, len(edges))
 	for _, edge := range edges {
@@ -419,14 +425,15 @@ func (r *StudentRepository) planCompanionReconcile(ctx context.Context, student 
 		if !ok {
 			continue
 		}
-		if accompanied[users.CompanionWeekdayKeys[edge.Weekday]] {
+		day := users.CompanionWeekdayKeys[edge.Weekday]
+		if accompanied[day] {
 			keptFar[far] = true
+			trim.keptDays[day] = true
 			continue
 		}
 		trim.dropIDs = append(trim.dropIDs, edge.ID)
 		droppedFar[far] = true
 	}
-	trim.remaining = len(keptFar)
 	if len(trim.dropIDs) == 0 {
 		return trim, nil
 	}
@@ -1272,19 +1279,26 @@ func (r *StudentRepository) hasStudentColumns(ctx context.Context, columns ...st
 	return present, nil
 }
 
-// applyCompanionLinkFlag sets the non-persisted Student.DepartureCompanionLinked
+// applyCompanionLinkDays fills the non-persisted Student.DepartureCompanionDays
 // from users.student_companions, so Student.Validate() accepts an accompanied
-// plan whose "mit wem" is answered by a link instead of the free-text note.
+// weekday whose "mit wem" is answered by a link on THAT day instead of the
+// free-text note.
 //
 // Only queried when the answer can change the outcome: an update that already
-// carries a note, already has the flag set, or has no accompanied day left is
-// untouched, so the common path pays nothing.
-func (r *StudentRepository) applyCompanionLinkFlag(ctx context.Context, student *users.Student) error {
-	if student.ID <= 0 || student.DepartureCompanionLinked || student.DepartureCompanionNote != nil {
+// carries a note, or whose accompanied days are already covered by what the
+// caller marked, is untouched, so the common path pays nothing.
+func (r *StudentRepository) applyCompanionLinkDays(ctx context.Context, student *users.Student) error {
+	if student.ID <= 0 || student.DepartureCompanionNote != nil {
 		return nil
 	}
-	if !student.AllowedDepartureModes.HasMode(users.DepartureAccompanied) &&
-		!student.DepartureDays.HasMode(users.DepartureAccompanied) {
+	uncovered := false
+	for day, accompanied := range users.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays) {
+		if accompanied && !student.DepartureCompanionDays[day] {
+			uncovered = true
+			break
+		}
+	}
+	if !uncovered {
 		return nil
 	}
 
@@ -1300,18 +1314,20 @@ func (r *StudentRepository) applyCompanionLinkFlag(ctx context.Context, student 
 		return nil
 	}
 
-	var linked bool
+	var weekdays []int
 	if err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT EXISTS (
-			SELECT 1
-			FROM users.student_companions
-			WHERE student_low_id = ? OR student_high_id = ?
-		)
-	`, student.ID, student.ID).Scan(ctx, &linked); err != nil {
+		SELECT DISTINCT weekday
+		FROM users.student_companions
+		WHERE student_low_id = ? OR student_high_id = ?
+	`, student.ID, student.ID).Scan(ctx, &weekdays); err != nil {
 		return &modelBase.DatabaseError{Op: "check student companion links", Err: err}
 	}
 
-	student.DepartureCompanionLinked = linked
+	for _, weekday := range weekdays {
+		if day, ok := users.CompanionWeekdayKeys[weekday]; ok {
+			student.MarkDepartureCompanionDays(day)
+		}
+	}
 	return nil
 }
 

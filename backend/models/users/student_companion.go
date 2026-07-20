@@ -187,6 +187,19 @@ type CompanionLink struct {
 	Weekdays           []string `json:"weekdays"`
 }
 
+// CompanionDaysFromLinks folds a link list into the per-weekday cover set
+// Student.DepartureCompanionDays expects: the days on which the child has a
+// structured "mit wem" answer.
+func CompanionDaysFromLinks(links []CompanionLink) map[string]bool {
+	days := make(map[string]bool, len(PickupDayOrder))
+	for _, link := range links {
+		for _, day := range link.Weekdays {
+			days[day] = true
+		}
+	}
+	return days
+}
+
 // CompanionLinksFromEdges folds the edges touching studentID into one entry per
 // companion with their weekdays in Mon..Fri order. Edges not touching studentID
 // are ignored.

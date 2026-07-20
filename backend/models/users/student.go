@@ -78,13 +78,16 @@ type Student struct {
 	// column) that the migration tests exercise. It may later be formalized into
 	// a departure group (#1694).
 	DepartureCompanionNote *string `bun:"departure_companion_note,scanonly" json:"departure_companion_note,omitempty"`
-	// DepartureCompanionLinked is NOT persisted. It is set by callers that know
-	// the child has (or is about to have) a companion link in
+	// DepartureCompanionDays is NOT persisted. It carries the weekday keys on
+	// which the child has (or is about to have) a companion link in
 	// users.student_companions, which answers the "mit wem" question better than
-	// the free-text note and therefore satisfies the same Validate requirement.
-	// Kept off the table on purpose: the links are the source of truth, and a
-	// denormalized copy would drift the moment one is removed.
-	DepartureCompanionLinked bool `bun:"-" json:"-"`
+	// the free-text note and therefore satisfies the same Validate requirement —
+	// but only for the days it actually covers. A per-DAY set rather than a
+	// single flag on purpose: a Monday link says nothing about who the child
+	// leaves with on Tuesday. Kept off the table on purpose: the links are the
+	// source of truth, and a denormalized copy would drift the moment one is
+	// removed.
+	DepartureCompanionDays map[string]bool `bun:"-" json:"-"`
 	// PickupDays / BusDays are derived views of DepartureDays kept for consumers
 	// (and API response fields) that have not yet migrated to departure_days.
 	PickupDays    PickupDays     `bun:"pickup_days,type:jsonb,scanonly" json:"pickup_days,omitempty"` // Weekdays on which the child is picked up ("wird abgeholt")
@@ -196,17 +199,48 @@ func (s *Student) Validate() error {
 	//
 	// A structured companion link (users.student_companions) satisfies the same
 	// requirement and is strictly better information than typed text, so a
-	// caller that has one sets DepartureCompanionLinked. The flag defaults to
-	// false, which keeps every path that knows nothing about links (imports,
-	// enrollment payloads, direct API writes) on the original note requirement —
-	// this fails closed, never open.
-	if s.DepartureCompanionNote == nil && !s.DepartureCompanionLinked &&
-		(s.AllowedDepartureModes.HasMode(DepartureAccompanied) ||
-			s.DepartureDays.HasMode(DepartureAccompanied)) {
-		return ErrDepartureCompanionNoteRequired
+	// caller that has one records its weekdays in DepartureCompanionDays. The
+	// cover is checked PER DAY: a child that walks with Mia on Monday still has
+	// no answer for a Tuesday the plan also marks accompanied, so a link on one
+	// day must not vouch for another. The set defaults to empty, which keeps
+	// every path that knows nothing about links (imports, enrollment payloads,
+	// direct API writes) on the original note requirement — this fails closed,
+	// never open.
+	if s.DepartureCompanionNote == nil {
+		// Both maps are walked by their own keys rather than through
+		// AccompaniedWeekdays, so an accompanied day under a key outside
+		// Mon..Fri — which no link can ever cover — still demands the note.
+		for day, mode := range s.DepartureDays {
+			if mode == DepartureAccompanied && !s.DepartureCompanionDays[day] {
+				return ErrDepartureCompanionNoteRequired
+			}
+		}
+		for day, modes := range s.AllowedDepartureModes {
+			for _, mode := range modes {
+				if mode == DepartureAccompanied && !s.DepartureCompanionDays[day] {
+					return ErrDepartureCompanionNoteRequired
+				}
+			}
+		}
 	}
 
 	return nil
+}
+
+// MarkDepartureCompanionDays records weekdays whose "mit wem" is answered by a
+// structured companion link. Purely additive: a caller that knows about an edge
+// written later in the same transaction marks it here, and a subsequent probe of
+// the STORED edges must never take that cover away again.
+func (s *Student) MarkDepartureCompanionDays(days ...string) {
+	if len(days) == 0 {
+		return
+	}
+	if s.DepartureCompanionDays == nil {
+		s.DepartureCompanionDays = make(map[string]bool, len(days))
+	}
+	for _, day := range days {
+		s.DepartureCompanionDays[day] = true
+	}
 }
 
 // trimPtrString trims whitespace from a non-nil string pointer

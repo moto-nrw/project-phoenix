@@ -29,10 +29,12 @@ import {
 import {
   ALL_COMPANION_WEEKDAYS,
   fetchStudentCompanions,
+  mergeCompanionConfirmations,
+  type CompanionExtensionConfirmation,
   type StudentCompanion,
 } from "~/lib/student-companion-api";
 import { createLogger } from "~/lib/logger";
-import { CompanionPlanConflictError } from "~/lib/api";
+import { CompanionPlanConflictError, parseConflictExtensions } from "~/lib/api";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
@@ -159,6 +161,21 @@ function companionConflictMessage(err: unknown): string {
   return COMPANION_CONFLICT_FALLBACK;
 }
 
+// The confirmable conflicts the backend reported, dug out of whichever
+// wrapping the error arrived in. An empty list means we could not read them —
+// the retry then confirms nothing and the backend asks again, which is the
+// safe direction.
+function companionConflictExtensions(
+  err: unknown,
+): CompanionExtensionConfirmation[] {
+  if (err instanceof CompanionPlanConflictError) return err.conflicts;
+  if (err instanceof Error) {
+    const match = /\{.*\}/s.exec(err.message);
+    if (match) return parseConflictExtensions(match[0]);
+  }
+  return [];
+}
+
 // Order-independent fingerprint of a companion list, so reordering (or a
 // re-fetch handing the same links back in another order) is not mistaken for an
 // edit. Used both for the dirty check and to keep the two in sync.
@@ -266,6 +283,13 @@ export function StudentStammdatenTab({
   >("loading");
   const [reloadCompanions, setReloadCompanions] = useState(0);
   const [extendCompanionPlans, setExtendCompanionPlans] = useState(false);
+  // WHAT the user confirmed, not just that they did: the backend widens a
+  // companion's plan only for the children and weekdays listed here, so a
+  // conflict that appeared after the question was asked is refused again
+  // instead of riding along on the earlier yes.
+  const [confirmedExtensions, setConfirmedExtensions] = useState<
+    CompanionExtensionConfirmation[]
+  >([]);
   // Set when the backend refused because a linked child's own departure plan
   // does not allow the requested days (409). Answering yes re-sends the same
   // payload with extend_companion_plans — mirroring PersonalInfoFormModal.
@@ -278,6 +302,7 @@ export function StudentStammdatenTab({
     setCompanions([]);
     setLoadedCompanions([]);
     setExtendCompanionPlans(false);
+    setConfirmedExtensions([]);
     setPlanConflict(null);
     fetchStudentCompanions(String(student.id))
       .then((loaded) => {
@@ -572,7 +597,10 @@ export function StudentStammdatenTab({
   // applyPhotoConsent. We skip the explicit DELETE in that branch — a
   // second call would 404 / no-op but adds noise.
   const performSave = useCallback(
-    async (extendPlans: boolean) => {
+    async (
+      extendPlans: boolean,
+      confirmed: CompanionExtensionConfirmation[],
+    ) => {
       setSaving(true);
       const submitData: Partial<Student> = { ...formData };
       submitData.allowed_departure_modes = normalizeAllowedDepartureModes(
@@ -599,6 +627,7 @@ export function StudentStammdatenTab({
           weekdays: companion.weekdays,
         }));
         submitData.extend_companion_plans = extendPlans;
+        submitData.confirmed_companion_extensions = confirmed;
       }
       try {
         await onSave(submitData);
@@ -609,6 +638,12 @@ export function StudentStammdatenTab({
         // confirms completes the save. Only possible when a list traveled.
         if (companionsStatus === "ready" && isCompanionPlanConflict(err)) {
           setPlanConflict(companionConflictMessage(err));
+          setConfirmedExtensions((current) =>
+            mergeCompanionConfirmations(
+              current,
+              companionConflictExtensions(err),
+            ),
+          );
           setSaving(false);
           return;
         }
@@ -692,9 +727,15 @@ export function StudentStammdatenTab({
         setErrors({ submit: privacyConsentLoadError });
         return;
       }
-      await performSave(extendCompanionPlans);
+      await performSave(extendCompanionPlans, confirmedExtensions);
     },
-    [extendCompanionPlans, performSave, privacyConsentLoadError, validateForm],
+    [
+      confirmedExtensions,
+      extendCompanionPlans,
+      performSave,
+      privacyConsentLoadError,
+      validateForm,
+    ],
   );
 
   // The user confirmed widening the linked child's departure plan: repeat the
@@ -702,8 +743,8 @@ export function StudentStammdatenTab({
   const handleConfirmExtendPlans = useCallback(() => {
     setExtendCompanionPlans(true);
     setPlanConflict(null);
-    void performSave(true);
-  }, [performSave]);
+    void performSave(true, confirmedExtensions);
+  }, [confirmedExtensions, performSave]);
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
@@ -845,7 +886,12 @@ export function StudentStammdatenTab({
           companionsStatus === "ready" ? setCompanions : undefined
         }
         companionStudentId={String(student.id)}
-        onExtendCompanionPlansChange={setExtendCompanionPlans}
+        onCompanionExtensionConfirmed={(confirmation) => {
+          setExtendCompanionPlans(true);
+          setConfirmedExtensions((current) =>
+            mergeCompanionConfirmations(current, [confirmation]),
+          );
+        }}
       />
 
       <EnrollmentConsentsSection

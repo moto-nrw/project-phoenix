@@ -305,6 +305,16 @@ type UpdateStudentRequest struct {
 	Companions *[]CompanionEntry `json:"companions,omitempty"`
 	// ExtendCompanionPlans confirms widening a companion's own departure plan.
 	ExtendCompanionPlans bool `json:"extend_companion_plans,omitempty"`
+	// ConfirmedCompanionExtensions is WHAT the user confirmed when they set
+	// ExtendCompanionPlans: the companions and weekdays the client showed them,
+	// i.e. the conflicts of the 409 (or of the picker's up-front question).
+	//
+	// The rows are unlocked while the human answers, so the conflict set can grow
+	// in the meantime — another admin narrowing a companion's plan adds one. The
+	// flag alone would authorize that new conflict too and silently widen a child
+	// nobody was asked about, so the write pass only extends what appears here
+	// and answers a wider set with a fresh 409.
+	ConfirmedCompanionExtensions []CompanionEntry `json:"confirmed_companion_extensions,omitempty"`
 }
 
 // RFIDAssignmentRequest is the RFID tag assignment payload, shared with
