@@ -56,7 +56,7 @@ import type {
   TimetableRoster,
   TimetableRosterRow,
 } from "~/lib/timetable-operations-types";
-import { isCareDayExpected } from "~/lib/timetable-types";
+import { isCareDayExpected, isNotScheduledRow } from "~/lib/timetable-types";
 import { isAdmin, isCaregiver } from "~/lib/auth-utils";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
@@ -640,15 +640,22 @@ function TimetableRosterContent({
       row.status === "expected" &&
       isCareDayExpected(row.careDayStatus),
   );
+  // An absence a sick / excused / class-trip day status wrote onto a day the
+  // child was never booked into care belongs here too, not under "Abwesend":
+  // the block has not ended yet, so nothing has undone that false absence, and
+  // the header count already groups it this way (#1747).
   const notScheduled = roster.rows.filter(
     (row) =>
       row.planned &&
       !row.currentlyPresent &&
-      row.status === "expected" &&
-      !isCareDayExpected(row.careDayStatus),
+      isNotScheduledRow(row.status, row.careDayStatus),
   );
   const absent = roster.rows.filter(
-    (row) => row.planned && !row.currentlyPresent && row.status === "absent",
+    (row) =>
+      row.planned &&
+      !row.currentlyPresent &&
+      row.status === "absent" &&
+      !isNotScheduledRow(row.status, row.careDayStatus),
   );
   const departed = roster.rows.filter(
     (row) =>

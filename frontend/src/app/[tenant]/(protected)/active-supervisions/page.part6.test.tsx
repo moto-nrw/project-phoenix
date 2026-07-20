@@ -480,6 +480,102 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
     });
   });
 
+  it("groups a status-day absence on an unbooked day as not scheduled (#1747)", async () => {
+    const dashboardData = {
+      supervisedGroups: [
+        { id: "1", name: "Raum 101", room: { id: "10", name: "Raum 101" } },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "10",
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+      if (key?.startsWith("active-supervision-dashboard")) {
+        return {
+          data: dashboardData,
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+
+      if (key?.startsWith("timetable-roster-active-group")) {
+        return {
+          data: {
+            instance: {
+              id: "99",
+              title: "Kreativ AG",
+              activeGroupId: "1",
+              isSpontaneous: false,
+            },
+            rows: [
+              {
+                // Krankmeldung stamped a day the care plan never booked: an
+                // absence from care that was never owed.
+                studentId: "201",
+                studentName: "Klara Krank",
+                schoolClass: "2b",
+                groupName: "OGS Gruppe B",
+                planned: true,
+                isUnplanned: false,
+                currentlyPresent: false,
+                visitId: null,
+                status: "absent",
+                substatus: "sick",
+                note: null,
+                careDayStatus: "not_scheduled",
+              },
+              {
+                // A human marked this child absent: a real absence.
+                studentId: "202",
+                studentName: "Mia Manuell",
+                schoolClass: "3c",
+                groupName: "OGS Gruppe C",
+                planned: true,
+                isUnplanned: false,
+                currentlyPresent: false,
+                visitId: null,
+                status: "absent",
+                substatus: null,
+                note: null,
+                careDayStatus: "unknown",
+              },
+            ],
+          },
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+
+      return {
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      };
+    }) as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Heute nicht eingeplant (1)"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Entschuldigt / Abwesend (1)"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Klara Krank")).toBeInTheDocument();
+      expect(screen.getByText("Mia Manuell")).toBeInTheDocument();
+    });
+  });
+
   it("does not flash first-room students while a direct room URL is syncing", async () => {
     navigationMockState.roomParam = "11";
     const { activeService } = await import("~/lib/active-api");

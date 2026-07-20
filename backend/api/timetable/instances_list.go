@@ -302,45 +302,19 @@ func (rs *Resource) careDaysForInstance(
 // counts read, so a child can never be listed as "Erwartet" while the header
 // count leaves them out (#1747 review).
 //
-// On a completed instance the verdict is frozen: ending the block wrote the
-// absences and stamped not_scheduled on the children it spared, so the stored
-// marker IS the "war an dem Tag nicht eingeplant" verdict. Read it from that
-// column, never from the current care plan — a later plan or exception edit
-// must not retroactively change a completed instance's expected count or
-// required staffing. Rows that already carry a real attendance status tell
-// their own story; they report "unknown" rather than a re-derived plan verdict.
-// One kind of non-expected row is NOT such a story: an absence a broad day
-// status (sick / excused / class trip) wrote and still owns. ApplyStatusDay
-// stamps every expected row of the day, including days the child was never
-// booked into care, and it keeps its provenance in student_status_day_id (a
-// check-in and a manual PATCH both clear that column). Until the block ends and
-// MarkNotScheduled undoes it, that row is a false absence — the parent calendar
-// (notScheduledForParent) and the session-end bridge already treat it as one,
-// and the planner has to agree. Such a row reports only the non-booking
-// verdict: a cancelled care day WAS booked, so its absence is real and stays
-// one (CareDayStatus.ExemptFromAbsence).
+// The rules live in scheduleSvc.AttendanceRowCareDay, shared with the operation
+// roster and the planned-now cards; this only looks up the plan verdict for the
+// instance's date.
 func instanceStudentCareDay(
 	inst *scheduleModel.ActivityInstance,
 	row *scheduleModel.InstanceStudent,
 	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
 ) scheduleSvc.CareDayStatus {
-	if inst.Status == scheduleModel.InstanceStatusCompleted {
-		if row.NotScheduled && row.Status == scheduleModel.AttendanceStatusExpected {
-			return scheduleSvc.CareDayNotScheduled
-		}
-		return scheduleSvc.CareDayUnknown
-	}
-	if row.Status != scheduleModel.AttendanceStatusExpected {
-		if row.StudentStatusDayID != nil &&
-			careDays[row.StudentID][inst.Date] == scheduleSvc.CareDayNotScheduled {
-			return scheduleSvc.CareDayNotScheduled
-		}
-		return scheduleSvc.CareDayUnknown
-	}
-	if status, ok := careDays[row.StudentID][inst.Date]; ok && status != "" {
-		return status
-	}
-	return scheduleSvc.CareDayUnknown
+	return scheduleSvc.AttendanceRowCareDay(
+		inst.Status == scheduleModel.InstanceStatusCompleted,
+		row,
+		careDays[row.StudentID][inst.Date],
+	)
 }
 
 // instanceAttendanceSummary is the per-instance student payload plus the three

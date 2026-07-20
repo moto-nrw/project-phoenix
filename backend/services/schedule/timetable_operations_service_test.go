@@ -381,6 +381,69 @@ func TestTimetableOperationsRosterCompletedWithoutMarkerReportsUnknown(t *testin
 	assert.Equal(t, CareDayUnknown, roster.Rows[0].CareDayStatus)
 }
 
+// A broad day status (sick / excused / class trip) stamps every expected row of
+// the day, including days the care plan never booked. Until the block ends and
+// MarkNotScheduled undoes it, that absence is a claim about care that was never
+// owed — the roster has to report the non-booking verdict so the frontend groups
+// the row under "Heute nicht eingeplant" instead of "Abwesend" (#1747 review).
+func TestTimetableOperationsRosterReportsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
+	statusDayID := int64(9100)
+	instanceID := int64(368)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 658, 458, 248, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 268)
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		// Owned by a day status, on a day the plan does not book.
+		{StudentID: 538, Status: scheduleModel.AttendanceStatusAbsent, StudentStatusDayID: &statusDayID},
+		// Same verdict, but the absence is a human decision: it stays an absence.
+		{StudentID: 539, Status: scheduleModel.AttendanceStatusAbsent},
+	}
+	deps.students.byID[538] = &usersModel.Student{PersonID: 468, SchoolClass: "3a"}
+	deps.students.byID[539] = &usersModel.Student{PersonID: 469, SchoolClass: "3a"}
+	deps.personService.people[468] = &usersModel.Person{FirstName: "Pia", LastName: "Plan"}
+	deps.personService.people[469] = &usersModel.Person{FirstName: "Rudi", LastName: "Rot"}
+	deps.careDayService.byStudent[538] = CareDayNotScheduled
+	deps.careDayService.byStudent[539] = CareDayNotScheduled
+
+	roster, err := deps.service.Roster(context.Background(), 658, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 2)
+	byStudent := map[int64]CareDayStatus{}
+	for _, row := range roster.Rows {
+		byStudent[row.StudentID] = row.CareDayStatus
+	}
+	assert.Equal(t, CareDayNotScheduled, byStudent[538])
+	assert.Equal(t, CareDayUnknown, byStudent[539])
+}
+
+// The planned-now card counts the same rows the roster groups: a status-day
+// absence on an unbooked day belongs under "nicht eingeplant", or the card
+// reports 0 while the slide-over shows one (#1747 review).
+func TestTimetableOperationsPlannedCardCountsStatusDayNonBookings(t *testing.T) {
+	statusDayID := int64(9101)
+	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+	inst := instanceWithTimes(369, scheduleModel.InstanceStatusPlanned, now, now.Add(time.Hour))
+	rows := []*scheduleModel.InstanceStudent{
+		{StudentID: 540, Status: scheduleModel.AttendanceStatusAbsent, StudentStatusDayID: &statusDayID},
+		{StudentID: 541, Status: scheduleModel.AttendanceStatusAbsent},
+		{StudentID: 542, Status: scheduleModel.AttendanceStatusExpected},
+		{StudentID: 543, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	careDay := map[int64]CareDayStatus{
+		540: CareDayNotScheduled,
+		541: CareDayNotScheduled,
+		542: CareDayNotScheduled,
+		543: CareDayScheduled,
+	}
+
+	result := mapPlannedInstance(inst, []*scheduleModel.InstanceStaff{{StaffID: 249}}, rows, now, 249, nil, careDay)
+
+	assert.Equal(t, 1, result.ExpectedStudentsCount)
+	assert.Equal(t, 0, result.PresentStudentsCount)
+	assert.Equal(t, 2, result.NotScheduledCount, "the status-day non-booking and the unbooked expected row")
+}
+
 func TestTimetableOperationsRosterFlagsArrivalAndClassMismatch(t *testing.T) {
 	instanceID := int64(361)
 	activeGroupID := int64(261)

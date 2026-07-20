@@ -685,13 +685,10 @@ func (s *timetableOperationsService) mapRosterRow(inst *scheduleModel.ActivityIn
 // supervisor. Walk-ins are never in the resolved map to begin with, and an
 // absent entry means unknown — never assume a missing fact excludes a child.
 //
-// On a completed instance the verdict is frozen, exactly as in
-// instanceStudentCareDay (api/timetable): ending the block stamped
-// not_scheduled on the children it spared, so that column IS the verdict. A
-// later care-plan edit or deletion must not relabel a finished day — reading
-// the current plan here would move a historical row back under "Erwartet"
-// while the weekly list, parent calendar, and attendance history keep the
-// frozen answer.
+// Everything else — the frozen verdict on a completed instance, and the
+// status-day-owned absence that is really a non-booking — is decided by the
+// shared AttendanceRowCareDay, so this roster, the planner list, and the
+// planned-now cards can never disagree about the same child (#1747 review).
 func rosterCareDayStatus(
 	inst *scheduleModel.ActivityInstance,
 	studentID int64,
@@ -702,16 +699,14 @@ func rosterCareDayStatus(
 	if visit != nil || (planned != nil && planned.Status == scheduleModel.AttendanceStatusPresent) {
 		return CareDayScheduled
 	}
-	if inst != nil && inst.Status == scheduleModel.InstanceStatusCompleted {
-		if planned != nil && planned.NotScheduled && planned.Status == scheduleModel.AttendanceStatusExpected {
-			return CareDayNotScheduled
-		}
+	if planned == nil {
 		return CareDayUnknown
 	}
-	if status, ok := careDay[studentID]; ok && status != "" {
-		return status
-	}
-	return CareDayUnknown
+	return AttendanceRowCareDay(
+		inst != nil && inst.Status == scheduleModel.InstanceStatusCompleted,
+		planned,
+		careDay[studentID],
+	)
 }
 
 func applyPlannedRosterAttendance(row *OperationRosterRow, planned *scheduleModel.InstanceStudent) {
@@ -976,20 +971,32 @@ func mapPlannedInstance(inst *scheduleModel.ActivityInstance, staffRows []*sched
 		}
 	}
 	expected, present, notScheduled := 0, 0, 0
+	completed := inst.Status == scheduleModel.InstanceStatusCompleted
 	for _, row := range studentRows {
+		verdict := AttendanceRowCareDay(completed, row, careDay[row.StudentID])
 		switch row.Status {
 		case scheduleModel.AttendanceStatusExpected:
 			// An assignment alone does not make a child expected today: the
 			// care plan has to place them here on this weekday, and nobody may
 			// have cancelled the day (#1747). A missing entry reads as unknown
 			// and keeps the child expected.
-			if !careDay[row.StudentID].Expected() {
+			if !verdict.Expected() {
 				notScheduled++
 				continue
 			}
 			expected++
 		case scheduleModel.AttendanceStatusPresent:
 			present++
+		case scheduleModel.AttendanceStatusAbsent:
+			// A broad day status wrote this absence onto a day the care plan
+			// never booked, and nothing has undone it yet. The card has to
+			// explain the child the same way the planner list does, or it
+			// reports "0 nicht eingeplant" while the roster shows one.
+			// AttendanceRowCareDay hands out this verdict for no other absent
+			// row, so a manual absence stays uncounted.
+			if verdict == CareDayNotScheduled {
+				notScheduled++
+			}
 		}
 	}
 	start := instanceStartAt(inst, now.Location())

@@ -12,13 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The legacy repair (1.15.205 + 1.15.207) splits every untouched 'expected' row
-// on a completed instance along the care plan: a child the plan booked that day
-// did not come and gets the absence the old force-completion path never wrote;
-// a child the plan never booked was never expected, so writing 'absent' would
-// invent the false absence the whole of #1747 exists to prevent — they get the
-// non-booking marker instead. A child with no plan at all is CareDayUnknown,
-// which counts as booked: a missing plan may not erase an absence.
+// The legacy repair (1.15.205 + 1.15.207) splits untouched 'expected' rows on a
+// completed instance along the care plan that was already on file when the
+// instance finished: a child the plan booked that day did not come and gets the
+// absence the old force-completion path never wrote; a child the plan never
+// booked was never expected, so writing 'absent' would invent the false absence
+// the whole of #1747 exists to prevent — they get the non-booking marker
+// instead. A child with no plan at all cannot be judged: a plan deleted since
+// leaves no trace, so neither migration touches that row.
 func TestBackfillCompletedAttendanceSplitsByCarePlan(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
@@ -83,7 +84,71 @@ func TestBackfillCompletedAttendanceSplitsByCarePlan(t *testing.T) {
 
 	assertRow("booked", scheduleModel.AttendanceStatusAbsent, false)
 	assertRow("unbooked", scheduleModel.AttendanceStatusExpected, true)
-	assertRow("planless", scheduleModel.AttendanceStatusAbsent, false)
+	assertRow("planless", scheduleModel.AttendanceStatusExpected, false)
+}
+
+// The plan tables carry no validity interval, so a weekly row written after the
+// instance finished says nothing about that day. Judging a historical row by it
+// would either invent an absence or stamp a genuine expectation as a
+// non-booking — both irreversible. Such a row is left exactly as it is.
+func TestBackfillCompletedAttendanceSkipsPlansWrittenAfterCompletion(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := context.Background()
+
+	date := timezone.NewDate(2025, time.March, 3)
+
+	room := testpkg.CreateTestRoom(t, db, "Backfill-Late-Plan-Room")
+	staff := testpkg.CreateTestStaff(t, db, "Backfill", "LatePlanner")
+	// Same shapes as the split test: one booked on the instance's weekday, one
+	// booked only on another — but both plans appear AFTER the completion.
+	booked := testpkg.CreateTestStudent(t, db, "Spaeter", "Montagsplan", "1a")
+	unbooked := testpkg.CreateTestStudent(t, db, "Spaeter", "Mittwochsplan", "1a")
+
+	bookedPlan := testpkg.CreateTestArrivalSchedule(t, db, booked.ID, scheduleModel.WeekdayMonday, staff.ID, "08:00")
+	unbookedPlan := testpkg.CreateTestArrivalSchedule(t, db, unbooked.ID, scheduleModel.WeekdayWednesday, staff.ID, "08:00")
+
+	inst := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
+		Status:    scheduleModel.InstanceStatusCompleted,
+		StartHHMM: "14:00", EndHHMM: "15:00",
+	})
+	// Completed an hour ago; the attendance rows are untouched since (so the
+	// legacy guard passes) but the care plans were written just now.
+	_, err := db.NewRaw(`UPDATE schedule.activity_instances SET completed_at = NOW() - interval '1 hour' WHERE id = ?`, inst.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	rows := map[string]*scheduleModel.InstanceStudent{
+		"booked":   testpkg.CreateTestInstanceStudent(t, db, inst.ID, booked.ID, scheduleModel.AttendanceStatusExpected),
+		"unbooked": testpkg.CreateTestInstanceStudent(t, db, inst.ID, unbooked.ID, scheduleModel.AttendanceStatusExpected),
+	}
+	_, err = db.NewRaw(
+		`UPDATE schedule.instance_students SET updated_at = NOW() - interval '2 hours' WHERE id IN (?, ?)`,
+		rows["booked"].ID, rows["unbooked"].ID,
+	).Exec(ctx)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", rows["booked"].ID, rows["unbooked"].ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.student_arrival_schedules", bookedPlan.ID, unbookedPlan.ID)
+		testpkg.CleanupActivityFixtures(t, db, booked.ID, staff.ID, 0, 0, 0)
+		testpkg.CleanupActivityFixtures(t, db, unbooked.ID, 0, 0, 0, 0)
+		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
+	})
+
+	require.NoError(t, backfillCompletedExpectedAttendanceUp(ctx, db))
+	require.NoError(t, backfillNotScheduledMarkerUp(ctx, db))
+
+	for _, key := range []string{"booked", "unbooked"} {
+		var status string
+		var notScheduled bool
+		require.NoError(t, db.NewRaw(
+			`SELECT status, not_scheduled FROM schedule.instance_students WHERE id = ?`, rows[key].ID,
+		).Scan(ctx, &status, &notScheduled))
+		assert.Equal(t, scheduleModel.AttendanceStatusExpected, status,
+			"%s: a plan written after the completion may not decide that day", key)
+		assert.False(t, notScheduled, "%s: and may not stamp a non-booking either", key)
+	}
 }
 
 // A row somebody reset to 'expected' by hand AFTER the instance finished is a

@@ -70,6 +70,52 @@ func (s CareDayStatus) Expected() bool {
 // not come, which is exactly what an absence records.
 func (s CareDayStatus) ExemptFromAbsence() bool { return s == CareDayNotScheduled }
 
+// AttendanceRowCareDay maps one timetable attendance row onto the care-day
+// verdict every reader groups, counts, and renders by (#1747 review). It is the
+// single implementation behind the planner list (api/timetable), the operation
+// roster, and the planned-now cards, so those three can never disagree about
+// the same child.
+//
+// planVerdict is what the derivation says about that child on the instance's
+// date; the empty string means "not resolved" and reads as unknown — a missing
+// fact never excludes a child.
+//
+// On a completed instance the verdict is frozen: ending the block wrote the
+// absences and stamped not_scheduled on the children it spared, so that column
+// IS the verdict. Reading the current care plan there would let a later plan
+// edit relabel a finished day.
+//
+// A row that already carries a real attendance status tells its own story and
+// reports unknown — with one exception: an absence a broad day status (sick /
+// excused / class trip) wrote and still owns. ApplyStatusDay stamps every
+// expected row of the day, including days the child was never booked into care,
+// and keeps its provenance in student_status_day_id (a check-in and a manual
+// PATCH both clear that column). Until the block ends and MarkNotScheduled
+// undoes it, such a row is a false absence, so it keeps the non-booking
+// verdict. A cancelled care day WAS booked, so its absence is real and stays
+// one, and a manual absence is never relabelled.
+func AttendanceRowCareDay(instanceCompleted bool, row *schedule.InstanceStudent, planVerdict CareDayStatus) CareDayStatus {
+	if row == nil {
+		return CareDayUnknown
+	}
+	if instanceCompleted {
+		if row.NotScheduled && row.Status == schedule.AttendanceStatusExpected {
+			return CareDayNotScheduled
+		}
+		return CareDayUnknown
+	}
+	if row.Status != schedule.AttendanceStatusExpected {
+		if row.StudentStatusDayID != nil && planVerdict == CareDayNotScheduled {
+			return CareDayNotScheduled
+		}
+		return CareDayUnknown
+	}
+	if planVerdict != "" {
+		return planVerdict
+	}
+	return CareDayUnknown
+}
+
 // CareDayService derives care-day status for many children at once.
 type CareDayService interface {
 	// ResolveForDate returns the care-day status of every requested child on

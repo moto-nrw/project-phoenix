@@ -48,6 +48,16 @@ func init() {
 // negated, and carries the same "untouched since completion" guard: a row
 // somebody reset to 'expected' by hand after the instance finished is a
 // deliberate decision and stays as it is.
+//
+// Concluding "was not booked" needs more than a missing weekday row, because
+// the plan tables have no history: legacyCarePlanSettledPredicate requires the
+// child's whole care plan to predate the completion, and
+// legacyCarePlanHasWeeklyPlanPredicate requires a plan to exist at all. Without
+// both, a plan written or extended after the fact would let this irreversible
+// stamp turn a genuine historical expectation into "war nicht eingeplant", and
+// a child with no plan on file is CareDayUnknown, which is never a non-booking.
+// Rows that fail either check keep their plain 'expected' state — the same
+// thing the old force-completion path left behind.
 func backfillNotScheduledMarkerUp(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.15.207: Stamping not_scheduled on legacy unbooked attendance rows (#1747)...")
 
@@ -62,6 +72,8 @@ func backfillNotScheduledMarkerUp(ctx context.Context, db *bun.DB) error {
 			AND student.not_scheduled = FALSE
 			AND instance.completed_at IS NOT NULL
 			AND student.updated_at <= instance.completed_at
+			AND ` + legacyCarePlanSettledPredicate + `
+			AND ` + legacyCarePlanHasWeeklyPlanPredicate + `
 			AND NOT ` + legacyCareDayBookedPredicate + `;
 	`).Exec(ctx)
 	if err != nil {

@@ -12,18 +12,19 @@ const (
 	backfillCompletedExpectedAttendanceDescription = "Flip legacy 'expected' attendance rows on completed timetable instances to 'absent' — the absence the old force-start path never wrote (#1747)."
 )
 
-// legacyCareDayBookedPredicate is the SQL form of "the care plan booked this
-// child into the OGS on this instance's date" (#1747). It is written against
-// the aliases `student` (schedule.instance_students) and `instance`
-// (schedule.activity_instances) and shared by 1.15.205 and 1.15.207, which
-// split the same population along exactly this line: booked rows become
-// absences, unbooked rows become non-booking markers. Keeping one predicate is
-// what guarantees no legacy row lands in both buckets or in neither.
+// legacyCareDayBookedPredicate is the SQL form of "a care-plan row that was
+// already on file when this instance completed books this child into the OGS on
+// its date" (#1747). It is written against the aliases `student`
+// (schedule.instance_students) and `instance` (schedule.activity_instances) and
+// shared by 1.15.205 and 1.15.207, which split the legacy population along
+// exactly this line: booked rows become absences, unbooked rows become
+// non-booking markers. Keeping one predicate is what guarantees no legacy row
+// lands in both buckets.
 //
-// It mirrors carePlans.statusFor: an exception on the date (timed = came,
-// timeless = cancelled a booked day) or a weekly row on the date's ISO weekday
-// means booked; no weekly plan at all is CareDayUnknown, which counts as
-// booked because a missing plan may not erase an absence.
+// It mirrors carePlans.statusFor, minus its CareDayUnknown branch: an exception
+// on the date (timed = came, timeless = cancelled a booked day) or a weekly row
+// on the date's ISO weekday means booked. "No weekly plan at all" is NOT
+// evidence here — see legacyCarePlanSettledPredicate.
 const legacyCareDayBookedPredicate = `(
 			EXISTS (
 				SELECT 1 FROM schedule.student_arrival_exceptions AS arrival_exception
@@ -49,17 +50,91 @@ const legacyCareDayBookedPredicate = `(
 					AND pickup_plan.tenant_id = student.tenant_id
 					AND pickup_plan.weekday = EXTRACT(ISODOW FROM instance.date)
 			)
-			OR (
-				NOT EXISTS (
-					SELECT 1 FROM schedule.student_arrival_schedules AS any_arrival_plan
-					WHERE any_arrival_plan.student_id = student.student_id
-						AND any_arrival_plan.tenant_id = student.tenant_id
-				)
-				AND NOT EXISTS (
-					SELECT 1 FROM schedule.student_pickup_schedules AS any_pickup_plan
-					WHERE any_pickup_plan.student_id = student.student_id
-						AND any_pickup_plan.tenant_id = student.tenant_id
-				)
+		)`
+
+// legacyCarePlanHasWeeklyPlanPredicate says the child has a weekly care plan at
+// all — the difference between "not booked that weekday" and "no plan on file",
+// which the runtime derivation answers with CareDayUnknown. Only 1.15.207 needs
+// it: concluding "was not booked" requires a plan that could have booked them.
+const legacyCarePlanHasWeeklyPlanPredicate = `(
+			EXISTS (
+				SELECT 1 FROM schedule.student_arrival_schedules AS any_arrival_plan
+				WHERE any_arrival_plan.student_id = student.student_id
+					AND any_arrival_plan.tenant_id = student.tenant_id
+			)
+			OR EXISTS (
+				SELECT 1 FROM schedule.student_pickup_schedules AS any_pickup_plan
+				WHERE any_pickup_plan.student_id = student.student_id
+					AND any_pickup_plan.tenant_id = student.tenant_id
+			)
+		)`
+
+// legacyCarePlanSettledPredicate is the guard that keeps both backfills from
+// judging a historical day by today's care plan (#1747 review).
+//
+// The plan tables carry no validity interval: a weekly row added, retimed, or
+// moved to another weekday LAST WEEK looks exactly like one that was on file
+// when the instance completed months ago. Reading it as evidence about that day
+// is how an irreversible migration invents an absence for a child who was not
+// booked then, or stamps "war nicht eingeplant" on a genuine expectation.
+//
+// So the evidence has to predate the completion it is used to explain: no
+// arrival/pickup row for this child, and no exception of theirs on the
+// instance's date, may have been created or last changed after
+// instance.completed_at. A NULL timestamp (the columns are only DEFAULT NOW())
+// says nothing about when the row appeared and counts as unsettled.
+//
+// Deletions leave no trace anywhere, which is why "the child has no plan at
+// all" is deliberately not treated as evidence by either migration: a plan
+// deleted after the fact is indistinguishable from one that never existed. Rows
+// whose care plan cannot be judged this way are simply left as they are —
+// unchanged 'expected' rows are the status quo, a wrong verdict is not.
+const legacyCarePlanSettledPredicate = `(
+			NOT EXISTS (
+				SELECT 1 FROM schedule.student_arrival_schedules AS touched_arrival_plan
+				WHERE touched_arrival_plan.student_id = student.student_id
+					AND touched_arrival_plan.tenant_id = student.tenant_id
+					AND (
+						touched_arrival_plan.created_at IS NULL
+						OR touched_arrival_plan.created_at > instance.completed_at
+						OR touched_arrival_plan.updated_at IS NULL
+						OR touched_arrival_plan.updated_at > instance.completed_at
+					)
+			)
+			AND NOT EXISTS (
+				SELECT 1 FROM schedule.student_pickup_schedules AS touched_pickup_plan
+				WHERE touched_pickup_plan.student_id = student.student_id
+					AND touched_pickup_plan.tenant_id = student.tenant_id
+					AND (
+						touched_pickup_plan.created_at IS NULL
+						OR touched_pickup_plan.created_at > instance.completed_at
+						OR touched_pickup_plan.updated_at IS NULL
+						OR touched_pickup_plan.updated_at > instance.completed_at
+					)
+			)
+			AND NOT EXISTS (
+				SELECT 1 FROM schedule.student_arrival_exceptions AS touched_arrival_exception
+				WHERE touched_arrival_exception.student_id = student.student_id
+					AND touched_arrival_exception.tenant_id = student.tenant_id
+					AND touched_arrival_exception.exception_date = instance.date
+					AND (
+						touched_arrival_exception.created_at IS NULL
+						OR touched_arrival_exception.created_at > instance.completed_at
+						OR touched_arrival_exception.updated_at IS NULL
+						OR touched_arrival_exception.updated_at > instance.completed_at
+					)
+			)
+			AND NOT EXISTS (
+				SELECT 1 FROM schedule.student_pickup_exceptions AS touched_pickup_exception
+				WHERE touched_pickup_exception.student_id = student.student_id
+					AND touched_pickup_exception.tenant_id = student.tenant_id
+					AND touched_pickup_exception.exception_date = instance.date
+					AND (
+						touched_pickup_exception.created_at IS NULL
+						OR touched_pickup_exception.created_at > instance.completed_at
+						OR touched_pickup_exception.updated_at IS NULL
+						OR touched_pickup_exception.updated_at > instance.completed_at
+					)
 			)
 		)`
 
@@ -108,9 +183,16 @@ func init() {
 // the instance's ISO weekday, or any arrival/pickup exception on that exact
 // date — a timed one says the child came, a timeless "kommt heute nicht" says
 // the day WAS booked and the child cancelled, which is an absence to record
-// either way. A child with no weekly plan at all is CareDayUnknown, which the
-// derivation treats as expected: the plan cannot say anything, so the absence
-// stands.
+// either way.
+//
+// Unlike the runtime derivation, the evidence must also be OLD ENOUGH to say
+// anything about that day: legacyCarePlanSettledPredicate drops every row whose
+// care plan was written or changed after the instance completed. The
+// derivation's CareDayUnknown branch ("no plan on file, so keep the child
+// expected") is deliberately not reproduced either — a plan deleted since is
+// indistinguishable from one that never existed, and this migration cannot be
+// rolled back. Both kinds of ambiguity leave the row exactly as it is, which is
+// what the old path already left behind.
 //
 // Not every completed+expected row is legacy, though. The attendance PATCH
 // endpoint has always been able to set a row back to 'expected' AFTER its
@@ -139,6 +221,7 @@ func backfillCompletedExpectedAttendanceUp(ctx context.Context, db *bun.DB) erro
 			AND student.status = 'expected'
 			AND instance.completed_at IS NOT NULL
 			AND student.updated_at <= instance.completed_at
+			AND ` + legacyCarePlanSettledPredicate + `
 			AND ` + legacyCareDayBookedPredicate + `;
 	`).Exec(ctx)
 	if err != nil {
