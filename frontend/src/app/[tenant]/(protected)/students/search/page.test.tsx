@@ -1463,6 +1463,13 @@ describe("StudentSearchPage", () => {
       )();
       expect(result).toEqual({
         students: [{ id: "1", first_name: "Test", second_name: "Student" }],
+        // The fetcher now stamps the response with the date AND the
+        // today/planning mode it was fetched for, so the page can tell a fresh
+        // result apart from keepPreviousData holding the previous request's rows
+        // during a date OR mode switch — the mode tag catches the midnight
+        // rollover where the date is unchanged but semantics flip (#1939).
+        requestDate: expect.any(String),
+        requestIsToday: expect.any(Boolean),
       });
       expect(mockGetStudents).toHaveBeenCalledWith(
         expect.objectContaining({ dayStatus: "not_coming_today" }),

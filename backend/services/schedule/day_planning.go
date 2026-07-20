@@ -54,9 +54,10 @@ type DayPlanningDecision struct {
 // the parent portal resolves `pickup_absent || arrival_absent` to an absence
 // before it looks at any time (frontend/src/components/parent/child-care.tsx),
 // so letting a time win here would make the guardian tile and the staff-side
-// counts disagree about the same child on the same day. This rule is shared by
-// the student search and the timetable's care-day derivation (#1747); both
-// paths must keep resolving through this function so they never disagree.
+// counts disagree about the same child on the same day. The student search
+// (#1939) and the timetable's care-day derivation (#1747) arrived at this same
+// precedence independently; both paths must keep resolving through this
+// function so they never disagree.
 func ResolveDayPlanning(in DayPlanningInputs) DayPlanningDecision {
 	switch {
 	case in.HasActualAttendance:
@@ -69,12 +70,14 @@ func ResolveDayPlanning(in DayPlanningInputs) DayPlanningDecision {
 		return DayPlanningDecision{Reason: DayPlanningReasonExcused}
 	}
 
-	arrivalCancelled := in.Arrival != nil && in.Arrival.IsException && in.Arrival.ArrivalTime == nil
-	pickupCancelled := in.Pickup != nil && in.Pickup.IsException && in.Pickup.PickupTime == nil
-	if arrivalCancelled || pickupCancelled {
-		if arrivalCancelled {
-			return DayPlanningDecision{Reason: DayPlanningReasonArrivalException, ExceptionNotes: in.Arrival.Notes}
-		}
+	// A day-specific exception that clears the arrival or pickup ("heute nicht
+	// da") is an absence signal and has to win even when the child also carries
+	// an unrelated presence signal — a regular pickup time, a timetable
+	// placement — for the same day.
+	if in.Arrival != nil && in.Arrival.IsException && in.Arrival.ArrivalTime == nil {
+		return DayPlanningDecision{Reason: DayPlanningReasonArrivalException, ExceptionNotes: in.Arrival.Notes}
+	}
+	if in.Pickup != nil && in.Pickup.IsException && in.Pickup.PickupTime == nil {
 		return DayPlanningDecision{Reason: DayPlanningReasonPickupException, ExceptionNotes: in.Pickup.Notes}
 	}
 

@@ -223,6 +223,11 @@ export function FilterPanel({
   );
 
   const renderFilterOptions = (filter: FilterConfig) => {
+    if (filter.type === "custom") {
+      // Custom filters carry their own control (e.g. the planning-date
+      // chooser); value/options are unused. Render the supplied node verbatim.
+      return filter.render ?? null;
+    }
     const selectedValues = normalizeFilterValues(filter.value);
     switch (filter.type) {
       case "buttons":
@@ -324,17 +329,29 @@ export function FilterPanel({
     }
   };
 
-  const renderFilterField = (filter: FilterConfig) => (
-    <div key={filter.id}>
-      <label
-        htmlFor={`mobile-filter-${filter.id}`}
-        className="mb-1.5 block text-sm font-semibold text-gray-800"
-      >
-        {filter.label}
-      </label>
-      {renderFilterOptions(filter)}
-    </div>
-  );
+  const renderFilterField = (filter: FilterConfig) => {
+    // A custom filter has no single labelable form control, so its label is a
+    // plain heading (no htmlFor) rather than pointing at a non-existent input.
+    const label =
+      filter.type === "custom" ? (
+        <span className="mb-1.5 block text-sm font-semibold text-gray-800">
+          {filter.label}
+        </span>
+      ) : (
+        <label
+          htmlFor={`mobile-filter-${filter.id}`}
+          className="mb-1.5 block text-sm font-semibold text-gray-800"
+        >
+          {filter.label}
+        </label>
+      );
+    return (
+      <div key={filter.id} className={filter.className}>
+        {label}
+        {renderFilterOptions(filter)}
+      </div>
+    );
+  };
 
   const panelStyle =
     anchorRect && (isOpening || posStyle === undefined)

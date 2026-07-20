@@ -246,7 +246,7 @@ func TestAgeExportCell(t *testing.T) {
 func TestBuildExportRowRendersBirthdayAndAge(t *testing.T) {
 	row := buildExportRow(
 		StudentResponse{ID: 101, FirstName: "Mila", LastName: "Anders", Birthday: "2018-09-02"},
-		weeklySchedule{}, map[int64]string{}, testExportDate)
+		weeklySchedule{}, map[int64]string{}, testExportDate, true)
 
 	assert.Equal(t, "02.09.2018", row.Values[listexport.ColumnBirthday])
 	assert.Equal(t, "7", row.Values[listexport.ColumnAge])
@@ -255,7 +255,7 @@ func TestBuildExportRowRendersBirthdayAndAge(t *testing.T) {
 func TestBuildExportRowLeavesBirthdayCellsEmptyWithoutBirthday(t *testing.T) {
 	row := buildExportRow(
 		StudentResponse{ID: 105, FirstName: "Jonas", LastName: "Ernst"},
-		weeklySchedule{}, map[int64]string{}, testExportDate)
+		weeklySchedule{}, map[int64]string{}, testExportDate, true)
 
 	assert.Empty(t, row.Values[listexport.ColumnBirthday])
 	assert.Empty(t, row.Values[listexport.ColumnAge])
