@@ -4,6 +4,7 @@ package users
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -430,6 +431,15 @@ func (r *StudentCompanionRepository) DeleteEdges(ctx context.Context, edgeIDs []
 //
 // This is the bulk read behind the grouping: one query for the whole page
 // instead of one per child.
+//
+// The walk deliberately does NOT carry the seed it started from. Doing so makes
+// the recursion emit one row per (requested child, reachable member): a page
+// showing R children of the SAME Laufgemeinschaft of size N materializes R*N
+// rows, and the degree cap of 10 bounds only how many links one child may have,
+// not how large a legal chain can grow. Instead the query walks the reachable
+// nodes ONCE and returns the edges between them — at most one row per link —
+// and the components are assembled here with a union-find, which is linear in
+// the number of edges. The result map is the same either way.
 func (r *StudentCompanionRepository) CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error) {
 	result := make(map[int64][]int64)
 	if len(studentIDs) == 0 {
@@ -439,27 +449,29 @@ func (r *StudentCompanionRepository) CompanionIDsForWeekday(ctx context.Context,
 		return nil, fmt.Errorf("%w: got %d", users.ErrCompanionInvalidWeekday, weekday)
 	}
 
-	// One row per (requested student, reachable member). UNION — not UNION ALL —
-	// terminates the walk: a cycle re-derives pairs that are already in the
+	// One row per edge inside the touched components. UNION — not UNION ALL —
+	// terminates the walk: a cycle re-derives members that are already in the
 	// working set, and those are discarded.
-	type reachRow struct {
-		Root   int64 `bun:"root"`
-		Member int64 `bun:"member"`
+	type edgeRow struct {
+		Low  int64 `bun:"low_id"`
+		High int64 `bun:"high_id"`
 	}
-	var rows []reachRow
+	var rows []edgeRow
 
 	// Defense in depth on top of RLS, mirroring base.WithTenantFilter: filter by
 	// tenant when the context carries one, and leave the query alone when it does
 	// not (CLI/superuser paths).
 	tenantID := tenant.FromContext(ctx)
 
+	// The reachable set is closed under the weekday's edges, so joining on the
+	// low endpoint alone already collects every edge of every touched component;
+	// the high endpoint of such an edge is reachable by definition.
 	if err := base.GetDB(ctx, r.db).NewRaw(`
-		WITH RECURSIVE reach (root, member) AS (
-			SELECT seed.id, seed.id
+		WITH RECURSIVE reach (member) AS (
+			SELECT seed.id
 			FROM unnest(ARRAY[?]::bigint[]) AS seed(id)
 			UNION
-			SELECT reach.root,
-			       CASE WHEN companion.student_low_id = reach.member
+			SELECT CASE WHEN companion.student_low_id = reach.member
 			            THEN companion.student_high_id
 			            ELSE companion.student_low_id
 			       END
@@ -469,16 +481,70 @@ func (r *StudentCompanionRepository) CompanionIDsForWeekday(ctx context.Context,
 			 AND companion.weekday = ?
 			 AND (? = 0 OR companion.tenant_id = ?)
 		)
-		SELECT root, member FROM reach WHERE member <> root ORDER BY root, member
-	`, bun.List(studentIDs), weekday, tenantID, tenantID).Scan(ctx, &rows); err != nil {
+		SELECT companion.student_low_id AS low_id, companion.student_high_id AS high_id
+		FROM users.student_companions AS companion
+		JOIN reach ON reach.member = companion.student_low_id
+		WHERE companion.weekday = ?
+		  AND (? = 0 OR companion.tenant_id = ?)
+	`, bun.List(studentIDs), weekday, tenantID, tenantID, weekday, tenantID, tenantID).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list companions for weekday", Err: err}
+	}
+
+	// Union-find over the returned edges: every node ends up under the
+	// representative of its connected component, which is exactly the
+	// Laufgemeinschaft the recursion used to re-derive per seed.
+	parent := make(map[int64]int64, len(rows)*2)
+	var find func(id int64) int64
+	find = func(id int64) int64 {
+		root, ok := parent[id]
+		if !ok {
+			parent[id] = id
+			return id
+		}
+		if root == id {
+			return id
+		}
+		root = find(root)
+		parent[id] = root // path compression
+		return root
+	}
+	for _, row := range rows {
+		low, high := find(row.Low), find(row.High)
+		if low != high {
+			parent[high] = low
+		}
+	}
+
+	members := make(map[int64][]int64, len(parent))
+	for id := range parent {
+		root := find(id)
+		members[root] = append(members[root], id)
+	}
+	for _, group := range members {
+		slices.Sort(group)
 	}
 
 	// A member outside the requested set is kept on purpose — the caller decides
 	// what to do with a child that is not on the current page (it counts them
-	// instead of naming them).
-	for _, row := range rows {
-		result[row.Root] = append(result[row.Root], row.Member)
+	// instead of naming them). A child without a link on this weekday never made
+	// it into an edge, so it stays absent from the map.
+	for _, studentID := range studentIDs {
+		if _, linked := parent[studentID]; !linked {
+			continue
+		}
+		group, ok := members[find(studentID)]
+		if !ok {
+			continue
+		}
+		companions := make([]int64, 0, len(group)-1)
+		for _, member := range group {
+			if member != studentID {
+				companions = append(companions, member)
+			}
+		}
+		if len(companions) > 0 {
+			result[studentID] = companions
+		}
 	}
 	return result, nil
 }

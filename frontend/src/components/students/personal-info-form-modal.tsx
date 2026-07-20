@@ -15,6 +15,7 @@ import {
   allowedDepartureToPickupDays,
   normalizeAllowedDepartureModes,
   allowedDepartureModesEqual,
+  allowedDepartureModesFingerprint,
   accompaniedWeekdayKeys,
 } from "~/lib/student-helpers";
 import {
@@ -158,6 +159,11 @@ export function PersonalInfoFormModal({
       // not inherit the previous child's conflict warning.
       resetKey: student.id,
       hasUnsavedCompanionEdits: companionsDirty,
+      // Both halves of what a save submits about the Laufgemeinschaft: the list
+      // itself and the plan the backend trims it to. The picker stays usable
+      // while a save runs (only the button is disabled), so this is what tells
+      // the hook that the draft has moved on from the one that was submitted.
+      companionDraftKey: `${companionsFingerprint(editedStudent.companions ?? [])}#${allowedDepartureModesFingerprint(editedStudent.allowed_departure_modes)}`,
       onRefresh: reloadCompanionsFromRemote,
     });
 

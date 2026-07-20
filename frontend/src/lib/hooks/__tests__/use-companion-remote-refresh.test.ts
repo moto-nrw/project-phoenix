@@ -190,6 +190,69 @@ describe("useCompanionRemoteRefresh", () => {
     }
   });
 
+  it("keeps an edit made while the save was in flight", async () => {
+    // The forms disable the save button during a write but leave the picker
+    // usable, so a draft that was ALREADY dirty when the user saved can move on
+    // while the request runs. Its dirty timestamp is older than the save, so
+    // only the draft key can tell the echo that it no longer describes what was
+    // submitted — resetting it here would delete the companion the user picked
+    // while waiting.
+    const onRefresh = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ draft }: { draft: string }) =>
+        useCompanionRemoteRefresh({
+          active: true,
+          hasUnsavedCompanionEdits: true,
+          companionDraftKey: draft,
+          onRefresh,
+        }),
+      { initialProps: { draft: "7:mon" } },
+    );
+
+    await act(async () => {
+      await result.current.withOwnWrite(() => {
+        // Still dirty, still the submitted draft — the user changes it only
+        // after the request went out.
+        return Promise.resolve("saved");
+      }, true);
+    });
+    rerender({ draft: "7:mon|9:tue" });
+
+    act(() => {
+      notifyStudentCompanionsChanged();
+    });
+
+    expect(onRefresh).not.toHaveBeenCalled();
+    expect(result.current.companionsStale).toBe(false);
+  });
+
+  it("still reloads on its own echo when the draft is unchanged", async () => {
+    // The counterpart to the test above: a draft that still matches what the
+    // save submitted is exactly the one the echo accounts for, so the stored
+    // links must be re-read — the caller's own reload may have run before the
+    // commit.
+    const onRefresh = vi.fn();
+    const { result } = renderHook(() =>
+      useCompanionRemoteRefresh({
+        active: true,
+        hasUnsavedCompanionEdits: true,
+        companionDraftKey: "7:mon",
+        onRefresh,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.withOwnWrite(() => Promise.resolve("saved"), true);
+    });
+
+    act(() => {
+      notifyStudentCompanionsChanged();
+    });
+
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+    expect(result.current.companionsStale).toBe(false);
+  });
+
   it("drops the stale flag when the view switches to another child", () => {
     // The Stammdaten tab stays mounted and `active` while the master-detail
     // list selects another child, so `active` never ends the flag there. A

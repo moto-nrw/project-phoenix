@@ -198,6 +198,25 @@ export function normalizeAllowedDepartureModes(
   return out;
 }
 
+/**
+ * Stable identity of a departure plan, equal exactly when
+ * allowedDepartureModesEqual is (both read the normalized plan, so missing days
+ * and unordered mode arrays produce the same string).
+ *
+ * Needed where a plan has to be COMPARED AGAINST ITS OWN EARLIER SELF across an
+ * async boundary rather than against another value: the companion refresh hook
+ * remembers what a running save submitted, and a plan edited while that save is
+ * in flight must not be mistaken for the one it carried (#1694).
+ */
+export function allowedDepartureModesFingerprint(
+  value?: AllowedDepartureModes | null,
+): string {
+  const normalized = normalizeAllowedDepartureModes(value);
+  return DEPARTURE_WEEKDAYS.map(
+    (day) => `${day.key}:${(normalized[day.key] ?? []).join(",")}`,
+  ).join("|");
+}
+
 /** Semantic equality of two departure plans: same modes on every weekday after
  *  normalization, so shape noise (missing days, duplicate or unordered mode
  *  arrays) does not read as a change. Used for dirty checks and for deciding

@@ -51,8 +51,9 @@ import { subscribeStudentCompanionsChanged } from "~/lib/student-companion-api";
  * armed after every save, a pure name edit would spend it on suppressing a
  * genuinely remote change instead. And an announcement in the window is only
  * ATTRIBUTED to our save, never verified as its echo (the bus carries no
- * correlation id), so it may reset only a draft that already existed when the
- * save settled; see the listener.
+ * correlation id), so it may reset only the draft that save actually submitted
+ * — not one started after it, and not one edited on while it was in flight; see
+ * the listener.
  */
 const OWN_WRITE_ECHO_GRACE_MS = 10_000;
 
@@ -71,6 +72,19 @@ interface CompanionRemoteRefreshOptions {
   readonly resetKey?: string | number;
   /** True while the draft differs from the loaded snapshot. */
   readonly hasUnsavedCompanionEdits: boolean;
+  /**
+   * Identity of the companion-relevant draft — the link list plus, where the
+   * form submits one, the departure plan that trims it.
+   *
+   * The dirty flag alone cannot tell an echo whether the draft it is about to
+   * reset is still the one the save submitted: a draft that was ALREADY dirty
+   * when the user hit save stays dirty while they keep editing, so nothing in
+   * that boolean changes when they pick another companion mid-flight. This key
+   * does change, and {@link CompanionRemoteRefresh.withOwnWrite} snapshots it
+   * when the write starts — an echo may only reset a draft that still matches
+   * the snapshot.
+   */
+  readonly companionDraftKey?: string;
   /** Refetches the stored links and resets the draft to them. */
   readonly onRefresh: () => void;
 }
@@ -114,6 +128,7 @@ export function useCompanionRemoteRefresh({
   active,
   resetKey,
   hasUnsavedCompanionEdits,
+  companionDraftKey,
   onRefresh,
 }: CompanionRemoteRefreshOptions): CompanionRemoteRefresh {
   const [companionsStale, setCompanionsStale] = useState(false);
@@ -133,6 +148,11 @@ export function useCompanionRemoteRefresh({
   // reset it — see the listener below.
   const ownWriteSettledAtRef = useRef(0);
   const dirtySinceRef = useRef(0);
+  // The current companion draft and the one the running save submitted. A draft
+  // that has moved on from the submitted one is work the echo cannot account
+  // for, whether it started before that save or after it.
+  const draftKeyRef = useRef(companionDraftKey);
+  const submittedDraftKeyRef = useRef<string | undefined>(undefined);
   // Layout effect, not a passive one: the SSE listener below runs in its own
   // task, and passive effects flush after paint — so between committing a
   // render that turned the draft dirty and the passive flush, a notification
@@ -147,6 +167,7 @@ export function useCompanionRemoteRefresh({
       dirtySinceRef.current = 0;
     }
     dirtyRef.current = hasUnsavedCompanionEdits;
+    draftKeyRef.current = companionDraftKey;
     refreshRef.current = onRefresh;
   });
 
@@ -164,6 +185,7 @@ export function useCompanionRemoteRefresh({
     setCompanionsStale(false);
     ownWriteEchoUntilRef.current = 0;
     ownWriteSettledAtRef.current = 0;
+    submittedDraftKeyRef.current = undefined;
   }, [resetKey]);
 
   useEffect(
@@ -186,9 +208,17 @@ export function useCompanionRemoteRefresh({
           // that costs nothing silently: the save carries the fingerprint of
           // exactly that list, so the backend refuses it with 409
           // `companions_changed` (→ markStale) instead of overwriting anyone.
+          //
+          // The same holds for a draft that was ALREADY dirty when the user
+          // saved and that they kept editing while the request was in flight —
+          // both forms leave the picker interactive and disable only the save
+          // button. Its dirty timestamp is older than the save, so only the
+          // draft key catches it: it no longer matches the one the write
+          // submitted, so the echo would replace edits it never carried.
           if (
             dirtyRef.current &&
-            dirtySinceRef.current > ownWriteSettledAtRef.current
+            (dirtySinceRef.current > ownWriteSettledAtRef.current ||
+              draftKeyRef.current !== submittedDraftKeyRef.current)
           ) {
             return;
           }
@@ -226,6 +256,10 @@ export function useCompanionRemoteRefresh({
   const withOwnWrite = useCallback(
     async <T>(write: () => Promise<T>, mayAnnounce: boolean) => {
       ownWriteRef.current = true;
+      // The draft as it goes out. Anything the user changes from here on is
+      // work this write does not carry, so its echo must not reset it — see the
+      // listener.
+      submittedDraftKeyRef.current = draftKeyRef.current;
       try {
         const result = await write();
         // The write's OWN announcement can still be in flight when its

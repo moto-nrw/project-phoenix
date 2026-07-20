@@ -63,6 +63,7 @@ import {
   allowedDepartureToPickupDays,
   normalizeAllowedDepartureModes,
   allowedDepartureModesEqual,
+  allowedDepartureModesFingerprint,
 } from "~/lib/student-helpers";
 import type { Student } from "~/lib/api";
 
@@ -571,6 +572,11 @@ export function StudentStammdatenTab({
       // here — `active` never goes false.
       resetKey: String(student.id),
       hasUnsavedCompanionEdits: companionsDirty || departurePlanDirty,
+      // Both halves of what a save submits about the Laufgemeinschaft: the list
+      // itself and the plan the backend trims it to. The picker stays usable
+      // while a save runs (only the button is disabled), so this is what tells
+      // the hook that the draft has moved on from the one that was submitted.
+      companionDraftKey: `${companionsFingerprint(companions)}#${allowedDepartureModesFingerprint(formData.allowed_departure_modes)}`,
       onRefresh: reloadCompanionsFromRemote,
     });
   const isDirty = useMemo(() => {
