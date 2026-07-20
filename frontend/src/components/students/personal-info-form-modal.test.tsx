@@ -582,6 +582,41 @@ describe("PersonalInfoFormModal", () => {
         screen.queryByRole("button", { name: /Kind hinzufügen/ }),
       ).not.toBeInTheDocument();
     });
+
+    // Taking the last accompanied day away hides the picker, so a list left in
+    // the draft would ride along on the save with nobody able to see or edit
+    // it — and the backend refuses a list on a plan that allows the mode on no
+    // day at all, an error about a control that is no longer on screen.
+    it("clears the linked children when the last accompanied day is removed", async () => {
+      mockOnSave.mockResolvedValue(undefined);
+      fetchStudentCompanionsMock.mockResolvedValue([
+        { companion_student_id: "42", first_name: "Lina", weekdays: ["mon"] },
+      ]);
+
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent(accompaniedStudentProps)}
+          onSave={mockOnSave}
+        />,
+      );
+
+      await screen.findByRole("button", { name: /Kind hinzufügen/ });
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: "Montag: Anderes Kind" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      await waitFor(() => {
+        expect(mockOnSave).toHaveBeenCalledWith(
+          expect.objectContaining({
+            companions: [],
+            allowed_departure_modes: {},
+          }),
+        );
+      });
+    });
   });
 
   describe("Textarea inputs", () => {

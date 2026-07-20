@@ -358,6 +358,19 @@ func (rs *Resource) checkCompanionConflicts(ctx context.Context, student *userMo
 		return nil, rs.StudentService.CheckCompanionTrimForPlan(ctx, student.ID, accompaniedDays, req.CompanionsFingerprint)
 	}
 	if len(accompaniedDays) == 0 {
+		// A NON-EMPTY list on a plan that allows "Anderes Kind" on no weekday is
+		// contradictory input, not a removal. reconcileCompanions drops every
+		// link for such a plan, so accepting it would answer 200 to a list that
+		// was never written and never validated — weekday shape, self-links,
+		// duplicates and unknown children are all checked inside
+		// CheckCompanionConflicts, which this branch skips. Our own form clears
+		// the list together with the last accompanied day, so only a stale or a
+		// direct client gets here, and it has to be told rather than silently
+		// obeyed. The EMPTY list stays allowed: it says the same thing the plan
+		// does, and it is what the form sends when the user takes the mode away.
+		if len(*req.Companions) > 0 {
+			return nil, usersService.ErrCompanionDayNotAllowed
+		}
 		return nil, rs.StudentService.CheckCompanionTrimForPlan(ctx, student.ID, nil, req.CompanionsFingerprint)
 	}
 

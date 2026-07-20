@@ -853,6 +853,21 @@ export function DepartureSection({
                           ) {
                             onCompanionNoteChange("");
                           }
+                          // Same for the links, and for a second reason: the
+                          // picker is hidden from here on, so a list left
+                          // behind would travel with the save while the user
+                          // can no longer see or edit it. The backend refuses
+                          // a non-empty list on a plan that allows the mode on
+                          // no day at all — an error about a control that is
+                          // not on screen. Clearing it here submits what the
+                          // plan already says: no Laufgemeinschaft.
+                          if (
+                            !stillAccompanied &&
+                            onCompanionsChange &&
+                            (companions?.length ?? 0) > 0
+                          ) {
+                            onCompanionsChange([]);
+                          }
                         }}
                       />
                       {opt.short}

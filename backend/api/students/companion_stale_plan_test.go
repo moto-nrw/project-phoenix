@@ -185,3 +185,62 @@ func TestUpdateStudent_ReportsCompanionVerdict(t *testing.T) {
 		})))
 	})
 }
+
+// TestUpdateStudent_CompanionsWithoutAccompaniedDayRefused pins the refusal for
+// the one companion payload the write cannot honour: a list submitted with a
+// departure plan that allows "Anderes Kind" on no weekday at all.
+//
+// Such a request contradicts itself, and the write resolves the contradiction in
+// favour of the plan — it drops every link. Answering 200 would tell the client
+// its list was stored when nothing of it was even validated, so a stale form (or
+// a direct API client) would keep showing a Laufgemeinschaft the school no longer
+// has. The empty list is the opposite case: it says what the plan says, and is
+// exactly what our own form submits when the last accompanied day is taken away.
+func TestUpdateStudent_CompanionsWithoutAccompaniedDayRefused(t *testing.T) {
+	tc := setupTestContext(t)
+
+	student := testpkg.CreateTestStudent(t, tc.db, "NoAccompaniedDay", "Subject", "NA1")
+	companion := testpkg.CreateTestStudent(t, tc.db, "NoAccompaniedDay", "Partner", "NA1")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, companion.ID)
+
+	putStudent(t, tc, companion.ID, accompaniedPlanBody(nil))
+	putStudent(t, tc, student.ID, accompaniedPlanBody(map[string]any{
+		"companions": []map[string]any{
+			{"companion_student_id": companion.ID, "weekdays": []string{"mon"}},
+		},
+		"companions_fingerprint": mondayLinkFingerprint(),
+	}))
+
+	// The plan every child starts from: home alone on Monday, no accompanied day
+	// anywhere — so nothing in it can carry a link.
+	alonePlan := func(extra map[string]any) map[string]any {
+		body := map[string]any{
+			"allowed_departure_modes": map[string]any{"mon": []string{"alone"}},
+			"departure_days":          map[string]any{"mon": "alone"},
+		}
+		for k, v := range extra {
+			body[k] = v
+		}
+		return body
+	}
+
+	t.Run("a non-empty list is refused", func(t *testing.T) {
+		rr := putStudentExpect(t, tc, student.ID, alonePlan(map[string]any{
+			"companions": []map[string]any{
+				{"companion_student_id": companion.ID, "weekdays": []string{"mon"}},
+			},
+			"companions_fingerprint": mondayLinkFingerprint(companion.ID),
+		}))
+		require.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
+		assert.Equal(t, map[int64][]string{companion.ID: {"mon"}}, companionLinkDays(t, tc, student.ID),
+			"a refused update must leave the links untouched")
+	})
+
+	t.Run("the empty list clears the Laufgemeinschaft", func(t *testing.T) {
+		putStudent(t, tc, student.ID, alonePlan(map[string]any{
+			"companions":             []map[string]any{},
+			"companions_fingerprint": mondayLinkFingerprint(companion.ID),
+		}))
+		assert.Empty(t, companionLinkDays(t, tc, student.ID))
+	})
+}
