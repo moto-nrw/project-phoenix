@@ -10,6 +10,7 @@ const {
   deleteStudentPhotoMock,
   fetchStudentPrivacyConsentMock,
   fetchStudentEnrollmentExtraFieldsMock,
+  fetchStudentCompanionsMock,
 } = vi.hoisted(() => ({
   handleStudentFormSubmitMock: vi.fn(),
   validateStudentFormMock: vi.fn(),
@@ -19,6 +20,17 @@ const {
   fetchStudentEnrollmentExtraFieldsMock: vi.fn<
     (studentId: string) => Promise<unknown[]>
   >(() => Promise.resolve([])),
+  // Unreachable by default, exactly like the un-mocked network call these
+  // tests used to make: the tab then leaves the companion list alone instead
+  // of submitting one, which is what every suite below assumes.
+  fetchStudentCompanionsMock: vi.fn<(studentId: string) => Promise<unknown[]>>(
+    () => Promise.reject(new Error("companions unavailable")),
+  ),
+}));
+
+vi.mock("~/lib/student-companion-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/student-companion-api")>()),
+  fetchStudentCompanions: fetchStudentCompanionsMock,
 }));
 
 vi.mock("~/lib/student-form-validation", () => ({
@@ -617,6 +629,158 @@ describe("StudentStammdatenTab", () => {
       "data-error-count",
       "0",
     );
+  });
+});
+
+// Laufgemeinschaft suite. A companion-plan 409 is a question, not a failure:
+// the backend refuses and names the children and weekdays it would have to
+// widen. The retry has to repeat those names — the backend re-checks against
+// freshly locked rows and only widens what the confirmation actually covers,
+// so a retry that confirms nothing earns the identical 409 again. These tests
+// pin down where that list is read from.
+describe("StudentStammdatenTab — companion plan conflicts", () => {
+  const conflictPayload = {
+    error: "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+    message:
+      "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+    conflicts: [{ student_id: 42, weekdays: ["mon", "tue"] }],
+  };
+
+  function conflictError(
+    extra: { body?: string; message?: string } = {},
+  ): Error & { status?: number; body?: string } {
+    const err = new Error(
+      extra.message ??
+        "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+    ) as Error & { status?: number; body?: string };
+    err.status = 409;
+    if (extra.body !== undefined) err.body = extra.body;
+    return err;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fetchStudentPrivacyConsentMock.mockResolvedValue(null);
+    fetchStudentEnrollmentExtraFieldsMock.mockResolvedValue([]);
+    validateStudentFormMock.mockReturnValue({});
+    // The stored links must be known before a conflict can be answered — the
+    // tab only submits (and only retries) a companion list it actually read.
+    fetchStudentCompanionsMock.mockResolvedValue([
+      { companion_student_id: "42", weekdays: ["mon"] },
+    ]);
+    handleStudentFormSubmitMock.mockImplementation(
+      async (
+        event: Event & { preventDefault: () => void },
+        _formData: Partial<Student>,
+        validate: () => boolean,
+        save: (data: Partial<Student>) => Promise<void>,
+        setSaving: (v: boolean) => void,
+        setErrors: (e: Record<string, string>) => void,
+      ) => {
+        event.preventDefault();
+        if (!validate()) return;
+        setSaving(true);
+        try {
+          await save(_formData);
+        } catch (err) {
+          setErrors({ submit: err instanceof Error ? err.message : "err" });
+        } finally {
+          setSaving(false);
+        }
+      },
+    );
+  });
+
+  async function saveAndAnswerConflict(
+    err: Error,
+  ): Promise<ReturnType<typeof vi.fn>> {
+    const onSave = vi
+      .fn()
+      .mockRejectedValueOnce(err)
+      .mockResolvedValue(undefined);
+
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    await waitFor(() => expect(fetchStudentCompanionsMock).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByTestId("first-name"), {
+      target: { value: "Maja" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    const confirmButton = await screen.findByRole("button", {
+      name: "Ergänzen und speichern",
+    });
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    return onSave;
+  }
+
+  it("confirms the children the 409 body named on the retry", async () => {
+    // The CRUD service hands over the untouched response body; the German
+    // sentence in `message` never carries the list, so reading the body is the
+    // only way the retry can name Kind 42 for Montag and Dienstag.
+    const onSave = await saveAndAnswerConflict(
+      conflictError({ body: JSON.stringify(conflictPayload) }),
+    );
+
+    expect(onSave.mock.calls[1]![0]).toMatchObject({
+      extend_companion_plans: true,
+      confirmed_companion_extensions: [
+        { companion_student_id: "42", weekdays: ["mon", "tue"] },
+      ],
+    });
+  });
+
+  it("falls back to the JSON embedded in the message when no body traveled", async () => {
+    // Errors from studentService reach this form without a body. The older
+    // regex path stays alive so those callers keep working.
+    const onSave = await saveAndAnswerConflict(
+      conflictError({
+        message: `API error (409): ${JSON.stringify(conflictPayload)}`,
+      }),
+    );
+
+    expect(onSave.mock.calls[1]![0]).toMatchObject({
+      confirmed_companion_extensions: [
+        { companion_student_id: "42", weekdays: ["mon", "tue"] },
+      ],
+    });
+  });
+
+  it("still reads the message when the body carries no conflict list", async () => {
+    // A body that is only the plain German sentence must not shadow a message
+    // that does hold the list — otherwise the retry silently confirms nothing.
+    const onSave = await saveAndAnswerConflict(
+      conflictError({
+        body: "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+        message: `API error (409): ${JSON.stringify(conflictPayload)}`,
+      }),
+    );
+
+    expect(onSave.mock.calls[1]![0]).toMatchObject({
+      confirmed_companion_extensions: [
+        { companion_student_id: "42", weekdays: ["mon", "tue"] },
+      ],
+    });
+  });
+
+  it("confirms nothing when neither body nor message can be read", async () => {
+    // The safe direction: an unreadable conflict means the backend asks again
+    // rather than the form widening a child's plan nobody agreed to.
+    const onSave = await saveAndAnswerConflict(conflictError());
+
+    expect(onSave.mock.calls[1]![0]).toMatchObject({
+      extend_companion_plans: true,
+      confirmed_companion_extensions: [],
+    });
   });
 });
 

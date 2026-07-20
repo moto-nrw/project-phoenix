@@ -170,6 +170,15 @@ function companionConflictExtensions(
 ): CompanionExtensionConfirmation[] {
   if (err instanceof CompanionPlanConflictError) return err.conflicts;
   if (err instanceof Error) {
+    // The CRUD service reduces the response to a single message but attaches
+    // the untouched body, where the proxy forwards `conflicts` as a sibling of
+    // `error`. Read that first — the message itself is only the German
+    // sentence and never contains the list.
+    const body = (err as Error & { body?: string }).body;
+    if (body) {
+      const fromBody = parseConflictExtensions(body);
+      if (fromBody.length > 0) return fromBody;
+    }
     const match = /\{.*\}/s.exec(err.message);
     if (match) return parseConflictExtensions(match[0]);
   }
