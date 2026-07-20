@@ -460,3 +460,39 @@ describe("useGlobalSSE — return value", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Laufgemeinschaft announcements
+// ---------------------------------------------------------------------------
+
+describe("useGlobalSSE — companion announcements", () => {
+  it("announces companion changes only for student_companions_changed", async () => {
+    const { subscribeStudentCompanionsChanged } =
+      await import("~/lib/student-companion-api");
+    renderHook(() => useGlobalSSE());
+    const listener = vi.fn();
+    const unsubscribe = subscribeStudentCompanionsChanged(listener);
+
+    try {
+      // A rename, a photo upload, a sick flag — all arrive as student_updated
+      // and none of them touches the links. An open "läuft mit" form reacts to
+      // the announcement by discarding or blocking its draft, so reacting here
+      // would cost the user their work for an unrelated edit.
+      fireSSE(makeEvent("student_updated", { student_id: "s1" }));
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      expect(listener).not.toHaveBeenCalled();
+
+      // The dedicated event is the one the backend emits when a write could
+      // actually have changed the links.
+      fireSSE(makeEvent("student_companions_changed", { student_id: "s1" }));
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally {
+      unsubscribe();
+    }
+  });
+});

@@ -582,6 +582,72 @@ export const COMPANION_LOCK_BUSY_CODE = "companion_lock_busy";
 export const COMPANION_WOULD_LOSE_DEPARTURE_CODE =
   "companion_would_lose_departure";
 
+/**
+ * The backend's stable code for the stale-list 409 (api/students:
+ * CodeCompanionsChanged): the submitted "läuft mit" list was built on a
+ * snapshot someone else has since replaced. Kept in sync by hand — the wire
+ * contract is the string.
+ */
+export const COMPANIONS_CHANGED_CODE = "companions_changed";
+
+/** Shown only when the stale-list refusal arrived without a readable message. */
+const COMPANIONS_CHANGED_FALLBACK =
+  "Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert. Bitte neu laden und noch einmal speichern.";
+
+/**
+ * Raised when the submitted companion list no longer describes the stored one.
+ *
+ * Typed rather than folded into the generic error path because the retry is
+ * different from every other failure: re-sending the SAME list is exactly what
+ * the refusal prevents — it would delete the change it is protecting. The form
+ * has to reload first and let the user redo the edit on the current state.
+ */
+export class CompanionsChangedError extends Error {
+  constructor(body: string) {
+    super(parseBackendMessage(body, COMPANIONS_CHANGED_FALLBACK));
+    this.name = "CompanionsChangedError";
+  }
+}
+
+/** Reports whether a response body carries the stale-list code. */
+export function isCompanionsChangedBody(body: string): boolean {
+  return bodyHasCode(body, COMPANIONS_CHANGED_CODE);
+}
+
+/**
+ * Reports whether an error is that refusal, in whichever wrapping it arrived —
+ * the typed error from studentService.updateStudent, or the plain Error the
+ * generic CRUD service throws with the untouched body attached. Keyed off the
+ * CODE, never the status: the student PUT answers 409 for the companion-plan
+ * question and the lock collision too.
+ */
+export function isCompanionsChanged(err: unknown): boolean {
+  if (err instanceof CompanionsChangedError) return true;
+  if (!(err instanceof Error)) return false;
+  const body = (err as Error & { body?: string }).body;
+  if (body && isCompanionsChangedBody(body)) return true;
+  const match = /\{.*\}/s.exec(err.message);
+  return match ? isCompanionsChangedBody(match[0]) : false;
+}
+
+/** The German instruction the stale-list refusal carries. */
+export function companionsChangedMessage(err: unknown): string {
+  if (err instanceof CompanionsChangedError) return err.message;
+  if (err instanceof Error) {
+    const body = (err as Error & { body?: string }).body;
+    if (body) {
+      const fromBody = parseBackendMessage(body, "");
+      if (fromBody) return fromBody;
+    }
+    const match = /\{.*\}/s.exec(err.message);
+    if (match) {
+      const fromMessage = parseBackendMessage(match[0], "");
+      if (fromMessage) return fromMessage;
+    }
+  }
+  return COMPANIONS_CHANGED_FALLBACK;
+}
+
 /** Shown only when the refusal arrived without a readable message. */
 const COMPANION_DEPARTURE_FALLBACK =
   "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.";
@@ -694,6 +760,7 @@ export function isCompanionPlanConflictResponse(body: string): boolean {
  */
 export function isCompanionPlanConflictBody(body: string): boolean {
   if (parseConflictExtensions(body).length > 0) return true;
+  if (bodyHasCode(body, COMPANIONS_CHANGED_CODE)) return false;
   return !bodyHasCode(body, COMPANION_LOCK_BUSY_CODE);
 }
 
@@ -914,6 +981,8 @@ export const studentService = {
       // Ids stay strings here; prepareStudentForBackend converts them at the
       // validated backend boundary.
       companions?: { companion_student_id: string; weekdays: string[] }[];
+      // Fingerprint of the list the caller LOADED — see prepareStudentForBackend.
+      companions_fingerprint?: string;
       extend_companion_plans?: boolean;
       confirmed_companion_extensions?: CompanionExtensionConfirmation[];
     },
@@ -961,6 +1030,15 @@ export const studentService = {
             isCompanionPlanConflictResponse(errorText)
           ) {
             throw new CompanionPlanConflictError(errorText);
+          }
+
+          // The OTHER expected 409: the submitted "läuft mit" list was built on
+          // a snapshot someone else has since replaced. Typed because the retry
+          // must NOT re-send the same list — that is precisely the write this
+          // refusal exists to stop. The form reloads and lets the user redo the
+          // edit on the current links.
+          if (response.status === 409 && isCompanionsChangedBody(errorText)) {
+            throw new CompanionsChangedError(errorText);
           }
 
           // A 400 CARRYING THE STRANDED-COMPANION CODE is the other expected
@@ -1027,6 +1105,9 @@ export const studentService = {
       // for the user, and handleApiError would strip it down to a generic
       // message.
       if (error instanceof CompanionDepartureRefusedError) throw error;
+      // Same reasoning for the stale-list refusal: the form has to reload
+      // rather than retry, and handleApiError would hide that instruction.
+      if (error instanceof CompanionsChangedError) throw error;
       throw handleApiError(error, `Error updating student ${id}`);
     }
   },

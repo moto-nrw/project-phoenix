@@ -80,3 +80,38 @@ func TestDeleteStudentTxErrorRenderer_CompanionLockBusy(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, resp.HTTPStatusCode)
 	})
 }
+
+// TestUpdateStudentTxErrorRenderer_CompanionsChanged pins the third 409 this
+// endpoint can answer with: the submitted "läuft mit" list was built on a
+// snapshot someone else has since replaced.
+//
+// It needs its own code because the retry differs from both siblings: the lock
+// collision is retriable with the SAME payload, the plan conflict is answered
+// with a confirmation — but re-sending this list is exactly the write that was
+// refused, so the client has to reload first.
+func TestUpdateStudentTxErrorRenderer_CompanionsChanged(t *testing.T) {
+	t.Run("a stale list is a coded, retriable conflict", func(t *testing.T) {
+		resp := rendererStatus(t, updateStudentTxErrorRenderer(userService.ErrCompanionsChanged))
+
+		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
+		assert.Equal(t, CodeCompanionsChanged, resp.Code)
+		// The German sentence reaches the UI unchanged — it carries the one
+		// instruction that gets the user out ("neu laden").
+		assert.Equal(t, userService.ErrCompanionsChanged.Error(), resp.ErrorText)
+	})
+
+	t.Run("still classified when wrapped by a caller", func(t *testing.T) {
+		resp := rendererStatus(t, updateStudentTxErrorRenderer(
+			errors.Join(errors.New("update student"), userService.ErrCompanionsChanged),
+		))
+
+		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
+		assert.Equal(t, CodeCompanionsChanged, resp.Code)
+	})
+
+	t.Run("its code is distinct from the lock collision", func(t *testing.T) {
+		// The client keys "reload first" off this code and "just try again" off
+		// the other; collapsing them would show the wrong instruction.
+		assert.NotEqual(t, CodeCompanionLockBusy, CodeCompanionsChanged)
+	})
+}

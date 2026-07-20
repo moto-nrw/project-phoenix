@@ -27,7 +27,9 @@ import { useCompanionRemoteRefresh } from "~/lib/hooks/use-companion-remote-refr
 import {
   companionDepartureMessage,
   CompanionPlanConflictError,
+  companionsChangedMessage,
   isCompanionDepartureRefusal,
+  isCompanionsChanged,
 } from "~/lib/api";
 import type { AllowedDepartureModes } from "~/lib/student-helpers";
 import { createLogger } from "~/lib/logger";
@@ -136,7 +138,7 @@ export function PersonalInfoFormModal({
     () => setReloadCompanions((count) => count + 1),
     [],
   );
-  const { companionsStale, refreshFromRemote, withOwnWrite } =
+  const { companionsStale, refreshFromRemote, withOwnWrite, markStale } =
     useCompanionRemoteRefresh({
       // Listening for the whole time the modal is open, including while the
       // first load is still in flight — that request can have been answered
@@ -230,6 +232,12 @@ export function PersonalInfoFormModal({
           // someone else changed in the meantime, on a save that never meant to
           // touch them.
           companions: companionsDirty ? editedStudent.companions : undefined,
+          // What the list REPLACES, so the backend can refuse it if someone
+          // else changed the links since this modal loaded them instead of
+          // deleting their change. Travels only with the list.
+          companions_fingerprint: companionsDirty
+            ? companionsFingerprint(loadedCompanions)
+            : undefined,
           extend_companion_plans: extendCompanionPlans,
           confirmed_companion_extensions: confirmed,
           allowed_departure_modes: allowedDepartureModes,
@@ -269,6 +277,15 @@ export function PersonalInfoFormModal({
       // guessing what to change.
       if (isCompanionDepartureRefusal(err)) {
         toast.error(companionDepartureMessage(err));
+        return;
+      }
+      // The backend saw what the announcement bus could not: another browser
+      // replaced the links this list was built on. Nothing was written — flag
+      // the modal stale so the user reloads and redoes the edit instead of
+      // retrying the same save, which is exactly the write that was refused.
+      if (isCompanionsChanged(err)) {
+        markStale();
+        toast.error(companionsChangedMessage(err));
         return;
       }
       toast.error("Fehler beim Speichern der persönlichen Informationen");

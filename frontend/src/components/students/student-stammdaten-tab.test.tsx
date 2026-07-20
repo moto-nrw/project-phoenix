@@ -879,6 +879,41 @@ describe("StudentStammdatenTab — companion list staleness", () => {
     });
   });
 
+  // The list REPLACES the stored one, so the backend has to be told which
+  // stored list it replaces. Without it two people editing the same child from
+  // the same snapshot both submit everything they saw and the second save
+  // silently deletes the first one's link.
+  it("sends the fingerprint of the loaded list along with an edited one", async () => {
+    fetchStudentCompanionsMock.mockResolvedValueOnce([
+      { companion_student_id: "2", weekdays: ["mon"] },
+    ]);
+    const onSave = await saveAfter(() =>
+      fireEvent.click(screen.getByTestId("companion-add")),
+    );
+
+    expect(onSave.mock.calls[0]![0]).toMatchObject({
+      companions_fingerprint: "2:mon",
+    });
+  });
+
+  // An unrelated save must not claim anything about the links — it does not
+  // replace them, so a fingerprint could only ever refuse it for someone else's
+  // legitimate change.
+  it("omits the fingerprint from a save that does not touch the links", async () => {
+    fetchStudentCompanionsMock.mockResolvedValueOnce([
+      { companion_student_id: "2", weekdays: ["mon"] },
+    ]);
+    const onSave = await saveAfter(() =>
+      fireEvent.change(screen.getByTestId("address-street"), {
+        target: { value: "Neue Straße 1" },
+      }),
+    );
+
+    expect(onSave.mock.calls[0]![0]).not.toHaveProperty(
+      "companions_fingerprint",
+    );
+  });
+
   // The tab stays mounted while other people work on the same child, and
   // student.id does not change when they do — so without listening to
   // companion writes the form keeps a snapshot that no longer exists and its

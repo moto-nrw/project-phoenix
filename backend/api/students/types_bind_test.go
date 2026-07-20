@@ -140,3 +140,56 @@ func TestUpdateStudentRequestBind_CompanionCount(t *testing.T) {
 		require.NoError(t, req.Bind(nil))
 	})
 }
+
+// TestUpdateStudentRequestTouchesCompanions pins which requests announce
+// student_companions_changed.
+//
+// The event makes every mounted "läuft mit" view refetch, and an EDITING one
+// reacts by discarding or blocking the user's draft — so it must fire for
+// exactly the writes that can change the links (a submitted list, or a
+// departure-plan write, which trims links the new plan no longer allows) and
+// stay silent for everything else.
+func TestUpdateStudentRequestTouchesCompanions(t *testing.T) {
+	firstName := "Max"
+	note := "Nachbarskind"
+	sick := true
+	busKind := true
+
+	t.Run("silent for writes that cannot touch the links", func(t *testing.T) {
+		for name, req := range map[string]*UpdateStudentRequest{
+			"nothing":   {},
+			"name":      {FirstName: &firstName},
+			"sick flag": {Sick: &sick},
+		} {
+			if req.touchesCompanions() {
+				t.Errorf("%s must not announce a companion change", name)
+			}
+		}
+	})
+
+	t.Run("fires for a submitted list and for every plan input", func(t *testing.T) {
+		entries := []CompanionEntry{}
+		modes := users.AllowedDepartureModes{}
+		days := users.DepartureDays{}
+		pickupDays := users.PickupDays{}
+		busDays := users.BusDays{}
+		status := "Geht alleine nach Hause"
+
+		for name, req := range map[string]*UpdateStudentRequest{
+			"companions":              {Companions: &entries},
+			"allowed_departure_modes": {AllowedDepartureModes: &modes},
+			"departure_days":          {DepartureDays: &days},
+			"companion note":          {DepartureCompanionNote: &note},
+			// The legacy inputs resolve into the same plan, so they can take
+			// the accompanied mode — and with it the links — away.
+			"pickup_status": {PickupStatus: &status},
+			"pickup_days":   {PickupDays: &pickupDays},
+			"bus":           {Bus: &busKind},
+			"bus_days":      {BusDays: &busDays},
+		} {
+			if !req.touchesCompanions() {
+				t.Errorf("%s must announce a companion change", name)
+			}
+		}
+	})
+}

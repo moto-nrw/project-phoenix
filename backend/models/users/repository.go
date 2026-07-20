@@ -348,6 +348,10 @@ type StudentCompanionRepository interface {
 	// ListLinksForStudent returns the edges folded per companion, with names.
 	ListLinksForStudent(ctx context.Context, studentID int64) ([]CompanionLink, error)
 
+	// ListLinksForStudents is the bulk form of ListLinksForStudent, for the
+	// offline lists that render the "mit wem" detail of a whole school.
+	ListLinksForStudents(ctx context.Context, studentIDs []int64) (map[int64][]CompanionLink, error)
+
 	// ReplaceForStudent makes the given edges the student's complete set.
 	ReplaceForStudent(ctx context.Context, studentID int64, edges []*StudentCompanion) error
 

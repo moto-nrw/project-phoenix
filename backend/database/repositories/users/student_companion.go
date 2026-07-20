@@ -72,13 +72,101 @@ func (r *StudentCompanionRepository) ListLinksForStudent(ctx context.Context, st
 	}
 
 	links := users.CompanionLinksFromEdges(studentID, edges)
-	if len(links) == 0 {
-		return links, nil
+	names, err := r.companionNames(ctx, companionIDsOf(links))
+	if err != nil {
+		return nil, err
+	}
+	applyCompanionNames(links, names)
+	return links, nil
+}
+
+// ListLinksForStudents is the bulk form of ListLinksForStudent: the folded,
+// name-carrying links of many children in two queries instead of two per child.
+//
+// It exists for the offline lists (student export, class roster), which render
+// the "mit wem" detail for a whole school — per-child round trips there would be
+// hundreds of queries for one document.
+func (r *StudentCompanionRepository) ListLinksForStudents(ctx context.Context, studentIDs []int64) (map[int64][]users.CompanionLink, error) {
+	result := make(map[int64][]users.CompanionLink, len(studentIDs))
+	if len(studentIDs) == 0 {
+		return result, nil
 	}
 
+	var edges []*users.StudentCompanion
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&edges).
+		ModelTableExpr(`users.student_companions AS "student_companion"`).
+		Where(`("student_companion".student_low_id IN (?) OR "student_companion".student_high_id IN (?))`,
+			bun.List(studentIDs), bun.List(studentIDs)).
+		Order("weekday ASC")
+
+	query = base.WithTenantFilter(ctx, query, "student_companion")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list student companions", Err: err}
+	}
+
+	var farEnds []int64
+	for _, studentID := range studentIDs {
+		links := users.CompanionLinksFromEdges(studentID, edges)
+		if len(links) == 0 {
+			continue
+		}
+		result[studentID] = links
+		farEnds = append(farEnds, companionIDsOf(links)...)
+	}
+
+	// One name query for the far ends of every requested child.
+	names, err := r.companionNames(ctx, farEnds)
+	if err != nil {
+		return nil, err
+	}
+	for _, links := range result {
+		applyCompanionNames(links, names)
+	}
+	return result, nil
+}
+
+// companionName is the first/last name of one companion.
+type companionName struct {
+	FirstName string
+	LastName  string
+}
+
+// companionIDsOf returns the companion ids of the given links, with duplicates.
+func companionIDsOf(links []users.CompanionLink) []int64 {
 	ids := make([]int64, 0, len(links))
 	for _, link := range links {
 		ids = append(ids, link.CompanionStudentID)
+	}
+	return ids
+}
+
+// applyCompanionNames fills FirstName/LastName on the given links in place.
+func applyCompanionNames(links []users.CompanionLink, names map[int64]companionName) {
+	for i := range links {
+		if name, ok := names[links[i].CompanionStudentID]; ok {
+			links[i].FirstName = name.FirstName
+			links[i].LastName = name.LastName
+		}
+	}
+}
+
+// companionNames resolves the names of the given children in one query.
+func (r *StudentCompanionRepository) companionNames(ctx context.Context, studentIDs []int64) (map[int64]companionName, error) {
+	names := make(map[int64]companionName, len(studentIDs))
+	if len(studentIDs) == 0 {
+		return names, nil
+	}
+
+	seen := make(map[int64]bool, len(studentIDs))
+	ids := make([]int64, 0, len(studentIDs))
+	for _, id := range studentIDs {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		ids = append(ids, id)
 	}
 
 	type nameRow struct {
@@ -103,17 +191,10 @@ func (r *StudentCompanionRepository) ListLinksForStudent(ctx context.Context, st
 		return nil, &modelBase.DatabaseError{Op: "load companion names", Err: err}
 	}
 
-	names := make(map[int64]nameRow, len(rows))
 	for _, row := range rows {
-		names[row.StudentID] = row
+		names[row.StudentID] = companionName{FirstName: row.FirstName, LastName: row.LastName}
 	}
-	for i := range links {
-		if row, ok := names[links[i].CompanionStudentID]; ok {
-			links[i].FirstName = row.FirstName
-			links[i].LastName = row.LastName
-		}
-	}
-	return links, nil
+	return names, nil
 }
 
 // CompanionCountsExcluding returns, per requested student, how many DISTINCT
@@ -245,6 +326,13 @@ func (r *StudentCompanionRepository) CompanionDaysCoveredExcluding(ctx context.C
 //
 // Callers run inside the request's tenant transaction (withTx), so the delete
 // and the insert commit or roll back together.
+//
+// This method writes what it is told, and the delete is unconditional — whether
+// the caller's list is still a valid replacement for what is stored is decided
+// one layer up, by the ExpectedFingerprint comparison in
+// services/users.validateCompanionUpdate, which runs under the subject's row
+// lock. Do NOT treat the lock alone as protection here: it orders two competing
+// replacements, it does not notice that the second one is stale.
 func (r *StudentCompanionRepository) ReplaceForStudent(ctx context.Context, studentID int64, edges []*users.StudentCompanion) error {
 	if studentID <= 0 {
 		return fmt.Errorf("student ID is required")

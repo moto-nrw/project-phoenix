@@ -70,6 +70,11 @@ type StudentService interface {
 	// ("läuft mit"), folded per companion with their weekdays and names.
 	ListCompanions(ctx context.Context, studentID int64) ([]userModels.CompanionLink, error)
 
+	// ListCompanionsForStudents is the bulk form of ListCompanions: the links of
+	// many children at once, for the offline lists (student export, class
+	// roster) that render the "mit wem" detail of a whole school.
+	ListCompanionsForStudents(ctx context.Context, studentIDs []int64) (map[int64][]userModels.CompanionLink, error)
+
 	// ListCompanionIDs returns just the distinct ids of the children this child
 	// is linked to, across all weekdays. Exists for the shared lock protocol,
 	// which needs the far end of every stored edge but none of the names — the
@@ -249,6 +254,13 @@ func (s *studentService) ListCompanions(ctx context.Context, studentID int64) ([
 		return nil, ErrStudentNotFound
 	}
 	return s.companionRepo.ListLinksForStudent(ctx, studentID)
+}
+
+func (s *studentService) ListCompanionsForStudents(ctx context.Context, studentIDs []int64) (map[int64][]userModels.CompanionLink, error) {
+	if len(studentIDs) == 0 {
+		return map[int64][]userModels.CompanionLink{}, nil
+	}
+	return s.companionRepo.ListLinksForStudents(ctx, studentIDs)
 }
 
 func (s *studentService) ListCompanionIDs(ctx context.Context, studentID int64) ([]int64, error) {
@@ -449,6 +461,23 @@ type CompanionUpdate struct {
 	// Links is the child's complete companion list. Empty clears every link.
 	Links []userModels.CompanionLink
 
+	// ExpectedFingerprint is the CompanionLinksFingerprint of the list the
+	// client had in front of it when it built Links. The write is refused with
+	// ErrCompanionsChanged when the stored links no longer match it.
+	//
+	// This is the whole answer to the lost update the replacement semantics
+	// invite: Links is a COMPLETE list, so two staff members starting from the
+	// same snapshot both submit everything they saw, and the row locks merely
+	// order the two writes — the later one would drop the other's freshly
+	// committed link with nothing in the data to object. Comparing under the
+	// subject's row lock (the caller holds it before validation runs) turns
+	// that silent overwrite into a retriable conflict.
+	//
+	// nil means "no expectation" and is for system callers that derive the list
+	// from the stored state themselves (trims, enrollment approval); an HTTP
+	// caller that submits a user-built list always sets it.
+	ExpectedFingerprint *string
+
 	// AccompaniedDays are the weekday keys on which the SUBJECT child may leave
 	// with another child. A caller that changes the departure plan in the same
 	// request passes the NEW plan's days here; nil means "read the stored plan".
@@ -590,6 +619,18 @@ func (s *studentService) validateCompanionUpdate(ctx context.Context, studentID 
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// The submitted list only describes an intent relative to the list the user
+	// SAW. Anything else stored now means someone else edited this child in the
+	// meantime and their links would be deleted by a write that never meant to
+	// touch them, so the request is refused instead. Checked here rather than in
+	// the writer so the read-only pre-check raises it too — the request runs
+	// inside the middleware's tenant transaction, which commits every non-5xx
+	// response, so a 409 after the first write would keep that write.
+	if update.ExpectedFingerprint != nil && *update.ExpectedFingerprint != userModels.CompanionLinksFingerprint(current) {
+		return nil, nil, ErrCompanionsChanged
+	}
+
 	if err := s.checkCompanionRemovals(ctx, studentID, current, update.Links); err != nil {
 		return nil, nil, err
 	}

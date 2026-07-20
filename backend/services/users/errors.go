@@ -79,6 +79,18 @@ var (
 	// write path raises the identical instance.
 	ErrCompanionLockBusy = userModels.ErrCompanionLockBusy
 
+	// ErrCompanionsChanged indicates the submitted list was built on a snapshot
+	// that is no longer the stored one — someone else changed this child's
+	// Laufgemeinschaft in between.
+	//
+	// The submitted list REPLACES the stored one, so without this check two
+	// staff members editing the same child from the same snapshot would both
+	// send a complete list and the second write would silently delete the links
+	// the first one committed. The row locks decide the ORDER of the two writes;
+	// only the fingerprint comparison under those locks can tell that the second
+	// one is stale. Retriable after a reload, hence a 409.
+	ErrCompanionsChanged = errors.New("Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert. Bitte neu laden und noch einmal speichern.") //nolint:staticcheck // ST1005: user-facing German message
+
 	// ErrCompanionExtensionNotAuthorized indicates the write path was asked to
 	// widen a companion's departure plan that the caller was never authorized
 	// for. Not user-facing: it can only fire if the authorization pass and the

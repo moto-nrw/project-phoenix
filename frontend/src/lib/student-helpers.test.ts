@@ -541,6 +541,35 @@ describe("prepareStudentForBackend", () => {
     expect(result.birthday).toBe("2015-06-15");
   });
 
+  // The submitted list REPLACES the stored one, so the backend needs to know
+  // WHICH stored list it is replacing — otherwise two editors starting from the
+  // same snapshot silently overwrite each other (#1694).
+  it("sends the companion fingerprint with a submitted list", () => {
+    const result = prepareStudentForBackend({
+      id: "1",
+      companions: [{ companion_student_id: "7", weekdays: ["mon"] }],
+      companions_fingerprint: "7:mon",
+    });
+
+    expect(result.companions).toEqual([
+      { companion_student_id: 7, weekdays: ["mon"] },
+    ]);
+    expect(result.companions_fingerprint).toBe("7:mon");
+  });
+
+  // Without a list the write does not touch the links, so a fingerprint would
+  // claim something about a state this request never replaces.
+  it("omits the companion fingerprint when no list travels", () => {
+    const result = prepareStudentForBackend({
+      id: "1",
+      first_name: "Max",
+      companions_fingerprint: "7:mon",
+    });
+
+    expect(result.companions).toBeUndefined();
+    expect(result.companions_fingerprint).toBeUndefined();
+  });
+
   it("converts empty birthday string to undefined", () => {
     const frontendStudent = {
       id: "1",

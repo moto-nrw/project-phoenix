@@ -443,6 +443,14 @@ export interface BackendStudent {
   companion_student_ids?: number[];
   /** Write-only: the complete "läuft mit" list submitted with the plan. */
   companions?: { companion_student_id: number; weekdays: string[] }[];
+  /**
+   * Write-only: fingerprint of the list the client loaded before it built
+   * `companions`. The backend compares it against the stored links under the
+   * child's row lock and refuses a replacement built on a snapshot someone else
+   * has since replaced (409 `companions_changed`) instead of deleting their
+   * links.
+   */
+  companions_fingerprint?: string;
   /** Write-only: confirms widening a linked child's own departure plan. */
   extend_companion_plans?: boolean;
   /** Write-only: the children and weekdays that confirmation actually covered. */
@@ -606,6 +614,10 @@ export interface Student {
    *  submitted back with the departure plan it belongs to; omitting it leaves
    *  the stored links untouched. */
   companions?: StudentCompanion[];
+  /** Write-only: fingerprint of the LOADED list, so the backend can refuse a
+   *  replacement built on a snapshot someone else has since replaced instead of
+   *  deleting their links (409 `companions_changed`). */
+  companions_fingerprint?: string;
   /** Write-only: confirms widening a linked child's own departure plan. */
   extend_companion_plans?: boolean;
   /** Write-only: the children and weekdays that confirmation actually covered.
@@ -801,6 +813,7 @@ export function prepareStudentForBackend(
     supervisor_notes?: string;
     pickup_status?: string;
     companions?: { companion_student_id: string; weekdays: string[] }[];
+    companions_fingerprint?: string;
     extend_companion_plans?: boolean;
     confirmed_companion_extensions?: CompanionExtensionConfirmation[];
   },
@@ -858,6 +871,14 @@ export function prepareStudentForBackend(
       ),
       weekdays: companion.weekdays,
     })),
+    // The fingerprint of the list the form LOADED, so the backend can refuse a
+    // replacement built on a snapshot someone else has since replaced instead
+    // of silently deleting their links. Travels only WITH a list — on its own
+    // it would claim something about a write that never touches the links.
+    companions_fingerprint:
+      student.companions !== undefined
+        ? student.companions_fingerprint
+        : undefined,
     extend_companion_plans: student.extend_companion_plans,
     // What the user confirmed, not just that they confirmed something: the
     // backend refuses to widen a conflict these entries do not cover.

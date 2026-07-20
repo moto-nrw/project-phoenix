@@ -38,8 +38,10 @@ import { createLogger } from "~/lib/logger";
 import {
   companionDepartureMessage,
   CompanionPlanConflictError,
+  companionsChangedMessage,
   isCompanionDepartureRefusal,
   isCompanionPlanConflictBody,
+  isCompanionsChanged,
   parseConflictExtensions,
 } from "~/lib/api";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
@@ -495,7 +497,7 @@ export function StudentStammdatenTab({
     () => setReloadCompanions((count) => count + 1),
     [],
   );
-  const { companionsStale, refreshFromRemote, withOwnWrite } =
+  const { companionsStale, refreshFromRemote, withOwnWrite, markStale } =
     useCompanionRemoteRefresh({
       // Always listening, including while the first load is still in flight —
       // that request can have been answered before the remote write landed.
@@ -669,6 +671,12 @@ export function StudentStammdatenTab({
             companion_student_id: companion.companion_student_id,
             weekdays: companion.weekdays,
           }));
+          // What the list REPLACES. The row locks order two concurrent saves
+          // but cannot see that ours describes a state that no longer exists —
+          // this lets the backend refuse it instead of deleting the other
+          // person's links.
+          submitData.companions_fingerprint =
+            companionsFingerprint(loadedCompanions);
         }
         // Inert without a companion list, and the retry after a plan conflict
         // always carries one (the conflict can only arise from an edited list).
@@ -699,6 +707,16 @@ export function StudentStammdatenTab({
               companionConflictExtensions(err),
             ),
           );
+          setSaving(false);
+          return;
+        }
+        // The backend saw what the in-tab announcement bus could not: another
+        // browser replaced the links this list was built on. Nothing was
+        // written, and re-sending the same list is exactly the write that was
+        // refused — flag the form stale so the user reloads and redoes the edit.
+        if (isCompanionsChanged(err)) {
+          markStale();
+          setErrors({ submit: companionsChangedMessage(err) });
           setSaving(false);
           return;
         }
@@ -783,6 +801,8 @@ export function StudentStammdatenTab({
       companionsDirty,
       companionsStatus,
       formData,
+      loadedCompanions,
+      markStale,
       onSave,
       onStudentRefresh,
       originalDraft.photo_consent_given,

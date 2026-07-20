@@ -1472,6 +1472,79 @@ describe("api.ts helper functions", () => {
       );
       expect(isCompanionDepartureRefusal(otherBadRequest)).toBe(false);
     });
+
+    // The stale-list 409 is the third 409 on this endpoint and the only one
+    // whose retry must NOT re-send the same list: doing so would delete the
+    // change the refusal is protecting. It therefore needs its own type, and
+    // must not be mistaken for the answerable companion question.
+    it("types the stale-list 409 apart from the companion question", async () => {
+      const respondWith = async (body: string) => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 409,
+          text: () => Promise.resolve(body),
+        });
+        const { getSession } = await import("next-auth/react");
+        vi.mocked(getSession).mockResolvedValue({
+          user: { token: "test-token" },
+        } as never);
+        const { studentService } = await import("./api");
+        const restore = setupBrowserEnv();
+        try {
+          return await studentService
+            .updateStudent("1", {
+              first_name: "Test",
+              second_name: "Student",
+              school_class: "1a",
+              name: "Test Student",
+              current_location: "",
+            })
+            .then(() => null)
+            .catch((err: unknown) => err);
+        } finally {
+          restore();
+        }
+      };
+
+      const {
+        CompanionsChangedError,
+        CompanionPlanConflictError,
+        isCompanionsChanged,
+        companionsChangedMessage,
+      } = await import("./api");
+
+      const stale = await respondWith(
+        JSON.stringify({
+          status: "error",
+          error:
+            "Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert. Bitte neu laden und noch einmal speichern.",
+          code: "companions_changed",
+        }),
+      );
+      expect(stale).toBeInstanceOf(CompanionsChangedError);
+      expect(stale).not.toBeInstanceOf(CompanionPlanConflictError);
+      expect(isCompanionsChanged(stale)).toBe(true);
+      expect(companionsChangedMessage(stale)).toBe(
+        "Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert. Bitte neu laden und noch einmal speichern.",
+      );
+    });
+
+    // The body-fragment predicate the CRUD-service path uses must make the same
+    // distinction: a stale-list 409 offers nothing to confirm, so treating it as
+    // the question would ask the user to widen a child's plan for a conflict
+    // that was never reported.
+    it("does not read the stale-list body as the companion question", async () => {
+      const { isCompanionPlanConflictBody, isCompanionsChangedBody } =
+        await import("./api");
+
+      const body = JSON.stringify({
+        error:
+          "Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert.",
+        code: "companions_changed",
+      });
+      expect(isCompanionsChangedBody(body)).toBe(true);
+      expect(isCompanionPlanConflictBody(body)).toBe(false);
+    });
   });
 
   describe("roomService.updateRoom", () => {

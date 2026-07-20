@@ -69,6 +69,9 @@ export function useGlobalSSE(): SSEHookState {
   const hasPendingDailyCheckoutDashboardEvent = useRef(false);
   const hasPendingArrivalScheduleEvent = useRef(false);
   const hasPendingStudentUpdateEvent = useRef(false);
+  // Kept apart from the student-update flag on purpose: only a write that can
+  // actually have changed the "läuft mit" links sets it.
+  const hasPendingCompanionEvent = useRef(false);
   const hasPendingTimetableEvent = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -168,6 +171,9 @@ export function useGlobalSSE(): SSEHookState {
           scope: "student_detail",
         });
       });
+    }
+
+    if (hasPendingCompanionEvent.current) {
       // The Laufgemeinschaft ("läuft mit") lives in its own table and is
       // fetched outside SWR, so invalidating student-detail-* does not bring
       // it along — and the fetching card keys its effect on the student id,
@@ -175,6 +181,12 @@ export function useGlobalSSE(): SSEHookState {
       // bus a local save uses gives every mounted card one shared
       // revalidation path, so a link added in another tab, browser or by
       // another staff member stops being invisible until remount (#1694).
+      //
+      // Driven by the dedicated student_companions_changed event, NOT by
+      // student_updated: an editing form reacts to this announcement by
+      // discarding its draft or blocking the save, so firing it for every
+      // rename, photo upload or sick flag in the school would cost users
+      // their work for changes that never touched the links.
       notifyStudentCompanionsChanged();
     }
 
@@ -324,6 +336,7 @@ export function useGlobalSSE(): SSEHookState {
     hasPendingDailyCheckoutDashboardEvent.current = false;
     hasPendingArrivalScheduleEvent.current = false;
     hasPendingStudentUpdateEvent.current = false;
+    hasPendingCompanionEvent.current = false;
     hasPendingTimetableEvent.current = false;
   }, []);
 
@@ -374,6 +387,12 @@ export function useGlobalSSE(): SSEHookState {
 
         case "student_updated": {
           hasPendingStudentUpdateEvent.current = true;
+          scheduleFlush();
+          break;
+        }
+
+        case "student_companions_changed": {
+          hasPendingCompanionEvent.current = true;
           scheduleFlush();
           break;
         }

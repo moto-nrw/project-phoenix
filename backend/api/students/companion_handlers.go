@@ -37,9 +37,16 @@ const CodeCompanionLockBusy = "companion_lock_busy"
 // the user get out of the refusal (fix that child's Heimweg first).
 const CodeCompanionWouldLoseDeparture = "companion_would_lose_departure"
 
-// companionPlanErrorRenderer maps the two companion sentinels that ANY
-// departure-plan write can raise to their wire response, and returns nil for
-// every other error so the caller can keep classifying.
+// CodeCompanionsChanged marks the 409 raised when the submitted "läuft mit"
+// list was built on a snapshot someone else has since replaced. Like the lock
+// collision it is retriable and carries no conflicts list, but the retry needs
+// a RELOAD first — so the client has to tell the two apart to show the right
+// instruction.
+const CodeCompanionsChanged = "companions_changed"
+
+// companionPlanErrorRenderer maps the companion sentinels that a departure-plan
+// write can raise to their wire response, and returns nil for every other error
+// so the caller can keep classifying.
 //
 // StudentRepository.Update reconciles the "läuft mit" edges on behalf of every
 // caller, so these are NOT specific to the student PUT: care-request approval
@@ -65,6 +72,13 @@ func companionPlanErrorRenderer(err error) render.Renderer {
 	// whether to widen another child's plan for what is really a lock collision.
 	case errors.Is(err, usersService.ErrCompanionLockBusy):
 		return common.ErrorConflictWithCode(err, CodeCompanionLockBusy)
+	// The stored links no longer match the snapshot the submitted list replaces.
+	// Nothing was written, and the same list must NOT simply be re-sent — it
+	// would delete the change this refusal is protecting. A 409 with its own
+	// code lets the client reload and let the user redo the edit on the current
+	// state.
+	case errors.Is(err, usersService.ErrCompanionsChanged):
+		return common.ErrorConflictWithCode(err, CodeCompanionsChanged)
 	}
 	return nil
 }
@@ -274,6 +288,7 @@ func (rs *Resource) checkCompanionConflicts(ctx context.Context, student *userMo
 
 	conflicts, err := rs.StudentService.CheckCompanionConflicts(ctx, student.ID, usersService.CompanionUpdate{
 		Links:                toCompanionLinks(*req.Companions),
+		ExpectedFingerprint:  req.CompanionsFingerprint,
 		AccompaniedDays:      accompaniedDays,
 		ExtendCompanionPlans: req.ExtendCompanionPlans,
 	})
@@ -414,6 +429,7 @@ func (rs *Resource) applyCompanionUpdate(ctx context.Context, student *userModel
 	links := toCompanionLinks(*req.Companions)
 	conflicts, err := rs.StudentService.ReplaceCompanions(ctx, student.ID, usersService.CompanionUpdate{
 		Links:                links,
+		ExpectedFingerprint:  req.CompanionsFingerprint,
 		AccompaniedDays:      accompaniedDays,
 		ExtendCompanionPlans: req.ExtendCompanionPlans,
 		AuthorizedExtensions: authorizedExtensions,
@@ -464,6 +480,37 @@ func (rs *Resource) enrichWithCompanions(ctx context.Context, responses []Studen
 	for i := range responses {
 		if companions, ok := byStudent[responses[i].ID]; ok && len(companions) > 0 {
 			responses[i].CompanionStudentIDs = companions
+		}
+	}
+}
+
+// enrichWithCompanionLinks fills DepartureCompanions with each child's own
+// "läuft mit" links, for the offline lists that have to print WHO a child walks
+// home with.
+//
+// Unlike enrichWithCompanions (ids of the whole Laufgemeinschaft, for the
+// Kindersuche grouping) this carries NAMES, so it is restricted to the children
+// the caller has full access to — the same gate the grouping uses.
+//
+// A failure is logged and swallowed: an export must not fail because one
+// optional detail column could not be filled.
+func (rs *Resource) enrichWithCompanionLinks(ctx context.Context, responses []StudentResponse) {
+	studentIDs := collectFullAccessStudentIDs(responses)
+	if len(studentIDs) == 0 {
+		return
+	}
+
+	byStudent, err := rs.StudentService.ListCompanionsForStudents(ctx, studentIDs)
+	if err != nil {
+		rs.Logger.Error("failed to load departure companions for export",
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+
+	for i := range responses {
+		if links, ok := byStudent[responses[i].ID]; ok && len(links) > 0 {
+			responses[i].DepartureCompanions = links
 		}
 	}
 }

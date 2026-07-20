@@ -43,6 +43,16 @@ interface CompanionRemoteRefresh {
   readonly refreshFromRemote: () => void;
   /** Runs a save, ignoring the announcement it makes itself. */
   readonly withOwnWrite: <T>(write: () => Promise<T>) => Promise<T>;
+  /**
+   * Flags the view stale from the outside — for the backend's own verdict.
+   *
+   * The announcement bus only covers writers in THIS tab; a save can still be
+   * refused with 409 `companions_changed` because another browser replaced the
+   * links. That refusal means the same thing as a remote announcement, so it
+   * has to leave the form in the same state: draft kept, save blocked, "Neu
+   * laden" offered.
+   */
+  readonly markStale: () => void;
 }
 
 export function useCompanionRemoteRefresh({
@@ -93,5 +103,7 @@ export function useCompanionRemoteRefresh({
     }
   }, []);
 
-  return { companionsStale, refreshFromRemote, withOwnWrite };
+  const markStale = useCallback(() => setCompanionsStale(true), []);
+
+  return { companionsStale, refreshFromRemote, withOwnWrite, markStale };
 }

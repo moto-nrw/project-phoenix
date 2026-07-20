@@ -947,6 +947,36 @@ func (rs *Resource) broadcastStudentUpdated(tenantID, studentID int64) {
 	}
 }
 
+// broadcastStudentCompanionsChanged tells the tenant's clients that a child's
+// Laufgemeinschaft may have changed, so every mounted "läuft mit" view refetches
+// (and an in-progress edit stops before it overwrites the change).
+//
+// Separate from student_updated on purpose: the links are symmetric, so a save
+// on one child changes another child's card, and an editing form has to react by
+// discarding or blocking its draft. Reacting that way to every student write —
+// a photo, a name, a sick flag — would cost users their work for changes that
+// never touched the links. Callers pass tenantID like broadcastStudentUpdated,
+// and the fan-out is best-effort: a lost event costs a stale card, never data.
+func (rs *Resource) broadcastStudentCompanionsChanged(tenantID, studentID int64) {
+	if rs.Broadcaster == nil || tenantID <= 0 {
+		return
+	}
+
+	source := "manual"
+	event := realtime.NewEvent(realtime.EventStudentCompanionsChanged, "", realtime.EventData{
+		Source: &source,
+	})
+
+	if err := rs.Broadcaster.BroadcastToTenant(tenantID, event); err != nil && rs.Logger != nil {
+		rs.Logger.Warn(
+			"failed to broadcast student companions change",
+			"tenant_id", tenantID,
+			"student_id", studentID,
+			"error", err.Error(),
+		)
+	}
+}
+
 // wakeChildGuardians fans a message-INDEPENDENT parent_child_updated SSE event
 // out to every guardian of the child, so an open parents-app tab refetches the
 // child's care state live after a STAFF-side write (status day, pickup/arrival
@@ -987,8 +1017,16 @@ func (rs *Resource) wakeChildGuardians(tenantID, studentID int64) {
 // pre-commit snapshot; tenantID is captured before the hook fires.
 func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, studentID int64, req *UpdateStudentRequest) {
 	statusChanged := req.Sick != nil || req.Excused != nil
+	companionsChanged := req.touchesCompanions()
 	tenant.RegisterAfterCommit(ctx, func() {
 		rs.broadcastStudentUpdated(tenantID, studentID)
+		// Only when the request could actually have changed the links. An open
+		// Laufgemeinschaft form reacts to this event by discarding or blocking
+		// the user's draft, so firing it for a name or photo edit would cost
+		// somebody their unsaved work for a change that never touched them.
+		if companionsChanged {
+			rs.broadcastStudentCompanionsChanged(tenantID, studentID)
+		}
 		if statusChanged {
 			rs.wakeChildGuardians(tenantID, studentID)
 		}

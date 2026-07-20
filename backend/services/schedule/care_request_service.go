@@ -714,6 +714,19 @@ func (s *careScheduleRequestService) broadcastCareScheduleChanges(ctx context.Co
 				slog.String("error", err.Error()),
 			)
 		}
+		// The approval merges new departure modes, and the repository trims the
+		// "läuft mit" links on every weekday the resulting plan no longer allows
+		// — links that are rows on ANOTHER child's card too. student_updated is
+		// not that signal: companion views must not react to every student
+		// write, or an unrelated edit discards someone's in-progress draft.
+		companionEvent := realtime.NewEvent(realtime.EventStudentCompanionsChanged, "", realtime.EventData{Source: &source})
+		if err := s.broadcaster.BroadcastToTenant(tenantID, companionEvent); err != nil {
+			s.logger.Warn("schedule: broadcast student_companions_changed after care request approve failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int64("student_id", studentID),
+				slog.String("error", err.Error()),
+			)
+		}
 		arrivalEvent := realtime.NewEvent(realtime.EventArrivalScheduleChanged, "", realtime.EventData{Source: &source})
 		if err := s.broadcaster.BroadcastToAll(arrivalEvent); err != nil {
 			s.logger.Warn("schedule: broadcast arrival_schedule_changed after care request approve failed",

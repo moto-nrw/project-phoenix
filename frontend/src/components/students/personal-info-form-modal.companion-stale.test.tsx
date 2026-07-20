@@ -171,6 +171,60 @@ describe("PersonalInfoFormModal — remote companion changes", () => {
     ).not.toBeInTheDocument();
   });
 
+  // The list REPLACES the stored one, so the backend has to be told WHICH
+  // stored list it replaces — a second editor starting from the same snapshot
+  // would otherwise silently delete the first one's link.
+  it("submits the fingerprint of the list it loaded", async () => {
+    fetchStudentCompanionsMock.mockResolvedValueOnce([companion("2")]);
+    const onSave = await renderOpenModal();
+    await waitFor(() =>
+      expect(screen.getByTestId("companion-count").textContent).toBe("1"),
+    );
+
+    fireEvent.click(screen.getByTestId("edit-companions"));
+    fireEvent.click(screen.getByText("Speichern"));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave.mock.calls[0]?.[0]).toMatchObject({
+      companions: [{ companion_student_id: "9", weekdays: ["mon"] }],
+      companions_fingerprint: "2:mon",
+    });
+  });
+
+  // The in-tab bus cannot see a write from another browser, so the backend's
+  // 409 is the only signal there — and it has to leave the form in the same
+  // state a local announcement would: draft kept, save blocked, reload offered.
+  it("blocks the form when the backend reports the list as stale", async () => {
+    fetchStudentCompanionsMock.mockResolvedValueOnce([companion("2")]);
+    const staleError = Object.assign(
+      new Error(
+        "Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert. Bitte neu laden und noch einmal speichern.",
+      ),
+      {
+        name: "CompanionsChangedError",
+        body: JSON.stringify({ code: "companions_changed" }),
+      },
+    );
+    const onSave = vi.fn().mockRejectedValue(staleError);
+    await renderOpenModal(onSave);
+    await waitFor(() =>
+      expect(screen.getByTestId("companion-count").textContent).toBe("1"),
+    );
+
+    fireEvent.click(screen.getByTestId("edit-companions"));
+    fireEvent.click(screen.getByText("Speichern"));
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalled());
+    expect(toastErrorMock.mock.calls.at(-1)?.[0]).toContain(
+      "zwischenzeitlich geändert",
+    );
+    // The draft survives, and the form now offers the explicit way out.
+    expect(screen.getByTestId("companion-count").textContent).toBe("1");
+    expect(
+      await screen.findByText(/zwischenzeitlich an anderer Stelle geändert/),
+    ).toBeInTheDocument();
+  });
+
   it("does not flag itself stale for the announcement its own save makes", async () => {
     fetchStudentCompanionsMock.mockResolvedValueOnce([companion("2")]);
     const onSave = vi.fn().mockImplementation(async () => {

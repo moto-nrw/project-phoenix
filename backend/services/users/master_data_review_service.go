@@ -233,6 +233,14 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 	)
 	s.deferDecisionPill(ctx, req, input, true)
 	s.deferStudentUpdated(ctx, req.StudentID)
+	// A departure-plan change trims the "läuft mit" links on every weekday the
+	// new plan no longer allows, and those links are rows on ANOTHER child's
+	// card too. A person-field approval (name, birthday) cannot touch them, so
+	// it stays silent — the event makes open companion forms drop or block a
+	// draft, which must not happen for a rename.
+	if req.Target == userModels.DataChangeTargetDeparture {
+		s.deferStudentCompanionsChanged(ctx, req.StudentID)
+	}
 	row, findErr := s.changeRequestRepo.FindByID(ctx, req.ID)
 	if findErr != nil {
 		return nil, fmt.Errorf("review: reload approved request: %w", findErr)
@@ -312,6 +320,30 @@ func (s *masterDataReviewService) deferStudentUpdated(ctx context.Context, stude
 		event := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{Source: &source})
 		if err := s.broadcaster.BroadcastToTenant(tenantID, event); err != nil {
 			s.logger.Warn("review: failed to broadcast student update",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int64("student_id", studentID),
+				slog.String("error", err.Error()),
+			)
+		}
+	})
+}
+
+// deferStudentCompanionsChanged announces, after commit, that the approved
+// change may have trimmed the child's Laufgemeinschaft — the signal every
+// mounted "läuft mit" view refetches on.
+func (s *masterDataReviewService) deferStudentCompanionsChanged(ctx context.Context, studentID int64) {
+	if s.broadcaster == nil {
+		return
+	}
+	tenantID := tenant.FromContext(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		if tenantID <= 0 {
+			return
+		}
+		source := "master_data_review"
+		event := realtime.NewEvent(realtime.EventStudentCompanionsChanged, "", realtime.EventData{Source: &source})
+		if err := s.broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+			s.logger.Warn("review: failed to broadcast student companions change",
 				slog.Int64("tenant_id", tenantID),
 				slog.Int64("student_id", studentID),
 				slog.String("error", err.Error()),

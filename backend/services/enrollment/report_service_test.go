@@ -110,7 +110,7 @@ func TestClassRosterRowUsesPhaseEnrollmentData(t *testing.T) {
 		},
 	}
 
-	row, err := classRosterRow(student, person, "Eulen", enrollment, offerings, schemas, nil)
+	row, err := classRosterRow(student, person, "Eulen", enrollment, offerings, schemas, nil, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "Eulen", row.GroupName)
@@ -154,7 +154,7 @@ func TestClassRosterRowBuildsDailyOfferingNames(t *testing.T) {
 		2: {Name: "Ganztag bis 16:00", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice},
 	}
 
-	row, err := classRosterRow(student, person, "", enrollment, offerings, nil, nil)
+	row, err := classRosterRow(student, person, "", enrollment, offerings, nil, nil, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"mon", "wed", "fri"}, row.CareDays)
@@ -250,7 +250,7 @@ func TestClassRosterRowReadsGuardianLevelSchedules(t *testing.T) {
 		},
 	}
 
-	row, err := classRosterRow(student, person, "Eulen", enrollment, nil, schemas, nil)
+	row, err := classRosterRow(student, person, "Eulen", enrollment, nil, schemas, nil, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "11:15", row.ArrivalByDay["mon"])
@@ -265,7 +265,7 @@ func TestClassRosterRowMarksMissingEnrollmentAsNoRegistration(t *testing.T) {
 	}
 	person := &userModels.Person{FirstName: "Tom", LastName: "Ohne"}
 
-	row, err := classRosterRow(student, person, "", nil, nil, nil, []ClassRosterGuardian{{Name: "Eva Ohne", Email: "eva@example.test", Phone: "02551 123"}})
+	row, err := classRosterRow(student, person, "", nil, nil, nil, []ClassRosterGuardian{{Name: "Eva Ohne", Email: "eva@example.test", Phone: "02551 123"}}, nil)
 
 	require.NoError(t, err)
 	assert.False(t, row.Registered)
@@ -298,7 +298,7 @@ func TestClassRosterRowFallsBackToLegacyStudentGuardianFields(t *testing.T) {
 	}}
 
 	t.Run("without enrollment", func(t *testing.T) {
-		row, err := classRosterRow(student, person, "", nil, nil, nil, nil)
+		row, err := classRosterRow(student, person, "", nil, nil, nil, nil, nil)
 
 		require.NoError(t, err)
 		assert.False(t, row.Registered)
@@ -316,7 +316,7 @@ func TestClassRosterRowFallsBackToLegacyStudentGuardianFields(t *testing.T) {
 		row, err := classRosterRow(student, person, "", &classRosterApprovedEnrollment{
 			request: req,
 			child:   child,
-		}, nil, nil, nil)
+		}, nil, nil, nil, nil)
 
 		require.NoError(t, err)
 		assert.True(t, row.Registered)
@@ -1032,4 +1032,55 @@ func TestSortClassRosterRowsGermanNameOrder(t *testing.T) {
 		gotIDs = append(gotIDs, row.StudentID)
 	}
 	assert.Equal(t, wantIDs, gotIDs, "expected Ärmel, Mueller, Müller (ID tiebreak), Özdemir, Zimmermann")
+}
+
+// TestClassRosterRowNamesStructuredCompanions pins that the class roster prints
+// WHO an accompanied child walks home with. The structured links satisfy the
+// "mit wem" requirement per weekday, so such a child legitimately has no
+// free-text note — a roster built from the note alone would hand staff a sheet
+// that says "Mit anderem Kind" and no name (#1694).
+func TestClassRosterRowNamesStructuredCompanions(t *testing.T) {
+	student := &userModels.Student{
+		Model:       baseModels.Model{ID: 101},
+		PersonID:    201,
+		SchoolClass: "1a",
+		AllowedDepartureModes: userModels.AllowedDepartureModes{
+			userModels.PickupDayMonday: []userModels.DepartureMode{userModels.DepartureAccompanied},
+		},
+	}
+	person := &userModels.Person{FirstName: "Lina", LastName: "Läuft"}
+	companions := []userModels.CompanionLink{
+		{CompanionStudentID: 7, FirstName: "Mia", LastName: "Schulz", Weekdays: []string{userModels.PickupDayMonday}},
+	}
+
+	row, err := classRosterRow(student, person, "", nil, nil, nil, nil, companions)
+
+	require.NoError(t, err)
+	assert.Equal(t, "Mo: Mit anderem Kind (mit: Mia Schulz (Mo))", row.Departure)
+}
+
+// TestClassRosterRowCombinesCompanionsAndNote pins that a child using both
+// sources keeps both: the link answers Monday, the note answers the day no link
+// covers.
+func TestClassRosterRowCombinesCompanionsAndNote(t *testing.T) {
+	note := "Dienstags mit Nachbarskind Tom"
+	student := &userModels.Student{
+		Model:       baseModels.Model{ID: 101},
+		PersonID:    201,
+		SchoolClass: "1a",
+		AllowedDepartureModes: userModels.AllowedDepartureModes{
+			userModels.PickupDayMonday:  []userModels.DepartureMode{userModels.DepartureAccompanied},
+			userModels.PickupDayTuesday: []userModels.DepartureMode{userModels.DepartureAccompanied},
+		},
+		DepartureCompanionNote: &note,
+	}
+	person := &userModels.Person{FirstName: "Lina", LastName: "Läuft"}
+	companions := []userModels.CompanionLink{
+		{CompanionStudentID: 7, FirstName: "Mia", LastName: "Schulz", Weekdays: []string{userModels.PickupDayMonday}},
+	}
+
+	row, err := classRosterRow(student, person, "", nil, nil, nil, nil, companions)
+
+	require.NoError(t, err)
+	assert.Equal(t, "Mo: Mit anderem Kind, Di: Mit anderem Kind (mit: Mia Schulz (Mo); Dienstags mit Nachbarskind Tom)", row.Departure)
 }

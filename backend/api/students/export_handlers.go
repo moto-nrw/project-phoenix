@@ -126,6 +126,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	rs.enrichWithCompanionLinks(r.Context(), responses)
 	columns := listexport.ResolveColumns(req.Columns, req.Preset)
 	enrollmentSummaries, err := rs.loadActiveEnrollmentSummaries(r, collectResponseIDs(responses), timezone.DateFromTime(today), columns)
 	if err != nil {
@@ -631,12 +632,25 @@ func sentenceCase(value string) string {
 }
 
 // departureExportCell renders the per-weekday departure plan and appends the
-// coupled "mit wem" companion note whenever the plan allows the accompanied
-// ("Mit anderem Kind") mode, so offline pickup/weekly lists carry the
-// actionable "with whom" detail staff need to act on (#1694).
+// coupled "mit wem" detail whenever the plan allows the accompanied ("Mit
+// anderem Kind") mode, so offline pickup/weekly lists carry the actionable
+// "with whom" information staff need to act on (#1694).
+//
+// Both sources of that detail are rendered, structured links first: since links
+// satisfy the accompanied-requires-a-note rule per weekday, a child that walks
+// in a Laufgemeinschaft legitimately has NO note at all, and a cell built from
+// the note alone would print "Mit anderem Kind" and leave the paper list — the
+// one staff use when the app is not at hand — without a single name.
 func departureExportCell(student StudentResponse) string {
 	summary := departureSummary(student.AllowedDepartureModes, student.DepartureDays)
-	if student.DepartureCompanionNote == "" {
+	details := make([]string, 0, 2)
+	if companions := users.FormatCompanionLinks(student.DepartureCompanions); companions != "" {
+		details = append(details, companions)
+	}
+	if student.DepartureCompanionNote != "" {
+		details = append(details, student.DepartureCompanionNote)
+	}
+	if len(details) == 0 {
 		return summary
 	}
 	allowed := student.AllowedDepartureModes.Normalize()
@@ -646,7 +660,7 @@ func departureExportCell(student StudentResponse) string {
 	if !allowed.HasMode(users.DepartureAccompanied) {
 		return summary
 	}
-	return summary + " (mit: " + student.DepartureCompanionNote + ")"
+	return summary + " (mit: " + strings.Join(details, "; ") + ")"
 }
 
 // departureSummary renders the per-weekday departure plan for the export, e.g.

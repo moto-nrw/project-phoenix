@@ -105,18 +105,27 @@ type StudentResponse struct {
 	// the ends of a chain still groups them together. Only populated when the
 	// caller passes include_companions=true and has full access to the child. The
 	// Kindersuche buckets by these ids client-side.
-	CompanionStudentIDs []int64       `json:"companion_student_ids,omitempty"`
-	Bus                 bool          `json:"bus"`
-	BusDays             users.BusDays `json:"bus_days,omitempty"`
-	Sick                bool          `json:"sick"`
-	SickSince           *time.Time    `json:"sick_since,omitempty"`
-	Excused             bool          `json:"excused"`
-	ExcusedSince        *time.Time    `json:"excused_since,omitempty"`
-	ClassTrip           bool          `json:"class_trip"`
-	ClassTripSince      *time.Time    `json:"class_trip_since,omitempty"`
-	DayPlanningStatus   string        `json:"day_planning_status,omitempty"`
-	DayPlanningReason   string        `json:"day_planning_reason,omitempty"`
-	DayPlanningLabel    string        `json:"day_planning_label,omitempty"`
+	CompanionStudentIDs []int64 `json:"companion_student_ids,omitempty"`
+	// DepartureCompanions are this child's own "läuft mit" links, with the
+	// companion's name and weekdays. Server-side only (json:"-"): it exists for
+	// the offline lists, which must print WHO the child walks home with — a
+	// child whose "mit wem" is answered by links has no free-text note to fall
+	// back on, so an export built from the note alone would tell staff nothing
+	// but "Mit anderem Kind". Clients read the links from
+	// GET /api/students/{id}/companions instead, so this never widens the list
+	// payload (or leaks names into a response the caller may not see them in).
+	DepartureCompanions []users.CompanionLink `json:"-"`
+	Bus                 bool                  `json:"bus"`
+	BusDays             users.BusDays         `json:"bus_days,omitempty"`
+	Sick                bool                  `json:"sick"`
+	SickSince           *time.Time            `json:"sick_since,omitempty"`
+	Excused             bool                  `json:"excused"`
+	ExcusedSince        *time.Time            `json:"excused_since,omitempty"`
+	ClassTrip           bool                  `json:"class_trip"`
+	ClassTripSince      *time.Time            `json:"class_trip_since,omitempty"`
+	DayPlanningStatus   string                `json:"day_planning_status,omitempty"`
+	DayPlanningReason   string                `json:"day_planning_reason,omitempty"`
+	DayPlanningLabel    string                `json:"day_planning_label,omitempty"`
 	// PendingExcusedNote is set (#1845) when the child has a parent excused-absence
 	// request awaiting office approval that covers the planning day. The child
 	// stays "expected" (this does NOT change DayPlanningStatus); the planning
@@ -305,6 +314,18 @@ type UpdateStudentRequest struct {
 	// each other in ONE request instead of racing as two.
 	// nil = leave the links untouched; [] = clear them.
 	Companions *[]CompanionEntry `json:"companions,omitempty"`
+	// CompanionsFingerprint is the fingerprint of the list the client LOADED
+	// before it built Companions (models/users.CompanionLinksFingerprint,
+	// mirrored by companionsFingerprint() in the frontend).
+	//
+	// Because Companions is a complete replacement, two staff members editing
+	// the same child from the same snapshot would both submit everything they
+	// saw and the second write would delete the first one's committed links.
+	// The handler compares this against the stored links while it holds the
+	// child's row lock and answers a mismatch with a retriable 409 instead.
+	// Only meaningful together with Companions; omitted means the caller makes
+	// no claim about the state it started from.
+	CompanionsFingerprint *string `json:"companions_fingerprint,omitempty"`
 	// ExtendCompanionPlans confirms widening a companion's own departure plan.
 	ExtendCompanionPlans bool `json:"extend_companion_plans,omitempty"`
 	// ConfirmedCompanionExtensions is WHAT the user confirmed when they set
@@ -526,6 +547,27 @@ func (req *UpdateStudentRequest) Bind(_ *http.Request) error {
 // A nil pointer means "leave the links alone"; an empty slice clears them.
 func (req *UpdateStudentRequest) hasCompanionUpdate() bool {
 	return req.Companions != nil
+}
+
+// touchesCompanions reports whether this request could have changed the child's
+// "läuft mit" links — either by submitting a list, or by writing a departure
+// plan, which TRIMS the links on a weekday the new plan no longer allows.
+//
+// It decides whether the update announces student_companions_changed. The
+// legacy bus/pickup inputs count: they resolve into the same plan, so they can
+// take the accompanied mode (and with it the links) away. Everything else — a
+// name, an address, a photo, a sick flag — leaves the links untouched and must
+// stay silent, because a client reacting to the event discards or blocks an
+// in-progress companion edit.
+func (req *UpdateStudentRequest) touchesCompanions() bool {
+	return req.hasCompanionUpdate() ||
+		req.DepartureDays != nil ||
+		req.AllowedDepartureModes != nil ||
+		req.DepartureCompanionNote != nil ||
+		req.PickupStatus != nil ||
+		req.PickupDays != nil ||
+		req.Bus != nil ||
+		req.BusDays != nil
 }
 
 func (req *CreateStudentStatusDaysRequest) Bind(_ *http.Request) error {

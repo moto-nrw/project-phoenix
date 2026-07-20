@@ -589,3 +589,113 @@ func TestStudentUpdate_CompanionLinkCoversOnlyItsWeekdays(t *testing.T) {
 	fresh.DepartureDays = nil
 	require.NoError(t, studentRepo.Update(ctx, fresh))
 }
+
+// TestStudentService_ReplaceCompanions_RefusesStaleList pins the lost-update
+// guard: the submitted list REPLACES the stored one, so two staff members
+// editing the same child from the same snapshot would otherwise both send
+// everything they saw and the later write would delete the link the earlier one
+// had just committed. The row locks order the two writes; only the fingerprint
+// comparison notices that the second one describes a list that no longer exists.
+func TestStudentService_ReplaceCompanions_RefusesStaleList(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	service := newCompanionTestService(db)
+
+	subject := testpkg.CreateTestStudent(t, db, "StaleSubject", "Companion", "1a")
+	first := testpkg.CreateTestStudent(t, db, "StaleFirst", "Companion", "1a")
+	second := testpkg.CreateTestStudent(t, db, "StaleSecond", "Companion", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, first.ID, second.ID)
+	defer cleanupCompanionEdges(t, db, subject.ID, first.ID, second.ID)
+
+	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
+	setAccompaniedDays(t, db, ctx, first.ID, "mon")
+	setAccompaniedDays(t, db, ctx, second.ID, "mon")
+
+	// Both editors load the same (empty) list.
+	loaded, err := service.ListCompanions(ctx, subject.ID)
+	require.NoError(t, err)
+	snapshot := userModels.CompanionLinksFingerprint(loaded)
+
+	// Editor A saves first: the child now walks with `first`.
+	_, err = service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+		Links:               []userModels.CompanionLink{{CompanionStudentID: first.ID, Weekdays: []string{"mon"}}},
+		ExpectedFingerprint: &snapshot,
+	})
+	require.NoError(t, err)
+
+	// ACT — editor B saves the list they built on the pre-A snapshot.
+	_, err = service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+		Links:               []userModels.CompanionLink{{CompanionStudentID: second.ID, Weekdays: []string{"mon"}}},
+		ExpectedFingerprint: &snapshot,
+	})
+	assert.ErrorIs(t, err, usersService.ErrCompanionsChanged)
+
+	// Nothing was written: editor A's link survives untouched.
+	links, err := service.ListCompanions(ctx, subject.ID)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, first.ID, links[0].CompanionStudentID)
+
+	// The read-only pre-check refuses it too, so the HTTP path can answer 409
+	// before its transaction writes anything.
+	_, err = service.CheckCompanionConflicts(ctx, subject.ID, usersService.CompanionUpdate{
+		Links:               []userModels.CompanionLink{{CompanionStudentID: second.ID, Weekdays: []string{"mon"}}},
+		ExpectedFingerprint: &snapshot,
+	})
+	assert.ErrorIs(t, err, usersService.ErrCompanionsChanged)
+
+	// Reloading makes the same edit succeed.
+	reloaded, err := service.ListCompanions(ctx, subject.ID)
+	require.NoError(t, err)
+	fresh := userModels.CompanionLinksFingerprint(reloaded)
+	_, err = service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+		Links: []userModels.CompanionLink{
+			{CompanionStudentID: first.ID, Weekdays: []string{"mon"}},
+			{CompanionStudentID: second.ID, Weekdays: []string{"mon"}},
+		},
+		ExpectedFingerprint: &fresh,
+	})
+	require.NoError(t, err)
+}
+
+// TestStudentService_ListCompanionsForStudents pins the bulk read the offline
+// lists use: one call, names joined in, and children without links simply
+// absent from the map.
+func TestStudentService_ListCompanionsForStudents(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	service := newCompanionTestService(db)
+
+	subject := testpkg.CreateTestStudent(t, db, "BulkSubject", "Companion", "1a")
+	companion := testpkg.CreateTestStudent(t, db, "BulkCompanion", "Companion", "1a")
+	lonely := testpkg.CreateTestStudent(t, db, "BulkLonely", "Companion", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID, lonely.ID)
+	defer cleanupCompanionEdges(t, db, subject.ID, companion.ID, lonely.ID)
+
+	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
+	setAccompaniedDays(t, db, ctx, companion.ID, "mon")
+
+	_, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
+	})
+	require.NoError(t, err)
+
+	byStudent, err := service.ListCompanionsForStudents(ctx, []int64{subject.ID, companion.ID, lonely.ID})
+	require.NoError(t, err)
+
+	require.Len(t, byStudent[subject.ID], 1)
+	assert.Equal(t, companion.ID, byStudent[subject.ID][0].CompanionStudentID)
+	assert.Equal(t, "BulkCompanion", byStudent[subject.ID][0].FirstName)
+
+	// The edge is undirected, so it shows up on the far child too — with THEIR
+	// companion's name, not their own.
+	require.Len(t, byStudent[companion.ID], 1)
+	assert.Equal(t, subject.ID, byStudent[companion.ID][0].CompanionStudentID)
+	assert.Equal(t, "BulkSubject", byStudent[companion.ID][0].FirstName)
+
+	assert.NotContains(t, byStudent, lonely.ID)
+}
