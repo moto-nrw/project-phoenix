@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -947,6 +948,65 @@ func TestCalendarServiceIntegration_ParentCalendarHidesUnbookedPlannedTimetable(
 	})
 
 	events, err := service.ListMyParentEvents(testpkg.TenantContext(1), parentChain.AccountID, wednesday, wednesday)
+	require.NoError(t, err)
+	assert.Empty(t, events)
+}
+
+// Reporting a child sick flips every still-expected slot of that day to
+// 'absent' with status-day provenance — including slots on days the care plan
+// never booked. That is not a decision about the slot, so the care-day filter
+// must still apply: a sick note may not resurrect a care event for a Wednesday
+// the child was never booked for (#1747 review).
+func TestCalendarServiceIntegration_ParentCalendarHidesUnbookedStatusDayTimetable(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	staff := testpkg.CreateTestStaff(t, db, "Care", "Reporter")
+	room := testpkg.CreateTestRoom(t, db, "Parent Calendar Status Day Room")
+	wednesday := timezone.NewDate(2026, 4, 8)
+	instance := testpkg.CreateTestActivityInstance(t, db, wednesday, room.ID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "13:00",
+		EndHHMM:   "16:00",
+		Title:     "Child Betreuung",
+	})
+	studentLink := testpkg.CreateTestInstanceStudent(t, db, instance.ID, parentChain.StudentID, "")
+	arrival := testpkg.CreateTestArrivalSchedule(t, db, parentChain.StudentID, scheduleModels.WeekdayMonday, staff.ID, "13:00")
+
+	ctx := testpkg.TenantContext(1)
+	statusDay := &activeModels.StudentStatusDay{
+		StudentID:  parentChain.StudentID,
+		Date:       wednesday,
+		Status:     activeModels.StudentStatusDaySick,
+		ReportedAt: time.Now().UTC(),
+		Source:     activeModels.StudentStatusSourceManual,
+	}
+	statusDay.SetTenantID(1)
+	require.NoError(t, repositories.NewFactory(db).StudentStatusDay.UpsertReported(ctx, statusDay))
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "active.student_status_days", statusDay.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.student_arrival_schedules", arrival.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", studentLink.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID)
+		testpkg.CleanupActivityFixtures(t, db, room.ID)
+		testpkg.CleanupStaffFixtures(t, db, staff.ID)
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+	})
+
+	// Guard: the cascade really did take the row out of 'expected'.
+	var status string
+	var statusDayID *int64
+	require.NoError(t, db.NewSelect().
+		ColumnExpr("status, student_status_day_id").
+		TableExpr("schedule.instance_students").
+		Where("id = ?", studentLink.ID).
+		Scan(ctx, &status, &statusDayID))
+	require.Equal(t, scheduleModels.AttendanceStatusAbsent, status)
+	require.NotNil(t, statusDayID)
+
+	events, err := service.ListMyParentEvents(ctx, parentChain.AccountID, wednesday, wednesday)
 	require.NoError(t, err)
 	assert.Empty(t, events)
 }

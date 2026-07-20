@@ -620,13 +620,13 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 	}
 	rows := make([]OperationRosterRow, 0, len(seen))
 	for _, planned := range plannedRows {
-		rows = append(rows, s.mapRosterRow(planned.StudentID, planned, latestVisits[planned.StudentID], students, persons, groups, warningsByStudent[planned.StudentID], careDay))
+		rows = append(rows, s.mapRosterRow(inst, planned.StudentID, planned, latestVisits[planned.StudentID], students, persons, groups, warningsByStudent[planned.StudentID], careDay))
 	}
 	for _, visit := range latestVisits {
 		if _, planned := findPlanned(plannedRows, visit.StudentID); planned {
 			continue
 		}
-		rows = append(rows, s.mapRosterRow(visit.StudentID, nil, visit, students, persons, groups, nil, careDay))
+		rows = append(rows, s.mapRosterRow(inst, visit.StudentID, nil, visit, students, persons, groups, nil, careDay))
 	}
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].CurrentlyPresent != rows[j].CurrentlyPresent {
@@ -655,7 +655,7 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 	}, nil
 }
 
-func (s *timetableOperationsService) mapRosterRow(studentID int64, planned *scheduleModel.InstanceStudent, visit *activeModel.Visit, students map[int64]*usersModel.Student, persons map[int64]*usersModel.Person, groups map[int64]*educationModel.Group, warnings []OperationRosterWarning, careDay map[int64]CareDayStatus) OperationRosterRow {
+func (s *timetableOperationsService) mapRosterRow(inst *scheduleModel.ActivityInstance, studentID int64, planned *scheduleModel.InstanceStudent, visit *activeModel.Visit, students map[int64]*usersModel.Student, persons map[int64]*usersModel.Person, groups map[int64]*educationModel.Group, warnings []OperationRosterWarning, careDay map[int64]CareDayStatus) OperationRosterRow {
 	row := OperationRosterRow{
 		StudentID:        studentID,
 		Planned:          planned != nil && !planned.IsUnplanned,
@@ -663,7 +663,7 @@ func (s *timetableOperationsService) mapRosterRow(studentID int64, planned *sche
 		CurrentlyPresent: visit != nil && visit.ExitTime == nil,
 		Status:           scheduleModel.AttendanceStatusPresent,
 		Warnings:         warnings,
-		CareDayStatus:    rosterCareDayStatus(studentID, planned, visit, careDay),
+		CareDayStatus:    rosterCareDayStatus(inst, studentID, planned, visit, careDay),
 	}
 	applyPlannedRosterAttendance(&row, planned)
 
@@ -684,7 +684,16 @@ func (s *timetableOperationsService) mapRosterRow(studentID int64, planned *sche
 // by reality, and demoting such a row would hide a present child from the
 // supervisor. Walk-ins are never in the resolved map to begin with, and an
 // absent entry means unknown — never assume a missing fact excludes a child.
+//
+// On a completed instance the verdict is frozen, exactly as in
+// instanceStudentCareDay (api/timetable): ending the block stamped
+// not_scheduled on the children it spared, so that column IS the verdict. A
+// later care-plan edit or deletion must not relabel a finished day — reading
+// the current plan here would move a historical row back under "Erwartet"
+// while the weekly list, parent calendar, and attendance history keep the
+// frozen answer.
 func rosterCareDayStatus(
+	inst *scheduleModel.ActivityInstance,
 	studentID int64,
 	planned *scheduleModel.InstanceStudent,
 	visit *activeModel.Visit,
@@ -692,6 +701,12 @@ func rosterCareDayStatus(
 ) CareDayStatus {
 	if visit != nil || (planned != nil && planned.Status == scheduleModel.AttendanceStatusPresent) {
 		return CareDayScheduled
+	}
+	if inst != nil && inst.Status == scheduleModel.InstanceStatusCompleted {
+		if planned != nil && planned.NotScheduled && planned.Status == scheduleModel.AttendanceStatusExpected {
+			return CareDayNotScheduled
+		}
+		return CareDayUnknown
 	}
 	if status, ok := careDay[studentID]; ok && status != "" {
 		return status

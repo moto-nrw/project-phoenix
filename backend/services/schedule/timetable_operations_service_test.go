@@ -326,6 +326,61 @@ func TestTimetableOperationsRosterCombinesPlannedStudentsAndLiveDropIns(t *testi
 	assert.Equal(t, "OGS Blau", roster.Rows[1].GroupName)
 }
 
+// A completed block's verdict is frozen in the stored marker: the care plan may
+// have been edited or deleted since, and reading it here would relabel a
+// historical row while the weekly list, parent calendar, and attendance history
+// keep the completion-time answer (#1747 review).
+func TestTimetableOperationsRosterFreezesCareDayVerdictOnCompletedInstance(t *testing.T) {
+	instanceID := int64(366)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 656, 456, 246, instanceID)
+	completed := instanceWithTimes(instanceID, scheduleModel.InstanceStatusCompleted,
+		time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
+		time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
+	completed.ID = instanceID
+	deps.instanceRepo.byID[instanceID] = completed
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 536, Status: scheduleModel.AttendanceStatusExpected, NotScheduled: true},
+	}
+	deps.students.byID[536] = &usersModel.Student{PersonID: 466, SchoolClass: "3a"}
+	deps.personService.people[466] = &usersModel.Person{FirstName: "Nora", LastName: "Neu"}
+	// The plan says "booked" today — a later edit. It must not win over the marker.
+	deps.careDayService.byStudent[536] = CareDayScheduled
+
+	roster, err := deps.service.Roster(context.Background(), 656, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 1)
+	assert.Equal(t, CareDayNotScheduled, roster.Rows[0].CareDayStatus)
+	assert.False(t, roster.Rows[0].CareDayStatus.Expected())
+}
+
+// The counterpart: a completed row without the marker reports "unknown" rather
+// than a re-derived plan verdict, so a plan edit cannot retroactively push a
+// finished row out of the expected block either.
+func TestTimetableOperationsRosterCompletedWithoutMarkerReportsUnknown(t *testing.T) {
+	instanceID := int64(367)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 657, 457, 247, instanceID)
+	completed := instanceWithTimes(instanceID, scheduleModel.InstanceStatusCompleted,
+		time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
+		time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
+	completed.ID = instanceID
+	deps.instanceRepo.byID[instanceID] = completed
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 537, Status: scheduleModel.AttendanceStatusAbsent},
+	}
+	deps.students.byID[537] = &usersModel.Student{PersonID: 467, SchoolClass: "3a"}
+	deps.personService.people[467] = &usersModel.Person{FirstName: "Ole", LastName: "Ohm"}
+	deps.careDayService.byStudent[537] = CareDayNotScheduled
+
+	roster, err := deps.service.Roster(context.Background(), 657, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 1)
+	assert.Equal(t, CareDayUnknown, roster.Rows[0].CareDayStatus)
+}
+
 func TestTimetableOperationsRosterFlagsArrivalAndClassMismatch(t *testing.T) {
 	instanceID := int64(361)
 	activeGroupID := int64(261)

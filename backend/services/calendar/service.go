@@ -855,8 +855,16 @@ func (s *service) parentCareDays(
 // api/timetable: a completed block is frozen — ending it wrote the marker, and
 // a later care-plan edit must not rewrite what a finished day meant — while a
 // planned or running block carries no marker yet and is judged against the
-// current plan. Either way only a row still 'expected' can be hidden: a
-// check-in or a hand-made decision tells its own story and outranks the plan.
+// current plan.
+//
+// Only an undecided row can be hidden: a check-in or a hand-made decision tells
+// its own story and outranks the plan. A row a broad day status flipped to
+// 'absent' is NOT such a decision — sick/excused/class trip lands on every
+// expected row of the day, including days the child was never booked into care,
+// and it keeps its provenance in student_status_day_id (a manual PATCH and a
+// check-in both clear that column). Those rows stay subject to the care-day
+// filter, or reporting a child sick would resurrect a parent-calendar event on
+// a weekday they were never booked for.
 //
 // A cancelled care day ("kommt heute nicht") is deliberately NOT hidden. The
 // day was booked, so the block still exists for that child — same reason
@@ -866,7 +874,7 @@ func notScheduledForParent(
 	row *scheduleModels.InstanceStudent,
 	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
 ) bool {
-	if row.Status != scheduleModels.AttendanceStatusExpected {
+	if row.Status != scheduleModels.AttendanceStatusExpected && row.StudentStatusDayID == nil {
 		return false
 	}
 	if instance.Status == scheduleModels.InstanceStatusCompleted {
