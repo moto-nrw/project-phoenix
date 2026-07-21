@@ -21,6 +21,11 @@ import (
 const (
 	feedPastDays   = 30
 	feedFutureDays = 365
+	// feedTombstoneDays is how long a deleted appointment keeps being re-exported
+	// as a STATUS:CANCELLED tombstone. It is deliberately longer than feedPastDays
+	// so a subscriber that was offline past the normal lookback still receives the
+	// cancellation and purges the stale event, rather than retaining it forever.
+	feedTombstoneDays = 90
 )
 
 // FeedAccountRepo is the slice of the account repository the calendar feed
@@ -153,6 +158,9 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 			for _, override := range cancelledOverrides {
 				overridesByID[override.AppointmentID] = append(overridesByID[override.AppointmentID], override)
 			}
+			// Bound every exported recurrence to the advertised window so a
+			// subscriber can't expand years of history or future occurrences.
+			window := &feedWindow{From: from, To: to}
 			for _, appointment := range appointments {
 				recurrence := recurrenceByID[appointment.ID]
 				// A count-bounded recurring series (ends_on IS NULL, occurrence_count
@@ -165,7 +173,32 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 				if recurrence != nil && !hasOccurrenceInWindow(appointment, recurrence, from, to) {
 					continue
 				}
-				events = append(events, appointmentICSEvent(appointment, recurrence, overridesByID[appointment.ID]))
+				events = append(events, appointmentICSEvent(appointment, recurrence, overridesByID[appointment.ID], window))
+			}
+
+			// Deleted appointments are re-exported as durable STATUS:CANCELLED
+			// tombstones (retained by deletion time, independent of the date
+			// lookback) so even long-offline subscribers eventually purge them. The
+			// tombstone cancels by UID, so it carries the full (unwindowed) VEVENT.
+			deletedSince := timezone.TodayDate().AddDays(-feedTombstoneDays).BerlinMidnight()
+			tombstones, err := s.cfg.AppointmentRepo.ListDeletedTombstonesForGuardianProfiles(txCtx, guardianProfileIDs, studentIDs, deletedSince)
+			if err != nil {
+				return err
+			}
+			tombstoneIDs := make([]int64, 0, len(tombstones))
+			for _, appointment := range tombstones {
+				tombstoneIDs = append(tombstoneIDs, appointment.ID)
+			}
+			tombstoneRecurrences, err := s.cfg.RecurrenceRepo.FindByAppointmentIDs(txCtx, tombstoneIDs)
+			if err != nil {
+				return err
+			}
+			tombstoneRecurrenceByID := make(map[int64]*calModels.RecurrenceRule, len(tombstoneRecurrences))
+			for _, recurrence := range tombstoneRecurrences {
+				tombstoneRecurrenceByID[recurrence.AppointmentID] = recurrence
+			}
+			for _, appointment := range tombstones {
+				events = append(events, appointmentICSEvent(appointment, tombstoneRecurrenceByID[appointment.ID], nil, nil))
 			}
 			return nil
 		}); err != nil {

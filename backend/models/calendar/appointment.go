@@ -79,6 +79,14 @@ type Appointment struct {
 	DeliveryMode       string        `bun:"delivery_mode,notnull" json:"delivery_mode"`
 	OverviewVisibility string        `bun:"overview_visibility,notnull,default:'organizer'" json:"overview_visibility"`
 	CancelledAt        *time.Time    `bun:"cancelled_at" json:"cancelled_at,omitempty"`
+	// DeletedAt marks a feed-visible appointment that the organizer deleted. It is
+	// distinct from CancelledAt (the "Absagen" action, which stays visible in
+	// interactive calendars): a deleted appointment is hidden from every
+	// interactive listing but exported to the subscription feed as a durable
+	// STATUS:CANCELLED tombstone so offline subscribers eventually purge it. Not a
+	// bun soft_delete tag — the feed must be able to SELECT deleted rows, so the
+	// deleted_at IS NULL / IS NOT NULL filtering is done explicitly per query.
+	DeletedAt *time.Time `bun:"deleted_at" json:"deleted_at,omitempty"`
 	// Revision is a monotonically increasing change counter used as the
 	// iCalendar SEQUENCE, so subscribed clients recognise edits/cancellations as
 	// newer revisions instead of retaining stale events.

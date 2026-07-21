@@ -635,27 +635,42 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 	require.NoError(t, err)
 	token := strings.TrimPrefix(httpsURL, "https://parents.test/api/calendar-feed/")
 
-	// Before deletion the appointment is a normal (non-cancelled) feed event.
+	// The interactive calendar window is capped (maxCalendarWindowDays); use a
+	// small one that still spans the appointment (today + 7).
+	viewFrom := timezone.TodayDate()
+	viewTo := timezone.TodayDate().AddDays(30)
+
+	// Before deletion the appointment is a normal (non-cancelled) feed event and
+	// shows up in the parent's interactive calendar.
 	_, content, err := service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
 	require.NoError(t, err)
 	assert.Contains(t, content, "SUMMARY:Elternabend")
 	assert.NotContains(t, content, "STATUS:CANCELLED")
 
-	// Deleting a feed-visible appointment must leave a cancellation tombstone: the
-	// same UID reappears in the feed as STATUS:CANCELLED with a bumped SEQUENCE, so
-	// subscribed external calendars purge it instead of retaining a stale event.
+	before, err := service.ListMyParentEvents(testpkg.TenantContext(1), parentChain.AccountID, viewFrom, viewTo)
+	require.NoError(t, err)
+	assert.NotEmpty(t, eventDates(before, calModels.EventSourceAppointment))
+
 	require.NoError(t, service.DeleteStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID))
 
+	// The subscription feed keeps re-exporting the same UID as a durable
+	// STATUS:CANCELLED tombstone with a bumped SEQUENCE, so subscribers purge it
+	// instead of retaining a stale event.
 	_, afterDelete, err := service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
 	require.NoError(t, err)
 	assert.Contains(t, afterDelete, "SUMMARY:Elternabend")
 	assert.Contains(t, afterDelete, "STATUS:CANCELLED")
 	assert.Contains(t, afterDelete, "SEQUENCE:")
 
-	// The row survives (as a tombstone) and reads back cancelled.
-	after, err := service.GetStaffAppointmentDetail(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	// But the delete is a real delete for every interactive surface: the organizer
+	// can no longer open it, and it is gone from the parent's calendar.
+	_, err = service.GetStaffAppointmentDetail(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
+
+	afterParent, err := service.ListMyParentEvents(testpkg.TenantContext(1), parentChain.AccountID, viewFrom, viewTo)
 	require.NoError(t, err)
-	assert.NotNil(t, after.Appointment.CancelledAt)
+	assert.Empty(t, eventDates(afterParent, calModels.EventSourceAppointment))
 }
 
 func TestCalendarServiceIntegration_AllSchoolParentsTarget(t *testing.T) {

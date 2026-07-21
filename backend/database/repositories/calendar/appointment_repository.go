@@ -55,6 +55,7 @@ func (r *AppointmentRepository) ListVisibleForStaff(ctx context.Context, staffID
 			  AND ar.recipient_type = ?
 			  AND ar.staff_id = ?
 		))`, staffID, calModels.RecipientTypeStaff, staffID).
+		Where(`"appointment".deleted_at IS NULL`).
 		OrderExpr(`"appointment".start_date ASC, "appointment".start_time ASC, "appointment".id ASC`)
 
 	query = applyAppointmentWindow(query, from, to)
@@ -92,6 +93,7 @@ func (r *AppointmentRepository) ListVisibleForGuardianProfiles(ctx context.Conte
 			      AND ars.student_id IN (?)
 			  )
 			)`, calModels.RecipientTypeGuardianProfile, bun.List(guardianProfileIDs), bun.List(studentIDs)).
+		Where(`"appointment".deleted_at IS NULL`).
 		OrderExpr(`"appointment".start_date ASC, "appointment".start_time ASC, "appointment".id ASC`)
 
 	query = applyAppointmentWindow(query, from, to)
@@ -105,12 +107,57 @@ func (r *AppointmentRepository) ListVisibleForGuardianProfiles(ctx context.Conte
 	return rows, nil
 }
 
+// ListDeletedTombstonesForGuardianProfiles mirrors the guardian visibility join
+// of ListVisibleForGuardianProfiles but returns only soft-deleted rows on/after
+// deletedSince, with NO event-date window — the subscription feed re-exports
+// these as STATUS:CANCELLED so offline subscribers eventually drop them, and
+// their retention is governed by the deletion time rather than the appointment's
+// dates (which may already be in the past).
+func (r *AppointmentRepository) ListDeletedTombstonesForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, deletedSince time.Time) ([]*calModels.Appointment, error) {
+	if len(guardianProfileIDs) == 0 || len(studentIDs) == 0 {
+		return []*calModels.Appointment{}, nil
+	}
+
+	var rows []*calModels.Appointment
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableExprAppointmentsAsAppointment).
+		Where(`"appointment".deleted_at IS NOT NULL`).
+		Where(`"appointment".deleted_at >= ?`, deletedSince).
+		Where(`EXISTS (
+			SELECT 1
+			FROM calendar.appointment_recipients ar
+			WHERE ar.appointment_id = "appointment".id
+			  AND ar.tenant_id = "appointment".tenant_id
+			  AND ar.recipient_type = ?
+			  AND ar.guardian_profile_id IN (?)
+			  AND EXISTS (
+			    SELECT 1
+			    FROM calendar.appointment_recipient_students ars
+			    WHERE ars.recipient_id = ar.id
+			      AND ars.tenant_id = ar.tenant_id
+			      AND ars.student_id IN (?)
+			  )
+			)`, calModels.RecipientTypeGuardianProfile, bun.List(guardianProfileIDs), bun.List(studentIDs)).
+		OrderExpr(`"appointment".start_date ASC, "appointment".start_time ASC, "appointment".id ASC`)
+
+	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("list deleted guardian calendar tombstones: %w", err)
+	}
+	return rows, nil
+}
+
 func (r *AppointmentRepository) ListOrganizedByStaff(ctx context.Context, staffID int64, from, to timezone.Date) ([]*calModels.Appointment, error) {
 	var rows []*calModels.Appointment
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
 		ModelTableExpr(tableExprAppointmentsAsAppointment).
 		Where(`"appointment".organizer_staff_id = ?`, staffID).
+		Where(`"appointment".deleted_at IS NULL`).
 		OrderExpr(`"appointment".start_date ASC, "appointment".start_time ASC, "appointment".id ASC`)
 
 	query = applyAppointmentWindow(query, from, to)
@@ -178,6 +225,28 @@ func (r *AppointmentRepository) BumpRevision(ctx context.Context, appointmentID 
 	}
 	if _, err := q.Exec(ctx); err != nil {
 		return fmt.Errorf("bump appointment revision: %w", err)
+	}
+	return nil
+}
+
+// SoftDelete marks the appointment deleted (deleted_at=now) and bumps the
+// revision so the feed re-exports it as STATUS:CANCELLED with a newer SEQUENCE.
+// Interactive queries filter deleted_at IS NULL, so the row disappears from
+// every staff/parent calendar while remaining a durable feed tombstone.
+func (r *AppointmentRepository) SoftDelete(ctx context.Context, appointmentID int64) error {
+	now := time.Now()
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		TableExpr(tableExprAppointmentsAsAppointment).
+		Set(`deleted_at = ?`, now).
+		Set(`revision = revision + 1`).
+		Set(`updated_at = ?`, now).
+		Where(`"appointment".id = ?`, appointmentID).
+		Where(`"appointment".deleted_at IS NULL`)
+	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
+		q = q.Where(where, val)
+	}
+	if _, err := q.Exec(ctx); err != nil {
+		return fmt.Errorf("soft-delete appointment: %w", err)
 	}
 	return nil
 }

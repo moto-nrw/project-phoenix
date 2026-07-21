@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/ical"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -26,7 +27,9 @@ func (s *service) StaffAppointmentICS(ctx context.Context, appointmentID int64) 
 	if err != nil {
 		return "", "", err
 	}
-	if appointment == nil {
+	// A soft-deleted appointment is gone from every interactive surface; only the
+	// subscription feed still exports it (as a tombstone).
+	if appointment == nil || appointment.DeletedAt != nil {
 		return "", "", ErrNotFound
 	}
 	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointment.ID)
@@ -63,7 +66,8 @@ func (s *service) ParentAppointmentICS(ctx context.Context, accountID, appointme
 			if err != nil {
 				return err
 			}
-			if appointment == nil {
+			// A soft-deleted appointment is downloadable only as a feed tombstone.
+			if appointment == nil || appointment.DeletedAt != nil {
 				return nil
 			}
 			recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(txCtx, appointment.ID)
@@ -103,12 +107,22 @@ func (s *service) renderAppointmentICS(ctx context.Context, appointment *calMode
 			return "", "", err
 		}
 	}
-	event := appointmentICSEvent(appointment, recurrence, cancelled)
+	// A single-appointment download carries the full series (no feed window).
+	event := appointmentICSEvent(appointment, recurrence, cancelled, nil)
 	content := ical.Render(appointment.Title, []ical.Event{event})
 	return icsFilename(appointment.Title), content, nil
 }
 
-func appointmentICSEvent(appointment *calModels.Appointment, recurrence *calModels.RecurrenceRule, cancelledOverrides []*calModels.AppointmentOccurrenceOverride) ical.Event {
+// feedWindow bounds an exported recurrence to the subscription feed's advertised
+// lookback/lookahead so a subscriber cannot expand years of history or future
+// occurrences. nil means "no window" (a single-appointment download, or a
+// cancellation tombstone that is dropped by UID regardless of range).
+type feedWindow struct {
+	From timezone.Date
+	To   timezone.Date
+}
+
+func appointmentICSEvent(appointment *calModels.Appointment, recurrence *calModels.RecurrenceRule, cancelledOverrides []*calModels.AppointmentOccurrenceOverride, window *feedWindow) ical.Event {
 	description := ""
 	if appointment.Description != nil {
 		description = *appointment.Description
@@ -131,9 +145,11 @@ func appointmentICSEvent(appointment *calModels.Appointment, recurrence *calMode
 		StartClock:  appointment.StartTime,
 		EndClock:    appointment.EndTime,
 		AllDay:      appointment.AllDay,
-		Cancelled:   appointment.CancelledAt != nil,
-		Sequence:    appointment.Revision,
-		Stamp:       appointment.UpdatedAt,
+		// A deleted appointment survives only as a feed tombstone; export it (like a
+		// cancelled one) as STATUS:CANCELLED so subscribers purge it.
+		Cancelled: appointment.CancelledAt != nil || appointment.DeletedAt != nil,
+		Sequence:  appointment.Revision,
+		Stamp:     appointment.UpdatedAt,
 		// LAST-MODIFIED + SEQUENCE together tell subscribers this VEVENT is a newer
 		// revision, so edits and cancellations are honoured rather than ignored.
 		LastModified: appointment.UpdatedAt,
@@ -142,28 +158,53 @@ func appointmentICSEvent(appointment *calModels.Appointment, recurrence *calMode
 	// that generates none (e.g. weekly weekdays outside its EndsOn window) is
 	// rejected at create/update, so this guard is defensive: it prevents a
 	// phantom recurring series from ever being exported.
-	if first, ok := firstRecurrenceOccurrence(appointment, recurrence); ok {
-		// DTSTART must be the first real occurrence, not the raw StartDate: for a
-		// weekly rule whose weekdays exclude StartDate's weekday the app starts on
-		// the first matching weekday, so anchor the exported series there too (and
-		// shift EndDate by the same span to preserve each occurrence's duration).
-		if first != appointment.StartDate {
-			event.StartDate = first
-			event.EndDate = first.AddDays(appointment.StartDate.DaysUntil(appointment.EndDate))
+	first, ok := firstRecurrenceOccurrence(appointment, recurrence)
+	if !ok {
+		return event
+	}
+	span := appointment.StartDate.DaysUntil(appointment.EndDate)
+	// DTSTART must be the first real occurrence, not the raw StartDate: for a
+	// weekly rule whose weekdays exclude StartDate's weekday the app starts on the
+	// first matching weekday, so anchor the exported series there too.
+	dtstart := first
+	until := recurrence.EndsOn
+	count := recurrence.OccurrenceCount
+	if window != nil {
+		// Clamp the exported series to the feed window: anchor DTSTART at the first
+		// in-window occurrence and cap it with UNTIL at the last. Both are real
+		// occurrences, so the interval/weekday phase is preserved; COUNT is dropped
+		// because it counts from the original start, which we no longer anchor to.
+		inWindow := expandOccurrences(appointment, recurrence, window.From, window.To)
+		if len(inWindow) == 0 {
+			// Nothing in the window — export the plain (non-recurring) event.
+			return event
 		}
-		event.Recurrence = &ical.Recurrence{
-			Freq:      recurrence.Frequency,
-			Interval:  recurrence.IntervalCount,
-			Weekdays:  recurrence.Weekdays,
-			MonthDays: recurrence.MonthDays,
-			Until:     recurrence.EndsOn,
-			Count:     recurrence.OccurrenceCount,
+		dtstart = inWindow[0]
+		last := inWindow[len(inWindow)-1]
+		until = &last
+		count = nil
+	}
+	if dtstart != appointment.StartDate {
+		// Shift EndDate by the same span to preserve each occurrence's duration.
+		event.StartDate = dtstart
+		event.EndDate = dtstart.AddDays(span)
+	}
+	event.Recurrence = &ical.Recurrence{
+		Freq:      recurrence.Frequency,
+		Interval:  recurrence.IntervalCount,
+		Weekdays:  recurrence.Weekdays,
+		MonthDays: recurrence.MonthDays,
+		Until:     until,
+		Count:     count,
+	}
+	// Single occurrences cancelled via "Nur diesen Termin" become EXDATEs so
+	// subscribed external calendars drop them from the RRULE expansion; when a
+	// window is applied, keep only the EXDATEs inside the exported range.
+	for _, override := range cancelledOverrides {
+		if window != nil && (override.OccurrenceDate.Before(dtstart) || override.OccurrenceDate.After(*until)) {
+			continue
 		}
-		// Single occurrences cancelled via "Nur diesen Termin" become EXDATEs so
-		// subscribed external calendars drop them from the RRULE expansion.
-		for _, override := range cancelledOverrides {
-			event.ExDates = append(event.ExDates, override.OccurrenceDate)
-		}
+		event.ExDates = append(event.ExDates, override.OccurrenceDate)
 	}
 	return event
 }

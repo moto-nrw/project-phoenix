@@ -445,6 +445,12 @@ func (s *service) loadOrganizedAppointment(ctx context.Context, appointmentID in
 	if appointment == nil {
 		return nil, ErrNotFound
 	}
+	// A soft-deleted appointment lives on only as a feed tombstone; it is gone from
+	// every interactive surface, so lifecycle operations (edit/cancel/delete/detail)
+	// treat it as not found.
+	if appointment.DeletedAt != nil {
+		return nil, ErrNotFound
+	}
 	if appointment.OrganizerStaffID != staff.ID {
 		return nil, fmt.Errorf("%w: only the organizer may modify this appointment", ErrForbidden)
 	}
@@ -602,26 +608,19 @@ func (s *service) DeleteStaffAppointment(ctx context.Context, appointmentID int6
 	// higher SEQUENCE. Hard-deleting a feed-visible appointment makes it vanish
 	// from the feed, which many clients keep rather than purge — the stale event
 	// then lingers in the parent's calendar forever. So a feed-visible appointment
-	// (one with guardian recipients) is tombstoned instead of removed: mark it
-	// cancelled — silently, unlike Absagen, which also mails guardians — and let
-	// Update bump the revision so the feed re-exports the master VEVENT as
-	// STATUS:CANCELLED with a newer SEQUENCE. The tombstone self-expires once its
-	// dates fall outside the feed's lookback window. Purely staff-internal
-	// appointments never reach a subscription feed, so they are removed outright.
+	// (one with guardian recipients) is SOFT-deleted: it disappears from every
+	// interactive staff/parent calendar (those queries filter deleted_at IS NULL),
+	// yet the subscription feed re-exports it as a durable STATUS:CANCELLED
+	// tombstone (retained by deletion time, independent of the date lookback) with
+	// a bumped SEQUENCE so even long-offline subscribers eventually purge it.
+	// Purely staff-internal appointments never reach a subscription feed, so they
+	// are removed outright.
 	feedVisible, err := s.appointmentHasGuardianRecipients(ctx, appointment.ID)
 	if err != nil {
 		return err
 	}
 	if feedVisible {
-		if appointment.CancelledAt == nil {
-			now := time.Now()
-			appointment.CancelledAt = &now
-			// Update bumps the revision (SEQUENCE) as a side effect.
-			return s.cfg.AppointmentRepo.Update(ctx, appointment)
-		}
-		// Already a tombstone: re-export it at a newer SEQUENCE so any client that
-		// missed the first cancellation still purges it.
-		return s.cfg.AppointmentRepo.BumpRevision(ctx, appointment.ID)
+		return s.cfg.AppointmentRepo.SoftDelete(ctx, appointment.ID)
 	}
 	// Child rows (recurrence, recipients, recipient-students, targets, occurrence
 	// overrides) are removed by ON DELETE CASCADE on the appointment FK.

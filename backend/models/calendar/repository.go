@@ -2,6 +2,7 @@ package calendar
 
 import (
 	"context"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
@@ -14,9 +15,19 @@ type AppointmentRepository interface {
 	// used when a change affecting the exported calendar lives in a child table.
 	BumpRevision(ctx context.Context, appointmentID int64) error
 	Delete(ctx context.Context, id any) error
+	// SoftDelete marks the appointment deleted_at=now and bumps the revision. Used
+	// for feed-visible appointments so they vanish from interactive calendars but
+	// remain exportable as a durable STATUS:CANCELLED tombstone.
+	SoftDelete(ctx context.Context, appointmentID int64) error
+	// ListVisible*/ListOrganized* return only live (deleted_at IS NULL) rows.
 	ListVisibleForStaff(ctx context.Context, staffID int64, from, to timezone.Date) ([]*Appointment, error)
 	ListVisibleForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, from, to timezone.Date) ([]*Appointment, error)
 	ListOrganizedByStaff(ctx context.Context, staffID int64, from, to timezone.Date) ([]*Appointment, error)
+	// ListDeletedTombstonesForGuardianProfiles returns guardian-visible
+	// appointments soft-deleted on/after deletedSince, regardless of their event
+	// dates — the feed re-exports them as STATUS:CANCELLED so subscribers purge
+	// them. Retention is bounded by deletedSince, not by the date lookback window.
+	ListDeletedTombstonesForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, deletedSince time.Time) ([]*Appointment, error)
 }
 
 type RecurrenceRuleRepository interface {

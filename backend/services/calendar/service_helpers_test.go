@@ -495,8 +495,48 @@ func TestAppointmentICSEventUIDIncludesTenant(t *testing.T) {
 		StartDate:   timezone.NewDate(2026, 1, 5),
 		EndDate:     timezone.NewDate(2026, 1, 5),
 	}
-	event := appointmentICSEvent(appt, nil, nil)
+	event := appointmentICSEvent(appt, nil, nil, nil)
 	assert.Equal(t, "appointment-42-5@moto-app.de", event.UID)
+}
+
+func TestAppointmentICSEventWindowBoundsRecurrence(t *testing.T) {
+	// An old, open-ended weekly series. Without a window the export carries the
+	// original DTSTART and an unbounded RRULE (clients would expand years of
+	// history and future). With the feed window it must be clamped to the window.
+	oldMonday := timezone.NewDate(2020, 1, 6)
+	appt := &calModels.Appointment{
+		Model:       base.Model{ID: 9},
+		TenantModel: base.TenantModel{TenantID: 1},
+		Title:       "Wöchentlich",
+		StartDate:   oldMonday,
+		EndDate:     oldMonday,
+		StartTime:   helperClock(9, 0),
+		EndTime:     helperClock(10, 0),
+	}
+	rule := &calModels.RecurrenceRule{
+		Frequency:     calModels.RecurrenceFrequencyWeekly,
+		IntervalCount: 1,
+		Weekdays:      []string{"monday"},
+	}
+
+	// No window (single-appointment download): original anchor, unbounded RRULE.
+	full := appointmentICSEvent(appt, rule, nil, nil)
+	require.NotNil(t, full.Recurrence)
+	assert.Equal(t, oldMonday, full.StartDate)
+	assert.Nil(t, full.Recurrence.Until)
+
+	// Feed window: DTSTART clamps to the first in-window Monday and the RRULE is
+	// capped with UNTIL at the last in-window Monday; COUNT is not used.
+	from := timezone.NewDate(2026, 7, 6) // a Monday
+	to := timezone.NewDate(2026, 8, 3)   // a Monday
+	windowed := appointmentICSEvent(appt, rule, nil, &feedWindow{From: from, To: to})
+	require.NotNil(t, windowed.Recurrence)
+	assert.Equal(t, timezone.NewDate(2026, 7, 6), windowed.StartDate)
+	require.NotNil(t, windowed.Recurrence.Until)
+	assert.Equal(t, timezone.NewDate(2026, 8, 3), *windowed.Recurrence.Until)
+	assert.Nil(t, windowed.Recurrence.Count)
+	assert.False(t, windowed.StartDate.Before(from), "DTSTART must not predate the window")
+	assert.False(t, windowed.Recurrence.Until.After(to), "UNTIL must not exceed the window")
 }
 
 func TestCalendarGroupingAndDisplayHelpers(t *testing.T) {
