@@ -10,7 +10,7 @@
  * URL-Vokabular (Planung-Redesign, docs/planung-redesign/docs/06-betreuungsplan.md
  * Abschnitt 2.1): genau `d` (Berlin-Kalendertag; die angezeigte Woche/der Monat
  * ist die Woche/der Monat, die/den `d` enthält), `view` ("woche" | "monat" |
- * "serien") und `block` (Instanz-ID des geöffneten InstanceDetailSlideOver).
+ * "serien") und `block` (Instanz-ID des geöffneten InstanceDetailModal).
  * Ungültige Werte fallen still auf die Defaults zurück (heute, "woche"). Die
  * sieben Alt-Parameter (week/month/year/instance/day/period/Alt-view) entfallen
  * ersatzlos; die Jahresansicht ist nicht mehr verlinkbar. Der Dichte-Umschalter
@@ -45,9 +45,9 @@ import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { ConflictWarningsBanner } from "~/components/timetable/conflict-warnings-banner";
 import { GapJumpList } from "~/components/timetable/gap-jump-list";
 import {
-  InstanceDetailSlideOver,
+  InstanceDetailModal,
   type LifecycleAction,
-} from "~/components/timetable/instance-detail-slide-over";
+} from "~/components/timetable/instance-detail-modal";
 import { TimetableAddMenu } from "~/components/timetable/timetable-add-menu";
 import { MonthPlannerGrid } from "~/components/timetable/month-planner-grid";
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
@@ -1138,7 +1138,7 @@ function TimetablesContent() {
         </>
       )}
 
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={selectedInstance}
         onClose={() => handleSelectInstance(null)}
         onLifecycleAction={handleLifecycle}
