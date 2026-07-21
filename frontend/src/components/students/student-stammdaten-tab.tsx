@@ -731,6 +731,27 @@ export function StudentStammdatenTab({
       ) {
         delete submitData.photo_consent_given;
       }
+      // Same reasoning for the Datenschutz pair, and load-bearing since the
+      // proxy writes it BEFORE the student PUT: both fields sit in the draft on
+      // every save, so an unrelated edit (a name, a companion) would resubmit
+      // the values this form loaded. If somebody else changed the consent in the
+      // meantime and this save is then refused — a companion conflict, a stale
+      // list — the stale echo would already have overwritten their change and
+      // stay committed, while the user is told nothing was saved. Omitted keys
+      // make the proxy skip the consent write entirely, so only a save that
+      // actually changes consent can touch it.
+      //
+      // Both travel together or not at all: the proxy's consent PUT is a full
+      // upsert of the pair, so a lone field would write the OTHER one back to
+      // its default (accepted=false / 30 days).
+      if (
+        submitData.privacy_consent_accepted ===
+          originalDraft.privacy_consent_accepted &&
+        submitData.data_retention_days === originalDraft.data_retention_days
+      ) {
+        delete submitData.privacy_consent_accepted;
+        delete submitData.data_retention_days;
+      }
       // A plan the USER changed, as opposed to the untouched copy that rides
       // along on every save. Only the former may remove links.
       const planEdited = !allowedDepartureModesEqual(
@@ -931,7 +952,9 @@ export function StudentStammdatenTab({
       onSave,
       onStudentRefresh,
       originalDraft.allowed_departure_modes,
+      originalDraft.data_retention_days,
       originalDraft.photo_consent_given,
+      originalDraft.privacy_consent_accepted,
       pendingPhotoBlob,
       pendingPhotoRemoved,
       student.id,

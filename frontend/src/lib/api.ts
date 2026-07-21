@@ -590,9 +590,23 @@ export class CompanionPlanConflictError extends Error {
    */
   readonly conflicts: CompanionExtensionConfirmation[];
 
+  /**
+   * The untouched response body.
+   *
+   * Kept because the refusal is not the only thing the body says: the student
+   * PUT proxy writes the privacy consent of the same request first, so a
+   * refusal can arrive on top of a COMMITTED consent write and carries
+   * `details.privacy_consent_saved` to say so. isPrivacyConsentSaved reads
+   * exactly this field (the message is only the German sentence), and without
+   * it the form reports "nothing was saved" for a request that did change the
+   * stored Datenschutz settings.
+   */
+  readonly body: string;
+
   constructor(body: string) {
     super(parseConflictMessage(body));
     this.name = "CompanionPlanConflictError";
+    this.body = body;
     this.conflicts = parseConflictExtensions(body);
   }
 }
@@ -661,9 +675,13 @@ const COMPANIONS_CHANGED_FALLBACK =
  * has to reload first and let the user redo the edit on the current state.
  */
 export class CompanionsChangedError extends Error {
+  /** The untouched response body — see CompanionPlanConflictError.body. */
+  readonly body: string;
+
   constructor(body: string) {
     super(parseBackendMessage(body, COMPANIONS_CHANGED_FALLBACK));
     this.name = "CompanionsChangedError";
+    this.body = body;
   }
 }
 
@@ -718,9 +736,13 @@ const COMPANION_DEPARTURE_FALLBACK =
  * what has to change before the save can succeed.
  */
 export class CompanionDepartureRefusedError extends Error {
+  /** The untouched response body — see CompanionPlanConflictError.body. */
+  readonly body: string;
+
   constructor(body: string) {
     super(parseBackendMessage(body, COMPANION_DEPARTURE_FALLBACK));
     this.name = "CompanionDepartureRefusedError";
+    this.body = body;
   }
 }
 

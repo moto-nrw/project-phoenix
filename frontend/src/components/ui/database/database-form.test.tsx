@@ -893,6 +893,115 @@ describe("DatabaseForm", () => {
     });
   });
 
+  // The student proxy writes the Datenschutz pair BEFORE the student PUT, so
+  // anything this payload carries is stored even when the student write is
+  // refused. While editing, an untouched pair is only an echo of the fetched
+  // server consent — sending it back would overwrite a change made since.
+  const privacySections: FormSection[] = [
+    {
+      title: "Stammdaten",
+      fields: [
+        { name: "test_field", label: "Test Field", type: "text" },
+        {
+          name: "privacy_consent_accepted",
+          label: "Einwilligung",
+          type: "checkbox",
+        },
+        {
+          name: "data_retention_days",
+          label: "Aufbewahrungstage",
+          type: "number",
+        },
+      ],
+    },
+  ];
+
+  const withConsent = (accepted: boolean, days: number) => ({
+    data: { accepted, data_retention_days: days },
+    error: undefined,
+    isLoading: false,
+    isValidating: false,
+    mutate: vi.fn(),
+  });
+
+  it("omits the untouched privacy pair when editing a student", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useSWR).mockReturnValue(withConsent(true, 90));
+
+    render(
+      <DatabaseForm
+        {...defaultProps}
+        sections={privacySections}
+        initialData={{ id: "student-1", test_field: "initial value" }}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Aufbewahrungstage")).toHaveValue(90),
+    );
+    fireEvent.change(screen.getByLabelText("Test Field"), {
+      target: { value: "unrelated edit" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    const submitted = onSubmit.mock.calls[0]![0] as Record<string, unknown>;
+    expect(submitted.test_field).toBe("unrelated edit");
+    expect("privacy_consent_accepted" in submitted).toBe(false);
+    expect("data_retention_days" in submitted).toBe(false);
+  });
+
+  // Both fields travel together once one of them was touched: the proxy's
+  // consent PUT upserts the pair, so a lone field resets the other.
+  it("submits both privacy fields once one of them was edited", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useSWR).mockReturnValue(withConsent(false, 90));
+
+    render(
+      <DatabaseForm
+        {...defaultProps}
+        sections={privacySections}
+        initialData={{ id: "student-1", test_field: "initial value" }}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Aufbewahrungstage")).toHaveValue(90),
+    );
+    fireEvent.click(screen.getByLabelText("Einwilligung"));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    const submitted = onSubmit.mock.calls[0]![0] as Record<string, unknown>;
+    expect(submitted.privacy_consent_accepted).toBe(true);
+    expect(submitted.data_retention_days).toBe(90);
+  });
+
+  // On create there is no stored consent to echo, so the defaults must travel.
+  it("keeps the privacy pair when creating a student", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <DatabaseForm
+        {...defaultProps}
+        sections={privacySections}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Test Field"), {
+      target: { value: "neues Kind" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    const submitted = onSubmit.mock.calls[0]![0] as Record<string, unknown>;
+    expect(submitted.privacy_consent_accepted).toBe(false);
+    expect(submitted.data_retention_days).toBe(30);
+  });
+
   it("renders helper text when provided", () => {
     const sectionsWithHelper: FormSection[] = [
       {

@@ -1731,6 +1731,92 @@ describe("api.ts helper functions", () => {
         false,
       );
     });
+
+    // The typed companion refusals reduce the response to a display message, so
+    // they have to carry the untouched body along — the marker lives in
+    // `details`, and the proxy stamps it onto exactly these refusals when the
+    // consent half of the same request already committed.
+    it("keeps the marker on the typed companion refusals", async () => {
+      const respondWith = async (status: number, body: string) => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status,
+          text: () => Promise.resolve(body),
+        });
+        const { getSession } = await import("next-auth/react");
+        vi.mocked(getSession).mockResolvedValue({
+          user: { token: "test-token" },
+        } as never);
+        const { studentService } = await import("./api");
+        const restore = setupBrowserEnv();
+        try {
+          return await studentService
+            .updateStudent("1", {
+              first_name: "Test",
+              second_name: "Student",
+              school_class: "1a",
+              name: "Test Student",
+              current_location: "",
+            })
+            .then(() => null)
+            .catch((err: unknown) => err);
+        } finally {
+          restore();
+        }
+      };
+
+      const {
+        isPrivacyConsentSaved,
+        CompanionPlanConflictError,
+        CompanionsChangedError,
+        CompanionDepartureRefusedError,
+      } = await import("./api");
+      const details = { privacy_consent_saved: true };
+
+      const conflict = await respondWith(
+        409,
+        JSON.stringify({
+          error: "Ein verknüpftes Kind läuft an diesem Tag nicht allein.",
+          conflicts: [{ student_id: 7, weekdays: ["mon"] }],
+          details,
+        }),
+      );
+      expect(conflict).toBeInstanceOf(CompanionPlanConflictError);
+      expect(isPrivacyConsentSaved(conflict)).toBe(true);
+
+      const stale = await respondWith(
+        409,
+        JSON.stringify({
+          error: "Die Laufgemeinschaft wurde zwischenzeitlich geändert.",
+          code: "companions_changed",
+          details,
+        }),
+      );
+      expect(stale).toBeInstanceOf(CompanionsChangedError);
+      expect(isPrivacyConsentSaved(stale)).toBe(true);
+
+      const stranded = await respondWith(
+        400,
+        JSON.stringify({
+          error: "Bitte zuerst den Heimweg dieses Kindes anpassen.",
+          code: "companion_would_lose_departure",
+          details,
+        }),
+      );
+      expect(stranded).toBeInstanceOf(CompanionDepartureRefusedError);
+      expect(isPrivacyConsentSaved(stranded)).toBe(true);
+
+      // …and stays absent when the consent write never ran.
+      const unmarked = await respondWith(
+        409,
+        JSON.stringify({
+          error: "Die Laufgemeinschaft wurde zwischenzeitlich geändert.",
+          code: "companions_changed",
+        }),
+      );
+      expect(unmarked).toBeInstanceOf(CompanionsChangedError);
+      expect(isPrivacyConsentSaved(unmarked)).toBe(false);
+    });
   });
 
   describe("roomService.updateRoom", () => {

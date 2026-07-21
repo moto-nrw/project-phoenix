@@ -22,7 +22,9 @@ const {
   validateStudentFormMock: vi.fn(),
   uploadStudentPhotoMock: vi.fn(),
   deleteStudentPhotoMock: vi.fn(),
-  fetchStudentPrivacyConsentMock: vi.fn(() => Promise.resolve(null)),
+  fetchStudentPrivacyConsentMock: vi.fn<
+    () => Promise<{ accepted: boolean; dataRetentionDays: number } | null>
+  >(() => Promise.resolve(null)),
   fetchStudentEnrollmentExtraFieldsMock: vi.fn<
     (studentId: string) => Promise<unknown[]>
   >(() => Promise.resolve([])),
@@ -185,14 +187,40 @@ vi.mock("./student-form-fields", () => ({
 
 vi.mock("./student-common-form-sections", () => ({
   StudentCommonFormSections: ({
+    formData,
     errors,
+    onChange,
   }: {
+    formData: Partial<Student>;
     errors: Record<string, string>;
+    onChange: (field: keyof Student, value: string | boolean | number) => void;
   }) => (
     <div
       data-testid="common-sections"
       data-error-count={Object.keys(errors).length}
-    />
+      // The separately fetched consent reaches the draft one effect later than
+      // the fetch resolves; the tests wait on these before editing, because an
+      // edit made in between is overwritten by that sync.
+      data-privacy-consent={String(formData.privacy_consent_accepted)}
+      data-retention-days={String(formData.data_retention_days)}
+    >
+      {/* The Datenschutz controls live in this section; the tests drive them
+          directly to tell a consent edit apart from an unrelated save. */}
+      <button
+        type="button"
+        data-testid="privacy-consent-on"
+        onClick={() => onChange("privacy_consent_accepted", true)}
+      >
+        privacy-consent-on
+      </button>
+      <button
+        type="button"
+        data-testid="retention-90"
+        onClick={() => onChange("data_retention_days", 90)}
+      >
+        retention-90
+      </button>
+    </div>
   ),
 }));
 
@@ -222,6 +250,22 @@ function makeStudent(overrides: Partial<Student> = {}): Student {
     current_location: "class",
     ...overrides,
   } as Student;
+}
+
+/**
+ * Blocks until the separately fetched Datenschutz values are in the editable
+ * draft. Editing before that is pointless: the sync effect writes the server
+ * values over the whole pair and takes the edit with it.
+ *
+ * At least one of the awaited values has to differ from the pre-load draft
+ * (not accepted / 30 days), or the wait passes before the fetch resolved.
+ */
+async function waitForConsentInDraft(accepted: string, retentionDays: string) {
+  await waitFor(() => {
+    const section = screen.getByTestId("common-sections");
+    expect(section).toHaveAttribute("data-privacy-consent", accepted);
+    expect(section).toHaveAttribute("data-retention-days", retentionDays);
+  });
 }
 
 describe("StudentStammdatenTab", () => {
@@ -328,6 +372,95 @@ describe("StudentStammdatenTab", () => {
         expect.objectContaining({ address_city: "Bonn" }),
       );
     });
+  });
+
+  // The proxy writes the Datenschutz pair BEFORE the student PUT, so anything
+  // this form sends is stored even when the student write is refused. An
+  // unrelated edit must therefore not carry the loaded consent along: it would
+  // overwrite a change somebody else made since the load and survive the
+  // refusal.
+  it("omits the unchanged Datenschutz pair from an unrelated save", async () => {
+    fetchStudentPrivacyConsentMock.mockResolvedValue({
+      accepted: true,
+      dataRetentionDays: 90,
+    });
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <StudentStammdatenTab
+        student={makeStudent({ address_city: "Köln" })}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    // Wait for the fetched consent to land in the draft — before that there is
+    // nothing to omit and the assertion would pass for the wrong reason.
+    await waitForConsentInDraft("true", "90");
+
+    fireEvent.change(screen.getByTestId("address-city"), {
+      target: { value: "Bonn" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const submitted = onSave.mock.calls[0]![0] as Partial<Student>;
+    expect(submitted.address_city).toBe("Bonn");
+    expect("privacy_consent_accepted" in submitted).toBe(false);
+    expect("data_retention_days" in submitted).toBe(false);
+  });
+
+  // Both fields travel together: the proxy's consent PUT upserts the pair, so a
+  // lone field would reset the other to its default.
+  it("submits both Datenschutz fields when one of them changed", async () => {
+    // 60 days, not the 30 the draft starts with: the wait below would otherwise
+    // be satisfied by the pre-load defaults and the edit would race the sync.
+    fetchStudentPrivacyConsentMock.mockResolvedValue({
+      accepted: false,
+      dataRetentionDays: 60,
+    });
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    await waitForConsentInDraft("false", "60");
+
+    fireEvent.click(screen.getByTestId("privacy-consent-on"));
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const submitted = onSave.mock.calls[0]![0] as Partial<Student>;
+    expect(submitted.privacy_consent_accepted).toBe(true);
+    expect(submitted.data_retention_days).toBe(60);
+  });
+
+  it("submits both Datenschutz fields when only the retention changed", async () => {
+    fetchStudentPrivacyConsentMock.mockResolvedValue({
+      accepted: true,
+      dataRetentionDays: 30,
+    });
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    await waitForConsentInDraft("true", "30");
+
+    fireEvent.click(screen.getByTestId("retention-90"));
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const submitted = onSave.mock.calls[0]![0] as Partial<Student>;
+    expect(submitted.data_retention_days).toBe(90);
+    expect(submitted.privacy_consent_accepted).toBe(true);
   });
 
   it("renders linked per-child enrollment extra fields read-only", async () => {

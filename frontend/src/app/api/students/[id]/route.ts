@@ -256,6 +256,16 @@ export const PUT = createPutHandler<
       // is that a student PUT failing on top of a COMMITTED consent write says
       // so (markPrivacyConsentSaved below) instead of reporting a blanket
       // failure for a request that half succeeded.
+      //
+      // The consequence for callers: a consent value in the body is WRITTEN,
+      // refused student PUT or not. It may therefore only be sent by a save
+      // that actually changes it — an unrelated edit carrying the values the
+      // form loaded would, on a refused save, leave somebody else's newer
+      // consent overwritten by a stale echo while the user is told nothing was
+      // saved. Both clients omit the untouched pair for exactly that reason
+      // (student-stammdaten-tab.tsx, ui/database/database-form.tsx); an omitted
+      // pair skips the write below. Send the pair or neither — this is a full
+      // upsert, so a lone field resets the other one to its default.
       let consentSaved = false;
       if (
         privacy_consent_accepted !== undefined ||
