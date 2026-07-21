@@ -122,9 +122,9 @@ describe("useSidebarAccordion", () => {
     expect(result.current.expanded).toBe("enrollments");
   });
 
-  it("knows no 'planning' section anymore (Planung-Redesign)", () => {
-    // Die Planungsbereiche sind flache Sidebar-Einträge; kein Akkordeon
-    // öffnet sich auf ihren Pfaden (docs/planung-redesign/docs/03).
+  it("expands 'planning' for all planning paths incl. legacy redirects (#1946)", () => {
+    // Betreuungsplan, Dienstplan, Vertretung und Kalenderzeiträume sind
+    // Unterpunkte des Planung-Akkordeons; die Redirect-Stubs zählen dazu.
     for (const path of [
       "/calendar-periods",
       "/timetables",
@@ -132,18 +132,19 @@ describe("useSidebarAccordion", () => {
       "/betreuungsplan",
       "/dienstplan",
       "/vertretung",
+      "/vertretungsplan",
     ]) {
       const { result } = renderHook(() => useSidebarAccordion(path));
-      expect(result.current.expanded).toBeNull();
+      expect(result.current.expanded).toBe("planning");
     }
   });
 
-  it("ignores a stored legacy 'planning' value without errors", () => {
+  it("restores a stored 'planning' value from localStorage", () => {
     localStorageMock.getItem.mockReturnValueOnce("planning");
 
     const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
 
-    expect(result.current.expanded).toBeNull();
+    expect(result.current.expanded).toBe("planning");
   });
 
   it("restores 'eltern' from localStorage when pathname does not determine section", () => {

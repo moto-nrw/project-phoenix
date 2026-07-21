@@ -20,12 +20,18 @@ import { navigationIcons } from "~/lib/navigation-icons";
 import { operatorPath } from "~/lib/operator-url";
 import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
 import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
+import useSWR from "swr";
 import {
   useNFCEnabled,
+  useOpenCareGroupMode,
   usePresenceMode,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
 } from "~/lib/tenant-context";
+import {
+  SETTINGS_SCHEMA_SWR_KEY,
+  fetchSettingsSchema,
+} from "~/lib/settings-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   Drawer,
@@ -267,6 +273,13 @@ const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
   },
 ];
 
+// Die Planungsbereiche im "Mehr"-Drawer, gated auf timetable.enabled (#1946).
+const PLANNING_ITEM_HREFS = new Set<string>([
+  "/betreuungsplan",
+  "/dienstplan",
+  "/vertretung",
+]);
+
 const additionalNavItems: AdditionalNavItem[] = [
   {
     href: "/activities",
@@ -284,15 +297,17 @@ const additionalNavItems: AdditionalNavItem[] = [
   },
   { href: "/rooms", label: "Räume", iconKey: "rooms", alwaysShow: true },
   {
-    // "Übergaben" statt "Vertretungen", damit nur der neue Planungsbereich
-    // "Vertretung" heißt (docs/planung-redesign/docs/03).
+    // Alt-Bereich für temporären Gruppen-Datenzugriff (#1940) — nur bei
+    // festen Gruppen sichtbar (Filter unten).
     href: "/substitutions",
-    label: "Übergaben",
+    label: "Gruppenzugriff",
     iconKey: "substitutions",
     requiresAdmin: true,
   },
-  // Die drei Planungsbereiche als flache Einträge im "Mehr"-Drawer
-  // (Planung-Redesign, docs/planung-redesign/docs/03 Abschnitt 6).
+  // Die drei Planungsbereiche als flache Einträge im "Mehr"-Drawer (das
+  // Desktop-Planung-Akkordeon flacht mobil ab wie die anderen Akkordeons);
+  // gated auf timetable.enabled im Filter unten. /calendar-periods fehlt
+  // bewusst: die Seite ist Desktop-only (DesktopOnlyNotice).
   {
     href: "/betreuungsplan",
     label: "Betreuungsplan",
@@ -586,6 +601,27 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const hasGroupSupervision = !isLoadingGroups && hasGroups;
   const hasRoomSupervision = !isLoadingSupervision && isSupervising;
 
+  // Gruppenzugriff (#1940) ist nur bei festen Gruppen sinnvoll.
+  const openCareGroupMode = useOpenCareGroupMode();
+  // Planung-Einträge (#1946) hängen an timetable.enabled. Gleiches
+  // settingsSchema-Lesemuster wie die Desktop-Sidebar; `!== false`, damit die
+  // Einträge während des Schema-Ladens nicht kurz verschwinden.
+  const canReadConfig = userIsAdmin || hasPermission(session, "config:read");
+  const { data: settingsSchema } = useSWR(
+    mode === "teacher" && canReadConfig ? SETTINGS_SCHEMA_SWR_KEY : null,
+    fetchSettingsSchema,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      shouldRetryOnError: false,
+    },
+  );
+  const timetableEnabled =
+    settingsSchema?.tabs
+      .flatMap((tab) => tab.categories)
+      .flatMap((category) => category.items)
+      .find((item) => item.key === "timetable.enabled")?.value !== false;
+
   // Filter additional navigation items based on permissions
   const filteredMainItemsByMode = filteredMainItems.filter(
     (item) => showActivityNav || !NFC_ONLY_HREFS.has(item.href),
@@ -597,6 +633,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       return false;
     }
     if (!showActivityNav && NFC_ONLY_HREFS.has(item.href)) return false;
+    if (PLANNING_ITEM_HREFS.has(item.href) && !timetableEnabled) return false;
+    if (item.href === "/substitutions" && openCareGroupMode) return false;
     if (item.alwaysShow) return true;
     if (item.requiresAdmin) return userIsAdmin;
     if (item.requiresPermission) {

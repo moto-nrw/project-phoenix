@@ -66,7 +66,12 @@ import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { useNFCEnabled, usePresenceMode } from "~/lib/tenant-context";
+import {
+  useNFCEnabled,
+  useOpenCareGroupMode,
+  usePresenceMode,
+} from "~/lib/tenant-context";
+import useSWR from "swr";
 
 const mockUsePathname = vi.mocked(usePathname);
 const mockUseSearchParams = vi.mocked(useSearchParams);
@@ -76,6 +81,8 @@ const mockIsAdmin = vi.mocked(isAdmin);
 const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
+const mockUseOpenCareGroupMode = vi.mocked(useOpenCareGroupMode);
+const mockUseSWRDefault = vi.mocked(useSWR);
 
 // Helper to create mock search params
 function createMockSearchParams(
@@ -185,17 +192,17 @@ describe("Sidebar", () => {
 
       // Admin-only items
       expect(screen.getByText("Home")).toBeInTheDocument();
-      expect(screen.getByText("Übergaben")).toBeInTheDocument();
+      // "Übergaben" heißt jetzt "Gruppenzugriff" (#1940).
+      expect(screen.getByText("Gruppenzugriff")).toBeInTheDocument();
+      expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
-      // Die drei Planungsbereiche sind flache Einträge; das frühere
-      // Planung-Akkordeon existiert nicht mehr (Planung-Redesign,
-      // docs/planung-redesign/docs/03).
+      // Die Planungsbereiche sind Unterpunkte des Planung-Akkordeons (#1946),
+      // inklusive Kalenderzeiträume.
+      expect(screen.getByText("Planung")).toBeInTheDocument();
       expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
       expect(screen.getByText("Dienstplan")).toBeInTheDocument();
       expect(screen.getByText("Vertretung")).toBeInTheDocument();
-      expect(screen.queryByText("Planung")).not.toBeInTheDocument();
-      expect(screen.queryByText("Planungsübersicht")).not.toBeInTheDocument();
-      expect(screen.queryByText("Kalenderzeiträume")).not.toBeInTheDocument();
+      expect(screen.getByText("Kalenderzeiträume")).toBeInTheDocument();
     });
 
     it("hides staff-only items for admins (hideForAdmin)", () => {
@@ -337,20 +344,22 @@ describe("Sidebar", () => {
       expect(staffLink).not.toHaveClass("bg-gray-100");
     });
 
-    it("highlights Betreuungsplan on /calendar-periods", () => {
-      // Die Zeitraum-Verwaltung ist Unterfunktion des Betreuungsplans und
-      // hat keinen eigenen Sidebar-Eintrag mehr.
+    it("highlights Kalenderzeiträume on /calendar-periods", () => {
+      // Die Zeitraum-Verwaltung ist eigener Unterpunkt im Planung-Akkordeon
+      // (#1946) und leuchtet dort selbst, nicht mehr im Betreuungsplan.
       mockUsePathname.mockReturnValue("/calendar-periods");
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
 
       render(<Sidebar />);
 
+      const periodsLink = screen.getByText("Kalenderzeiträume").closest("a");
       const betreuungsplanLink = screen
         .getByText("Betreuungsplan")
         .closest("a");
       const kalenderLink = screen.getByText("Kalender").closest("a");
-      expect(betreuungsplanLink).toHaveClass("bg-gray-100");
+      expect(periodsLink).toHaveClass("bg-gray-100");
+      expect(betreuungsplanLink).not.toHaveClass("bg-gray-100");
       // /calendar darf nicht per Präfix auf /calendar-periods mitleuchten.
       expect(kalenderLink).not.toHaveClass("bg-gray-100");
     });
@@ -1615,6 +1624,84 @@ describe("Sidebar", () => {
       expect(screen.getByText("Kinder")).toBeInTheDocument();
       expect(screen.queryByText("Geräte")).not.toBeInTheDocument();
       expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Planung accordion gating (#1946)", () => {
+    beforeEach(() => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+    });
+
+    afterEach(() => {
+      // Restore the global SWR default (data: undefined) so the schema
+      // override doesn't leak into other tests.
+      mockUseSWRDefault.mockReturnValue({
+        data: undefined,
+        error: undefined,
+        isLoading: true,
+        isValidating: false,
+        mutate: vi.fn(),
+      } as unknown as ReturnType<typeof useSWR>);
+    });
+
+    it("hides the Planung accordion when timetable.enabled is false", () => {
+      mockUseSWRDefault.mockReturnValue({
+        data: {
+          tabs: [
+            {
+              categories: [
+                { items: [{ key: "timetable.enabled", value: false }] },
+              ],
+            },
+          ],
+        },
+        error: undefined,
+        isLoading: false,
+        isValidating: false,
+        mutate: vi.fn(),
+      } as unknown as ReturnType<typeof useSWR>);
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Planung")).not.toBeInTheDocument();
+      expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
+      expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
+      expect(screen.queryByText("Vertretung")).not.toBeInTheDocument();
+      expect(screen.queryByText("Kalenderzeiträume")).not.toBeInTheDocument();
+    });
+
+    it("shows the Planung accordion while the settings schema is loading", () => {
+      // data undefined (globaler SWR-Default) — der Bereich darf beim Laden
+      // nicht kurz verschwinden (`!== false`-Gate).
+      render(<Sidebar />);
+
+      expect(screen.getByText("Planung")).toBeInTheDocument();
+    });
+  });
+
+  describe("Gruppenzugriff gating (#1940)", () => {
+    beforeEach(() => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+    });
+
+    afterEach(() => {
+      mockUseOpenCareGroupMode.mockReturnValue(false);
+    });
+
+    it("hides Gruppenzugriff for open-care tenants", () => {
+      mockUseOpenCareGroupMode.mockReturnValue(true);
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Gruppenzugriff")).not.toBeInTheDocument();
+    });
+
+    it("shows Gruppenzugriff for fixed-groups tenants", () => {
+      render(<Sidebar />);
+
+      expect(screen.getByText("Gruppenzugriff")).toBeInTheDocument();
     });
   });
 });
