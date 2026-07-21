@@ -30,7 +30,3 @@ Die Features teilen nur den historischen Namen, nicht die Semantik. Eine Zusamme
 |---|---|---|
 | **fixed_groups** | Planung + Gruppenzugriff | nur Gruppenzugriff |
 | **open_care** | nur Planung | keins von beiden |
-
-## Offene Prüfpunkte aus dem Issue
-
-- "Mit Burbach geklärt" und "Tenant-Datenbestand geprüft" sind aus dem Code nicht verifizierbar; Nachweis gehört ins Issue #1940 bzw. den PR-Verlauf.
