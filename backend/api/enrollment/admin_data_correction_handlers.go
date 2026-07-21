@@ -65,7 +65,7 @@ func (rs *Resource) correctAdminChildData(w http.ResponseWriter, r *http.Request
 		return correctionErr
 	})
 	if err != nil {
-		mapChangeRequestError(w, r, err)
+		mapChangeRequestWriteError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, toChangeRequestResponse(corrected, true, true), "Enrollment child data corrected")

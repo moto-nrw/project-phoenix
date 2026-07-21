@@ -612,7 +612,7 @@ export default function StaffCalendarPage() {
     <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <PersonalCalendar
         title="Mein Kalender"
-        subtitle="Deine Termine, Einladungen und zugewiesenen Betreuungsangebote."
+        subtitle="Deine Termine, Einladungen, Dienstplan-Schichten und zugewiesenen Betreuungsangebote."
         // On a load error SWR may still hold the previous range's data; don't
         // render stale appointments under the new date label.
         events={calendarError ? [] : (data?.events ?? [])}

@@ -297,6 +297,7 @@ GET /api/students/{id}
 GET /api/students/{id}/arrival-schedules
 GET /api/students/{id}/attendance-history
 GET /api/students/{id}/attendance-history/export
+GET /api/students/{id}/companions
 GET /api/students/{id}/current-location
 GET /api/students/{id}/current-visit
 GET /api/students/{id}/enrollment-extra-fields

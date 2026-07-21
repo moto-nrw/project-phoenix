@@ -110,7 +110,13 @@ type PickupStatusFilter = "all" | "self" | "pickedUp" | "none";
 type DayStatusFilter = "all" | "comes_today" | "not_coming_today";
 type SortMode = "name" | "arrival" | "pickup";
 type GroupMode =
-  "none" | "status" | "room" | "arrival" | "pickup" | "pickup-status";
+  | "none"
+  | "status"
+  | "room"
+  | "arrival"
+  | "pickup"
+  | "pickup-status"
+  | "companions";
 
 const STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
   { value: "all", label: "Alle" },
@@ -178,6 +184,7 @@ const GROUP_OPTIONS: Array<{ value: GroupMode; label: string }> = [
   { value: "arrival", label: "Nach Ankunftszeit" },
   { value: "pickup", label: "Nach Gehzeit" },
   { value: "pickup-status", label: "Nach Abholregelung" },
+  { value: "companions", label: "Nach Laufgemeinschaft" },
 ];
 
 const FILTER_QUERY_PARAMS = [
@@ -570,13 +577,151 @@ function arrivalLabelForStudent(student: Student): string {
     : "Keine Ankunftszeit";
 }
 
+const NO_COMPANION_GROUP_LABEL = "Ohne Laufgemeinschaft";
+/**
+ * A child whose links the caller may not see. The backend only resolves the
+ * Laufgemeinschaft of full-access children (`collectFullAccessStudentIDs`), so
+ * for a restricted child an empty list means "not readable", NOT "walks alone" —
+ * with `gdpr.student_data_scope=group_supervisors_only` that is every child
+ * outside the caller's own groups. Filing them under "Ohne Laufgemeinschaft"
+ * would state as fact the one thing this page cannot know.
+ */
+const UNKNOWN_COMPANION_GROUP_LABEL = "Nicht einsehbar";
+
+/**
+ * Resolves the Laufgemeinschaft of every student on the page.
+ *
+ * The backend stores links as pairs, not groups: a Laufgemeinschaft is the set
+ * of children reachable through those links on the shown day. So this walks the
+ * links (union-find) and labels each resulting set with its members' names —
+ * there is no group name to display, by design.
+ *
+ * A companion the filter or the pagination kept off the page still takes part
+ * in the walk, it just cannot be NAMED (the list never received them — shipping
+ * the names here would leak the children the caller filtered away). Two things
+ * depend on that: a child whose only companion is hidden must not be presented
+ * as walking alone, and a hidden child can be the bridge of an A-B-C group
+ * whose visible members A and C would otherwise fall apart. Hidden members are
+ * therefore counted into the label instead of being dropped.
+ *
+ * Each student is mapped to the component's identity (the union-find root) AND
+ * its label. Bucketing has to happen on the identity: the label is built from
+ * names, and two unrelated Laufgemeinschaften whose visible children happen to
+ * be namesakes would otherwise be merged into one displayed group.
+ */
+interface CompanionGroup {
+  /** Stable identity of the connected component — the bucket key. */
+  readonly key: string;
+  /** Display text; never used to decide what belongs together. */
+  readonly label: string;
+}
+
+function companionGroupLabels(
+  students: Student[],
+): Map<string, CompanionGroup> {
+  const parent = new Map<string, string>();
+  const find = (id: string): string => {
+    let root = id;
+    while (parent.get(root) !== root) root = parent.get(root) ?? root;
+    return root;
+  };
+  const union = (a: string, b: string) => {
+    const rootA = find(a);
+    const rootB = find(b);
+    if (rootA !== rootB) parent.set(rootA, rootB);
+  };
+  const addNode = (id: string) => {
+    if (!parent.has(id)) parent.set(id, id);
+  };
+
+  const onPage = new Set(students.map((student) => String(student.id)));
+  for (const student of students) addNode(String(student.id));
+
+  for (const student of students) {
+    for (const companionId of student.companion_student_ids ?? []) {
+      const companion = String(companionId);
+      addNode(companion);
+      union(String(student.id), companion);
+    }
+  }
+
+  const members = new Map<string, Student[]>();
+  const hiddenCounts = new Map<string, number>();
+  for (const student of students) {
+    const root = find(String(student.id));
+    const bucket = members.get(root);
+    if (bucket) bucket.push(student);
+    else members.set(root, [student]);
+  }
+  for (const id of parent.keys()) {
+    if (onPage.has(id)) continue;
+    const root = find(id);
+    hiddenCounts.set(root, (hiddenCounts.get(root) ?? 0) + 1);
+  }
+
+  const labels = new Map<string, CompanionGroup>();
+  for (const [root, group] of members) {
+    const hidden = hiddenCounts.get(root) ?? 0;
+    // A set of one with nothing hidden behind it is a child that walks with
+    // nobody on this day. With a hidden member it is a real Laufgemeinschaft
+    // we can only show in part. The children who walk alone all share one
+    // bucket, so that label IS their key; every real group keeps its own root.
+    // A lone restricted child is the third case: nothing links to them on this
+    // page and their own links were never sent, so "walks alone" is a guess.
+    // Being pulled into a real group is still trustworthy — that link came
+    // from a full-access child and is readable data.
+    const lonely = group.length + hidden < 2;
+    const redacted = lonely && group[0]?.has_full_access === false;
+    const resolved: CompanionGroup = redacted
+      ? {
+          key: UNKNOWN_COMPANION_GROUP_LABEL,
+          label: UNKNOWN_COMPANION_GROUP_LABEL,
+        }
+      : lonely
+        ? { key: NO_COMPANION_GROUP_LABEL, label: NO_COMPANION_GROUP_LABEL }
+        : {
+            key: root,
+            label: withHiddenMembers(
+              group
+                .map((student) => student.name)
+                .sort((a, b) => a.localeCompare(b, "de"))
+                .join(", "),
+              hidden,
+            ),
+          };
+    for (const student of group) labels.set(String(student.id), resolved);
+  }
+  return labels;
+}
+
+/**
+ * Appends the count of group members that are not on the page, so a partly
+ * filtered Laufgemeinschaft reads as incomplete instead of as the whole group.
+ * Only the count travels — the names belong to children the caller filtered out.
+ */
+function withHiddenMembers(names: string, hidden: number): string {
+  if (hidden < 1) return names;
+  const suffix =
+    hidden === 1 ? "1 weiteres Kind" : `${String(hidden)} weitere Kinder`;
+  return `${names} (+ ${suffix} nicht angezeigt)`;
+}
+
 function groupStudents(students: Student[], groupMode: GroupMode) {
   if (groupMode === "none") return [];
 
-  const groups = new Map<string, Student[]>();
+  // Companion grouping is the one mode whose label depends on the OTHER
+  // students on the page, so it is resolved once up front instead of per row.
+  const companionLabels =
+    groupMode === "companions" ? companionGroupLabels(students) : null;
+
+  // Every mode but the companion one is grouped BY its label; companions are
+  // grouped by component identity and only rendered with the label.
+  const groups = new Map<string, { label: string; items: Student[] }>();
   for (const student of students) {
-    const key =
-      groupMode === "status"
+    const companionGroup = companionLabels?.get(String(student.id));
+    const label = companionLabels
+      ? (companionGroup?.label ?? NO_COMPANION_GROUP_LABEL)
+      : groupMode === "status"
         ? statusLabelForStudent(student)
         : groupMode === "room"
           ? roomLabelForStudent(student)
@@ -585,16 +730,23 @@ function groupStudents(students: Student[], groupMode: GroupMode) {
             : groupMode === "pickup"
               ? pickupLabelForStudent(student)
               : pickupStatusLabelForStudent(student);
+    const key = companionLabels
+      ? (companionGroup?.key ?? NO_COMPANION_GROUP_LABEL)
+      : label;
     const bucket = groups.get(key);
     if (bucket) {
-      bucket.push(student);
+      bucket.items.push(student);
     } else {
-      groups.set(key, [student]);
+      groups.set(key, { label, items: [student] });
     }
   }
 
+  // The key travels with the group: two unrelated Laufgemeinschaften can render
+  // the SAME label (namesake children, identical hidden-member count), and a
+  // duplicate React key would let one section's rows reconcile into the other.
   return Array.from(groups.entries())
-    .map(([label, items]) => ({
+    .map(([key, { label, items }]) => ({
+      key,
       label,
       items,
     }))
@@ -613,6 +765,18 @@ function groupStudents(students: Student[], groupMode: GroupMode) {
               ? "zz"
               : label;
         return rank(a.label).localeCompare(rank(b.label), "de");
+      }
+      if (groupMode === "companions") {
+        // Real Laufgemeinschaften first, then the children who walk with
+        // nobody, and last the ones this account may not read.
+        const rank = (label: string) =>
+          label === NO_COMPANION_GROUP_LABEL
+            ? 1
+            : label === UNKNOWN_COMPANION_GROUP_LABEL
+              ? 2
+              : 0;
+        const rankCmp = rank(a.label) - rank(b.label);
+        if (rankCmp !== 0) return rankCmp;
       }
       if (groupMode === "pickup-status") {
         const rank = (label: string) =>
@@ -1149,12 +1313,18 @@ function SearchPageContent() {
   // applied server-side in the same in-memory pass as day_status, so the
   // backend returns correctly-filtered and correctly-counted pages. The cache
   // key just has to vary with every filter value so SWR refetches on change.
+  // Companion links are fetched only for the Laufgemeinschaft grouping — they
+  // cost an extra backend query, and no other view reads them. Part of the
+  // cache key so switching into that grouping triggers exactly one refetch.
+  // Sits BEFORE pickup_status on purpose: that filter must stay the key's last
+  // segment (asserted by the #1492 cache-key test).
+  const wantsCompanions = groupMode === "companions";
   // The key carries selectedDate AND the today/non-today mode: when an
   // explicitly selected future date becomes today at midnight, selectedDate
   // is unchanged but the request semantics flip (date omitted, live
   // attendance included) — without the mode in the key SWR would keep
   // serving the stale future-planning response under live controls (#1939).
-  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}-${selectedSchoolClass}-${effectiveRoomId}-${dayStatusFilter}-${selectedDate}-${isToday ? "today" : "planning"}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${pickupStatusFilter}`;
+  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}-${selectedSchoolClass}-${effectiveRoomId}-${dayStatusFilter}-${selectedDate}-${isToday ? "today" : "planning"}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${wantsCompanions}-${pickupStatusFilter}`;
 
   // Fetch students with SWR (automatic deduplication, cancellation, and revalidation)
   const {
@@ -1197,6 +1367,7 @@ function SearchPageContent() {
         pageSize: effectiveRoomId ? FULL_STUDENT_SEARCH_PAGE_SIZE : undefined,
         includePickupTimes: true,
         includeArrivalTimes: true,
+        includeCompanions: wantsCompanions,
       };
 
       const result = await studentService.getStudents(filters);
@@ -2596,7 +2767,7 @@ function SearchPageContent() {
             return (
               <div className="space-y-6">
                 {groupedStudents.map((group) => (
-                  <section key={group.label} data-testid="student-group">
+                  <section key={group.key} data-testid="student-group">
                     <div className="mb-3 flex items-center gap-3">
                       <h2 className="text-sm font-semibold text-gray-900">
                         {group.label}

@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, Check, Clock } from "lucide-react";
 import { LocationBadge } from "@/components/ui/location-badge";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
@@ -22,8 +23,19 @@ import {
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { AllowedDepartureModesDisplay } from "~/components/students/allowed-departure-modes-display";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
+import {
+  companionDisplayName,
+  fetchStudentCompanions,
+  formatCompanionWeekdays,
+  subscribeStudentCompanionDisplayChanged,
+  subscribeStudentCompanionsChanged,
+  type StudentCompanion,
+} from "~/lib/student-companion-api";
 import { Avatar } from "~/components/ui/avatar";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StudentDetailComponents" });
 
 // =============================================================================
 // ICONS - Reusable SVG icons
@@ -665,6 +677,73 @@ export function PersonalInfoReadOnly({
   showEditButton = false,
   onEditClick,
 }: Readonly<PersonalInfoReadOnlyProps>) {
+  // The Laufgemeinschaft lives in its own table, so it is fetched here rather
+  // than riding along on the student payload. A failure must not break the rest
+  // of the Stammdaten card, but it must not read as "walks alone" either: for a
+  // child whose accompanied days are backed only by links there is no free-text
+  // note, so silently dropping the row would leave "Mit anderem Kind" standing
+  // without a name. Hence a distinct unavailable state next to the list.
+  const [companions, setCompanions] = useState<StudentCompanion[]>([]);
+  const [companionsUnavailable, setCompanionsUnavailable] = useState(false);
+  // Saving the Stammdaten does not remount this card and does not bring the
+  // links along in the student payload, so the fetch below must be re-run on
+  // every companion write — including a symmetric one made from the linked
+  // child's card. The counter is the effect's second trigger.
+  const [companionsRevalidation, setCompanionsRevalidation] = useState(0);
+  useEffect(() => {
+    const revalidate = () => setCompanionsRevalidation((count) => count + 1);
+    // Two buses, because two different writes make this card stale. The links
+    // themselves change on a companion write; what the links DISPLAY changes on
+    // a plain student write — a linked child renamed or moved to another group
+    // emits only student_updated, and this effect's student id stays the same,
+    // so the old name would otherwise survive here forever. After a group
+    // reassignment that name can be one a fresh request would redact for the
+    // viewing supervisor, which makes the refetch a visibility fix, not a
+    // cosmetic one.
+    const unsubscribeCompanions = subscribeStudentCompanionsChanged(revalidate);
+    const unsubscribeDisplay =
+      subscribeStudentCompanionDisplayChanged(revalidate);
+    return () => {
+      unsubscribeCompanions();
+      unsubscribeDisplay();
+    };
+  }, []);
+  // This card is reused across children without unmounting, and the links are
+  // fetched separately from the student payload. Dropping the previous child's
+  // companions only once the new request resolves would show one child's
+  // departure companions under another child's name for the whole request —
+  // safety-relevant information about who walks home with whom. Reset during
+  // render (React's "adjusting state on prop change" pattern) so the wrong
+  // names never reach the screen, not in the effect, which runs after paint.
+  const [companionsStudentId, setCompanionsStudentId] = useState(student.id);
+  if (companionsStudentId !== student.id) {
+    setCompanionsStudentId(student.id);
+    setCompanions([]);
+    setCompanionsUnavailable(false);
+  }
+  useEffect(() => {
+    if (!student.id) return;
+    let cancelled = false;
+    fetchStudentCompanions(student.id)
+      .then((loaded) => {
+        if (cancelled) return;
+        setCompanions(loaded);
+        setCompanionsUnavailable(false);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setCompanions([]);
+        setCompanionsUnavailable(true);
+        logger.error("student_companions_load_failed", {
+          student_id: student.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [student.id, companionsRevalidation]);
+
   const birthdayDisplay = student.birthday
     ? new Date(student.birthday).toLocaleDateString("de-DE", {
         timeZone: "Europe/Berlin",
@@ -726,9 +805,40 @@ export function PersonalInfoReadOnly({
             />
           }
         />
+        {companionsUnavailable && (
+          <InfoItem
+            label="Geht mit"
+            value={
+              <span className="text-sm text-gray-500">
+                Laufgemeinschaft konnte nicht geladen werden
+              </span>
+            }
+          />
+        )}
+        {!companionsUnavailable && companions.length > 0 && (
+          <InfoItem
+            label="Geht mit"
+            value={
+              <span className="space-y-0.5">
+                {companions.map((companion) => (
+                  <span
+                    key={companion.companion_student_id}
+                    className="block text-sm"
+                  >
+                    {companionDisplayName(companion)}
+                    <span className="text-gray-500">
+                      {" "}
+                      ({formatCompanionWeekdays(companion.weekdays)})
+                    </span>
+                  </span>
+                ))}
+              </span>
+            }
+          />
+        )}
         {student.departure_companion_note && (
           <InfoItem
-            label="Mit welchem Kind?"
+            label="Geht außerdem mit"
             value={student.departure_companion_note}
           />
         )}

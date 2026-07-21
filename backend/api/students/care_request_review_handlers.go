@@ -137,6 +137,12 @@ func (rs *Resource) decideCareScheduleChangeRequest(w http.ResponseWriter, r *ht
 			errors.Is(err, scheduleService.ErrCareRequestRejectReasonTooLong),
 			errors.Is(err, scheduleService.ErrInvalidCareRequestPayload):
 			renderError(w, r, common.ErrorInvalidRequest(err))
+		// Approving a care-schedule change rewrites the child's departure plan,
+		// so it can strand or collide with a "läuft mit" link exactly like the
+		// student PUT does. Both conditions are expected and actionable, not a
+		// server failure (#1694).
+		case companionPlanErrorRenderer(err) != nil:
+			renderError(w, r, companionPlanErrorRenderer(err))
 		default:
 			renderError(w, r, common.ErrorInternalServer(err))
 		}

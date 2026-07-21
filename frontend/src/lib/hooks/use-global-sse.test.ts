@@ -460,3 +460,86 @@ describe("useGlobalSSE — return value", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Laufgemeinschaft announcements
+// ---------------------------------------------------------------------------
+
+describe("useGlobalSSE — companion announcements", () => {
+  it("announces companion changes only for student_companions_changed", async () => {
+    const { subscribeStudentCompanionsChanged } =
+      await import("~/lib/student-companion-api");
+    renderHook(() => useGlobalSSE());
+    const listener = vi.fn();
+    const unsubscribe = subscribeStudentCompanionsChanged(listener);
+
+    try {
+      // A rename, a photo upload, a sick flag — all arrive as student_updated
+      // and none of them touches the links. An open "läuft mit" form reacts to
+      // the announcement by discarding or blocking its draft, so reacting here
+      // would cost the user their work for an unrelated edit.
+      fireSSE(makeEvent("student_updated", { student_id: "s1" }));
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      expect(listener).not.toHaveBeenCalled();
+
+      // The dedicated event is the one the backend emits when a write could
+      // actually have changed the links.
+      fireSSE(makeEvent("student_companions_changed", { student_id: "s1" }));
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("announces a display refresh for student_updated, so linked names stay honest", async () => {
+    const { subscribeStudentCompanionDisplayChanged } =
+      await import("~/lib/student-companion-api");
+    renderHook(() => useGlobalSSE());
+    const listener = vi.fn();
+    const unsubscribe = subscribeStudentCompanionDisplayChanged(listener);
+
+    try {
+      // Renaming or reassigning a linked child leaves every edge untouched, so
+      // no companion event follows — but the entry another child's card shows
+      // for them is now wrong, and after a group change possibly no longer
+      // visible to this viewer at all. The separate bus is what lets read-only
+      // cards refetch for it while forms keep their drafts.
+      fireSSE(makeEvent("student_updated", { student_id: "s1" }));
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("revalidates the Kindersuche list, which carries its grouping in-band", () => {
+    renderHook(() => useGlobalSSE());
+
+    // Deleting a linked child announces ONLY this event — no student_updated,
+    // no checkin — and the Kindersuche reads companion_student_ids out of its
+    // own search-students-* response instead of fetching the links. Without the
+    // invalidation an open "Nach Laufgemeinschaft" view keeps the deleted child.
+    fireSSE(makeEvent("student_companions_changed", { student_id: "s1" }));
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const matchers = mockMutate.mock.calls
+      .map(([matcher]) => matcher)
+      .filter(
+        (matcher): matcher is (key: unknown) => boolean =>
+          typeof matcher === "function",
+      );
+    // Tenant-prefixed by useSWRAuth, hence the prefix in the probe key.
+    expect(
+      matchers.some((matcher) => matcher("t1:search-students--all-")),
+    ).toBe(true);
+  });
+});

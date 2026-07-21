@@ -40,7 +40,39 @@ const timetable: CalendarEvent = {
   can_edit: false,
 };
 
+const shift: CalendarEvent = {
+  id: "shift:5",
+  source: "shift",
+  title: "Frühdienst",
+  description: "Vertretung Gruppe B",
+  start_date: "2026-01-07",
+  end_date: "2026-01-07",
+  start_time: "08:00",
+  end_time: "16:00",
+  all_day: false,
+  can_respond: false,
+  can_edit: false,
+};
+
 describe("PersonalCalendar", () => {
+  it("renders shift events with the Dienst badge", () => {
+    render(
+      <PersonalCalendar
+        title="Mein Kalender"
+        subtitle="Termine und Dienstplan"
+        events={[shift]}
+        weekStart={new Date(2026, 0, 5)}
+        onWeekChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByText("Frühdienst").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Dienst").length).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("button", { name: "Zusagen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders appointment and timetable events with RSVP actions", () => {
     const onRespond = vi.fn();
     render(
@@ -67,6 +99,84 @@ describe("PersonalCalendar", () => {
     expect(onRespond).toHaveBeenCalledWith("42", "accepted");
     fireEvent.click(screen.getAllByRole("button", { name: "Absagen" })[0]!);
     expect(onRespond).toHaveBeenCalledWith("42", "declined");
+  });
+
+  it("splits the column when an inflated short event visually overlaps the next one", () => {
+    // 30-Minuten-Termin mit RSVP: die gerenderte Karte ist höher als das
+    // Zeitfenster und ragt über 10:00 hinaus — der Folgetermin darf sie nicht
+    // überdecken, beide müssen sich die Spaltenbreite teilen.
+    const shortRsvp: CalendarEvent = {
+      ...appointment,
+      id: "appointment:3:2026-01-05",
+      appointment_id: "3",
+      title: "Kurzer RSVP-Termin",
+      start_time: "09:00",
+      end_time: "09:30",
+    };
+    const followUp: CalendarEvent = {
+      ...timetable,
+      id: "timetable:10",
+      timetable_id: "10",
+      title: "Direkt danach",
+      start_date: "2026-01-05",
+      end_date: "2026-01-05",
+      start_time: "10:00",
+      end_time: "11:00",
+    };
+    render(
+      <PersonalCalendar
+        title="Mein Kalender"
+        events={[shortRsvp, followUp]}
+        weekStart={new Date(2026, 0, 5)}
+        onWeekChange={vi.fn()}
+        onRespond={vi.fn()}
+      />,
+    );
+
+    const shortBlock = screen
+      .getAllByText("Kurzer RSVP-Termin")[0]!
+      .closest("article");
+    const followBlock = screen
+      .getAllByText("Direkt danach")[0]!
+      .closest("article");
+    expect(shortBlock?.style.width).toBe("calc(50% - 4px)");
+    expect(followBlock?.style.width).toBe("calc(50% - 4px)");
+  });
+
+  it("hides weekend days by default and reveals them via the Sa/So toggle", () => {
+    const weekendEvent: CalendarEvent = {
+      id: "appointment:2:2026-01-10",
+      source: "appointment",
+      appointment_id: "2",
+      title: "Wochenend-Termin",
+      start_date: "2026-01-10",
+      end_date: "2026-01-10",
+      start_time: "09:00",
+      end_time: "10:00",
+      all_day: false,
+      can_respond: false,
+      can_edit: false,
+    };
+    render(
+      <PersonalCalendar
+        title="Mein Kalender"
+        events={[appointment, weekendEvent]}
+        weekStart={new Date(2026, 0, 5)}
+        onWeekChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText("Wochenend-Termin")).not.toBeInTheDocument();
+
+    const toggle = screen.getByRole("button", { name: "Sa/So (1)" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(toggle);
+
+    expect(screen.getAllByText("Wochenend-Termin").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Sa/So" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 
   it("supports week navigation and create action", () => {

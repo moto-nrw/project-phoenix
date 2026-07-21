@@ -594,6 +594,33 @@ function StudentDetailPageContent() {
       allowed_departure_modes: allowedDepartureModes,
       departure_days: allowedDepartureToDepartureDays(allowedDepartureModes),
       departure_companion_note: editedStudent.departure_companion_note,
+      // Laufgemeinschaft travels with the plan it belongs to: a link is only
+      // legal on a day that allows "Anderes Kind", so the backend validates
+      // both in one request instead of racing two.
+      //
+      // Omitted when the modal has no loaded list: the field REPLACES the
+      // stored links, so sending [] for "not loaded" would delete them. The
+      // backend leaves the links alone when the key is absent.
+      //
+      ...(editedStudent.companions
+        ? {
+            companions: editedStudent.companions.map((companion) => ({
+              companion_student_id: companion.companion_student_id,
+              weekdays: companion.weekdays,
+            })),
+          }
+        : {}),
+      // The fingerprint travels on its own, not only with a list: it names the
+      // snapshot this save was built on, and the plan above removes links too
+      // (the backend trims the weekdays it no longer allows). Forwarding it
+      // regardless is what lets the backend refuse a save whose stale plan would
+      // delete links someone else committed in the meantime.
+      companions_fingerprint: editedStudent.companions_fingerprint,
+      extend_companion_plans: editedStudent.extend_companion_plans ?? false,
+      // The confirmation is only worth as much as what it names: the backend
+      // widens a companion's plan only for these children and weekdays.
+      confirmed_companion_extensions:
+        editedStudent.confirmed_companion_extensions ?? [],
       health_info: editedStudent.health_info,
       supervisor_notes: editedStudent.supervisor_notes,
       extra_info: editedStudent.extra_info,

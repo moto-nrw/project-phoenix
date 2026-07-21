@@ -61,6 +61,17 @@ type CorrectApprovedChildDataInput struct {
 	ActorAccountID    int64
 }
 
+// CompanionGraphCoordinator carries the two things a write that touches several
+// children's "läuft mit" graph at once needs from the student domain: the row
+// locks, in the global ascending-id order every companion writer follows, and
+// the decision of the stranding verdicts the per-child writes deferred while the
+// coordinated edit was still half-applied.
+// Implemented by services/users studentService.
+type CompanionGraphCoordinator interface {
+	LockCompanionGraph(ctx context.Context, subjectIDs []int64, additional []int64) error
+	VerifyCompanionStrandingBatch(ctx context.Context) error
+}
+
 type ChangeRequestDecisionApplier interface {
 	applyApprovedChangeRequestOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error)
 	SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*enrollmentModels.RequestChild, error)
@@ -106,6 +117,7 @@ type ChangeRequestServiceConfig struct {
 	GuardianProfileRepo      userModels.GuardianProfileRepository
 	GuardianPhoneRepo        userModels.GuardianPhoneNumberRepository
 	DecisionService          ChangeRequestDecisionApplier
+	CompanionGraphLocker     CompanionGraphCoordinator
 	Settings                 RequestSettingsResolver
 	OutboxEnqueuer           platformModels.OutboxEnqueuer
 	FrontendURL              string
@@ -1084,6 +1096,65 @@ func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollm
 	return persistedSnapshot(req, children, guardians, linksByChild), nil
 }
 
+// lockApprovedStudents takes the row locks of every student this approval can
+// write — and of their "läuft mit" companions — up front, in the global
+// ascending-id order.
+//
+// The per-child work below locks one student at a time (SyncApprovedChildData
+// re-reads it FOR UPDATE, and the departure-plan write path additionally locks
+// the far end of every edge it drops). Across several children that acquires
+// student locks in enrollment sort order, which is NOT the order the companion
+// protocol uses: an approval holding student 100 and waiting for 10 deadlocks
+// against a companion edit holding 10 and waiting for 100, and PostgreSQL
+// aborts one of them. Taking the whole set in one ordered pass first removes
+// the inversion — every later lock in this transaction re-acquires a row it
+// already holds.
+func (s *changeRequestService) lockApprovedStudents(ctx context.Context, children []*enrollmentModels.RequestChild) error {
+	if s.CompanionGraphLocker == nil {
+		return nil
+	}
+	ids := make([]int64, 0, len(children))
+	for _, child := range children {
+		if child == nil || child.CreatedStudentID == nil || *child.CreatedStudentID <= 0 {
+			continue
+		}
+		ids = append(ids, *child.CreatedStudentID)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	if err := s.CompanionGraphLocker.LockCompanionGraph(ctx, ids, nil); err != nil {
+		return fmt.Errorf("change request approve: lock students: %w", err)
+	}
+	return nil
+}
+
+// beginCompanionStrandingBatch opens the deferred-verdict scope the per-child
+// departure-plan writes below record into, and returns the context they have to
+// run with. Without a coordinator there is nothing that could decide the
+// deferred verdicts later, so no batch is opened and every write keeps deciding
+// its own verdict immediately (the pre-batch behavior).
+func (s *changeRequestService) beginCompanionStrandingBatch(ctx context.Context) context.Context {
+	if s.CompanionGraphLocker == nil {
+		return ctx
+	}
+	batchCtx, _ := userModels.ContextWithCompanionStrandingBatch(ctx)
+	return batchCtx
+}
+
+// verifyCompanionStrandingBatch decides the verdicts deferred into the batch on
+// ctx. The companion sentinels stay reachable through the wrap, so the handler
+// answers the actionable 4xx instead of a blind 500.
+func (s *changeRequestService) verifyCompanionStrandingBatch(ctx context.Context) error {
+	if s.CompanionGraphLocker == nil {
+		return nil
+	}
+	if err := s.CompanionGraphLocker.VerifyCompanionStrandingBatch(ctx); err != nil {
+		return fmt.Errorf("change request approve: verify companion links: %w", err)
+	}
+	return nil
+}
+
 func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enrollmentModels.ChangeRequest, input ReviewChangeRequestInput) error {
 	req, err := s.RequestRepo.FindByIDForUpdate(ctx, row.RequestID)
 	if err != nil {
@@ -1170,6 +1241,19 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 		}
 	}
 
+	if err := s.lockApprovedStudents(ctx, children); err != nil {
+		return err
+	}
+
+	// One approval is ONE edit of the whole family, applied child by child. A
+	// child dropping the accompanied mode drops the "läuft mit" edges that lose
+	// their basis — including edges to a SIBLING in the same approval whose own
+	// plan change has not been applied yet. Judged per child, that valid
+	// coordinated change looks like it strands the sibling and the whole
+	// approval is refused. So defer the verdicts and decide them once below,
+	// against the final plans of every child (#1694).
+	ctx = s.beginCompanionStrandingBatch(ctx)
+
 	newlyWaitlisted := make(map[int64]struct{})
 	for i, existing := range children {
 		next := prepared.Children[i]
@@ -1246,6 +1330,15 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 			}
 		}
 	}
+
+	// Every child of the approval is applied — the plans are stored and the
+	// edges they no longer allow are gone. Now the deferred verdicts can be
+	// decided against that final state; a child genuinely left without a "mit
+	// wem" detail still refuses the approval and rolls the transaction back.
+	if err := s.verifyCompanionStrandingBatch(ctx); err != nil {
+		return err
+	}
+
 	if len(newlyWaitlisted) > 0 {
 		refreshedChildren, err := s.RequestChildRepo.ListByRequestID(ctx, req.ID)
 		if err != nil {

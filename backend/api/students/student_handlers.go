@@ -133,6 +133,15 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 
 	rs.enrichPaginatedPlanningTimes(r, responses, params, dataSnapshot, planningDate, isToday)
 
+	// Companion ids ("läuft mit") for the day being SHOWN, not for today: the
+	// grouping is per weekday, so a list rendered for another planning date must
+	// resolve the links of that date. Fatal by design (see enrichWithCompanions)
+	// — an empty grouping would be presented as a real departure arrangement.
+	if err := rs.enrichWithCompanions(r.Context(), responses, params, planningDate.BerlinMidnight()); err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
 	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: params.page, PageSize: params.pageSize, Total: totalCount}, "Students retrieved successfully")
 }
 
@@ -637,19 +646,28 @@ func (rs *Resource) persistNewStudent(ctx context.Context, person *users.Person,
 		}
 	}
 
-	// Persist weekly arrival/pickup schedules in the same transaction so the
-	// student and its recurring care times are created atomically (mirrors
-	// the guardian handling above). The schedule tables FK to the student,
-	// which now exists within this transaction.
+	return rs.persistNewStudentAttachments(ctx, student.ID, req, staffID)
+}
+
+// persistNewStudentAttachments writes the optional records that hang off a
+// freshly created student: the weekly arrival/pickup schedules. They FK to the
+// student, so they run in the same transaction as the create (mirrors the
+// guardian handling above).
+//
+// Companion links ("läuft mit") are deliberately NOT accepted here: a link is
+// only legal on a day BOTH children's departure plans allow it, and resolving
+// that against a child that does not exist yet buys nothing. Linking is a
+// follow-up action on the child's card.
+func (rs *Resource) persistNewStudentAttachments(ctx context.Context, studentID int64, req *StudentRequest, staffID int64) error {
 	if len(req.ArrivalSchedules) > 0 {
-		arrivals := toArrivalScheduleModels(req.ArrivalSchedules, student.ID, staffID)
-		if err := rs.ArrivalScheduleService.UpsertBulkStudentArrivalSchedules(ctx, student.ID, arrivals); err != nil {
+		arrivals := toArrivalScheduleModels(req.ArrivalSchedules, studentID, staffID)
+		if err := rs.ArrivalScheduleService.UpsertBulkStudentArrivalSchedules(ctx, studentID, arrivals); err != nil {
 			return err
 		}
 	}
 	if len(req.PickupSchedules) > 0 {
-		pickups := toPickupScheduleModels(req.PickupSchedules, student.ID, staffID)
-		if err := rs.PickupScheduleService.UpsertBulkStudentPickupSchedules(ctx, student.ID, pickups); err != nil {
+		pickups := toPickupScheduleModels(req.PickupSchedules, studentID, staffID)
+		if err := rs.PickupScheduleService.UpsertBulkStudentPickupSchedules(ctx, studentID, pickups); err != nil {
 			return err
 		}
 	}
@@ -969,6 +987,36 @@ func (rs *Resource) broadcastStudentUpdated(tenantID, studentID int64) {
 	}
 }
 
+// broadcastStudentCompanionsChanged tells the tenant's clients that a child's
+// Laufgemeinschaft may have changed, so every mounted "läuft mit" view refetches
+// (and an in-progress edit stops before it overwrites the change).
+//
+// Separate from student_updated on purpose: the links are symmetric, so a save
+// on one child changes another child's card, and an editing form has to react by
+// discarding or blocking its draft. Reacting that way to every student write —
+// a photo, a name, a sick flag — would cost users their work for changes that
+// never touched the links. Callers pass tenantID like broadcastStudentUpdated,
+// and the fan-out is best-effort: a lost event costs a stale card, never data.
+func (rs *Resource) broadcastStudentCompanionsChanged(tenantID, studentID int64) {
+	if rs.Broadcaster == nil || tenantID <= 0 {
+		return
+	}
+
+	source := "manual"
+	event := realtime.NewEvent(realtime.EventStudentCompanionsChanged, "", realtime.EventData{
+		Source: &source,
+	})
+
+	if err := rs.Broadcaster.BroadcastToTenant(tenantID, event); err != nil && rs.Logger != nil {
+		rs.Logger.Warn(
+			"failed to broadcast student companions change",
+			"tenant_id", tenantID,
+			"student_id", studentID,
+			"error", err.Error(),
+		)
+	}
+}
+
 // wakeChildGuardians fans a message-INDEPENDENT parent_child_updated SSE event
 // out to every guardian of the child, so an open parents-app tab refetches the
 // child's care state live after a STAFF-side write (status day, pickup/arrival
@@ -1007,10 +1055,18 @@ func (rs *Resource) wakeChildGuardians(tenantID, studentID int64) {
 // plain name/notes edit changes nothing parent-visible, so it wakes no one
 // (#1725). Runs after the OUTER tx commits so a woken client never reads the
 // pre-commit snapshot; tenantID is captured before the hook fires.
-func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, studentID int64, req *UpdateStudentRequest) {
+func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, studentID int64, req *UpdateStudentRequest, companionsChanged bool) {
 	statusChanged := req.Sick != nil || req.Excused != nil
 	tenant.RegisterAfterCommit(ctx, func() {
 		rs.broadcastStudentUpdated(tenantID, studentID)
+		// Only when the write actually changed the links (or a linked child's
+		// departure plan) — see applyCompanionUpdate. An open Laufgemeinschaft
+		// form reacts to this event by discarding or blocking the user's draft,
+		// so firing it for a resubmitted, unchanged plan would cost somebody
+		// their unsaved work for a change that never touched them.
+		if companionsChanged {
+			rs.broadcastStudentCompanionsChanged(tenantID, studentID)
+		}
 		if statusChanged {
 			rs.wakeChildGuardians(tenantID, studentID)
 		}
@@ -1038,35 +1094,22 @@ var errStudentNotFoundUnderLock = errors.New("student deleted between snapshot a
 // response status matches what the pre-tx gate would emit.
 var errStudentReassigned = errors.New("student reassigned out of caller's scope mid-update")
 
-// applyStudentUpdate performs the locked-row student patch inside the caller's
-// tenant transaction. Patch is applied to a freshly FOR-UPDATE-locked row so a
-// concurrent photo upload can't have its photo_path clobbered by a stale
-// snapshot write. It returns one of the package sentinel errors for the racy
-// paths the outer switch maps to specific status codes.
-func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, student *users.Student, person *users.Person, req *UpdateStudentRequest, userPermissions []string, personUpdated bool, statusHistoryNow time.Time) error {
-	// Acquire the photo-feature advisory lock only when consent is
-	// actually toggling. Name/notes edits must not queue behind
-	// feature disable/purge.
-	consentChanging := req.PhotoConsentGiven != nil &&
-		(*req.PhotoConsentGiven) != (student.PhotoConsentGivenAt != nil)
-	if consentChanging {
-		if err := rs.StudentService.LockPhotoFeature(ctx); err != nil {
-			return err
-		}
-	}
-
+// lockStudentForUpdate takes the row lock and re-validates every precondition
+// against the LOCKED row rather than the pre-transaction snapshot, so a
+// concurrent edit cannot slip a stale decision past. It writes nothing.
+func (rs *Resource) lockStudentForUpdate(ctx context.Context, student *users.Student, req *UpdateStudentRequest, userPermissions []string) (*users.Student, error) {
 	fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return errStudentNotFoundUnderLock
+			return nil, errStudentNotFoundUnderLock
 		}
-		return err
+		return nil, err
 	}
 
 	// Re-check authorisation against the LOCKED row. A concurrent admin
 	// reassignment could otherwise let a non-supervisor mutate the row.
 	if ok, _ := canUpdateStudent(ctx, userPermissions, fresh, rs.UserContextService); !ok {
-		return errStudentReassigned
+		return nil, errStudentReassigned
 	}
 
 	// Re-validate sick/excused on fresh: two concurrent partial updates
@@ -1074,36 +1117,109 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	// sick && excused state. TenantTxMiddleware only rolls back on 5xx,
 	// so this 409-mapped sentinel must fire before any write below.
 	if err := checkSickExcusedConflict(req, fresh); err != nil {
-		return errSickExcusedConflict
+		return nil, errSickExcusedConflict
 	}
 
-	if personUpdated {
-		if err := rs.PersonService.Update(ctx, person); err != nil {
-			return err
+	return fresh, nil
+}
+
+// applyStudentUpdate performs the locked-row student patch inside the caller's
+// tenant transaction. Patch is applied to a freshly FOR-UPDATE-locked row so a
+// concurrent photo upload can't have its photo_path clobbered by a stale
+// snapshot write. It returns one of the package sentinel errors for the racy
+// paths the outer switch maps to specific status codes.
+// companionsChanged reports what the caller must forward to the client: whether
+// this write actually changed the Laufgemeinschaft.
+func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, student *users.Student, person *users.Person, req *UpdateStudentRequest, userPermissions []string, personUpdated bool, statusHistoryNow time.Time) (bool, error) {
+	// The photo-feature advisory lock comes FIRST, before any student row lock,
+	// and only when consent is actually toggling (name/notes edits must not
+	// queue behind a feature disable/purge). The photo upload and delete
+	// transactions acquire LockPhotoFeature and THEN their row lock
+	// (FindByIDForUpdate); taking a row lock here first would invert that order
+	// and let a consent update and a concurrent upload deadlock each other.
+	consentChanging := req.PhotoConsentGiven != nil &&
+		(*req.PhotoConsentGiven) != (student.PhotoConsentGivenAt != nil)
+	if consentChanging {
+		if err := rs.StudentService.LockPhotoFeature(ctx); err != nil {
+			return false, err
 		}
+	}
+
+	// Before ANY row lock of this request: a companion update writes the linked
+	// child too (a confirmed extension widens their departure plan), so subject
+	// and companions have to be locked in one deterministic order or two
+	// requests linking the same pair deadlock each other. Locking them here also
+	// freezes the rows the companion authorization below judges, so the check
+	// pass and the write pass cannot disagree. A request that cannot touch a
+	// link takes none of those locks (see lockCompanionRows).
+	if err := rs.lockCompanionRows(ctx, student, req); err != nil {
+		return false, err
+	}
+
+	fresh, err := rs.lockStudentForUpdate(ctx, student, req, userPermissions)
+	if err != nil {
+		return false, err
 	}
 
 	// Read pre-update flags off fresh, not the snapshot, so status
 	// history reflects the actual transition the commit will perform.
+	// MUST happen before applyStudentFieldUpdates overwrites them.
 	wasSick := boolPtrValue(fresh.Sick)
 	wasExcused := boolPtrValue(fresh.Excused)
 
+	// Apply the request to the locked row in memory FIRST. Nothing is written
+	// yet, which is what lets the companion check below refuse the whole update
+	// before any of it lands. updateStudent additionally marks the surrounding
+	// tenant transaction for rollback on every error, so a late refusal cannot
+	// leave a partial write behind either — checking first keeps the refusal
+	// cheap, the rollback makes it safe.
 	applyStudentFieldUpdates(req, fresh)
+	authorizedExtensions, err := rs.checkCompanionConflicts(ctx, fresh, req, userPermissions)
+	if err != nil {
+		return false, err
+	}
+
+	if personUpdated {
+		if err := rs.PersonService.Update(ctx, person); err != nil {
+			return false, err
+		}
+	}
+
 	effectiveConsent := reconcilePhotoConsentRequest(req.PhotoConsentGiven, student, fresh)
 	rs.StudentPhotos.ApplyConsentTransition(ctx, effectiveConsent, fresh)
 
 	if err := rs.persistStudentStatusHistory(ctx, fresh, wasSick, wasExcused, statusHistoryNow, strutil.TrimPtrToNil(req.SickReason)); err != nil {
 		rs.logStatusHistoryError(student.ID, err)
-		return err
+		return false, err
+	}
+	// Companions BEFORE the student write: the link satisfies the
+	// accompanied-requires-a-note invariant that Update validates, and a
+	// conflict must abort the whole transaction before anything is persisted.
+	companionsChanged, err := rs.applyCompanionUpdate(ctx, fresh, req, authorizedExtensions)
+	if err != nil {
+		return false, err
 	}
 	if err := rs.StudentService.Update(ctx, fresh); err != nil {
-		return err
+		return false, err
 	}
 
 	// Broadcast after the OUTER tx commits. Broadcasting now would race
 	// subscribers into refetching the still-pre-commit row.
-	rs.scheduleStudentUpdateWakes(ctx, tenantID, student.ID, req)
-	return nil
+	rs.scheduleStudentUpdateWakes(ctx, tenantID, student.ID, req, companionsChanged)
+	return companionsChanged, nil
+}
+
+// companionConflictRenderer returns the 409 payload when the transaction failed
+// on a companion departure-plan mismatch, and nil otherwise.
+func companionConflictRenderer(err error) render.Renderer {
+	var conflictErr *companionConflictError
+	if !errors.As(err, &conflictErr) {
+		return nil
+	}
+	return &CompanionConflictResponse{
+		Conflicts: conflictErr.Conflicts,
+		Message:   "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+	}
 }
 
 // updateStudentTxErrorRenderer maps the applyStudentUpdate transaction error to
@@ -1128,13 +1244,42 @@ func updateStudentTxErrorRenderer(err error) render.Renderer {
 	// stored note visible to fall back on.
 	case errors.Is(err, users.ErrDepartureCompanionNoteRequired):
 		return common.ErrorInvalidRequest(err)
+	// A companion whose own departure plan does not allow the requested days.
+	// Nothing was written (the transaction rolled back); the client asks the
+	// user and may resend with extend_companion_plans.
+	case companionConflictRenderer(err) != nil:
+		return companionConflictRenderer(err)
+	// The confirmation would widen a companion's own departure plan, which the
+	// caller is not allowed to change. Refused before any write.
+	case errors.Is(err, errCompanionExtendForbidden):
+		return common.ErrorForbidden(err)
+	// Companion input the client should not have sent: a day the child's own
+	// plan does not allow, a duplicate, a self-link, an unknown child. All 4xx,
+	// with the German sentinel text going straight to the UI.
+	case errors.Is(err, userService.ErrCompanionNotFound):
+		return common.ErrorNotFound(err)
+	case errors.Is(err, userService.ErrCompanionDayNotAllowed),
+		errors.Is(err, userService.ErrDuplicateCompanion),
+		errors.Is(err, userService.ErrCompanionWeekdayRequired),
+		errors.Is(err, userService.ErrTooManyCompanions),
+		errors.Is(err, userService.ErrCompanionAtLimit),
+		errors.Is(err, users.ErrCompanionSelfLink),
+		errors.Is(err, users.ErrCompanionStudentIDRequired),
+		errors.Is(err, users.ErrCompanionInvalidWeekday):
+		return common.ErrorInvalidRequest(err)
+	// The two sentinels every departure-plan write shares (stranded companion,
+	// locked companion row) — classified once, in companionPlanErrorRenderer.
+	case companionPlanErrorRenderer(err) != nil:
+		return companionPlanErrorRenderer(err)
 	default:
 		return common.ErrorInternalServer(err)
 	}
 }
 
-// respondUpdatedStudent re-reads the student and writes the 200 response.
-func (rs *Resource) respondUpdatedStudent(w http.ResponseWriter, r *http.Request, studentID int64, person *users.Person, hasFullAccess bool) {
+// respondUpdatedStudent re-reads the student and writes the 200 response,
+// stamping the write's companion verdict onto it (see
+// StudentResponse.CompanionsChanged).
+func (rs *Resource) respondUpdatedStudent(w http.ResponseWriter, r *http.Request, studentID int64, person *users.Person, hasFullAccess, companionsChanged bool) {
 	updatedStudent, err := rs.PersonService.GetStudentByID(r.Context(), studentID)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
@@ -1144,7 +1289,7 @@ func (rs *Resource) respondUpdatedStudent(w http.ResponseWriter, r *http.Request
 	group := rs.getStudentGroup(r.Context(), updatedStudent)
 
 	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
-	common.Respond(w, r, http.StatusOK, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
+	response := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       updatedStudent,
 		Person:        person,
 		Group:         group,
@@ -1153,7 +1298,9 @@ func (rs *Resource) respondUpdatedStudent(w http.ResponseWriter, r *http.Request
 	}, StudentResponseServices{
 		ActiveService: rs.ActiveService,
 		PersonService: rs.PersonService,
-	}), "Student updated successfully")
+	})
+	response.CompanionsChanged = &companionsChanged
+	common.Respond(w, r, http.StatusOK, response, "Student updated successfully")
 }
 
 // updateStudent handles updating an existing student
@@ -1207,16 +1354,31 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	statusHistoryNow := time.Now()
 
 	tenantID := tenant.FromContext(r.Context())
+	// The client needs the write's own verdict on the links (see
+	// StudentResponse.CompanionsChanged); it is produced inside the transaction
+	// and read after it, when the update is known to have succeeded.
+	companionsChanged := false
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.applyStudentUpdate(ctx, tenantID, student, person, req, userPermissions, personResult.updated, statusHistoryNow)
+		changed, err := rs.applyStudentUpdate(ctx, tenantID, student, person, req, userPermissions, personResult.updated, statusHistoryNow)
+		companionsChanged = changed
+		return err
 	}); err != nil {
+		// This handler runs inside TenantTxMiddleware's transaction, and the
+		// WithTenantTx above only REUSES it (tenant/tx.go) — returning an error
+		// from the closure rolls nothing back, and the middleware commits on
+		// every non-5xx response. applyStudentUpdate writes before its last
+		// validation (companions, person, status history all land before
+		// StudentService.Update can raise ErrDepartureCompanionNoteRequired), so
+		// without this a refused PUT would answer 400/409 and still keep those
+		// writes. A rejected update must leave nothing behind.
+		tenant.MarkRollback(r.Context())
 		renderError(w, r, updateStudentTxErrorRenderer(err))
 		return
 	}
 
 	// Admin users and group supervisors can see full data including detailed location
 	hasFullAccess := isAdmin || isGroupSupervisor
-	rs.respondUpdatedStudent(w, r, student.ID, person, hasFullAccess)
+	rs.respondUpdatedStudent(w, r, student.ID, person, hasFullAccess, companionsChanged)
 }
 
 // deleteStudent handles deleting a student and their associated person record
@@ -1235,45 +1397,107 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Capture the photo path from the locked row (not the pre-tx snapshot)
-	// so a concurrent upload can't orphan a new file on disk. The unlink
-	// itself runs after the OUTER tenant tx commits.
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		// FOR UPDATE row-locks against any in-flight upload tx. We either
-		// observe its committed photo_path or it sees our deleted row and
-		// aborts.
-		fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
-		if err != nil {
-			return err
-		}
-		var photoToRemove string
-		if fresh.PhotoPath != nil {
-			photoToRemove = *fresh.PhotoPath
-		}
-
-		if err := rs.StudentService.Delete(ctx, student.ID); err != nil {
-			return err
-		}
-
-		// Person delete failure must not fail the request. The student row
-		// is already gone, leaving the person orphaned is recoverable.
-		if err := rs.PersonService.Delete(ctx, student.PersonID); err != nil {
-			slog.Default().Error("failed to delete associated person record",
-				slog.Int64("person_id", student.PersonID),
-				slog.String("error", err.Error()))
-		}
-
-		rs.StudentPhotos.ScheduleUnlinkAfterCommit(ctx, photoToRemove)
-		return nil
+		return rs.deleteStudentTx(ctx, tenantID, student)
 	}); err != nil {
-		if common.IsConstraintViolation(err) {
-			renderError(w, r, common.ErrorConflictMessage("Kind kann nicht gelöscht werden: Kind hat aktive Besuche, Einschreibungen oder andere verknüpfte Daten"))
-			return
-		}
-		renderError(w, r, common.ErrorInternalServer(err))
+		// Same reason as updateStudent: the surrounding transaction belongs to
+		// the middleware and commits on every non-5xx response, so the 409 paths
+		// below have to request the rollback themselves.
+		tenant.MarkRollback(r.Context())
+		renderError(w, r, deleteStudentTxErrorRenderer(err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Student deleted successfully")
+}
+
+// deleteStudentTx performs the locked student delete inside the caller's
+// tenant transaction.
+//
+// Deleting the row also deletes every "läuft mit" edge via ON DELETE CASCADE —
+// a removal that reaches into OTHER children's records like any list edit
+// does. So it joins the shared lock protocol first (subject plus every linked
+// companion, ascending), then refuses when a surviving child would be left
+// with an accompanied plan and no "mit wem" detail; otherwise the cascade
+// would silently bypass the removal protection and every later edit of that
+// child would fail on the note invariant.
+//
+// The photo path is captured from the locked row (not the pre-tx snapshot) so
+// a concurrent upload can't orphan a new file on disk; the unlink itself runs
+// after the OUTER tenant tx commits.
+func (rs *Resource) deleteStudentTx(ctx context.Context, tenantID int64, student *users.Student) error {
+	if err := rs.lockStudentCompanionGraph(ctx, student.ID, nil); err != nil {
+		return err
+	}
+	if err := rs.StudentService.CheckCompanionTrim(ctx, student.ID, nil); err != nil {
+		return err
+	}
+
+	// Read under the graph lock, before the row goes: every edge of this child is
+	// a row on ANOTHER child's card, and ON DELETE CASCADE takes it with the
+	// student. Without the announcement below the surviving children's companion
+	// cards keep listing a child that no longer exists, and an open editor keeps
+	// working from a snapshot the delete already invalidated.
+	companionIDs, err := rs.StudentService.ListCompanionIDs(ctx, student.ID)
+	if err != nil {
+		return err
+	}
+
+	// FOR UPDATE row-locks against any in-flight upload tx. We either
+	// observe its committed photo_path or it sees our deleted row and
+	// aborts.
+	fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
+	if err != nil {
+		return err
+	}
+	var photoToRemove string
+	if fresh.PhotoPath != nil {
+		photoToRemove = *fresh.PhotoPath
+	}
+
+	if err := rs.StudentService.Delete(ctx, student.ID); err != nil {
+		return err
+	}
+
+	// Person delete failure must not fail the request. The student row
+	// is already gone, leaving the person orphaned is recoverable.
+	if err := rs.PersonService.Delete(ctx, student.PersonID); err != nil {
+		slog.Default().Error("failed to delete associated person record",
+			slog.Int64("person_id", student.PersonID),
+			slog.String("error", err.Error()))
+	}
+
+	rs.StudentPhotos.ScheduleUnlinkAfterCommit(ctx, photoToRemove)
+
+	// After the OUTER tx commits, like every other companion broadcast: a
+	// subscriber woken earlier would refetch the still-present row.
+	if len(companionIDs) > 0 {
+		studentID := student.ID
+		tenant.RegisterAfterCommit(ctx, func() {
+			rs.broadcastStudentCompanionsChanged(tenantID, studentID)
+		})
+	}
+	return nil
+}
+
+// deleteStudentTxErrorRenderer maps the deleteStudentTx transaction error to
+// the wire response. The caller has requested the rollback (tenant.MarkRollback),
+// so nothing this transaction touched is committed.
+func deleteStudentTxErrorRenderer(err error) render.Renderer {
+	switch {
+	// A linked child would be stranded (accompanied plan, no note, no other
+	// link). The German sentinel text tells the user which precondition to
+	// fix first.
+	case errors.Is(err, userService.ErrCompanionWouldLoseDeparture):
+		return common.ErrorConflictMessage(err.Error())
+	// A linked child was locked by a concurrent edit this transaction could not
+	// safely wait for. Retriable, so it must not read as a server error.
+	case errors.Is(err, userService.ErrCompanionLockBusy):
+		return common.ErrorConflictMessage(err.Error())
+	case common.IsConstraintViolation(err):
+		return common.ErrorConflictMessage("Kind kann nicht gelöscht werden: Kind hat aktive Besuche, Einschreibungen oder andere verknüpfte Daten")
+	default:
+		return common.ErrorInternalServer(err)
+	}
 }

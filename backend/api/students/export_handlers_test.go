@@ -443,6 +443,46 @@ func TestDepartureExportCell(t *testing.T) {
 		require.Equal(t, "Di: Mit anderem Kind (mit: Nachbarskind Tom)", got)
 	})
 
+	t.Run("names the structured companion links", func(t *testing.T) {
+		got := departureExportCell(StudentResponse{
+			AllowedDepartureModes: users.AllowedDepartureModes{
+				users.PickupDayMonday: []users.DepartureMode{users.DepartureAccompanied},
+			},
+			DepartureCompanions: []users.CompanionLink{
+				{CompanionStudentID: 7, FirstName: "Mia", LastName: "Schulz", Weekdays: []string{users.PickupDayMonday}},
+			},
+		})
+		// A child whose "mit wem" is answered by a link has no note at all —
+		// without the links the paper list would only say "Mit anderem Kind".
+		require.Equal(t, "Mo: Mit anderem Kind (mit: Mia Schulz (Mo))", got)
+	})
+
+	t.Run("renders links and note together", func(t *testing.T) {
+		got := departureExportCell(StudentResponse{
+			AllowedDepartureModes: users.AllowedDepartureModes{
+				users.PickupDayMonday:  []users.DepartureMode{users.DepartureAccompanied},
+				users.PickupDayTuesday: []users.DepartureMode{users.DepartureAccompanied},
+			},
+			DepartureCompanions: []users.CompanionLink{
+				{CompanionStudentID: 7, FirstName: "Mia", LastName: "Schulz", Weekdays: []string{users.PickupDayMonday}},
+			},
+			DepartureCompanionNote: "Dienstags mit Nachbarskind Tom",
+		})
+		require.Equal(t, "Mo: Mit anderem Kind, Di: Mit anderem Kind (mit: Mia Schulz (Mo); Dienstags mit Nachbarskind Tom)", got)
+	})
+
+	t.Run("ignores links when no day is accompanied", func(t *testing.T) {
+		got := departureExportCell(StudentResponse{
+			AllowedDepartureModes: users.AllowedDepartureModes{
+				users.PickupDayMonday: []users.DepartureMode{users.DepartureBus},
+			},
+			DepartureCompanions: []users.CompanionLink{
+				{CompanionStudentID: 7, FirstName: "Mia", LastName: "Schulz", Weekdays: []string{users.PickupDayMonday}},
+			},
+		})
+		require.Equal(t, "Mo: Bus", got)
+	})
+
 	t.Run("no note renders the plain summary", func(t *testing.T) {
 		got := departureExportCell(StudentResponse{
 			AllowedDepartureModes: users.AllowedDepartureModes{

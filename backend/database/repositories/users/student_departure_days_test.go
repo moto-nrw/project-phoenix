@@ -512,3 +512,77 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 		assert.Nil(t, byIDs[student.ID].DepartureCompanionNote)
 	})
 }
+
+// TestStudentRepository_StaleDeparturePlanIsRebased pins the concurrency rule
+// behind Update's row lock: a caller that loaded the child before someone else
+// changed the departure plan carries a hydrated copy of the OLD plan in all
+// four fields, which is indistinguishable from an intentional plan write unless
+// the hydrated baseline says otherwise. Such a caller must not revert the
+// committed change; a caller that genuinely edited the plan must still win.
+func TestStudentRepository_StaleDeparturePlanIsRebased(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Student
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("untouched stale plan does not revert a committed change", func(t *testing.T) {
+		requireStudentsDepartureDaysColumn(t, db)
+		requireStudentsAllowedDepartureModesColumn(t, db)
+
+		student := testpkg.CreateTestStudent(t, db, "Departure", "Stale", "3a")
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		student.DepartureDays = users.DepartureDays{users.PickupDayMonday: users.DepartureBus}
+		require.NoError(t, repo.Update(ctx, student))
+
+		// The unrelated caller (sickness auto-clear, status days, import) loads
+		// the child, hydrating the plan it will never touch.
+		stale, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+
+		// Someone else changes the plan and commits.
+		fresh, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		fresh.DepartureDays = users.DepartureDays{users.PickupDayTuesday: users.DeparturePickup}
+		require.NoError(t, repo.Update(ctx, fresh))
+
+		// The stale caller now writes its unrelated field.
+		sick := true
+		stale.Sick = &sick
+		require.NoError(t, repo.Update(ctx, stale))
+
+		found, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Equal(t, users.DepartureAlone, found.DepartureDays.ModeFor(users.PickupDayMonday),
+			"the stale hydrated plan must not be re-persisted")
+		assert.Equal(t, users.DeparturePickup, found.DepartureDays.ModeFor(users.PickupDayTuesday),
+			"the committed change must survive")
+		require.NotNil(t, found.Sick)
+		assert.True(t, *found.Sick, "the unrelated field must still be written")
+	})
+
+	t.Run("intentional plan change still wins", func(t *testing.T) {
+		requireStudentsDepartureDaysColumn(t, db)
+		requireStudentsAllowedDepartureModesColumn(t, db)
+
+		student := testpkg.CreateTestStudent(t, db, "Departure", "Intentional", "3b")
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		student.DepartureDays = users.DepartureDays{users.PickupDayMonday: users.DepartureBus}
+		require.NoError(t, repo.Update(ctx, student))
+
+		loaded, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		loaded.DepartureDays = users.DepartureDays{users.PickupDayFriday: users.DeparturePickup}
+		loaded.AllowedDepartureModes = nil
+		loaded.BusDays = nil
+		loaded.PickupDays = nil
+		require.NoError(t, repo.Update(ctx, loaded))
+
+		found, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Equal(t, users.DeparturePickup, found.DepartureDays.ModeFor(users.PickupDayFriday))
+		assert.Equal(t, users.DepartureAlone, found.DepartureDays.ModeFor(users.PickupDayMonday))
+	})
+}

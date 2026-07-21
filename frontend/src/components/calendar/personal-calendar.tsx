@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import {
   Ban,
   CalendarDays,
@@ -22,7 +23,7 @@ import type {
   CalendarEvent,
   CalendarResponseStatus,
 } from "~/lib/personal-calendar-api";
-import { toISODate } from "~/lib/date-helpers";
+import { parseISODate, toISODate } from "~/lib/date-helpers";
 import {
   formatDayHeader,
   formatWeekLabel,
@@ -88,6 +89,11 @@ const sourceTone = {
     bar: LOCATION_COLORS.OTHER_ROOM,
     bg: "#EBF0FB",
   },
+  shift: {
+    label: "Dienst",
+    bar: LOCATION_COLORS.SCHOOLYARD,
+    bg: "#FEF3E7",
+  },
 } satisfies Record<
   CalendarEvent["source"],
   { label: string; bar: string; bg: string }
@@ -124,6 +130,189 @@ function eventsForDay(
   return events
     .filter((event) => event.start_date <= iso && event.end_date >= iso)
     .sort((a, b) => eventSortValue(a).localeCompare(eventSortValue(b)));
+}
+
+const HOUR_PX = 64;
+const DEFAULT_GRID_START_HOUR = 8;
+const DEFAULT_GRID_END_HOUR = 17;
+
+function clockToMinutes(clock: string): number {
+  const [hours = 0, minutes = 0] = clock.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function isWeekendDay(day: Date): boolean {
+  const weekday = day.getDay();
+  return weekday === 0 || weekday === 6;
+}
+
+// Ganztägige und mehrtägige Einträge haben keine sinnvolle Position auf der
+// Zeitachse — sie wandern in die Ganztägig-Zeile über dem Raster.
+function isAllDayLike(event: CalendarEvent): boolean {
+  return event.all_day || event.start_date !== event.end_date;
+}
+
+// Ein Eintrag verschwindet mit ausgeblendetem Wochenende nur, wenn seine
+// gesamte Laufzeit auf Sa/So liegt — ein Fr–Sa-Termin bleibt sichtbar.
+function isWeekendOnlyEvent(event: CalendarEvent): boolean {
+  const start = parseISODate(event.start_date);
+  const end = parseISODate(event.end_date);
+  const spanDays = Math.min(
+    62,
+    Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1,
+  );
+  for (let offset = 0; offset < spanDays; offset += 1) {
+    const day = new Date(start);
+    day.setDate(start.getDate() + offset);
+    if (!isWeekendDay(day)) return false;
+  }
+  return true;
+}
+
+function countWeekendEvents(
+  events: readonly CalendarEvent[],
+  weekendDays: readonly Date[],
+): number {
+  const seen = new Set<string>();
+  for (const day of weekendDays) {
+    for (const event of eventsForDay(events, day)) {
+      seen.add(event.id);
+    }
+  }
+  return seen.size;
+}
+
+function gridHours(
+  dayEvents: readonly CalendarEvent[],
+  options: TimedLayoutOptions,
+): {
+  startHour: number;
+  endHour: number;
+} {
+  let startHour = DEFAULT_GRID_START_HOUR;
+  let endHour = DEFAULT_GRID_END_HOUR;
+  for (const event of dayEvents) {
+    if (isAllDayLike(event)) continue;
+    const startMinutes = clockToMinutes(event.start_time);
+    startHour = Math.min(startHour, Math.floor(startMinutes / 60));
+    endHour = Math.max(
+      endHour,
+      Math.ceil(effectiveEndMinutes(event, options) / 60),
+    );
+  }
+  startHour = Math.max(0, startHour);
+  endHour = Math.min(24, Math.max(endHour, startHour + 1));
+  return { startHour, endHour };
+}
+
+interface TimedPlacement {
+  event: CalendarEvent;
+  startMinutes: number;
+  // Effektives Render-Ende: das spätere von tatsächlichem Ende und der
+  // Mindesthöhe des Karteninhalts. Layout UND Kartenhöhe rechnen mit diesem
+  // Wert, damit optisch verlängerte Karten nachfolgende nicht verdecken.
+  endMinutes: number;
+  column: number;
+  columnCount: number;
+}
+
+interface TimedLayoutOptions {
+  hasRespond: boolean;
+  hasOverview: boolean;
+}
+
+// Mindesthöhe eines Zeitraster-Blocks in Pixeln, abhängig vom Inhalt. Muss zum
+// Markup in TimeGridEventBlock passen — Aktionen und Textzeilen brauchen Platz,
+// sonst wären sie bei kurzen Terminen abgeschnitten.
+function blockMinHeightPx(
+  event: CalendarEvent,
+  options: TimedLayoutOptions,
+): number {
+  const showRespond = Boolean(
+    event.can_respond && event.recipient_id && options.hasRespond,
+  );
+  const showOverview = Boolean(
+    event.can_view_overview && event.appointment_id && options.hasOverview,
+  );
+  return (
+    56 +
+    ((event.student_name ?? event.school_name) ? 16 : 0) +
+    (event.location ? 18 : 0) +
+    (event.description ? 36 : 0) +
+    (showRespond ? 40 : 0) +
+    (showOverview ? 36 : 0)
+  );
+}
+
+// Effektives Render-Ende eines Eintrags in Minuten: das spätere von
+// tatsächlichem Ende und der Mindesthöhe des gerenderten Inhalts. Rasterfenster
+// und Layout rechnen beide damit, sonst laufen späte Kurztermine unten heraus.
+function effectiveEndMinutes(
+  event: CalendarEvent,
+  options: TimedLayoutOptions,
+): number {
+  const startMinutes = clockToMinutes(event.start_time);
+  const minRenderMinutes =
+    event.source === "shift"
+      ? 30
+      : (blockMinHeightPx(event, options) / HOUR_PX) * 60;
+  return Math.max(
+    clockToMinutes(event.end_time),
+    startMinutes + minRenderMinutes,
+  );
+}
+
+// Klassisches Zeitraster-Layout: überlappende Einträge bilden ein Cluster und
+// teilen sich die Spaltenbreite; jeder Eintrag bekommt die erste freie Spalte.
+function layoutTimedEvents(
+  dayEvents: readonly CalendarEvent[],
+  options: TimedLayoutOptions,
+): TimedPlacement[] {
+  const items: TimedPlacement[] = dayEvents
+    .map((event) => {
+      const startMinutes = clockToMinutes(event.start_time);
+      return {
+        event,
+        startMinutes,
+        endMinutes: effectiveEndMinutes(event, options),
+        column: 0,
+        columnCount: 1,
+      };
+    })
+    .sort(
+      (a, b) => a.startMinutes - b.startMinutes || b.endMinutes - a.endMinutes,
+    );
+
+  const placed: TimedPlacement[] = [];
+  let cluster: TimedPlacement[] = [];
+  let columnEnds: number[] = [];
+  let clusterEnd = -1;
+
+  const flushCluster = () => {
+    for (const item of cluster) {
+      item.columnCount = columnEnds.length;
+    }
+    placed.push(...cluster);
+    cluster = [];
+    columnEnds = [];
+    clusterEnd = -1;
+  };
+
+  for (const item of items) {
+    if (clusterEnd >= 0 && item.startMinutes >= clusterEnd) flushCluster();
+    let column = columnEnds.findIndex((end) => end <= item.startMinutes);
+    if (column === -1) {
+      column = columnEnds.length;
+      columnEnds.push(item.endMinutes);
+    } else {
+      columnEnds[column] = item.endMinutes;
+    }
+    item.column = column;
+    cluster.push(item);
+    clusterEnd = Math.max(clusterEnd, item.endMinutes);
+  }
+  flushCluster();
+  return placed;
 }
 
 function shiftDate(
@@ -251,6 +440,24 @@ export function PersonalCalendar({
     eventSortValue(a).localeCompare(eventSortValue(b)),
   );
   const label = periodLabel(referenceDate, viewMode, from, to);
+  const [showWeekend, setShowWeekend] = useState(false);
+  const visibleWeekDays = showWeekend
+    ? days
+    : days.filter((day) => !isWeekendDay(day));
+  const visibleMonthDays = showWeekend
+    ? monthDays
+    : monthDays.filter((day) => !isWeekendDay(day));
+  const hiddenWeekendDays =
+    viewMode === "month"
+      ? monthDays.filter(isWeekendDay)
+      : days.filter(isWeekendDay);
+  const hiddenWeekendCount = showWeekend
+    ? 0
+    : countWeekendEvents(events, hiddenWeekendDays);
+  const visibleSortedEvents =
+    showWeekend || viewMode === "day"
+      ? sortedEvents
+      : sortedEvents.filter((event) => !isWeekendOnlyEvent(event));
 
   return (
     <div className="space-y-4">
@@ -318,6 +525,19 @@ export function PersonalCalendar({
           >
             Heute
           </Button>
+          {viewMode !== "day" ? (
+            <Button
+              type="button"
+              variant={showWeekend ? "primary" : "outline"}
+              size="compact"
+              aria-pressed={showWeekend}
+              onClick={() => setShowWeekend((value) => !value)}
+            >
+              {hiddenWeekendCount > 0
+                ? `Sa/So (${hiddenWeekendCount})`
+                : "Sa/So"}
+            </Button>
+          ) : null}
           {onCreate ? (
             <Button type="button" size="compact" onClick={onCreate}>
               <Plus className="mr-1.5 h-4 w-4" aria-hidden />
@@ -341,32 +561,31 @@ export function PersonalCalendar({
         ) : null}
         {viewMode === "day" ? (
           <div className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white lg:block">
-            <CalendarDayColumn
-              day={referenceDate}
-              events={eventsForDay(events, referenceDate)}
+            <CalendarTimeGrid
+              days={[referenceDate]}
+              events={events}
               actions={actions}
-              className="min-h-96"
             />
           </div>
         ) : null}
 
         {viewMode === "week" ? (
-          <div className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white lg:grid lg:grid-cols-7">
-            {days.map((day) => (
-              <CalendarDayColumn
-                key={toISODate(day)}
-                day={day}
-                events={eventsForDay(events, day)}
-                actions={actions}
-                className="min-h-96 border-r border-gray-200 last:border-r-0"
-              />
-            ))}
+          <div className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white lg:block">
+            <CalendarTimeGrid
+              days={visibleWeekDays}
+              events={events}
+              actions={actions}
+            />
           </div>
         ) : null}
 
         {viewMode === "month" ? (
-          <div className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white lg:grid lg:grid-cols-7">
-            {monthDays.map((day) => {
+          <div
+            className={`hidden overflow-hidden rounded-lg border border-gray-200 bg-white lg:grid ${
+              showWeekend ? "lg:grid-cols-7" : "lg:grid-cols-5"
+            }`}
+          >
+            {visibleMonthDays.map((day) => {
               const inMonth = day.getMonth() === referenceDate.getMonth();
               return (
                 <CalendarDayColumn
@@ -384,10 +603,10 @@ export function PersonalCalendar({
         ) : null}
 
         <div className="space-y-3 lg:hidden">
-          {sortedEvents.length === 0 ? (
+          {visibleSortedEvents.length === 0 ? (
             <EmptyCalendarState viewMode={viewMode} />
           ) : (
-            sortedEvents.map((event) => (
+            visibleSortedEvents.map((event) => (
               <CalendarEventItem
                 key={event.id}
                 event={event}
@@ -397,7 +616,7 @@ export function PersonalCalendar({
           )}
         </div>
 
-        {!loading && sortedEvents.length === 0 ? (
+        {!loading && visibleSortedEvents.length === 0 ? (
           <div className="hidden lg:block">
             <EmptyCalendarState viewMode={viewMode} />
           </div>
@@ -452,6 +671,321 @@ function CalendarDayColumn({
         ))}
       </div>
     </section>
+  );
+}
+
+function CalendarTimeGrid({
+  days,
+  events,
+  actions,
+}: Readonly<{
+  days: readonly Date[];
+  events: readonly CalendarEvent[];
+  actions: CalendarEventActions;
+}>) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const dayBuckets = days.map((day) => ({
+    day,
+    events: eventsForDay(events, day),
+  }));
+  const layoutOptions: TimedLayoutOptions = {
+    hasRespond: Boolean(actions.onRespond),
+    hasOverview: Boolean(actions.onShowOverview),
+  };
+  const { startHour, endHour } = gridHours(
+    dayBuckets.flatMap((bucket) => bucket.events),
+    layoutOptions,
+  );
+  const gridStartMinutes = startHour * 60;
+  const bodyHeight = (endHour - startHour) * HOUR_PX;
+  const hours: number[] = [];
+  for (let hour = startHour; hour <= endHour; hour += 1) {
+    hours.push(hour);
+  }
+  const hasAllDay = dayBuckets.some((bucket) =>
+    bucket.events.some(isAllDayLike),
+  );
+  const columnTemplate = {
+    gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`,
+  };
+
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node) return;
+    node.scrollTop = Math.max(
+      0,
+      (DEFAULT_GRID_START_HOUR - startHour) * HOUR_PX - 8,
+    );
+  }, [startHour]);
+
+  return (
+    <div>
+      <div className="flex border-b border-gray-200">
+        <div className="w-14 shrink-0 border-r border-gray-200 bg-gray-50" />
+        <div className="grid flex-1" style={columnTemplate}>
+          {dayBuckets.map(({ day, events: dayEvents }) => (
+            <div
+              key={toISODate(day)}
+              className="border-r border-gray-200 bg-gray-50 px-3 py-2 last:border-r-0"
+            >
+              <div className="text-sm font-semibold text-gray-900">
+                {formatDayHeader(day)}
+              </div>
+              <div className="text-xs text-gray-500">
+                {dayEvents.length === 1
+                  ? "1 Eintrag"
+                  : `${dayEvents.length} Einträge`}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {hasAllDay ? (
+        <div className="flex border-b border-gray-200">
+          <div className="w-14 shrink-0 border-r border-gray-200 px-1 py-2 text-right text-[11px] text-gray-400">
+            Ganztägig
+          </div>
+          <div className="grid flex-1" style={columnTemplate}>
+            {dayBuckets.map(({ day, events: dayEvents }) => (
+              <div
+                key={toISODate(day)}
+                className="space-y-1 border-r border-gray-200 p-1 last:border-r-0"
+              >
+                {dayEvents.filter(isAllDayLike).map((event) => (
+                  <CalendarEventItem
+                    key={`${event.id}-${toISODate(day)}`}
+                    event={event}
+                    actions={actions}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      <div ref={scrollRef} className="max-h-[70vh] overflow-y-auto">
+        <div className="flex" style={{ height: bodyHeight }}>
+          <div className="relative w-14 shrink-0 border-r border-gray-200">
+            {hours.map((hour) =>
+              hour === startHour ? null : (
+                <div
+                  key={hour}
+                  className="absolute right-1 -translate-y-1/2 text-[11px] text-gray-400"
+                  style={{ top: (hour - startHour) * HOUR_PX }}
+                >
+                  {`${String(hour).padStart(2, "0")}:00`}
+                </div>
+              ),
+            )}
+          </div>
+          <div className="grid flex-1" style={columnTemplate}>
+            {dayBuckets.map(({ day, events: dayEvents }) => (
+              <TimeGridDayBody
+                key={toISODate(day)}
+                events={dayEvents}
+                hours={hours}
+                startHour={startHour}
+                gridStartMinutes={gridStartMinutes}
+                bodyHeight={bodyHeight}
+                actions={actions}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TimeGridDayBody({
+  events,
+  hours,
+  startHour,
+  gridStartMinutes,
+  bodyHeight,
+  actions,
+}: Readonly<{
+  events: readonly CalendarEvent[];
+  hours: readonly number[];
+  startHour: number;
+  gridStartMinutes: number;
+  bodyHeight: number;
+  actions: CalendarEventActions;
+}>) {
+  const shiftBands = events.filter(
+    (event) => event.source === "shift" && !isAllDayLike(event),
+  );
+  const timed = layoutTimedEvents(
+    events.filter((event) => event.source !== "shift" && !isAllDayLike(event)),
+    {
+      hasRespond: Boolean(actions.onRespond),
+      hasOverview: Boolean(actions.onShowOverview),
+    },
+  );
+  return (
+    <div
+      className="relative border-r border-gray-200 last:border-r-0"
+      style={{ height: bodyHeight }}
+    >
+      {hours.map((hour) =>
+        hour === startHour ? null : (
+          <div
+            key={hour}
+            className="absolute inset-x-0 border-t border-gray-100"
+            style={{ top: (hour - startHour) * HOUR_PX }}
+            aria-hidden
+          />
+        ),
+      )}
+      {shiftBands.map((event) => {
+        const tone = sourceTone[event.source];
+        const startMinutes = clockToMinutes(event.start_time);
+        const endMinutes = Math.max(
+          clockToMinutes(event.end_time),
+          startMinutes + 30,
+        );
+        return (
+          <div
+            key={event.id}
+            className="absolute inset-x-0.5 z-0 overflow-hidden rounded-md border px-1.5 py-1"
+            style={{
+              top: ((startMinutes - gridStartMinutes) / 60) * HOUR_PX + 1,
+              height: ((endMinutes - startMinutes) / 60) * HOUR_PX - 2,
+              backgroundColor: tone.bg,
+              borderColor: `${tone.bar}55`,
+            }}
+          >
+            <div className="flex flex-wrap items-center gap-1 text-[11px] text-gray-700">
+              <span className="rounded bg-white/80 px-1 py-0.5 font-semibold">
+                {tone.label}
+              </span>
+              <span className="font-semibold text-gray-900">{event.title}</span>
+              <span>{eventTime(event)}</span>
+            </div>
+            {event.description ? (
+              <p className="mt-0.5 truncate text-[11px] text-gray-600">
+                {event.description}
+              </p>
+            ) : null}
+          </div>
+        );
+      })}
+      {timed.map((placement) => (
+        <TimeGridEventBlock
+          key={placement.event.id}
+          placement={placement}
+          gridStartMinutes={gridStartMinutes}
+          actions={actions}
+        />
+      ))}
+    </div>
+  );
+}
+
+function TimeGridEventBlock({
+  placement,
+  gridStartMinutes,
+  actions,
+}: Readonly<{
+  placement: TimedPlacement;
+  gridStartMinutes: number;
+  actions: CalendarEventActions;
+}>) {
+  const { onShowOverview, onRespond, respondingRecipientId } = actions;
+  const { event, startMinutes, endMinutes, column, columnCount } = placement;
+  const tone = sourceTone[event.source];
+  const recipientId = event.recipient_id;
+  const responding =
+    Boolean(recipientId) && respondingRecipientId === recipientId;
+  const showRespond = Boolean(event.can_respond && recipientId && onRespond);
+  const showOverview = Boolean(
+    event.can_view_overview && event.appointment_id && onShowOverview,
+  );
+  // endMinutes ist bereits das effektive Render-Ende aus layoutTimedEvents —
+  // die Mindesthöhe steckt in der Platzierung, damit nichts überdeckt wird.
+  const height = ((endMinutes - startMinutes) / 60) * HOUR_PX - 2;
+  const widthPercent = 100 / columnCount;
+  return (
+    <article
+      className="absolute z-10 overflow-hidden rounded-md border border-gray-200 p-1.5 shadow-sm"
+      style={{
+        top: ((startMinutes - gridStartMinutes) / 60) * HOUR_PX + 1,
+        height,
+        left: `calc(${column * widthPercent}% + 2px)`,
+        width: `calc(${widthPercent}% - 4px)`,
+        borderLeft: `3px solid ${tone.bar}`,
+        backgroundColor: tone.bg,
+      }}
+    >
+      <div className="flex flex-wrap items-center gap-1">
+        <span className="rounded bg-white/80 px-1 py-0.5 text-[10px] font-semibold text-gray-700">
+          {tone.label}
+        </span>
+        {event.response_status ? (
+          <span className="rounded bg-white/80 px-1 py-0.5 text-[10px] font-semibold text-gray-700">
+            {responseLabel[event.response_status] ?? event.response_status}
+          </span>
+        ) : null}
+      </div>
+      <div className="truncate text-xs font-semibold text-gray-950">
+        {event.title}
+      </div>
+      <div className="text-[11px] text-gray-600">{eventTime(event)}</div>
+      {event.student_name || event.school_name ? (
+        <div className="truncate text-[11px] text-gray-600">
+          {[event.student_name, event.school_name].filter(Boolean).join(" · ")}
+        </div>
+      ) : null}
+      {event.location ? (
+        <div className="flex items-center gap-1 text-[11px] text-gray-600">
+          <MapPin className="h-3 w-3 shrink-0" aria-hidden />
+          <span className="truncate">{event.location}</span>
+        </div>
+      ) : null}
+      {event.description ? (
+        <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-gray-600">
+          {event.description}
+        </p>
+      ) : null}
+      {showOverview ? (
+        <Button
+          type="button"
+          size="compact"
+          variant="ghost"
+          className="mt-1 w-full bg-white/50"
+          onClick={() => onShowOverview!(event.appointment_id!)}
+        >
+          <Users className="h-4 w-4" aria-hidden />
+          Teilnehmer
+        </Button>
+      ) : null}
+      {showRespond ? (
+        <div className="mt-1 flex gap-1">
+          <Button
+            type="button"
+            size="compact"
+            variant="outline"
+            className="flex-1"
+            disabled={responding}
+            onClick={() => onRespond!(recipientId!, "accepted")}
+          >
+            <Check className="h-4 w-4" aria-hidden />
+            Zusagen
+          </Button>
+          <Button
+            type="button"
+            size="compact"
+            variant="outline_danger"
+            className="flex-1"
+            disabled={responding}
+            onClick={() => onRespond!(recipientId!, "declined")}
+          >
+            <X className="h-4 w-4" aria-hidden />
+            Absagen
+          </Button>
+        </div>
+      ) : null}
+    </article>
   );
 }
 

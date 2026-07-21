@@ -250,6 +250,140 @@ describe("PUT /api/students/[id]", () => {
     expect(updatePrivacyConsent).toHaveBeenCalled();
     expect(response.status).toBe(200);
   });
+
+  // The student PUT carries the companion fingerprint (#1694): once it commits,
+  // resending it is refused as `companions_changed`. So a failing consent write
+  // must happen while the student is still untouched — otherwise the client
+  // reports a failure for links that are already stored and its retry conflicts.
+  it("does not touch the student when the consent update fails", async () => {
+    const { updatePrivacyConsent } =
+      await import("~/lib/student-privacy-helpers");
+    vi.mocked(updatePrivacyConsent).mockRejectedValueOnce(
+      new Error("consent backend down"),
+    );
+
+    const request = createMockRequest("/api/students/123", {
+      method: "PUT",
+      body: {
+        first_name: "Alice",
+        privacy_consent_accepted: true,
+        companions: [],
+      },
+    });
+    const response = await PUT(request, createMockContext({ id: "123" }));
+
+    expect(response.status).toBe(500);
+    expect(mockApiPut).not.toHaveBeenCalled();
+  });
+
+  // The two writes cannot share a transaction, so a student PUT that fails on
+  // top of a committed consent write is a partial success. Reporting it as a
+  // plain failure is what lets the user cancel the retry believing the consent
+  // change never landed — the marker is what the form turns into "die
+  // Datenschutzeinstellungen wurden bereits gespeichert".
+  it("marks the failure when the consent write already committed", async () => {
+    // updatePrivacyConsent is mocked at module level and resolves, so the
+    // consent half of this request commits; the student PUT is what fails.
+    mockApiPut.mockRejectedValueOnce(
+      new Error(
+        `API error (409): ${JSON.stringify({
+          error: "Die Laufgemeinschaft wurde zwischenzeitlich geändert.",
+          code: "companions_changed",
+          conflicts: [{ companion_student_id: "7" }],
+        })}`,
+      ),
+    );
+
+    const request = createMockRequest("/api/students/123", {
+      method: "PUT",
+      body: {
+        first_name: "Alice",
+        privacy_consent_accepted: true,
+        data_retention_days: 25,
+      },
+    });
+    const response = await PUT(request, createMockContext({ id: "123" }));
+
+    expect(response.status).not.toBe(200);
+    const json = await parseJsonResponse<{ error: string }>(response);
+    const payload = JSON.parse(
+      json.error.substring(json.error.indexOf("{")),
+    ) as {
+      error: string;
+      code?: string;
+      conflicts?: unknown[];
+      details?: Record<string, unknown>;
+    };
+    expect(payload.details?.privacy_consent_saved).toBe(true);
+    // Everything the browser branches on has to survive the re-shaping.
+    expect(payload.code).toBe("companions_changed");
+    expect(payload.conflicts).toHaveLength(1);
+    expect(json.error).toContain("API error (409)");
+  });
+
+  it("leaves the failure untouched when no consent was written", async () => {
+    mockApiPut.mockRejectedValueOnce(
+      new Error(`API error (400): ${JSON.stringify({ error: "invalid" })}`),
+    );
+
+    const request = createMockRequest("/api/students/123", {
+      method: "PUT",
+      body: { first_name: "Alice" },
+    });
+    const response = await PUT(request, createMockContext({ id: "123" }));
+
+    const json = await parseJsonResponse<{ error: string }>(response);
+    expect(json.error).not.toContain("privacy_consent_saved");
+  });
+
+  // Everything is committed by the time the read-back runs — failing the
+  // request here would send the client down its generic save-failure path for a
+  // save that succeeded.
+  it("still succeeds when the consent read-back fails after the update", async () => {
+    const { fetchPrivacyConsent } =
+      await import("~/lib/student-privacy-helpers");
+    vi.mocked(fetchPrivacyConsent).mockRejectedValueOnce(
+      new Error("consent read failed"),
+    );
+
+    mockApiPut.mockResolvedValueOnce({
+      data: {
+        id: 123,
+        person_id: 10,
+        first_name: "Alice",
+        last_name: "Smith",
+        school_class: "1a",
+        guardian_name: "Jane Smith",
+        guardian_contact: "jane@example.com",
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-15T10:00:00Z",
+      },
+    });
+
+    const request = createMockRequest("/api/students/123", {
+      method: "PUT",
+      body: {
+        first_name: "Alice",
+        privacy_consent_accepted: true,
+        data_retention_days: 25,
+      },
+    });
+    const response = await PUT(request, createMockContext({ id: "123" }));
+
+    expect(response.status).toBe(200);
+
+    const json = await parseJsonResponse<{
+      data: {
+        id: string;
+        privacy_consent_accepted: boolean;
+        data_retention_days: number;
+      };
+    }>(response);
+    expect(json.data.id).toBe("123");
+    // Falls back to what was just written instead of dropping the fields.
+    expect(json.data.privacy_consent_accepted).toBe(true);
+    expect(json.data.data_retention_days).toBe(25);
+  });
 });
 
 describe("PATCH /api/students/[id]", () => {

@@ -1232,6 +1232,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AccountRoleRepo:          repos.AccountRole,
 		RoleRepo:                 repos.Role,
 		OutboxEnqueuer:           emailOutboxService,
+		Broadcaster:              realtimeHub,
 		FrontendURL:              frontendURL,
 		ParentsURL:               parentsURL,
 		Settings:                 settingsService,
@@ -1272,10 +1273,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DataAccessLogRepo:        repos.DataAccessLog,
 		StudentRepo:              repos.Student,
 		StudentGuardianRepo:      repos.StudentGuardian,
+		StudentCompanionRepo:     repos.StudentCompanion,
 		PersonRepo:               repos.Person,
 		EducationGroupRepo:       repos.Group,
 	})
 	enrollmentDecisionApplier, _ := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
+
+	// Created before the change-request service: its multi-child approval takes
+	// the companion lock order through this service.
+	studentService := users.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentCompanion)
 
 	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
 		ChangeRequestRepo:        repos.ChangeRequest,
@@ -1291,6 +1297,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		GuardianProfileRepo:      repos.GuardianProfile,
 		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
 		DecisionService:          enrollmentDecisionApplier,
+		CompanionGraphLocker:     studentService,
 		Settings:                 settingsService,
 		OutboxEnqueuer:           emailOutboxService,
 		FrontendURL:              frontendURL,
@@ -1314,8 +1321,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                       db,
 		Logger:                   logger.With("service", "enrollment-rollover"),
 	})
-
-	studentService := users.NewStudentService(repos.Student, repos.PrivacyConsent)
 
 	// Chat-pill emitter (#1803): posts non-interactive notification events
 	// into parent-OGS threads on behalf of the request/self-service flows.
@@ -1387,6 +1392,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		InstanceStaffRepo:    repos.InstanceStaff,
 		InstanceStudentRepo:  repos.InstanceStudent,
 		ActivityInstanceRepo: repos.ActivityInstance,
+		StaffShiftRepo:       repos.StaffShift,
+		ShiftTypeRepo:        repos.ShiftType,
 		CareDays:             careDayService,
 		UserContext:          userContextService,
 		DB:                   db,

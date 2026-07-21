@@ -74,6 +74,7 @@ type Factory struct {
 	Guest               userModels.GuestRepository
 	Profile             userModels.ProfileRepository
 	StudentGuardian     userModels.StudentGuardianRepository
+	StudentCompanion    userModels.StudentCompanionRepository
 	GuardianProfile     userModels.GuardianProfileRepository
 	GuardianPhoneNumber userModels.GuardianPhoneNumberRepository
 	PrivacyConsent      userModels.PrivacyConsentRepository
@@ -259,6 +260,7 @@ func NewFactory(db *bun.DB) *Factory {
 		Guest:               users.NewGuestRepository(db),
 		Profile:             users.NewProfileRepository(db),
 		StudentGuardian:     users.NewStudentGuardianRepository(db),
+		StudentCompanion:    users.NewStudentCompanionRepository(db),
 		GuardianProfile:     users.NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
 		PrivacyConsent:      users.NewPrivacyConsentRepository(db),

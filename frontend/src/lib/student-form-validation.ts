@@ -3,8 +3,8 @@
  * Eliminates duplication between create and edit modals
  */
 
-import type { Student } from "~/lib/student-helpers";
-import { allowedModesIncludeAccompanied } from "~/lib/student-helpers";
+import type { DepartureDayKey, Student } from "~/lib/student-helpers";
+import { accompaniedWeekdayKeys } from "~/lib/student-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentFormValidation" });
@@ -72,6 +72,19 @@ export function validateStudentForm(
     lastName?: boolean;
     schoolClass?: boolean;
   } = {},
+  options: {
+    /**
+     * The weekdays covered by the child's Laufgemeinschaft links. A link
+     * answers "mit wem" for exactly its own weekdays — the backend checks the
+     * cover PER DAY, so an accompanied Tuesday backed only by a Monday link
+     * still needs the free-text note. Pass "unknown" while the stored links
+     * are still loading (or failed to load): claiming "no links" then would
+     * block an unrelated edit for the wrong reason, and the backend re-checks
+     * the rule against the stored links either way. Omitting the option means
+     * "no links" (forms without a companion picker keep requiring the note).
+     */
+    companionLinkDays?: DepartureDayKey[] | "unknown";
+  } = {},
 ): Record<string, string> {
   const errors: Record<string, string> = {};
 
@@ -92,17 +105,24 @@ export function validateStudentForm(
     errors.data_retention_days = retentionError;
   }
 
-  // When a child may leave "Mit anderem Kind", the free-text note must say with
-  // whom — an accompanied plan with an empty note defeats the point (#1694).
+  // When a child may leave "Mit anderem Kind", something must say with whom —
+  // an accompanied plan with no detail at all defeats the point (#1694). A
+  // linked child covers exactly its own weekdays; every accompanied day
+  // without a link needs the free-text note.
+  const accompaniedDays = accompaniedWeekdayKeys(
+    formData.allowed_departure_modes,
+    formData.departure_days,
+  );
   if (
-    allowedModesIncludeAccompanied(
-      formData.allowed_departure_modes,
-      formData.departure_days,
-    ) &&
+    accompaniedDays.length > 0 &&
+    options.companionLinkDays !== "unknown" &&
     !formData.departure_companion_note?.trim()
   ) {
-    errors.departure_companion_note =
-      "Bitte angeben, mit welchem Kind das Kind nach Hause geht";
+    const covered = new Set(options.companionLinkDays ?? []);
+    if (accompaniedDays.some((day) => !covered.has(day))) {
+      errors.departure_companion_note =
+        "Bitte angeben, mit welchem Kind das Kind nach Hause geht";
+    }
   }
 
   return errors;

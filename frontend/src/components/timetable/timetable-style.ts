@@ -35,7 +35,7 @@ export const timetableWarningText = "text-[#92400E]";
  * Shared 5-tone palette for small status/ratio indicators across the
  * timetable feature (issue #1838). Supersedes two previously-separate,
  * incompatible local palettes (the 4-tone StatPill in
- * instance-detail-slide-over.tsx had no "danger", TimetableStatCard's
+ * instance-detail-modal.tsx had no "danger", TimetableStatCard's
  * neutral/success/warning/danger had no "info") — this is the union of both,
  * mapped onto the existing LOCATION_COLORS semantic set. No new hex values.
  */
