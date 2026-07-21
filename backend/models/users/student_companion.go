@@ -100,7 +100,7 @@ func CompanionWeekdayNumber(day string) (int, error) {
 //
 // There is deliberately no group entity: a Laufgemeinschaft is the connected
 // component of these edges for a given weekday, resolved by the reader. See the
-// 1.15.208 migration for why.
+// 1.15.209 migration for why.
 //
 // StudentLowID always holds the smaller of the two student ids (DB CHECK), so a
 // pair is stored exactly once per weekday. Construct via NewStudentCompanion

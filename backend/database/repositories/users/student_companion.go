@@ -16,7 +16,7 @@ import (
 // StudentCompanionRepository implements users.StudentCompanionRepository.
 //
 // Every method has to look at BOTH endpoint columns, because an edge is stored
-// once in normalized low/high order (see migration 1.15.208) — "the companions
+// once in normalized low/high order (see migration 1.15.209) — "the companions
 // of child X" is therefore an OR over student_low_id and student_high_id, never
 // a lookup on a single column.
 type StudentCompanionRepository struct {

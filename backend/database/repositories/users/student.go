@@ -493,7 +493,7 @@ func (r *StudentRepository) planCompanionReconcile(ctx context.Context, student 
 		return nil, nil
 	}
 
-	// The table landed in 1.15.208 and the migration tests exercise historical
+	// The table landed in 1.15.209 and the migration tests exercise historical
 	// schemas with the current model; an absent table means no links.
 	exists, err := r.hasCompanionTable(ctx)
 	if err != nil {
@@ -1527,7 +1527,7 @@ func (r *StudentRepository) applyCompanionLinkDays(ctx context.Context, student 
 		return nil
 	}
 
-	// The table landed in 1.15.208 and the migration tests exercise historical
+	// The table landed in 1.15.209 and the migration tests exercise historical
 	// schemas with the current model, so probe it like the optional departure
 	// columns are probed. Absent table means no links, which keeps the note
 	// requirement in force — failing closed.
@@ -1557,7 +1557,7 @@ func (r *StudentRepository) applyCompanionLinkDays(ctx context.Context, student 
 }
 
 // hasCompanionTable reports whether users.student_companions exists. The table
-// landed in 1.15.208 and the migration tests exercise historical schemas with
+// landed in 1.15.209 and the migration tests exercise historical schemas with
 // the current model, so every companion read in this repository is guarded by
 // this probe.
 func (r *StudentRepository) hasCompanionTable(ctx context.Context) (bool, error) {

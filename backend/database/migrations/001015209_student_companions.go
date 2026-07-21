@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	studentCompanionsVersion     = "1.15.208"
+	studentCompanionsVersion     = "1.15.209"
 	studentCompanionsDescription = "Create users.student_companions - per-weekday child-to-child departure links (Laufgemeinschaften)"
 )
 
@@ -59,7 +59,7 @@ func init() {
 // Weekdays are 1..5 (Mon..Fri), matching schedule.student_pickup_schedules —
 // OGS care does not run on weekends.
 func studentCompanionsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.208: Creating users.student_companions...")
+	fmt.Println("Migration 1.15.209: Creating users.student_companions...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -128,7 +128,7 @@ func studentCompanionsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func studentCompanionsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.208: Dropping users.student_companions...")
+	fmt.Println("Rolling back migration 1.15.209: Dropping users.student_companions...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
