@@ -380,7 +380,15 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 	// that was never stored. Callers run inside the request's tenant
 	// transaction, so plan and trim still commit or roll back together.
 	if trim != nil {
-		return r.companions.DeleteEdges(ctx, trim.dropIDs)
+		if err := r.companions.DeleteEdges(ctx, trim.dropIDs); err != nil {
+			return err
+		}
+		// Tell a caller that does not write links itself whether THIS write
+		// touched any — the only honest basis for announcing
+		// student_companions_changed (see users.CompanionChangeRecorder).
+		if len(trim.dropIDs) > 0 {
+			users.RecordCompanionChange(ctx)
+		}
 	}
 	return nil
 }

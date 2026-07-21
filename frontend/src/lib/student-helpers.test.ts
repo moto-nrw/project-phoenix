@@ -552,7 +552,7 @@ describe("prepareStudentForBackend", () => {
     });
 
     expect(result.companions).toEqual([
-      { companion_student_id: 7, weekdays: ["mon"] },
+      { companion_student_id: "7", weekdays: ["mon"] },
     ]);
     expect(result.companions_fingerprint).toBe("7:mon");
   });

@@ -31,9 +31,9 @@ export const ALL_COMPANION_WEEKDAYS: CompanionWeekday[] =
 export interface StudentCompanion {
   /**
    * Backend int64 id, carried as a string like every other id in the frontend
-   * (see the type-mapping rule in CLAUDE.md). Converted back to a number only
-   * at the validated backend boundary in prepareStudentForBackend — modeling
-   * it as a JS number would silently round ids above Number.MAX_SAFE_INTEGER.
+   * (see the type-mapping rule in CLAUDE.md). It also travels back to the
+   * backend as a string — modeling it as a JS number would silently round ids
+   * above Number.MAX_SAFE_INTEGER into a DIFFERENT child's id.
    */
   companion_student_id: string;
   first_name?: string;

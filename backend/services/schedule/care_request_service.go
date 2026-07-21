@@ -404,10 +404,9 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 		return nil, ErrCareRequestForbidden
 	}
 
-	// Whether the applied payload actually touched departure modes — the only
-	// aspect that can reconcile the child's "läuft mit" links, and therefore the
-	// only one that may announce a companion change.
-	departureModesChanged := false
+	// Whether the apply actually changed the child's "läuft mit" links — the
+	// only thing that may announce a companion change.
+	companionsChanged := false
 	if input.Approve {
 		// Two apply-only gates, both mirroring the chat's ConfirmRequest path this
 		// flow replaced. Both run in the ambient tenant tx, on the
@@ -446,11 +445,11 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 		// ambient tenant transaction. A mid-apply failure must propagate as a
 		// plain error (→ 500) so the WHOLE transaction rolls back — masking it
 		// as a 409 would commit a half-applied weekly plan.
-		changedModes, err := s.applyCareScheduleRequest(ctx, req)
+		linksChanged, err := s.applyCareScheduleRequest(ctx, req)
 		if err != nil {
 			return nil, err
 		}
-		departureModesChanged = changedModes
+		companionsChanged = linksChanged
 	}
 
 	newStatus := scheduleModels.CareRequestStatusApproved
@@ -474,7 +473,7 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 		tenant.RegisterAfterCommit(ctx, func() {
 			s.recordApplyAudit(req, input.ReviewedBy)
 		})
-		s.broadcastCareScheduleChanges(ctx, req.TenantID, req.StudentID, departureModesChanged)
+		s.broadcastCareScheduleChanges(ctx, req.TenantID, req.StudentID, companionsChanged)
 	} else {
 		tenant.RegisterAfterCommit(ctx, func() {
 			s.logger.Info("care request rejected",
@@ -568,11 +567,12 @@ func (s *careScheduleRequestService) wakeGuardiansAfterCommit(ctx context.Contex
 // merges onto live data and the reviewer decides on a live diff, so an
 // intervening direct edit is superseded rather than blocking the decision.
 //
-// It reports whether the applied payload carried DEPARTURE-MODE changes, the
-// only aspect that can reconcile the child's "läuft mit" links. A time-only
-// request (arrival and/or pickup) leaves every link untouched, so it must not
-// announce a companion change — that event makes open companion editors across
-// the school discard or block their draft.
+// It reports whether the apply actually CHANGED the child's "läuft mit" links,
+// read from the write itself via users.CompanionChangeRecorder. Carrying
+// departure modes is not the same question: a request that merges modes the
+// child already has (or that only moves arrival/pickup times) leaves every link
+// in place, and announcing a companion change for it makes open companion
+// editors across the school discard or block their draft for nothing.
 func (s *careScheduleRequestService) applyCareScheduleRequest(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest) (bool, error) {
 	if s.studentRepo == nil || s.arrival == nil || s.pickup == nil || s.userContext == nil {
 		return false, errors.New("schedule: care request apply dependencies not configured")
@@ -587,7 +587,10 @@ func (s *careScheduleRequestService) applyCareScheduleRequest(ctx context.Contex
 	if changes.isEmpty() {
 		return false, errors.New("schedule: no weekdays to apply")
 	}
-	modesChanged := len(changes.modes) > 0
+
+	// Every write below runs in this scope, so the repository can report whether
+	// the departure-plan merge actually trimmed a "läuft mit" link.
+	ctx, companionChanges := usersModels.ContextWithCompanionChangeRecorder(ctx)
 
 	staff, err := s.userContext.GetCurrentStaff(ctx)
 	if err != nil {
@@ -628,7 +631,7 @@ func (s *careScheduleRequestService) applyCareScheduleRequest(ctx context.Contex
 	if err := s.applyPickupChanges(ctx, studentID, staffID, changes.pickups); err != nil {
 		return false, err
 	}
-	return modesChanged, nil
+	return companionChanges.Changed(), nil
 }
 
 // applyDepartureModeChanges merges the requested per-weekday departure modes
@@ -716,7 +719,7 @@ func (s *careScheduleRequestService) applyPickupChanges(ctx context.Context, stu
 // "not arriving today" badges invalidate on). Registered after-commit so a
 // woken client refetches the persisted plan, never the pre-commit snapshot.
 // Fire-and-forget: a broadcast error only costs other tabs an auto-refresh.
-func (s *careScheduleRequestService) broadcastCareScheduleChanges(ctx context.Context, tenantID, studentID int64, departureModesChanged bool) {
+func (s *careScheduleRequestService) broadcastCareScheduleChanges(ctx context.Context, tenantID, studentID int64, companionsChanged bool) {
 	if s.broadcaster == nil {
 		return
 	}
@@ -730,14 +733,13 @@ func (s *careScheduleRequestService) broadcastCareScheduleChanges(ctx context.Co
 				slog.String("error", err.Error()),
 			)
 		}
-		// Only when the approval merged DEPARTURE MODES: the repository then trims
-		// the "läuft mit" links on every weekday the resulting plan no longer
-		// allows — links that are rows on ANOTHER child's card too. student_updated
-		// is not that signal: companion views must not react to every student
-		// write, or an unrelated edit discards someone's in-progress draft. A
-		// request that only moves arrival or pickup times cannot touch a link, so
-		// it stays silent here for exactly the same reason.
-		if departureModesChanged {
+		// Only when the write actually trimmed a "läuft mit" link — links that are
+		// rows on ANOTHER child's card too. student_updated is not that signal:
+		// companion views must not react to every student write, or an unrelated
+		// edit discards someone's in-progress draft. A request that only moves
+		// arrival or pickup times, or that re-merges the departure modes the child
+		// already had, changes no link and stays silent here for the same reason.
+		if companionsChanged {
 			companionEvent := realtime.NewEvent(realtime.EventStudentCompanionsChanged, "", realtime.EventData{Source: &source})
 			if err := s.broadcaster.BroadcastToTenant(tenantID, companionEvent); err != nil {
 				s.logger.Warn("schedule: broadcast student_companions_changed after care request approve failed",

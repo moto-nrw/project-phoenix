@@ -215,7 +215,12 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 		return s.enrichReviewItem(ctx, row)
 	}
 
-	if err := s.applyApprovedChange(ctx, req); err != nil {
+	// Run the apply in a recording scope so the companion announcement below can
+	// be keyed off the WRITE instead of the request's target: a departure
+	// approval that changes no weekday the links depend on leaves every link in
+	// place (see userModels.CompanionChangeRecorder).
+	applyCtx, companionChanges := userModels.ContextWithCompanionChangeRecorder(ctx)
+	if err := s.applyApprovedChange(applyCtx, req); err != nil {
 		return nil, err
 	}
 	if err := s.changeRequestRepo.Decide(ctx, req.ID, userModels.DataChangeStatusApproved, reason, input.ReviewedBy, true); err != nil {
@@ -233,12 +238,11 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 	)
 	s.deferDecisionPill(ctx, req, input, true)
 	s.deferStudentUpdated(ctx, req.StudentID)
-	// A departure-plan change trims the "läuft mit" links on every weekday the
-	// new plan no longer allows, and those links are rows on ANOTHER child's
-	// card too. A person-field approval (name, birthday) cannot touch them, so
-	// it stays silent — the event makes open companion forms drop or block a
-	// draft, which must not happen for a rename.
-	if req.Target == userModels.DataChangeTargetDeparture {
+	// Only when the write actually trimmed a "läuft mit" link — those links are
+	// rows on ANOTHER child's card too. Everything else stays silent: the event
+	// makes open companion forms drop or block a draft, which must not happen
+	// for a rename, nor for a departure approval that left every link intact.
+	if companionChanges.Changed() {
 		s.deferStudentCompanionsChanged(ctx, req.StudentID)
 	}
 	row, findErr := s.changeRequestRepo.FindByID(ctx, req.ID)

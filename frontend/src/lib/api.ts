@@ -1131,8 +1131,8 @@ export const studentService = {
     id: string,
     student: Partial<Student> & {
       // Laufgemeinschaft rides along with the departure plan it belongs to.
-      // Ids stay strings here; prepareStudentForBackend converts them at the
-      // validated backend boundary.
+      // Ids stay strings all the way to the backend, which accepts a quoted
+      // decimal for exactly that reason.
       companions?: { companion_student_id: string; weekdays: string[] }[];
       // Fingerprint of the list the caller LOADED — see prepareStudentForBackend.
       companions_fingerprint?: string;

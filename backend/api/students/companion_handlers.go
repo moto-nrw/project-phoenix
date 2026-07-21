@@ -2,9 +2,12 @@ package students
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
@@ -103,6 +106,49 @@ func (resp *CompanionConflictResponse) Render(_ http.ResponseWriter, r *http.Req
 type CompanionEntry struct {
 	CompanionStudentID int64    `json:"companion_student_id"`
 	Weekdays           []string `json:"weekdays"`
+}
+
+// UnmarshalJSON accepts the companion id as a JSON number OR as a quoted
+// string.
+//
+// The frontend carries every backend int64 id as a string (CLAUDE.md type
+// mapping) and would otherwise have to convert it back to a JS number to send
+// it: an id beyond Number.MAX_SAFE_INTEGER then either rounds to a DIFFERENT
+// child's id or fails the conversion outright, so the link could not be
+// created, edited or removed at all. A quoted decimal is exact, so the string
+// travels verbatim. Non-JS clients keep sending numbers.
+func (e *CompanionEntry) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		CompanionStudentID json.RawMessage `json:"companion_student_id"`
+		Weekdays           []string        `json:"weekdays"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	e.Weekdays = raw.Weekdays
+	e.CompanionStudentID = 0
+	if len(raw.CompanionStudentID) == 0 || string(raw.CompanionStudentID) == "null" {
+		return nil
+	}
+	if raw.CompanionStudentID[0] == '"' {
+		var quoted string
+		if err := json.Unmarshal(raw.CompanionStudentID, &quoted); err != nil {
+			return err
+		}
+		quoted = strings.TrimSpace(quoted)
+		if quoted == "" {
+			// Same shape as an omitted id: Bind rejects it with the German
+			// "Bitte ein Kind auswählen" sentinel instead of a parser message.
+			return nil
+		}
+		id, err := strconv.ParseInt(quoted, 10, 64)
+		if err != nil {
+			return userModels.ErrCompanionStudentIDRequired
+		}
+		e.CompanionStudentID = id
+		return nil
+	}
+	return json.Unmarshal(raw.CompanionStudentID, &e.CompanionStudentID)
 }
 
 // validateCompanionEntries bounds the submitted list at the request boundary.

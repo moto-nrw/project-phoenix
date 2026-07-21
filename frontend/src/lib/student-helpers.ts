@@ -480,8 +480,10 @@ export interface BackendStudent {
   extra_info?: string;
   departure_companion_note?: string;
   companion_student_ids?: number[];
-  /** Write-only: the complete "läuft mit" list submitted with the plan. */
-  companions?: { companion_student_id: number; weekdays: string[] }[];
+  /** Write-only: the complete "läuft mit" list submitted with the plan. The id
+   *  stays the string the frontend holds — the backend accepts a quoted
+   *  decimal, which is exact for every int64. */
+  companions?: { companion_student_id: string; weekdays: string[] }[];
   /**
    * Write-only: fingerprint of the list the client loaded before it built
    * `companions`. The backend compares it against the stored links under the
@@ -494,7 +496,7 @@ export interface BackendStudent {
   extend_companion_plans?: boolean;
   /** Write-only: the children and weekdays that confirmation actually covered. */
   confirmed_companion_extensions?: {
-    companion_student_id: number;
+    companion_student_id: string;
     weekdays: string[];
   }[];
   birthday?: string;
@@ -824,18 +826,6 @@ export function mapStudentDetailResponse(
   return student;
 }
 
-// companionIdForBackend converts a frontend string id into the int64 JSON
-// number the Go backend expects. Fails loudly on anything non-numeric or
-// beyond Number.MAX_SAFE_INTEGER — silently rounding would submit the WRONG
-// child's id.
-function companionIdForBackend(id: string): number {
-  const parsed = Number(id);
-  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-    throw new Error(`Ungültige Kind-ID für die Laufgemeinschaft: ${id}`);
-  }
-  return parsed;
-}
-
 // Prepare frontend student for backend
 export function prepareStudentForBackend(
   student: Partial<Student> & {
@@ -902,12 +892,12 @@ export function prepareStudentForBackend(
     departure_companion_note: student.departure_companion_note,
     // Laufgemeinschaft ("läuft mit"). Only sent when the caller actually
     // edited it — an omitted key leaves the stored links untouched, while []
-    // clears them. This is the one validated boundary where the string ids
-    // become the numbers the Go backend expects.
+    // clears them.
+    // The id travels as the string the frontend holds: the backend accepts a
+    // quoted decimal for exactly this reason. Converting to a JS number would
+    // round an id beyond Number.MAX_SAFE_INTEGER to a DIFFERENT child's id.
     companions: student.companions?.map((companion) => ({
-      companion_student_id: companionIdForBackend(
-        companion.companion_student_id,
-      ),
+      companion_student_id: companion.companion_student_id,
       weekdays: companion.weekdays,
     })),
     // The fingerprint of the list the form LOADED, so the backend can refuse a
@@ -925,7 +915,7 @@ export function prepareStudentForBackend(
     // backend refuses to widen a conflict these entries do not cover.
     confirmed_companion_extensions: student.confirmed_companion_extensions?.map(
       (entry) => ({
-        companion_student_id: companionIdForBackend(entry.companion_student_id),
+        companion_student_id: entry.companion_student_id,
         weekdays: entry.weekdays,
       }),
     ),
@@ -1015,7 +1005,7 @@ export interface BackendUpdateRequest {
   photo_consent_given?: boolean;
   /** Laufgemeinschaft: the child's complete "läuft mit" list. Omit to leave
    *  the links untouched; [] clears them. */
-  companions?: { companion_student_id: number; weekdays: string[] }[];
+  companions?: { companion_student_id: string; weekdays: string[] }[];
   /** Fingerprint of the companion list the client loaded before building
    *  `companions`. Mandatory whenever `companions` is present (including []) —
    *  the backend rejects the update without it. Build it with
@@ -1026,7 +1016,7 @@ export interface BackendUpdateRequest {
   extend_companion_plans?: boolean;
   /** The children and weekdays that confirmation covered. */
   confirmed_companion_extensions?: {
-    companion_student_id: number;
+    companion_student_id: string;
     weekdays: string[];
   }[];
 }

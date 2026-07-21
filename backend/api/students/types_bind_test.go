@@ -1,6 +1,7 @@
 package students
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -225,5 +226,47 @@ func TestUpdateStudentRequestTouchesCompanions(t *testing.T) {
 				t.Errorf("%s must announce a companion change", name)
 			}
 		}
+	})
+}
+
+// TestCompanionEntryUnmarshal_AcceptsStringIDs pins the wire contract for the
+// companion id: the frontend carries every backend int64 as a string, and
+// converting it back to a JS number rounds ids beyond Number.MAX_SAFE_INTEGER
+// into a DIFFERENT child's id — so a quoted decimal has to be accepted verbatim
+// alongside the plain number older clients send.
+func TestCompanionEntryUnmarshal_AcceptsStringIDs(t *testing.T) {
+	// Above 2^53: a JS client cannot round-trip this through a number at all.
+	const beyondSafeInteger = int64(9007199254740993)
+
+	cases := map[string]struct {
+		body string
+		want int64
+	}{
+		"quoted id":  {`{"companion_student_id":"7","weekdays":["mon"]}`, 7},
+		"numeric id": {`{"companion_student_id":7,"weekdays":["mon"]}`, 7},
+		"quoted id beyond 2^53": {
+			`{"companion_student_id":"9007199254740993","weekdays":["mon"]}`,
+			beyondSafeInteger,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			var entry CompanionEntry
+			require.NoError(t, json.Unmarshal([]byte(tc.body), &entry))
+			require.Equal(t, tc.want, entry.CompanionStudentID)
+			require.Equal(t, []string{"mon"}, entry.Weekdays)
+		})
+	}
+
+	t.Run("a non-numeric id is refused with the German sentinel", func(t *testing.T) {
+		var entry CompanionEntry
+		err := json.Unmarshal([]byte(`{"companion_student_id":"abc","weekdays":["mon"]}`), &entry)
+		require.ErrorIs(t, err, users.ErrCompanionStudentIDRequired)
+	})
+
+	t.Run("a missing id stays zero for Bind to reject", func(t *testing.T) {
+		var entry CompanionEntry
+		require.NoError(t, json.Unmarshal([]byte(`{"weekdays":["mon"]}`), &entry))
+		require.Zero(t, entry.CompanionStudentID)
 	})
 }
