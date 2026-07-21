@@ -377,11 +377,13 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 	return s.checkIn(ctx, staffID, timezone.DateFromTime(s.now()), status, source, reason, true)
 }
 
-// CheckInOn creates or reopens the session of an explicit calendar day instead
-// of deriving the day from the server clock. A kiosk that resolved its day
-// before stamping must write on that day: re-deriving it inside the write can
-// land the row on the next day when the request straddles Berlin midnight,
-// after which the caller's own day-pinned reads no longer see it.
+// CheckInOn resolves the existing session of an explicit calendar day instead
+// of deriving that day from the server clock: a kiosk that pinned its day
+// before stamping must reopen the row it saw, and its day-pinned reads have to
+// keep seeing it.
+//
+// The pin covers the lookup only. A session that is newly created is filed on
+// the day its own stamp falls on — see checkIn.
 func (s *workSessionService) CheckInOn(ctx context.Context, staffID int64, day timezone.Date, status, source, reason string) (*activeModels.WorkSession, error) {
 	return s.checkIn(ctx, staffID, day, status, source, reason, true)
 }
@@ -392,7 +394,14 @@ func (s *workSessionService) CheckInOn(ctx context.Context, staffID int64, day t
 // starting a supervision (EnsureCheckedIn) bypass it — those flows have no
 // way to collect a reason, and refusing the stamp would leave a supervisor
 // row without a matching work session.
-func (s *workSessionService) checkIn(ctx context.Context, staffID int64, today timezone.Date, status, source, reason string, enforceDeviationGate bool) (*activeModels.WorkSession, error) {
+//
+// `lookupDay` selects the session this call acts on; it may have been resolved
+// by the caller before the request reached here. A session that is created
+// fresh is filed on the day of its own check_in_time instead: storing a
+// pre-midnight day next to a post-midnight stamp would misfile the session in
+// the daily history, in shift and deviation lookups, and in every total built
+// from the date column.
+func (s *workSessionService) checkIn(ctx context.Context, staffID int64, lookupDay timezone.Date, status, source, reason string, enforceDeviationGate bool) (*activeModels.WorkSession, error) {
 	if status != activeModels.WorkSessionStatusPresent && status != activeModels.WorkSessionStatusHomeOffice {
 		return nil, fmt.Errorf("status must be 'present' or 'home_office'")
 	}
@@ -402,8 +411,8 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, today t
 
 	now := s.now()
 
-	// Check if there's already a session today
-	existingSession, err := s.repo.GetByStaffAndDate(ctx, staffID, today)
+	// Check if there's already a session on the day this call acts on
+	existingSession, err := s.repo.GetByStaffAndDate(ctx, staffID, lookupDay)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to check existing session: %w", err)
 	}
@@ -412,7 +421,7 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, today t
 		if existingSession.IsActive() {
 			return nil, fmt.Errorf("already checked in")
 		}
-		if err := s.ensurePlannedStartReached(ctx, staffID, today, now); err != nil {
+		if err := s.ensurePlannedStartReached(ctx, staffID, lookupDay, now); err != nil {
 			return nil, err
 		}
 		// A status mismatch on reopen would silently rewrite an audit-relevant
@@ -431,7 +440,13 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, today t
 		return s.reopenSession(ctx, existingSession, staffID)
 	}
 
-	if err := s.ensurePlannedStartReached(ctx, staffID, today, now); err != nil {
+	// From here the session is created, so it belongs to the day of its own
+	// stamp: the schedule and deviation checks below have to be read on that
+	// same day, or a stamp taken just after midnight is measured against the
+	// previous day's shift.
+	stampDay := timezone.DateFromTime(now)
+
+	if err := s.ensurePlannedStartReached(ctx, staffID, stampDay, now); err != nil {
 		return nil, err
 	}
 
@@ -441,7 +456,7 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, today t
 	var deviation *plannedDeviation
 	if enforceDeviationGate {
 		var err error
-		deviation, err = s.detectPlannedDeviation(ctx, staffID, today, now, deviationActionCheckIn)
+		deviation, err = s.detectPlannedDeviation(ctx, staffID, stampDay, now, deviationActionCheckIn)
 		if err != nil {
 			return nil, err
 		}
@@ -453,7 +468,7 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, today t
 	// Create new session
 	session := &activeModels.WorkSession{
 		StaffID:      staffID,
-		Date:         today,
+		Date:         stampDay,
 		Status:       status,
 		Source:       source,
 		CheckInTime:  now,

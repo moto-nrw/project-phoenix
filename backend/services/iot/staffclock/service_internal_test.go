@@ -64,9 +64,11 @@ func (s *stubCards) List(context.Context, map[string]any) ([]*userModels.RFIDCar
 func (s *stubCards) Deactivate(context.Context, string) error { return nil }
 
 type stubWorkSessions struct {
-	checkInErr     error
-	checkInCall    int
-	checkInSession *activeModels.WorkSession
+	checkInErr  error
+	checkInCall int
+	// now is the same clock the service reads, so a stamp taken while the test
+	// clock crosses midnight is filed the way the work session service files it.
+	now func() time.Time
 	// checkInDays records the calendar day every check-in attempt was pinned to.
 	checkInDays []timezone.Date
 	// latestOpen is the still-running session the day resolution starts from,
@@ -82,7 +84,7 @@ type stubWorkSessions struct {
 	historyByDay map[string]*activeSvc.SessionResponse
 }
 
-func (s *stubWorkSessions) CheckInOn(_ context.Context, _ int64, day timezone.Date, _, _, _ string) (*activeModels.WorkSession, error) {
+func (s *stubWorkSessions) CheckInOn(_ context.Context, staffID int64, day timezone.Date, status, source, _ string) (*activeModels.WorkSession, error) {
 	s.checkInCall++
 	s.checkInDays = append(s.checkInDays, day)
 	// Only the first attempt fails: the reopen retry that follows a status
@@ -90,7 +92,19 @@ func (s *stubWorkSessions) CheckInOn(_ context.Context, _ int64, day timezone.Da
 	if s.checkInErr != nil && s.checkInCall == 1 {
 		return nil, s.checkInErr
 	}
-	return s.checkInSession, nil
+	if existing, ok := s.openSessionByDay[day.String()]; ok {
+		return existing, nil
+	}
+	// Mirrors the work session service: the pinned day selects the session to
+	// reopen, but a session created fresh carries the day of its own stamp.
+	stampedAt := s.now()
+	return &activeModels.WorkSession{
+		StaffID:     staffID,
+		Date:        timezone.DateFromTime(stampedAt),
+		Status:      status,
+		Source:      source,
+		CheckInTime: stampedAt,
+	}, nil
 }
 
 func (s *stubWorkSessions) GetLatestOpenSession(context.Context, int64) (*activeModels.WorkSession, error) {
@@ -143,8 +157,16 @@ func newRacedService(checkInErr error) (*Service, *stubWorkSessions) {
 
 	sessions := &stubWorkSessions{checkInErr: checkInErr}
 	service := NewService(&stubPeople{person: person, staff: staff}, &stubCards{card: card}, sessions)
-	service.now = func() time.Time { return time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC) }
+	setClock(service, sessions, func() time.Time { return time.Date(2026, 7, 21, 9, 0, 0, 0, time.UTC) })
 	return service, sessions
+}
+
+// setClock keeps the kiosk service and the work session stub on one clock: both
+// read the time independently in production too, and the midnight cases only
+// mean anything when the stub can drift with the service.
+func setClock(service *Service, sessions *stubWorkSessions, clock func() time.Time) {
+	service.now = clock
+	sessions.now = clock
 }
 
 func checkInCommand() Command {
@@ -187,25 +209,34 @@ func TestExecute_CheckInAcrossMidnightReportsTheStampedDay(t *testing.T) {
 	stampedDay := timezone.DateFromTime(stampedAt)
 	require.NotEqual(t, timezone.DateFromTime(requestedAt), stampedDay)
 
-	stamped := &activeModels.WorkSession{
-		StaffID:     7,
-		Date:        stampedDay,
-		Status:      activeModels.WorkSessionStatusPresent,
-		Source:      activeModels.WorkSessionSourceNFC,
-		CheckInTime: stampedAt,
-	}
-	sessions.checkInSession = stamped
-	// Only the day the row carries returns it — the request day is empty.
+	// Only the day the row carries returns it — the request day is empty. The
+	// stub builds that row itself from the clock, exactly as the work session
+	// service does, so this cannot pass on a session the test handed it.
 	sessions.historyByDay = map[string]*activeSvc.SessionResponse{
-		stampedDay.String(): {WorkSession: stamped},
+		stampedDay.String(): {WorkSession: &activeModels.WorkSession{
+			StaffID:     7,
+			Date:        stampedDay,
+			Status:      activeModels.WorkSessionStatusPresent,
+			Source:      activeModels.WorkSessionSourceNFC,
+			CheckInTime: stampedAt,
+		}},
 	}
 
-	service.now = func() time.Time { return requestedAt }
+	// The clock crosses midnight between the request timestamp and the write.
+	calls := 0
+	setClock(service, sessions, func() time.Time {
+		calls++
+		if calls == 1 {
+			return requestedAt
+		}
+		return stampedAt
+	})
 
 	state, err := service.Execute(context.Background(), checkInCommand())
 
 	require.NoError(t, err)
 	require.NotNil(t, state.Session)
+	assert.Equal(t, []timezone.Date{timezone.DateFromTime(requestedAt)}, sessions.checkInDays)
 	assert.Equal(t, stampedDay, timezone.DateFromTime(state.Session.CheckInTime))
 	assert.Equal(t, StateCheckedIn, state.State)
 	assert.Equal(t, []string{ActionBreakStart, ActionCheckOut}, state.AllowedActions)
@@ -239,13 +270,13 @@ func TestExecute_ActionsPinTheLookupToTheRequestDay(t *testing.T) {
 			// The clock rolls past midnight right after the request timestamp is
 			// taken; every lookup must still land on the request day.
 			calls := 0
-			service.now = func() time.Time {
+			setClock(service, sessions, func() time.Time {
 				calls++
 				if calls == 1 {
 					return requestedAt
 				}
 				return requestedAt.Add(2 * time.Second)
-			}
+			})
 
 			state, err := service.Execute(context.Background(), Command{RFIDTag: "A1654BEEF", Action: action})
 
@@ -283,7 +314,7 @@ func TestGetState_OpenSessionFromPreviousDayStaysCheckedIn(t *testing.T) {
 	sessions.historyByDay = map[string]*activeSvc.SessionResponse{
 		open.Date.String(): {WorkSession: open},
 	}
-	service.now = func() time.Time { return openedAt.Add(3 * time.Hour) } // 01:30 the next day
+	setClock(service, sessions, func() time.Time { return openedAt.Add(3 * time.Hour) }) // 01:30 the next day
 
 	state, err := service.GetState(context.Background(), "A1654BEEF")
 
@@ -311,7 +342,7 @@ func TestExecute_ActionsAfterMidnightUseTheOpenSessionDay(t *testing.T) {
 			sessions.historyByDay = map[string]*activeSvc.SessionResponse{
 				open.Date.String(): {WorkSession: open},
 			}
-			service.now = func() time.Time { return afterMidnight }
+			setClock(service, sessions, func() time.Time { return afterMidnight })
 
 			state, err := service.Execute(context.Background(), Command{RFIDTag: "A1654BEEF", Action: action})
 
@@ -340,13 +371,13 @@ func TestExecute_ReopenRetryStaysOnTheConflictedDay(t *testing.T) {
 
 	// The clock crosses midnight between the conflicting stamp and the retry.
 	calls := 0
-	service.now = func() time.Time {
+	setClock(service, sessions, func() time.Time {
 		calls++
 		if calls == 1 {
 			return requestedAt
 		}
 		return requestedAt.Add(2 * time.Second)
-	}
+	})
 
 	command := checkInCommand()
 	command.Reason = "Statuswechsel nach Rücksprache"

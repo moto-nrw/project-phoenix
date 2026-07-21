@@ -2868,6 +2868,41 @@ func TestWSCheckIn_ReopenSkipsDeviationGate(t *testing.T) {
 	assert.Nil(t, session.CheckOutTime, "session must be reopened")
 }
 
+// A kiosk resolves its calendar day before it stamps. When the request crosses
+// Berlin midnight on the way in, the day it pinned selects the row to reopen —
+// but a session created fresh belongs to the day of its own check_in_time.
+// Storing 21.07 next to a 22.07 stamp misfiles the session in the daily
+// history, in shift and deviation lookups, and in every total keyed on the date
+// column.
+func TestWSCheckInOn_NewSessionUsesTheStampDay(t *testing.T) {
+	pinnedDay := timezone.NewDate(2026, 7, 21)
+	stampedAt := time.Date(2026, time.July, 22, 0, 0, 1, 0, timezone.Berlin)
+
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	svc.nowFunc = func() time.Time { return stampedAt }
+
+	var lookedUp timezone.Date
+	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, day timezone.Date) (*activeModels.WorkSession, error) {
+		lookedUp = day
+		return nil, sql.ErrNoRows
+	}
+	var created *activeModels.WorkSession
+	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+		created = entity
+		entity.ID = 5
+		return nil
+	}
+
+	session, err := svc.CheckInOn(context.Background(), 100, pinnedDay, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceNFC, "")
+	require.NoError(t, err)
+	require.NotNil(t, session)
+
+	assert.Equal(t, pinnedDay, lookedUp, "the pinned day still selects the session to reopen")
+	require.NotNil(t, created)
+	assert.Equal(t, timezone.DateFromTime(stampedAt), created.Date)
+	assert.Equal(t, timezone.DateFromTime(created.CheckInTime), created.Date)
+}
+
 func TestWSEnsureCheckedIn_SkipsDeviationGate(t *testing.T) {
 	// The supervision auto-stamp has no way to collect a reason; an early
 	// start must still produce a work session.
