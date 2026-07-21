@@ -605,10 +605,11 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const openCareGroupMode = useOpenCareGroupMode();
   // Planung-Einträge (#1946) hängen an timetable.enabled. Gleiches
   // settingsSchema-Lesemuster wie die Desktop-Sidebar; `!== false`, damit die
-  // Einträge während des Schema-Ladens nicht kurz verschwinden.
-  const canReadConfig = userIsAdmin || hasPermission(session, "config:read");
+  // Einträge während des Schema-Ladens nicht kurz verschwinden. Das Ergebnis
+  // gated nur die admin-only Planungs-Einträge, darum feuert der Request auch
+  // nur für Admins.
   const { data: settingsSchema } = useSWR(
-    mode === "teacher" && canReadConfig ? SETTINGS_SCHEMA_SWR_KEY : null,
+    mode === "teacher" && userIsAdmin ? SETTINGS_SCHEMA_SWR_KEY : null,
     fetchSettingsSchema,
     {
       revalidateOnFocus: false,

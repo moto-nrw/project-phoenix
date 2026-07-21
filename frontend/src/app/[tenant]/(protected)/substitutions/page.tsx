@@ -387,7 +387,7 @@ function SubstitutionPageContent() {
           Diese Schule arbeitet mit offener Betreuung ohne feste Gruppen. Alle
           berechtigten Mitarbeitenden arbeiten mit allen Kindern, daher ist kein
           temporärer Gruppenzugriff nötig. Die Einstellung „Arbeit mit festen
-          Gruppen&quot; kann in den Einstellungen geändert werden.
+          Gruppen“ kann in den Einstellungen geändert werden.
         </p>
       </div>
     );

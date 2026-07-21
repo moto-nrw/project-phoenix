@@ -571,6 +571,64 @@ describe("DienstplanView", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("renders the disabled state when timetable.enabled is false", () => {
+    // Route-Gate wie Betreuungsplan/Vertretung: Direktaufruf bei
+    // ausgeschaltetem Planungsbereich zeigt den Hinweis statt des Rasters.
+    mocks.useSWRAuth.mockImplementation((key: string | null) => {
+      if (key === "settings-schema") {
+        return {
+          data: {
+            tabs: [
+              {
+                categories: [
+                  { items: [{ key: "timetable.enabled", value: false }] },
+                ],
+              },
+            ],
+          },
+          error: undefined,
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      return { data: [], error: undefined, isLoading: false, mutate: vi.fn() };
+    });
+
+    render(<DienstplanView />);
+
+    expect(screen.getByTestId("dienstplan-disabled-state")).toBeInTheDocument();
+    expect(screen.getByText("Dienstplan ist deaktiviert")).toBeInTheDocument();
+    expect(screen.queryByTestId("dienstplan-grid")).not.toBeInTheDocument();
+  });
+
+  it("renders normally while the settings schema is unreadable or enabled", () => {
+    // fetchSettingsSchema liefert null ohne Leserecht — die Seite rendert
+    // normal (Graceful Default wie Sidebar und Betreuungsplan).
+    mockOverviewLoaded();
+
+    render(<DienstplanView />);
+
+    expect(
+      screen.queryByTestId("dienstplan-disabled-state"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
+  });
+
+  it("does not request calendar periods for non-admins", () => {
+    // Der Periods-Key ist auf canEdit gegated: bei Direktaufruf durch
+    // Nicht-Admins darf vor dem Redirect kein schedules:read-Request feuern.
+    mocks.isAdmin.mockReturnValue(false);
+    mockOverviewLoaded();
+
+    render(<DienstplanView />);
+
+    expect(
+      mocks.useSWRAuth.mock.calls.some(
+        (call) => call[0] === "database-calendar-periods-list",
+      ),
+    ).toBe(false);
+  });
+
   it("shows the blocking load error in the Halbjahr view when the schedule fails", () => {
     // Regression K1: the half-year branch used to only check for empty staff, so
     // a failed staff/overview load rendered "keine Mitarbeitenden" instead of the

@@ -34,8 +34,11 @@ import {
   formatPeriodRange,
   mapPeriodsForDates,
   uniqueAssignedPeriods,
-  weekPatternForDate,
+  weekCycleLabel,
+  weekCycleSlotForDate,
+  weekCycleSlotLetter,
 } from "~/lib/calendar-period-helpers";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { getGermanWeekdayShort, toISODate } from "~/lib/timetable-helpers";
 
 interface PeriodSwitcherDropdownProps {
@@ -69,6 +72,7 @@ export function PeriodSwitcherDropdown({
 }: PeriodSwitcherDropdownProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const tenantPath = useTenantAwarePath();
 
   const isoDays = useMemo(() => weekDays.map(toISODate), [weekDays]);
   const assignments = useMemo(
@@ -214,16 +218,18 @@ export function PeriodSwitcherDropdown({
                         {a.period ? (
                           <>
                             {a.period.name}
-                            {/* A/B-Rhythmus sichtbar machen (#1946) */}
+                            {/* Wochen-Rhythmus sichtbar machen (#1946):
+                                weekCycleSlotForDate liefert den 1-basierten
+                                Slot auch für 3-/4-Wochen-Zyklen (C, D, …). */}
                             {(() => {
-                              const pattern = weekPatternForDate(
+                              const slot = weekCycleSlotForDate(
                                 a.period,
                                 a.date,
                               );
-                              return pattern ? (
+                              return slot ? (
                                 <span className="text-gray-400">
                                   {" "}
-                                  · Woche {pattern === 1 ? "A" : "B"}
+                                  · Woche {weekCycleSlotLetter(slot)}
                                 </span>
                               ) : null;
                             })()}
@@ -271,7 +277,10 @@ export function PeriodSwitcherDropdown({
                         </div>
                         <p className="text-[10px] text-gray-500 tabular-nums">
                           {formatPeriodRange(p)}
-                          {p.weekCycleLength > 1 && " · A/B-Wochen"}
+                          {(() => {
+                            const label = weekCycleLabel(p.weekCycleLength);
+                            return label ? ` · ${label}` : null;
+                          })()}
                         </p>
                         {isSelected && (
                           <Check
@@ -315,9 +324,10 @@ export function PeriodSwitcherDropdown({
           </Button>
           {/* Verwaltungslink: /calendar-periods ist auch als Unterpunkt im
               Planung-Bereich der Sidebar erreichbar (#1946); der Chip bleibt
-              als direkter Weg aus dem Planungskontext. */}
+              als direkter Weg aus dem Planungskontext. tenantPath hält den
+              Link im Path-Routing-Modus innerhalb des Tenant-Segments. */}
           <Link
-            href="/calendar-periods"
+            href={tenantPath("/calendar-periods")}
             onClick={() => setOpen(false)}
             className="flex h-8 w-full items-center gap-1 border-t border-gray-100 px-4 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
           >

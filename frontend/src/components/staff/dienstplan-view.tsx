@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 
-import { Settings2 } from "lucide-react";
+import { CalendarOff, Settings2 } from "lucide-react";
 
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
@@ -29,6 +29,10 @@ import { useDienstplanData } from "~/lib/hooks/use-dienstplan-data";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
 import { formatCalendarDate } from "~/lib/localized-date-format";
 import { createLogger } from "~/lib/logger";
+import {
+  SETTINGS_SCHEMA_SWR_KEY,
+  fetchSettingsSchema,
+} from "~/lib/settings-api";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
 import { startOfWeek } from "~/lib/staff-metrics-helpers";
 import { useSWRAuth } from "~/lib/swr";
@@ -117,23 +121,34 @@ function DienstplanContent() {
   // Kalenderzeiträume für die Zeitraum-Anzeige in der Kontextzeile (#1946).
   // Gleicher SWR-Key wie der Betreuungsplan, damit beide Ansichten denselben
   // Cache teilen. Der Endpoint verlangt schedules:read; die Ansicht selbst
-  // ist admin-only (redirect unten), Admins erfüllen das immer.
+  // ist admin-only, darum ist der Key zusätzlich auf canEdit gegated — sonst
+  // feuerte der Request bei Direktaufruf durch Nicht-Admins noch vor dem
+  // Redirect und liefe in einen 403.
   const {
     data: periods,
     isLoading: periodsLoading,
     mutate: mutatePeriods,
   } = useSWRAuth(
-    sessionStatus === "authenticated" ? "database-calendar-periods-list" : null,
+    sessionStatus === "authenticated" && canEdit
+      ? "database-calendar-periods-list"
+      : null,
     () => calendarPeriodService.list(),
   );
 
-  const weekDays = useMemo(() => {
-    return Array.from({ length: 5 }, (_, i) => {
-      const d = new Date(weekAnchor);
-      d.setDate(d.getDate() + i);
-      return toISODate(d);
-    });
-  }, [weekAnchor]);
+  // Route-Gate wie Betreuungsplan/Vertretung: Settings-Schema ->
+  // timetable.enabled. fetchSettingsSchema liefert null, wenn der Nutzer keine
+  // Settings lesen darf; die Seite rendert dann normal (gleiche Graceful-
+  // Default-Logik wie die Sidebar).
+  const { data: settingsSchema, isLoading: settingsSchemaLoading } = useSWRAuth(
+    sessionStatus === "authenticated" ? SETTINGS_SCHEMA_SWR_KEY : null,
+    fetchSettingsSchema,
+    { revalidateOnFocus: false, revalidateOnReconnect: false },
+  );
+  const timetableDisabled =
+    settingsSchema?.tabs
+      ?.flatMap((tab) => tab.categories)
+      .flatMap((category) => category.items)
+      .find((item) => item.key === "timetable.enabled")?.value === false;
 
   // Mo–Fr als Date-Objekte für den PeriodSwitcherDropdown.
   const weekDayDates = useMemo(
@@ -145,6 +160,9 @@ function DienstplanContent() {
       }),
     [weekAnchor],
   );
+
+  // Dieselben fünf Tage als ISO-Strings für Grid und Datenabruf.
+  const weekDays = useMemo(() => weekDayDates.map(toISODate), [weekDayDates]);
 
   const weekFrom = weekDays[0] ?? "";
   const weekTo = weekDays[4] ?? "";
@@ -232,8 +250,14 @@ function DienstplanContent() {
     redirect(tenantPath("/staff"));
   }
 
-  if (sessionStatus === "loading") {
+  // Solange das Settings-Schema lädt, ist noch nicht entscheidbar, ob das
+  // Feature aktiv ist — Skeleton statt kurz aufblitzender Seite.
+  if (sessionStatus === "loading" || settingsSchemaLoading) {
     return <DienstplanPageSkeleton />;
+  }
+
+  if (timetableDisabled) {
+    return <DienstplanDisabledState />;
   }
 
   // Leerzustand "keine Mitarbeitenden" (docs/05 Abschnitt 4) — geteilt zwischen
@@ -468,6 +492,34 @@ function DienstplanContent() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Rendered when the tenant setting `timetable.enabled` resolves to false.
+ * Die Sidebar blendet den ganzen Planung-Bereich bereits aus; dieser Guard
+ * deckt den Direktaufruf ab, ohne umzuleiten (keine Redirect-Schleifen) —
+ * gleiche Struktur wie TimetableDisabledState/VertretungDisabledState.
+ */
+function DienstplanDisabledState() {
+  return (
+    <div
+      className="flex flex-col gap-4"
+      data-testid="dienstplan-disabled-state"
+    >
+      <h1 className="text-lg font-semibold text-gray-900">Dienstplan</h1>
+      <div className="moto-content-surface rounded-2xl border p-10 text-center shadow-sm">
+        <CalendarOff className="mx-auto h-10 w-10 text-gray-300" aria-hidden />
+        <h2 className="mt-4 text-base font-semibold text-gray-900">
+          Dienstplan ist deaktiviert
+        </h2>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-gray-600">
+          Der Dienstplan gehört zum Planungsbereich, der für diese Schule
+          ausgeschaltet ist. Er kann in den Einstellungen unter „Betrieb“ wieder
+          aktiviert werden.
+        </p>
+      </div>
     </div>
   );
 }
