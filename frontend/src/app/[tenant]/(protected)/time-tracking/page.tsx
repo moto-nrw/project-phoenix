@@ -1634,7 +1634,11 @@ function OwnZeiterfassungSection({
     { refreshInterval: isCurrentMonth ? OPEN_MONTH_REFRESH_MS : 0 },
   );
 
-  const { data: timeTrackingConfig } = useSWRAuth(
+  const {
+    data: timeTrackingConfig,
+    isLoading: timeTrackingConfigLoading,
+    error: timeTrackingConfigError,
+  } = useSWRAuth(
     "time-tracking-config",
     () => timeTrackingService.getConfig(),
     { revalidateOnFocus: false },
@@ -1863,6 +1867,12 @@ function OwnZeiterfassungSection({
             dailyTargets={dailyTargets}
             dailyTargetsError={dailyTargetsError != null}
             dailyTargetsPending={dailyTargetsLoading}
+            accountStartDate={timeTrackingConfig?.accountStartDate ?? null}
+            accountStartDatePending={timeTrackingConfigLoading}
+            accountStartDateError={
+              timeTrackingConfig === undefined &&
+              timeTrackingConfigError != null
+            }
             today={today}
             isAdminView={ownStaffId !== null}
             onEditDay={(date) => handleEdit(date)}

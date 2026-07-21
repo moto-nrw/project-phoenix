@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronRight, SquarePen } from "lucide-react";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useSWRConfig } from "swr";
 
 import { EditHistoryAccordion } from "~/components/time-tracking/edit-history-accordion";
@@ -58,6 +58,9 @@ export function StaffSessionTable({
   dailyTargets,
   dailyTargetsError,
   dailyTargetsPending,
+  accountStartDate,
+  accountStartDatePending,
+  accountStartDateError,
   today,
   isAdminView,
   plannedShifts,
@@ -89,6 +92,14 @@ export function StaffSessionTable({
   // vorherige Zeitraum bereits aufgelöst hat, bleiben gültig: dasselbe Datum
   // liefert für dieselbe Person immer dasselbe Soll.
   readonly dailyTargetsPending?: boolean;
+  // `null` means no time-tracking config data is available; pending/error
+  // distinguish whether that is temporary or a failed request. An empty
+  // string means the loaded config has no explicit anchor. The distinction
+  // matters for sessions with Soll 0: they are overtime on a planned day off,
+  // but must not enter the Saldo before a mid-month account start.
+  readonly accountStartDate: string | null;
+  readonly accountStartDatePending: boolean;
+  readonly accountStartDateError: boolean;
   readonly today: Date;
   readonly isAdminView: boolean;
   // Planned Dienstplan shifts for the visible range. When provided (admin
@@ -168,6 +179,31 @@ export function StaffSessionTable({
     return map;
   }, [absences]);
 
+  // Soll eines Tages, exakt so wie die Zeile es später anzeigt: server-
+  // aufgelöst, sonst der aktuelle Plan — und ungelöst, solange der Fetch
+  // läuft oder fehlgeschlagen ist (#1842).
+  const resolveDayTarget = useCallback(
+    (day: Date) => {
+      const resolved = dailyTargets?.get(toDateKey(day));
+      const unresolved =
+        resolved === undefined &&
+        (dailyTargetsError === true || dailyTargetsPending === true);
+      const planned = schedule ? resolveTargetForDate(schedule, day) : 0;
+      return {
+        unresolved,
+        planned,
+        displayed: resolved ?? (unresolved ? 0 : planned),
+      };
+    },
+    [dailyTargets, dailyTargetsError, dailyTargetsPending, schedule],
+  );
+
+  // Sa/So erscheinen nur, wenn es dort etwas zu zeigen gibt (#1967). Ein
+  // harter Wochenend-Filter versteckte Ferienbetreuung, Elternabende und
+  // Wochenend-Schichten komplett, während Monatskarte und KPI-Karten sie
+  // serverseitig weiter mitzählen — die Summe der sichtbaren Zeilen ergab
+  // dann nicht mehr das ausgewiesene Ist. Leere Wochenenden bleiben raus,
+  // damit die Tabelle nicht aufgebläht wird.
   const days = useMemo(() => {
     const result: Date[] = [];
     const start = new Date(from);
@@ -176,11 +212,34 @@ export function StaffSessionTable({
     for (let i = 0; i < dayCount; i++) {
       const d = new Date(start);
       d.setDate(d.getDate() + i);
-      if (toIsoDayOfWeek(d) >= 5) continue;
+      if (toIsoDayOfWeek(d) >= 5) {
+        const key = toDateKey(d);
+        const { unresolved, planned, displayed } = resolveDayTarget(d);
+        // Fehlende Target-Daten sind kein Beleg dafür, dass der Tag leer ist:
+        // solange das Soll ungelöst ist, entscheidet der aktuelle Plan über
+        // die Sichtbarkeit. Ein vertraglich verplanter Samstag bleibt damit
+        // sichtbar (mit „?“/„…“ im Soll) und korrigierbar, statt beim Laden
+        // oder nach einem Fehler ganz zu verschwinden. Für die ANGEZEIGTEN
+        // Werte bleibt der Plan tabu — nur fürs Ein-/Ausblenden zählt er.
+        const hasContent =
+          sessionsByDate.has(key) ||
+          absencesByDate.has(key) ||
+          (shiftsByDate.get(key)?.length ?? 0) > 0 ||
+          displayed > 0 ||
+          (unresolved && planned > 0);
+        if (!hasContent) continue;
+      }
       result.push(d);
     }
     return result;
-  }, [from, to]);
+  }, [
+    from,
+    to,
+    sessionsByDate,
+    absencesByDate,
+    shiftsByDate,
+    resolveDayTarget,
+  ]);
 
   // Inline-expandable row: clicking a row toggles an EditHistoryAccordion in
   // a second <tr> directly below. Mirrors the MA-side /time-tracking page so
@@ -224,6 +283,12 @@ export function StaffSessionTable({
           message="Das Soll konnte für diesen Zeitraum nicht geladen werden. Betroffene Tage zeigen „?“ statt eines Soll- und Saldo-Werts — der aktuelle Arbeitszeitplan wird bewusst nicht auf vergangene Tage angewendet."
         />
       )}
+      {accountStartDateError && (
+        <Alert
+          type="error"
+          message="Der Stundenkonto-Start konnte nicht geladen werden. Soweit das Soll geladen wurde, werden Salden an Tagen ohne Soll weiterhin angezeigt; vor dem Kontostart können sie aber von der Monatskarte abweichen. Bitte die Seite neu laden."
+        />
+      )}
       <div className="max-w-full overflow-x-auto rounded-2xl border border-gray-100">
         <table className="w-full min-w-[960px] text-left text-sm">
           <thead className="bg-gray-50 text-xs font-semibold tracking-wider text-gray-500 uppercase">
@@ -255,19 +320,26 @@ export function StaffSessionTable({
               // bleibt ungelöst, damit die Tabelle keinen erfundenen
               // Soll-/Saldo-Wert behauptet — weder dauerhaft (Fehler) noch
               // kurzzeitig beim Zeitraumwechsel (pending, stale Map).
-              const resolvedTarget = dailyTargets?.get(key);
-              const targetUnresolved =
-                resolvedTarget === undefined &&
-                (dailyTargetsError === true || dailyTargetsPending === true);
-              const target =
-                resolvedTarget ??
-                (targetUnresolved || !schedule
-                  ? 0
-                  : resolveTargetForDate(schedule, day));
+              const { unresolved: targetUnresolved, displayed: target } =
+                resolveDayTarget(day);
               const isFuture = day > today;
               const isToday = sameDay(day, today);
               const ist = session?.net_minutes ?? 0;
-              const delta = session && target > 0 ? ist - target : 0;
+              // Saldo eines Tages ist Ist minus Soll — auch bei Soll 0 auf
+              // einem geplanten freien Tag (#1967). Vor einem untermonatigen
+              // Stundenkonto-Start zählt die Monatskarte allerdings weder
+              // Soll noch Ist. GetDailyTargets liefert dort ebenfalls 0, kann
+              // diesen Fall also nicht allein von einem freien Tag
+              // unterscheiden; dafür braucht die Zeile zusätzlich den
+              // konfigurierten Starttag.
+              const isBeforeAccountStart =
+                accountStartDate !== null &&
+                accountStartDate !== "" &&
+                key.slice(0, 7) === accountStartDate.slice(0, 7) &&
+                key < accountStartDate;
+              const balanceUnresolved =
+                targetUnresolved || (target === 0 && accountStartDatePending);
+              const delta = session ? ist - target : 0;
               const status = computeRowStatus(
                 session,
                 absence,
@@ -280,14 +352,17 @@ export function StaffSessionTable({
               // unchanged row should not toggle anything since there is
               // nothing to reveal.
               const canExpand = hasAuditHistory && session != null;
-              // Edit / nachtragen is available for workdays in the past or
-              // present, regardless of whether a session already exists. The
-              // SquarePen action lands on Tranche 1b — for now the wiring is
-              // in place and the click is a no-op + logger entry. Weekends,
-              // future days and absence-only days don't get the action.
-              const isWorkday = dow < 5;
-              const canEdit =
-                isAdminView && isWorkday && !isFuture && absence == null;
+              // Edit / nachtragen is available for past or present days,
+              // regardless of whether a session already exists. The SquarePen
+              // action lands on Tranche 1b — for now the wiring is in place
+              // and the click is a no-op + logger entry. Future days and
+              // absence-only days don't get the action.
+              //
+              // Wochenendtage bekommen sie sehr wohl (#1967): eine Zeile ist
+              // nur sichtbar, wenn dort real gearbeitet oder geplant wurde,
+              // und genau die muss korrigierbar sein.
+              const isWeekend = dow >= 5;
+              const canEdit = isAdminView && !isFuture && absence == null;
               return (
                 <Fragment key={key}>
                   <tr
@@ -317,7 +392,9 @@ export function StaffSessionTable({
                         ? "bg-gray-50"
                         : isToday
                           ? "bg-amber-50/40"
-                          : ""
+                          : isWeekend
+                            ? "bg-gray-50/60"
+                            : ""
                     } ${isFuture ? "opacity-40" : ""}`}
                   >
                     <td className="px-4 py-3 text-gray-700 tabular-nums">
@@ -383,7 +460,10 @@ export function StaffSessionTable({
                       {session ? formatDuration(ist) : "–"}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums">
-                      {session && target > 0 ? (
+                      {session &&
+                      !isFuture &&
+                      !balanceUnresolved &&
+                      !isBeforeAccountStart ? (
                         <span className={deltaClass(delta)}>
                           {formatSignedDuration(delta)}
                         </span>
