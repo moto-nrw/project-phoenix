@@ -592,14 +592,58 @@ func (s *service) DeleteStaffAppointment(ctx context.Context, appointmentID int6
 	if err != nil {
 		return err
 	}
-	// Deleting removes the appointment silently (no notice); kill any queued
-	// e-mails first so the worker doesn't send a mail for a row that's gone.
+	// Deleting is silent (no notice); kill any queued e-mails first so the worker
+	// doesn't send a mail for a row we're about to remove or tombstone.
 	if err := s.cancelPendingNotifications(ctx, appointment.ID, "appointment deleted"); err != nil {
 		return err
+	}
+	// A subscribed external calendar (a parent's .ics subscription) only drops an
+	// appointment when it re-receives the SAME UID with STATUS:CANCELLED at a
+	// higher SEQUENCE. Hard-deleting a feed-visible appointment makes it vanish
+	// from the feed, which many clients keep rather than purge — the stale event
+	// then lingers in the parent's calendar forever. So a feed-visible appointment
+	// (one with guardian recipients) is tombstoned instead of removed: mark it
+	// cancelled — silently, unlike Absagen, which also mails guardians — and let
+	// Update bump the revision so the feed re-exports the master VEVENT as
+	// STATUS:CANCELLED with a newer SEQUENCE. The tombstone self-expires once its
+	// dates fall outside the feed's lookback window. Purely staff-internal
+	// appointments never reach a subscription feed, so they are removed outright.
+	feedVisible, err := s.appointmentHasGuardianRecipients(ctx, appointment.ID)
+	if err != nil {
+		return err
+	}
+	if feedVisible {
+		if appointment.CancelledAt == nil {
+			now := time.Now()
+			appointment.CancelledAt = &now
+			// Update bumps the revision (SEQUENCE) as a side effect.
+			return s.cfg.AppointmentRepo.Update(ctx, appointment)
+		}
+		// Already a tombstone: re-export it at a newer SEQUENCE so any client that
+		// missed the first cancellation still purges it.
+		return s.cfg.AppointmentRepo.BumpRevision(ctx, appointment.ID)
 	}
 	// Child rows (recurrence, recipients, recipient-students, targets, occurrence
 	// overrides) are removed by ON DELETE CASCADE on the appointment FK.
 	return s.cfg.AppointmentRepo.Delete(ctx, appointment.ID)
+}
+
+// appointmentHasGuardianRecipients reports whether the appointment has any
+// materialized guardian-profile recipient — the marker that it can appear in a
+// parent's iCalendar subscription feed. Guardian-facing targets (a class, a
+// group, whole-school parents) are expanded into concrete guardian_profile
+// recipient rows at create/update time, so checking the recipients is sufficient.
+func (s *service) appointmentHasGuardianRecipients(ctx context.Context, appointmentID int64) (bool, error) {
+	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointmentID)
+	if err != nil {
+		return false, err
+	}
+	for _, recipient := range recipients {
+		if recipient.RecipientType == calModels.RecipientTypeGuardianProfile {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *service) CancelStaffAppointmentOccurrence(ctx context.Context, appointmentID int64, occurrenceDate timezone.Date) error {
@@ -669,7 +713,10 @@ func occurrenceExists(appointment *calModels.Appointment, rule *calModels.Recurr
 	if rule.OccurrenceCount == nil {
 		return true
 	}
-	// Count-bounded: expandOccurrences breaks after OccurrenceCount matches.
+	// Count-bounded: the date matches the pattern and lies within EndsOn, so the
+	// only remaining question is whether it falls within the first N occurrences.
+	// expandOccurrences enumerates those by period (never day-by-day), so this
+	// stays cheap even for a far-future date on an old series.
 	for _, occ := range expandOccurrences(appointment, rule, appointment.StartDate, occurrenceDate) {
 		if occ == occurrenceDate {
 			return true
@@ -1916,23 +1963,202 @@ func expandOccurrences(appointment *calModels.Appointment, rule *calModels.Recur
 	if rule.IntervalCount <= 0 {
 		rule.IntervalCount = 1
 	}
-	count := 0
-	for d := appointment.StartDate; !d.After(to); d = d.AddDays(1) {
-		if rule.EndsOn != nil && d.After(*rule.EndsOn) {
-			break
-		}
-		if matchesRule(appointment.StartDate, d, rule) {
-			count++
-			if rule.OccurrenceCount != nil && count > *rule.OccurrenceCount {
-				break
-			}
-			endDate := d.AddDays(appointment.StartDate.DaysUntil(appointment.EndDate))
-			if dateRangesOverlap(d, endDate, from, to) {
+	span := appointment.StartDate.DaysUntil(appointment.EndDate)
+	if rule.OccurrenceCount != nil {
+		// Count-bounded: enumerate the first N occurrences by PERIOD (never a
+		// day-by-day walk of decades of history for a sparse monthly/yearly series),
+		// then keep those overlapping [from, to]. N is capped at
+		// MaxRecurrenceOccurrenceCount during validation.
+		for _, d := range boundedRecurrenceDates(appointment, rule, *rule.OccurrenceCount) {
+			if dateRangesOverlap(d, d.AddDays(span), from, to) {
 				occurrences = append(occurrences, d)
 			}
 		}
+		return occurrences
+	}
+	// Open-ended or EndsOn-bounded: only the window matters, so anchor the scan at
+	// the window (rewound by the appointment's own span to catch a multi-day
+	// occurrence that begins before `from`), never before the series start, and
+	// stop at `to` or EndsOn — whichever is earlier.
+	scanStart := from.AddDays(-span)
+	if scanStart.Before(appointment.StartDate) {
+		scanStart = appointment.StartDate
+	}
+	scanEnd := to
+	if rule.EndsOn != nil && rule.EndsOn.Before(scanEnd) {
+		scanEnd = *rule.EndsOn
+	}
+	for d := scanStart; !d.After(scanEnd); d = d.AddDays(1) {
+		if matchesRule(appointment.StartDate, d, rule) &&
+			dateRangesOverlap(d, d.AddDays(span), from, to) {
+			occurrences = append(occurrences, d)
+		}
 	}
 	return occurrences
+}
+
+// boundedRecurrenceDates returns up to `limit` occurrence start-dates the rule
+// generates on/after the appointment start, honouring EndsOn. It advances one
+// interval-PERIOD per step (never day-by-day), so a sparse count-bounded
+// monthly/yearly series with a large occurrence count is enumerated without
+// scanning decades of history on every feed poll. Dates come back in
+// chronological order — identical to the day-walk it replaces. Returns fewer
+// than `limit` when the rule is exhausted (EndsOn reached, or no further
+// reachable occurrence exists).
+func boundedRecurrenceDates(appointment *calModels.Appointment, rule *calModels.RecurrenceRule, limit int) []timezone.Date {
+	if rule == nil || limit <= 0 {
+		return nil
+	}
+	interval := rule.IntervalCount
+	if interval <= 0 {
+		interval = 1
+	}
+	start := appointment.StartDate
+	out := make([]timezone.Date, 0, limit)
+	past := func(d timezone.Date) bool {
+		return rule.EndsOn != nil && d.After(*rule.EndsOn)
+	}
+
+	switch rule.Frequency {
+	case calModels.RecurrenceFrequencyDaily:
+		for k := 0; len(out) < limit; k++ {
+			d := start.AddDays(k * interval)
+			if past(d) {
+				break
+			}
+			out = append(out, d)
+		}
+
+	case calModels.RecurrenceFrequencyWeekly:
+		offsets := weekdayOffsets(normalizeWeekdays(rule.Weekdays))
+		weekBase := weekStartMonday(start)
+		// startOffset is start's own Monday-based weekday offset, used when no
+		// explicit weekdays are given (the occurrence is the start weekday).
+		startOffset := (int(start.Weekday()) + 6) % 7
+		for w := 0; len(out) < limit; w += interval {
+			weekStart := weekBase.AddDays(w * 7)
+			if past(weekStart) {
+				break
+			}
+			if len(offsets) == 0 {
+				d := weekStart.AddDays(startOffset)
+				if !d.Before(start) && !past(d) {
+					out = append(out, d)
+				}
+				continue
+			}
+			for _, off := range offsets {
+				if len(out) >= limit {
+					break
+				}
+				d := weekStart.AddDays(off)
+				if d.Before(start) || past(d) {
+					continue
+				}
+				out = append(out, d)
+			}
+		}
+
+	case calModels.RecurrenceFrequencyMonthly:
+		days := monthlyCandidateDays(rule, start)
+		// The (month-of-year, leap-phase) pattern of reachable months repeats
+		// within this many steps, so this many consecutive empty months proves no
+		// further occurrence exists (mirrors firstMonthlyOccurrence's bound).
+		maxEmpty := 4*(12/gcdInt(interval, 12)) + 12
+		empty := 0
+		for k := 0; len(out) < limit; k++ {
+			year, month := addMonthsTo(start.Year, int(start.Month), k*interval)
+			if past(timezone.NewDate(year, time.Month(month), 1)) {
+				break
+			}
+			dim := daysInMonth(year, month)
+			produced := 0
+			for _, day := range days {
+				if len(out) >= limit {
+					break
+				}
+				if day < 1 || day > dim {
+					continue
+				}
+				d := timezone.NewDate(year, time.Month(month), day)
+				if d.Before(start) || past(d) {
+					continue
+				}
+				out = append(out, d)
+				produced++
+			}
+			if produced == 0 {
+				empty++
+				if empty > maxEmpty {
+					break
+				}
+			} else {
+				empty = 0
+			}
+		}
+
+	case calModels.RecurrenceFrequencyYearly:
+		// Only a Feb-29 rule is sparse (the day is absent in non-leap years); the
+		// Gregorian leap cycle is 400 years, so this many empty steps proves
+		// exhaustion regardless of interval.
+		const maxEmpty = 400
+		empty := 0
+		for k := 0; len(out) < limit; k++ {
+			year := start.Year + k*interval
+			if daysInMonth(year, int(start.Month)) < start.Day {
+				empty++
+				if empty > maxEmpty {
+					break
+				}
+				continue
+			}
+			d := timezone.NewDate(year, start.Month, start.Day)
+			if past(d) {
+				break
+			}
+			out = append(out, d)
+			empty = 0
+		}
+	}
+	return out
+}
+
+// monthlyCandidateDays returns the sorted day-of-month values a monthly rule can
+// land on: its explicit month_days, or the start day when none are given (which
+// is exactly what matchesRule compares against).
+func monthlyCandidateDays(rule *calModels.RecurrenceRule, start timezone.Date) []int {
+	if len(rule.MonthDays) == 0 {
+		return []int{start.Day}
+	}
+	days := append([]int(nil), rule.MonthDays...)
+	sort.Ints(days)
+	return days
+}
+
+// weekdayMondayOffset maps a lowercase weekday name to its Monday-based offset
+// (Monday=0 … Sunday=6), matching weekStartMonday's anchoring.
+var weekdayMondayOffset = map[string]int{
+	"monday":    0,
+	"tuesday":   1,
+	"wednesday": 2,
+	"thursday":  3,
+	"friday":    4,
+	"saturday":  5,
+	"sunday":    6,
+}
+
+// weekdayOffsets converts normalized weekday names into sorted Monday-based
+// offsets, dropping any unrecognised name. Validation guarantees valid names, so
+// a non-empty weekly rule yields a non-empty, ascending result.
+func weekdayOffsets(weekdays []string) []int {
+	offsets := make([]int, 0, len(weekdays))
+	for _, weekday := range weekdays {
+		if off, ok := weekdayMondayOffset[weekday]; ok {
+			offsets = append(offsets, off)
+		}
+	}
+	sort.Ints(offsets)
+	return offsets
 }
 
 // hasOccurrenceInWindow reports whether the recurrence produces at least one
@@ -1949,9 +2175,10 @@ func hasOccurrenceInWindow(appointment *calModels.Appointment, rule *calModels.R
 		rule.IntervalCount = 1
 	}
 	if rule.OccurrenceCount != nil {
-		// Bounded by the count: expandOccurrences breaks after N matches, and the
-		// count itself is capped at MaxRecurrenceOccurrenceCount during validation,
-		// so the scan can never walk unbounded history on a feed poll.
+		// Bounded by the count: expandOccurrences enumerates the first N occurrences
+		// by period (not day-by-day), and N is capped at MaxRecurrenceOccurrenceCount
+		// during validation, so the scan can never walk unbounded history on a feed
+		// poll even for a decades-old sparse monthly/yearly series.
 		return len(expandOccurrences(appointment, rule, from, to)) > 0
 	}
 	// Scan only the window. Start early enough to catch a multi-day occurrence
@@ -2014,19 +2241,29 @@ func firstMatchingOccurrence(start timezone.Date, interval int, rule *calModels.
 	case calModels.RecurrenceFrequencyDaily, calModels.RecurrenceFrequencyYearly:
 		return start, true
 	case calModels.RecurrenceFrequencyWeekly:
-		if len(normalizeWeekdays(rule.Weekdays)) == 0 {
+		weekdays := normalizeWeekdays(rule.Weekdays)
+		if len(weekdays) == 0 {
 			return start, true
 		}
-		// A selected weekday necessarily falls inside the first valid recurrence
-		// week, at most (interval+1) weeks out. Scan that bounded window via the
-		// shared matcher so the result is identical to the in-app expansion.
-		limit := start.AddDays((interval + 1) * 7)
-		for d := start; !d.After(limit); d = d.AddDays(1) {
-			if matchesRule(start, d, rule) {
+		offsets := weekdayOffsets(weekdays)
+		if len(offsets) == 0 {
+			return start, false
+		}
+		// Compute the first occurrence directly instead of scanning ~interval*7
+		// days (which an arbitrarily large interval would blow up). The start's own
+		// calendar week is interval-week 0 (always valid): the first occurrence is
+		// its earliest selected weekday on/after start. If every selected weekday in
+		// that week precedes start, the first occurrence is the earliest selected
+		// weekday in the next valid week — interval calendar weeks later. This
+		// matches matchesRule's calendar-week anchoring exactly.
+		weekStart := weekStartMonday(start)
+		for _, off := range offsets {
+			d := weekStart.AddDays(off)
+			if !d.Before(start) {
 				return d, true
 			}
 		}
-		return start, false
+		return weekStart.AddDays(interval*7 + offsets[0]), true
 	case calModels.RecurrenceFrequencyMonthly:
 		if len(rule.MonthDays) == 0 {
 			return start, true

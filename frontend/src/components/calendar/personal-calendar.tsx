@@ -219,6 +219,8 @@ interface TimedPlacement {
 interface TimedLayoutOptions {
   hasRespond: boolean;
   hasOverview: boolean;
+  hasManage: boolean;
+  hasIcs: boolean;
 }
 
 // Mindesthöhe eines Zeitraster-Blocks in Pixeln, abhängig vom Inhalt. Muss zum
@@ -228,19 +230,26 @@ function blockMinHeightPx(
   event: CalendarEvent,
   options: TimedLayoutOptions,
 ): number {
+  const cancelled = event.cancelled === true;
+  const isAppointment =
+    event.source === "appointment" && Boolean(event.appointment_id);
   const showRespond = Boolean(
-    event.can_respond && event.recipient_id && options.hasRespond,
+    !cancelled && event.can_respond && event.recipient_id && options.hasRespond,
   );
   const showOverview = Boolean(
     event.can_view_overview && event.appointment_id && options.hasOverview,
   );
+  const showIcs = Boolean(!cancelled && isAppointment && options.hasIcs);
+  const showManage = Boolean(isAppointment && event.can_edit && options.hasManage);
   return (
     56 +
     ((event.student_name ?? event.school_name) ? 16 : 0) +
     (event.location ? 18 : 0) +
     (event.description ? 36 : 0) +
     (showRespond ? 40 : 0) +
-    (showOverview ? 36 : 0)
+    (showOverview ? 36 : 0) +
+    (showIcs ? 36 : 0) +
+    (showManage ? 44 : 0)
   );
 }
 
@@ -691,6 +700,8 @@ function CalendarTimeGrid({
   const layoutOptions: TimedLayoutOptions = {
     hasRespond: Boolean(actions.onRespond),
     hasOverview: Boolean(actions.onShowOverview),
+    hasManage: Boolean(actions.onEdit ?? actions.onCancel ?? actions.onDelete),
+    hasIcs: Boolean(actions.icsHrefBase),
   };
   const { startHour, endHour } = gridHours(
     dayBuckets.flatMap((bucket) => bucket.events),
@@ -820,6 +831,8 @@ function TimeGridDayBody({
     {
       hasRespond: Boolean(actions.onRespond),
       hasOverview: Boolean(actions.onShowOverview),
+      hasManage: Boolean(actions.onEdit ?? actions.onCancel ?? actions.onDelete),
+      hasIcs: Boolean(actions.icsHrefBase),
     },
   );
   return (
@@ -891,7 +904,16 @@ function TimeGridEventBlock({
   gridStartMinutes: number;
   actions: CalendarEventActions;
 }>) {
-  const { onShowOverview, onRespond, respondingRecipientId } = actions;
+  const {
+    onShowOverview,
+    onRespond,
+    respondingRecipientId,
+    onEdit,
+    onCancel,
+    onDelete,
+    busyAppointmentId,
+    icsHrefBase,
+  } = actions;
   const { event, startMinutes, endMinutes, column, columnCount } = placement;
   const tone = sourceTone[event.source];
   const recipientId = event.recipient_id;
@@ -905,6 +927,22 @@ function TimeGridEventBlock({
   );
   const showOverview = Boolean(
     event.can_view_overview && event.appointment_id && onShowOverview,
+  );
+  // Day/week timed blocks must offer the same management + export as the month
+  // and mobile CalendarEventItem, so organizers and parents never have to switch
+  // views to edit, cancel, delete, or download a timed appointment.
+  const canManage =
+    event.source === "appointment" &&
+    event.can_edit &&
+    Boolean(event.appointment_id) &&
+    Boolean(onEdit ?? onCancel ?? onDelete);
+  const managing =
+    Boolean(event.appointment_id) && busyAppointmentId === event.appointment_id;
+  const showIcs = Boolean(
+    !cancelled &&
+      event.source === "appointment" &&
+      event.appointment_id &&
+      icsHrefBase,
   );
   // endMinutes ist bereits das effektive Render-Ende aus layoutTimedEvents —
   // die Mindesthöhe steckt in der Platzierung, damit nichts überdeckt wird.
@@ -988,6 +1026,59 @@ function TimeGridEventBlock({
             <X className="h-4 w-4" aria-hidden />
             Absagen
           </Button>
+        </div>
+      ) : null}
+      {showIcs ? (
+        <a
+          href={`${icsHrefBase}/${encodeURIComponent(event.appointment_id!)}/ics`}
+          download
+          className="mt-1 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-white/50 px-2.5 text-xs font-medium text-gray-700 transition-colors hover:bg-white"
+        >
+          <CalendarPlus className="h-4 w-4" aria-hidden />
+          Zum Kalender hinzufügen
+        </a>
+      ) : null}
+      {canManage ? (
+        <div className="mt-1 flex flex-wrap gap-1 border-t border-white/60 pt-1.5">
+          {onEdit && !cancelled ? (
+            <Button
+              type="button"
+              size="compact"
+              variant="ghost"
+              className="bg-white/50"
+              disabled={managing}
+              onClick={() => onEdit(event)}
+            >
+              <Pencil className="h-4 w-4" aria-hidden />
+              Bearbeiten
+            </Button>
+          ) : null}
+          {onCancel && !cancelled ? (
+            <Button
+              type="button"
+              size="compact"
+              variant="ghost"
+              className="bg-white/50 text-[#CC2626]"
+              disabled={managing}
+              onClick={() => onCancel(event)}
+            >
+              <Ban className="h-4 w-4" aria-hidden />
+              Absagen
+            </Button>
+          ) : null}
+          {onDelete ? (
+            <Button
+              type="button"
+              size="compact"
+              variant="ghost"
+              className="bg-white/50 text-[#CC2626]"
+              disabled={managing}
+              onClick={() => onDelete(event)}
+            >
+              <Trash2 className="h-4 w-4" aria-hidden />
+              Löschen
+            </Button>
+          ) : null}
         </div>
       ) : null}
     </article>

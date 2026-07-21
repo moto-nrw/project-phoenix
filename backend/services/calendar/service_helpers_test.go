@@ -362,6 +362,129 @@ func TestHasOccurrenceInWindow(t *testing.T) {
 	assert.True(t, hasOccurrenceInWindow(multiDay, daily, timezone.NewDate(2026, 7, 1), timezone.NewDate(2026, 7, 1)))
 }
 
+func TestBoundedRecurrenceDates(t *testing.T) {
+	appt := func(start, end timezone.Date) *calModels.Appointment {
+		return &calModels.Appointment{StartDate: start, EndDate: end}
+	}
+	same := func(d timezone.Date) *calModels.Appointment { return appt(d, d) }
+	ptr := func(d timezone.Date) *timezone.Date { return &d }
+
+	tests := []struct {
+		name  string
+		appt  *calModels.Appointment
+		rule  *calModels.RecurrenceRule
+		limit int
+		want  []timezone.Date
+	}{
+		{
+			name:  "daily interval steps by period",
+			appt:  same(timezone.NewDate(2026, 1, 5)),
+			rule:  &calModels.RecurrenceRule{Frequency: calModels.RecurrenceFrequencyDaily, IntervalCount: 3},
+			limit: 4,
+			want: []timezone.Date{
+				timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 8),
+				timezone.NewDate(2026, 1, 11), timezone.NewDate(2026, 1, 14),
+			},
+		},
+		{
+			name:  "weekly multiple weekdays in order",
+			appt:  same(timezone.NewDate(2026, 1, 5)), // Monday
+			rule:  &calModels.RecurrenceRule{Frequency: calModels.RecurrenceFrequencyWeekly, IntervalCount: 1, Weekdays: []string{"monday", "wednesday"}},
+			limit: 5,
+			want: []timezone.Date{
+				timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 7),
+				timezone.NewDate(2026, 1, 12), timezone.NewDate(2026, 1, 14),
+				timezone.NewDate(2026, 1, 19),
+			},
+		},
+		{
+			name:  "weekly interval skips whole calendar weeks",
+			appt:  same(timezone.NewDate(2026, 1, 6)), // Tuesday, Monday is before start
+			rule:  &calModels.RecurrenceRule{Frequency: calModels.RecurrenceFrequencyWeekly, IntervalCount: 2, Weekdays: []string{"monday"}},
+			limit: 3,
+			want: []timezone.Date{
+				timezone.NewDate(2026, 1, 19), timezone.NewDate(2026, 2, 2),
+				timezone.NewDate(2026, 2, 16),
+			},
+		},
+		{
+			name:  "monthly day 31 skips short months without day-walking",
+			appt:  same(timezone.NewDate(2026, 1, 31)),
+			rule:  &calModels.RecurrenceRule{Frequency: calModels.RecurrenceFrequencyMonthly, IntervalCount: 1, MonthDays: []int{31}},
+			limit: 5,
+			want: []timezone.Date{
+				timezone.NewDate(2026, 1, 31), timezone.NewDate(2026, 3, 31),
+				timezone.NewDate(2026, 5, 31), timezone.NewDate(2026, 7, 31),
+				timezone.NewDate(2026, 8, 31),
+			},
+		},
+		{
+			name:  "yearly Feb 29 lands only on leap years",
+			appt:  same(timezone.NewDate(2024, 2, 29)),
+			rule:  &calModels.RecurrenceRule{Frequency: calModels.RecurrenceFrequencyYearly, IntervalCount: 1},
+			limit: 3,
+			want: []timezone.Date{
+				timezone.NewDate(2024, 2, 29), timezone.NewDate(2028, 2, 29),
+				timezone.NewDate(2032, 2, 29),
+			},
+		},
+		{
+			name:  "EndsOn cuts the series short",
+			appt:  same(timezone.NewDate(2026, 1, 5)),
+			rule:  &calModels.RecurrenceRule{Frequency: calModels.RecurrenceFrequencyDaily, IntervalCount: 2, EndsOn: ptr(timezone.NewDate(2026, 1, 10))},
+			limit: 10,
+			want: []timezone.Date{
+				timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 7),
+				timezone.NewDate(2026, 1, 9),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, boundedRecurrenceDates(tc.appt, tc.rule, tc.limit))
+		})
+	}
+}
+
+func TestOccurrenceExistsSparseCountBounded(t *testing.T) {
+	// A count-bounded monthly "day 31" series: the reachable occurrences are the
+	// first N months that actually have a 31st. Membership must be exact without
+	// scanning every day since the (possibly old) start.
+	start := timezone.NewDate(2026, 1, 31)
+	appt := &calModels.Appointment{StartDate: start, EndDate: start}
+	count := 5
+	rule := &calModels.RecurrenceRule{
+		Frequency:       calModels.RecurrenceFrequencyMonthly,
+		IntervalCount:   1,
+		MonthDays:       []int{31},
+		OccurrenceCount: &count,
+	}
+
+	assert.True(t, occurrenceExists(appt, rule, timezone.NewDate(2026, 8, 31)))  // 5th occurrence
+	assert.False(t, occurrenceExists(appt, rule, timezone.NewDate(2026, 10, 31))) // 6th — beyond count
+	assert.False(t, occurrenceExists(appt, rule, timezone.NewDate(2026, 2, 28)))  // not a rule date
+}
+
+func TestHasOccurrenceInWindowSparseCountBounded(t *testing.T) {
+	// A very old count-bounded yearly Feb-29 series: hasOccurrenceInWindow must
+	// decide overlap by enumerating the (few) occurrences per period, never by
+	// walking the ~decades of days between the start and the feed window.
+	start := timezone.NewDate(2000, 2, 29)
+	appt := &calModels.Appointment{StartDate: start, EndDate: start}
+	count := 10 // 2000, 2004, 2008, ... 2036
+	rule := &calModels.RecurrenceRule{
+		Frequency:       calModels.RecurrenceFrequencyYearly,
+		IntervalCount:   1,
+		OccurrenceCount: &count,
+	}
+
+	// 2028-02-29 is the 8th occurrence — inside the count, so a window over it hits.
+	assert.True(t, hasOccurrenceInWindow(appt, rule, timezone.NewDate(2028, 2, 1), timezone.NewDate(2028, 3, 1)))
+	// 2040 is past the 10th occurrence (2036) → no overlap.
+	assert.False(t, hasOccurrenceInWindow(appt, rule, timezone.NewDate(2040, 1, 1), timezone.NewDate(2040, 12, 31)))
+}
+
 func TestAppointmentICSEventUIDIncludesTenant(t *testing.T) {
 	// The parent feed aggregates appointments across schools, so the UID must be
 	// globally unique — appointment IDs repeat per tenant.

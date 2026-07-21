@@ -598,6 +598,66 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	cfg := calendarTestConfig(db)
+	repos := repositories.NewFactory(db)
+	cfg.AccountRepo = repos.Account
+	cfg.ParentsURL = "https://parents.test"
+	service := calendarSvc.NewService(cfg)
+
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Tombstone", "Organizer")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Elternabend",
+		StartDate:    timezone.TodayDate().AddDays(7),
+		EndDate:      timezone.TodayDate().AddDays(7),
+		StartTime:    wallClock(18, 0),
+		EndTime:      wallClock(19, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	// The appointment is tombstoned, not hard-deleted, so clean it up explicitly.
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	httpsURL, _, err := service.ParentCalendarFeedURL(testpkg.TenantContext(1), parentChain.AccountID)
+	require.NoError(t, err)
+	token := strings.TrimPrefix(httpsURL, "https://parents.test/api/calendar-feed/")
+
+	// Before deletion the appointment is a normal (non-cancelled) feed event.
+	_, content, err := service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	require.NoError(t, err)
+	assert.Contains(t, content, "SUMMARY:Elternabend")
+	assert.NotContains(t, content, "STATUS:CANCELLED")
+
+	// Deleting a feed-visible appointment must leave a cancellation tombstone: the
+	// same UID reappears in the feed as STATUS:CANCELLED with a bumped SEQUENCE, so
+	// subscribed external calendars purge it instead of retaining a stale event.
+	require.NoError(t, service.DeleteStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID))
+
+	_, afterDelete, err := service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	require.NoError(t, err)
+	assert.Contains(t, afterDelete, "SUMMARY:Elternabend")
+	assert.Contains(t, afterDelete, "STATUS:CANCELLED")
+	assert.Contains(t, afterDelete, "SEQUENCE:")
+
+	// The row survives (as a tombstone) and reads back cancelled.
+	after, err := service.GetStaffAppointmentDetail(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	require.NoError(t, err)
+	assert.NotNil(t, after.Appointment.CancelledAt)
+}
+
 func TestCalendarServiceIntegration_AllSchoolParentsTarget(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
