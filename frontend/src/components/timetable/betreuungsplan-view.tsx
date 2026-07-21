@@ -1169,6 +1169,7 @@ function TimetablesContent() {
         studentNames={studentNames}
         onAttendancePatch={handleAttendancePatch}
         editDeferred={false}
+        suspended={eventModalOpen}
       />
 
       <TimetableEventModal

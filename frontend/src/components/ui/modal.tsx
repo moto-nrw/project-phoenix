@@ -110,8 +110,14 @@ export function Modal({
       return;
     }
 
+    // Ignore Escapes that were already dispatching when this listener was
+    // attached: a Vaul drawer closes synchronously DURING the keydown, so a
+    // modal that remounts in that same dispatch (e.g. the Betreuungsplan
+    // detail modal resuming after the Termin-Editor, #1956) would receive
+    // the very same event and immediately close itself.
+    const attachedAt = performance.now();
     const handleEscKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && event.timeStamp >= attachedAt) {
         handleClose();
       }
     };

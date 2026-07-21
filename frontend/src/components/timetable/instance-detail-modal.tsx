@@ -116,6 +116,14 @@ interface InstanceDetailModalProps {
    * disabled with a tooltip. Default true until backend PUT/POST land.
    */
   editDeferred?: boolean;
+  /**
+   * Blendet das Detail-Modal aus, solange ein anderes Overlay (z.B. der
+   * Termin-Editor) offen ist: beide portalen auf denselben festen z-index,
+   * und das Kit-Modal lauscht dokumentweit auf Escape — gestapelt würde es
+   * den Editor verdecken und bei Escape mitschließen. Die Auswahl
+   * (?block=…) bleibt bestehen, das Modal erscheint danach wieder.
+   */
+  suspended?: boolean;
 }
 
 const EMPTY_STAFF_NAMES = new Map<string, string>();
@@ -398,6 +406,7 @@ export function InstanceDetailModal({
   studentNames = EMPTY_STUDENT_NAMES,
   onAttendancePatch,
   editDeferred = true,
+  suspended = false,
 }: InstanceDetailModalProps) {
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const showTimetableCounts = useShowTimetableCounts();
@@ -682,7 +691,7 @@ export function InstanceDetailModal({
           ausgeblendet statt gestapelt (gleiches Muster wie
           staff/shift-move-dialog.tsx). */}
       <Modal
-        isOpen={pendingConfirm === null && !deleteScopeOpen}
+        isOpen={pendingConfirm === null && !deleteScopeOpen && !suspended}
         onClose={onClose}
         title={instance.title}
         closeLabel="Schließen"

@@ -685,6 +685,22 @@ describe("InstanceDetailModal", () => {
     expect(screen.getByText(/Sonstiges/)).toBeInTheDocument();
   });
 
+  it("hides itself while another overlay is stacked on top", () => {
+    const onClose = vi.fn();
+    render(
+      <InstanceDetailModal
+        instance={instance({})}
+        onClose={onClose}
+        onLifecycleAction={vi.fn()}
+        suspended
+      />,
+    );
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("shows the Regeltermin OriginChip only when the instance stems from one", () => {
     const { rerender } = render(
       <InstanceDetailModal
