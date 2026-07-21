@@ -59,6 +59,8 @@ export function StaffSessionTable({
   dailyTargetsError,
   dailyTargetsPending,
   accountStartDate,
+  accountStartDatePending,
+  accountStartDateError,
   today,
   isAdminView,
   plannedShifts,
@@ -90,11 +92,14 @@ export function StaffSessionTable({
   // vorherige Zeitraum bereits aufgelöst hat, bleiben gültig: dasselbe Datum
   // liefert für dieselbe Person immer dasselbe Soll.
   readonly dailyTargetsPending?: boolean;
-  // `null` means the time-tracking config is still unresolved; an empty
-  // string means no explicit anchor is configured. The distinction matters
-  // for sessions with Soll 0: they are overtime on a planned day off, but
-  // must not enter the Saldo before a mid-month account start.
+  // `null` means no time-tracking config data is available; pending/error
+  // distinguish whether that is temporary or a failed request. An empty
+  // string means the loaded config has no explicit anchor. The distinction
+  // matters for sessions with Soll 0: they are overtime on a planned day off,
+  // but must not enter the Saldo before a mid-month account start.
   readonly accountStartDate: string | null;
+  readonly accountStartDatePending: boolean;
+  readonly accountStartDateError: boolean;
   readonly today: Date;
   readonly isAdminView: boolean;
   // Planned Dienstplan shifts for the visible range. When provided (admin
@@ -244,6 +249,12 @@ export function StaffSessionTable({
           message="Das Soll konnte für diesen Zeitraum nicht geladen werden. Betroffene Tage zeigen „?“ statt eines Soll- und Saldo-Werts — der aktuelle Arbeitszeitplan wird bewusst nicht auf vergangene Tage angewendet."
         />
       )}
+      {accountStartDateError && (
+        <Alert
+          type="error"
+          message="Der Stundenkonto-Start konnte nicht geladen werden. Soweit das Soll geladen wurde, werden Salden an Tagen ohne Soll weiterhin angezeigt; vor dem Kontostart können sie aber von der Monatskarte abweichen. Bitte die Seite neu laden."
+        />
+      )}
       <div className="max-w-full overflow-x-auto rounded-2xl border border-gray-100">
         <table className="w-full min-w-[960px] text-left text-sm">
           <thead className="bg-gray-50 text-xs font-semibold tracking-wider text-gray-500 uppercase">
@@ -300,7 +311,7 @@ export function StaffSessionTable({
                 key.slice(0, 7) === accountStartDate.slice(0, 7) &&
                 key < accountStartDate;
               const balanceUnresolved =
-                targetUnresolved || (target === 0 && accountStartDate === null);
+                targetUnresolved || (target === 0 && accountStartDatePending);
               const delta = session ? ist - target : 0;
               const status = computeRowStatus(
                 session,
@@ -423,6 +434,7 @@ export function StaffSessionTable({
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums">
                       {session &&
+                      !isFuture &&
                       !balanceUnresolved &&
                       !isBeforeAccountStart ? (
                         <span className={deltaClass(delta)}>

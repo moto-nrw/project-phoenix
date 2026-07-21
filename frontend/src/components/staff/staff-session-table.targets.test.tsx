@@ -47,6 +47,8 @@ function renderTable(props: {
   dailyTargetsError?: boolean;
   dailyTargetsPending?: boolean;
   accountStartDate?: string | null;
+  accountStartDatePending?: boolean;
+  accountStartDateError?: boolean;
   sessions?: readonly StaffHistorySession[];
 }) {
   return render(
@@ -62,6 +64,8 @@ function renderTable(props: {
       accountStartDate={
         props.accountStartDate === undefined ? "" : props.accountStartDate
       }
+      accountStartDatePending={props.accountStartDatePending ?? false}
+      accountStartDateError={props.accountStartDateError ?? false}
       today={today}
       isAdminView
     />,
@@ -181,6 +185,7 @@ describe("StaffSessionTable Soll-Auflösung", () => {
       sessions: [mondaySession],
       dailyTargets: new Map([["2026-01-05", 0]]),
       accountStartDate: null,
+      accountStartDatePending: true,
     });
 
     const row = screen.getByText("05.01.").closest("tr");
@@ -188,6 +193,20 @@ describe("StaffSessionTable Soll-Auflösung", () => {
     const cells = within(row!).getAllByRole("cell");
     expect(cells[7]).toHaveTextContent("–");
     expect(screen.queryByText("+3h")).not.toBeInTheDocument();
+  });
+
+  it("zeigt Soll-0-Salden mit Warnung, wenn der Kontostart nicht geladen werden konnte", () => {
+    renderTable({
+      sessions: [mondaySession],
+      dailyTargets: new Map([["2026-01-05", 0]]),
+      accountStartDate: null,
+      accountStartDateError: true,
+    });
+
+    expect(screen.getByText("+3h")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Der Stundenkonto-Start konnte nicht geladen werden.",
+    );
   });
 });
 
@@ -236,6 +255,8 @@ describe("StaffSessionTable Wochenendtage", () => {
         }
         today={today}
         isAdminView
+        accountStartDatePending={false}
+        accountStartDateError={false}
       />,
     );
   }
@@ -262,6 +283,30 @@ describe("StaffSessionTable Wochenendtage", () => {
     renderWeekend({ sessions: [weekendSession] });
 
     expect(screen.getByText("+3h")).toBeInTheDocument();
+  });
+
+  it("zeigt für eine zukünftige Session keinen Saldo", () => {
+    render(
+      <StaffSessionTable
+        staffId="1"
+        from={new Date(2026, 0, 10)}
+        to={new Date(2026, 0, 10)}
+        sessions={[weekendSession]}
+        schedule={schedule}
+        dailyTargets={new Map([[saturday, 0]])}
+        accountStartDate=""
+        accountStartDatePending={false}
+        accountStartDateError={false}
+        today={new Date(2026, 0, 9)}
+        isAdminView
+      />,
+    );
+
+    const row = screen.getByText("10.01.").closest("tr");
+    expect(row).not.toBeNull();
+    const cells = within(row!).getAllByRole("cell");
+    expect(cells[7]).toHaveTextContent("–");
+    expect(screen.queryByText("+3h")).not.toBeInTheDocument();
   });
 
   it("zeigt einen Wochenendtag mit geplanter Schicht", () => {
