@@ -708,8 +708,8 @@ export function isCompanionsChanged(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
   const body = (err as Error & { body?: string }).body;
   if (body && isCompanionsChangedBody(body)) return true;
-  const match = /\{.*\}/s.exec(err.message);
-  return match ? isCompanionsChangedBody(match[0]) : false;
+  const match = embeddedJsonObject(err.message);
+  return match ? isCompanionsChangedBody(match) : false;
 }
 
 /** The German instruction the stale-list refusal carries. */
@@ -721,9 +721,9 @@ export function companionsChangedMessage(err: unknown): string {
       const fromBody = parseBackendMessage(body, "");
       if (fromBody) return fromBody;
     }
-    const match = /\{.*\}/s.exec(err.message);
+    const match = embeddedJsonObject(err.message);
     if (match) {
-      const fromMessage = parseBackendMessage(match[0], "");
+      const fromMessage = parseBackendMessage(match, "");
       if (fromMessage) return fromMessage;
     }
   }
@@ -766,8 +766,8 @@ export function isCompanionDepartureRefusal(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
   const body = (err as Error & { body?: string }).body;
   if (body && isCompanionDepartureBody(body)) return true;
-  const match = /\{.*\}/s.exec(err.message);
-  return match ? isCompanionDepartureBody(match[0]) : false;
+  const match = embeddedJsonObject(err.message);
+  return match ? isCompanionDepartureBody(match) : false;
 }
 
 /** Reports whether a response body carries the stranded-companion code. */
@@ -784,9 +784,9 @@ export function companionDepartureMessage(err: unknown): string {
       const fromBody = parseBackendMessage(body, "");
       if (fromBody) return fromBody;
     }
-    const match = /\{.*\}/s.exec(err.message);
+    const match = embeddedJsonObject(err.message);
     if (match) {
-      const fromMessage = parseBackendMessage(match[0], "");
+      const fromMessage = parseBackendMessage(match, "");
       if (fromMessage) return fromMessage;
     }
   }
@@ -820,8 +820,8 @@ export function isPrivacyConsentSaved(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
   const body = (err as Error & { body?: string }).body;
   if (body && isPrivacyConsentSavedBody(body)) return true;
-  const match = /\{.*\}/s.exec(err.message);
-  return match ? isPrivacyConsentSavedBody(match[0]) : false;
+  const match = embeddedJsonObject(err.message);
+  return match ? isPrivacyConsentSavedBody(match) : false;
 }
 
 /** Prefixed to the failure text so the saved half is never reported as lost. */
@@ -839,6 +839,24 @@ export function withPrivacyConsentSavedNotice(
   return isPrivacyConsentSaved(err)
     ? `${PRIVACY_CONSENT_SAVED_NOTICE} ${message}`
     : message;
+}
+
+/**
+ * Cuts the JSON object out of an error MESSAGE — first "{" to last "}" — for
+ * the callers that no longer hold the response body and have to read the
+ * backend envelope back out of the text the CRUD service built from it.
+ *
+ * Written with indexOf/lastIndexOf rather than the obvious /\{.*\}/s: the
+ * greedy match backtracks over the whole message once per candidate closing
+ * brace, which is quadratic on a long unterminated message. The result is
+ * identical, the scan is linear.
+ */
+export function embeddedJsonObject(message: string): string | null {
+  const start = message.indexOf("{");
+  if (start === -1) return null;
+  const end = message.lastIndexOf("}");
+  if (end < start) return null;
+  return message.substring(start, end + 1);
 }
 
 /** Reads the backend error envelope's message, falling back when unreadable. */

@@ -40,6 +40,7 @@ import {
   companionDepartureMessage,
   CompanionPlanConflictError,
   companionsChangedMessage,
+  embeddedJsonObject,
   isCompanionDepartureRefusal,
   isCompanionPlanConflictBody,
   isCompanionsChanged,
@@ -144,8 +145,8 @@ function isCompanionPlanConflict(err: unknown): boolean {
 function isCompanionLockConflict(err: Error): boolean {
   const body = (err as Error & { body?: string }).body;
   if (body && !isCompanionPlanConflictBody(body)) return true;
-  const match = /\{.*\}/s.exec(err.message);
-  return match ? !isCompanionPlanConflictBody(match[0]) : false;
+  const match = embeddedJsonObject(err.message);
+  return match ? !isCompanionPlanConflictBody(match) : false;
 }
 
 const COMPANION_CONFLICT_FALLBACK =
@@ -156,10 +157,10 @@ const COMPANION_CONFLICT_FALLBACK =
 function companionConflictMessage(err: unknown): string {
   if (err instanceof CompanionPlanConflictError) return err.message;
   if (err instanceof Error) {
-    const match = /\{.*\}/s.exec(err.message);
+    const match = embeddedJsonObject(err.message);
     if (match) {
       try {
-        const parsed = JSON.parse(match[0]) as { message?: string };
+        const parsed = JSON.parse(match) as { message?: string };
         if (typeof parsed.message === "string" && parsed.message.trim()) {
           return parsed.message;
         }
@@ -189,8 +190,8 @@ function companionConflictExtensions(
       const fromBody = parseConflictExtensions(body);
       if (fromBody.length > 0) return fromBody;
     }
-    const match = /\{.*\}/s.exec(err.message);
-    if (match) return parseConflictExtensions(match[0]);
+    const match = embeddedJsonObject(err.message);
+    if (match) return parseConflictExtensions(match);
   }
   return [];
 }

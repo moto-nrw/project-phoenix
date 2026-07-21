@@ -87,6 +87,20 @@ export function mergeCompanionConfirmations(
  * the loaded snapshot on an unrelated save would overwrite whatever someone
  * else changed in the meantime.
  */
+/**
+ * Orders two entries by code point, exactly like Go's sort.Strings.
+ *
+ * Deliberately NOT localeCompare: the fingerprint is compared byte for byte
+ * against the one CompanionLinksFingerprint builds in
+ * backend/models/users/student_companion.go, and a collator reorders the ":"
+ * and "," separators the entries are built from — every save would then be
+ * refused as a stale list.
+ */
+function compareCodePoints(a: string, b: string): number {
+  if (a < b) return -1;
+  return a > b ? 1 : 0;
+}
+
 export function companionsFingerprint(companions: StudentCompanion[]): string {
   return companions
     .map((companion) => {
@@ -95,7 +109,7 @@ export function companionsFingerprint(companions: StudentCompanion[]): string {
       );
       return `${companion.companion_student_id}:${days.join(",")}`;
     })
-    .sort()
+    .sort(compareCodePoints)
     .join("|");
 }
 
