@@ -942,20 +942,24 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const activePlanningSubPageHref = getActivePlanningSubPageHref(pathname);
   const isOnPlanningPage = activePlanningSubPageHref !== null;
 
+  // Hub = die erste sichtbare Unterseite: der Betreuungsplan, bzw. bei
+  // abgeschaltetem timetable.enabled die Kalenderzeiträume — sonst führte der
+  // Header-Klick auf die "deaktiviert"-Hinweisseite.
+  const planningHubHref = planningSubPages[0]?.href ?? "/betreuungsplan";
+
   const handlePlanningToggle = useCallback(() => {
-    // Hub = der Betreuungsplan. Navigate-on-expand wie bei den anderen
-    // Akkordeons, damit der Klick auf den Bereichs-Header immer auf einer
-    // nützlichen Seite landet.
+    // Navigate-on-expand wie bei den anderen Akkordeons, damit der Klick auf
+    // den Bereichs-Header immer auf einer nützlichen Seite landet.
     const onSection = getActivePlanningSubPageHref(pathname) !== null;
     if (!onSection) {
       toggle("planning");
-      router.push("/betreuungsplan");
-    } else if (pathname === "/betreuungsplan") {
+      router.push(planningHubHref);
+    } else if (pathname === planningHubHref) {
       toggle("planning");
     } else {
-      router.push("/betreuungsplan");
+      router.push(planningHubHref);
     }
-  }, [toggle, pathname, router]);
+  }, [toggle, pathname, router, planningHubHref]);
 
   const activeParentSubPageHref = getActiveParentSubPageHref(pathname);
   const isOnParentPage = activeParentSubPageHref !== null;

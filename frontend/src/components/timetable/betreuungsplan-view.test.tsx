@@ -148,20 +148,11 @@ vi.mock("~/lib/calendar-period-api", () => ({
   },
 }));
 
-vi.mock("~/lib/settings-api", () => ({
-  SETTINGS_SCHEMA_SWR_KEY: "settings-schema",
+// Nur den Netzwerk-Fetcher mocken; getSettingValue & Co. bleiben die echten
+// Implementierungen, damit die Tests nicht gegen eine driftende Kopie laufen.
+vi.mock("~/lib/settings-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/settings-api")>()),
   fetchSettingsSchema: vi.fn(),
-  getSettingValue: (
-    schema: {
-      tabs?: Array<{ categories: Array<{ items: unknown[] }> }>;
-    } | null,
-    key: string,
-  ) =>
-    schema?.tabs
-      ?.flatMap((tab) => tab.categories)
-      .flatMap((category) => category.items)
-      .map((item) => item as { key: string; value: unknown })
-      .find((item) => item.key === key)?.value,
 }));
 
 vi.mock("~/lib/student-api", () => ({

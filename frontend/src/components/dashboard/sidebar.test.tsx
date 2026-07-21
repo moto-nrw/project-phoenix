@@ -1719,6 +1719,47 @@ describe("Sidebar", () => {
 
       expect(screen.getByText("Planung")).toBeInTheDocument();
     });
+
+    it("navigates the header to Betreuungsplan when planning is enabled", () => {
+      mockRouterPush.mockClear();
+      mockUsePathname.mockReturnValue("/dashboard");
+
+      render(<Sidebar />);
+      fireEvent.click(screen.getByText("Planung"));
+
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/test-tenant/betreuungsplan",
+      );
+    });
+
+    it("navigates the header to Kalenderzeiträume when timetable.enabled is false", () => {
+      // Hub folgt der ersten sichtbaren Unterseite — sonst landete der
+      // Header-Klick auf der "Betreuungsplan ist deaktiviert"-Hinweisseite.
+      mockRouterPush.mockClear();
+      mockUsePathname.mockReturnValue("/dashboard");
+      mockUseSWRDefault.mockReturnValue({
+        data: {
+          tabs: [
+            {
+              categories: [
+                { items: [{ key: "timetable.enabled", value: false }] },
+              ],
+            },
+          ],
+        },
+        error: undefined,
+        isLoading: false,
+        isValidating: false,
+        mutate: vi.fn(),
+      } as unknown as ReturnType<typeof useSWR>);
+
+      render(<Sidebar />);
+      fireEvent.click(screen.getByText("Planung"));
+
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/test-tenant/calendar-periods",
+      );
+    });
   });
 
   describe("Gruppenzugriff gating (#1940)", () => {

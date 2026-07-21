@@ -22,6 +22,7 @@ Die Features teilen nur den historischen Namen, nicht die Semantik. Eine Zusamme
 
 - Umbenennung `Übergaben` → `Gruppenzugriff` in Sidebar, Mobile-Drawer, Breadcrumb, Seitentitel; Seiten-Wording spricht von Zugriff statt Vertretung (`Zugriff gewähren`, `Hat Zugriff`).
 - Gating auf `operations.group_mode = fixed_groups` (#1546): bei offener Betreuung verschwindet der Eintrag aus der Navigation, Direktaufrufe zeigen einen Hinweis.
+- Das Gating ist bewusst rein clientseitig (UI-Ausblendung, keine Sicherheitsgrenze): die Substitution-Endpunkte akzeptieren weiterhin Requests von Open-Care-Tenants. Vertretbar, weil die Seite admin-only ist und Zugriffe bei fixed_groups sichtbar bleiben; wer das Backend härten will, macht das als eigene Änderung.
 - Keine Daten-, API- oder Backend-Änderungen; `education.group_substitution` und alle Verbraucher (GetMyGroups, Caregiver-Blocker, Offboarding) bleiben unverändert. Neue Datensätze tragen `reason: "Gruppenzugriff"`; Altdaten behalten `"Vertretung"` (rein kosmetisch, kein Backend-Code matcht auf den String).
 
 ## Sichtbarkeits-Matrix

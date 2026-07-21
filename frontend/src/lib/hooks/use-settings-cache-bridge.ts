@@ -7,7 +7,8 @@ import { useTenantMutate } from "~/lib/swr";
 
 /**
  * Bridges cross-tab/cross-origin settings-change broadcasts to the active
- * tenant's SWR cache entry for SETTINGS_SCHEMA_SWR_KEY. Mount once in the protected layout —
+ * tenant's SWR cache entry for SETTINGS_SCHEMA_SWR_KEY. Mount once in the
+ * protected layout —
  * every SWR consumer (sidebar, mobile bottom nav, settings page, timetable
  * day hours) then refreshes automatically when:
  *   1. another same-origin tab calls notifySettingsChanged()  → BroadcastChannel
