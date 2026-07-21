@@ -23,6 +23,10 @@ func classifyError(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "rfid_tag_not_staff")
 	case errors.Is(err, staffclockSvc.ErrInvalidAction), errors.Is(err, staffclockSvc.ErrStatusRequired):
 		return common.ErrorInvalidRequestWithCode(err, "invalid_staff_clock_request")
+	case errors.Is(err, staffclockSvc.ErrCheckInRaced):
+		// A concurrent scan won the insert: the same state conflict the kiosk
+		// already knows how to recover from, not a server fault.
+		return common.ErrorConflictWithCode(err, "invalid_staff_clock_state")
 	}
 
 	var reopenConflict *activeSvc.ReopenStatusConflictError

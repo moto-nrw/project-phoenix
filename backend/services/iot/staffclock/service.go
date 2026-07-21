@@ -11,10 +11,17 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
+
+// workSessionDateConstraint is the unique index behind one work session per
+// staff member and day (migration 1.10.1). Two kiosks scanning the same card at
+// once both find no session and both insert; the loser hits this constraint.
+const workSessionDateConstraint = "uq_work_sessions_staff_date"
 
 const (
 	ActionCheckIn    = "checkin"
@@ -34,6 +41,9 @@ var (
 	ErrRFIDTagNotStaff = errors.New("RFID tag is not assigned to staff")
 	ErrInvalidAction   = errors.New("invalid staff clock action")
 	ErrStatusRequired  = errors.New("status is required for check-in")
+	// ErrCheckInRaced reports that a concurrent scan of the same card already
+	// created today's session. It is a state conflict, not a server fault.
+	ErrCheckInRaced = errors.New("check-in for today was already recorded")
 )
 
 type personService interface {
@@ -153,29 +163,7 @@ func (s *Service) Execute(ctx context.Context, command Command) (*State, error) 
 
 	switch command.Action {
 	case ActionCheckIn:
-		if command.Status == "" {
-			return nil, ErrStatusRequired
-		}
-		if command.Status != activeModels.WorkSessionStatusPresent && command.Status != activeModels.WorkSessionStatusHomeOffice {
-			return nil, fmt.Errorf("%w: status must be 'present' or 'home_office'", ErrStatusRequired)
-		}
-		_, err = s.workSessions.CheckIn(ctx, staff.ID, command.Status, activeModels.WorkSessionSourceNFC, command.Reason)
-		var conflict *activeSvc.ReopenStatusConflictError
-		if errors.As(err, &conflict) {
-			if strings.TrimSpace(command.Reason) == "" {
-				return nil, conflict
-			}
-			if _, err = s.workSessions.CheckIn(ctx, staff.ID, conflict.ExistingStatus, activeModels.WorkSessionSourceNFC, command.Reason); err != nil {
-				return nil, fmt.Errorf("reopen session with existing status: %w", err)
-			}
-			reason := strings.TrimSpace(command.Reason)
-			status := command.Status
-			if _, err = s.workSessions.UpdateSession(ctx, staff.ID, conflict.SessionID, activeSvc.SessionUpdateRequest{Status: &status, Notes: &reason}); err != nil {
-				// The request transaction must roll back the successful reopen if
-				// this audit-bearing status update cannot be persisted.
-				return nil, fmt.Errorf("update reopened session status: %w", err)
-			}
-		}
+		err = s.checkIn(ctx, staff.ID, command)
 	case ActionCheckOut:
 		_, err = s.workSessions.CheckOut(ctx, staff.ID, command.Reason)
 	case ActionBreakStart:
@@ -190,6 +178,53 @@ func (s *Service) Execute(ctx context.Context, command Command) (*State, error) 
 	}
 
 	return s.loadState(ctx, person, staff)
+}
+
+// checkIn stamps the arrival, resolving the reopen-status conflict when the
+// caller supplied a reason.
+//
+// A concurrent scan of the same card is reported as ErrCheckInRaced rather than
+// bubbling the raw unique violation out as a 500: both requests read "no
+// session today" before either inserted, so the loser is looking at a state
+// conflict the winner just created. The duplicate INSERT also leaves the
+// request transaction aborted — nothing can be re-read or retried on it — so
+// the rollback is requested explicitly and the kiosk is told to rescan for
+// authoritative state.
+func (s *Service) checkIn(ctx context.Context, staffID int64, command Command) error {
+	if command.Status == "" {
+		return ErrStatusRequired
+	}
+	if command.Status != activeModels.WorkSessionStatusPresent && command.Status != activeModels.WorkSessionStatusHomeOffice {
+		return fmt.Errorf("%w: status must be 'present' or 'home_office'", ErrStatusRequired)
+	}
+
+	_, err := s.workSessions.CheckIn(ctx, staffID, command.Status, activeModels.WorkSessionSourceNFC, command.Reason)
+	var conflict *activeSvc.ReopenStatusConflictError
+	if errors.As(err, &conflict) {
+		if strings.TrimSpace(command.Reason) == "" {
+			return conflict
+		}
+		if _, err = s.workSessions.CheckIn(ctx, staffID, conflict.ExistingStatus, activeModels.WorkSessionSourceNFC, command.Reason); err != nil {
+			return s.classifyCheckInError(ctx, fmt.Errorf("reopen session with existing status: %w", err))
+		}
+		reason := strings.TrimSpace(command.Reason)
+		status := command.Status
+		if _, err = s.workSessions.UpdateSession(ctx, staffID, conflict.SessionID, activeSvc.SessionUpdateRequest{Status: &status, Notes: &reason}); err != nil {
+			// The request transaction must roll back the successful reopen if
+			// this audit-bearing status update cannot be persisted.
+			return fmt.Errorf("update reopened session status: %w", err)
+		}
+		return nil
+	}
+	return s.classifyCheckInError(ctx, err)
+}
+
+func (s *Service) classifyCheckInError(ctx context.Context, err error) error {
+	if modelBase.IsUniqueViolationOn(err, workSessionDateConstraint) {
+		tenant.MarkRollback(ctx)
+		return ErrCheckInRaced
+	}
+	return err
 }
 
 func (s *Service) resolveStaff(ctx context.Context, rawTag string) (*userModels.Person, *userModels.Staff, error) {
