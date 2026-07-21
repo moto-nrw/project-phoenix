@@ -807,7 +807,7 @@ export function PersonalInfoReadOnly({
         />
         {companionsUnavailable && (
           <InfoItem
-            label="Läuft mit"
+            label="Geht mit"
             value={
               <span className="text-sm text-gray-500">
                 Laufgemeinschaft konnte nicht geladen werden
@@ -817,7 +817,7 @@ export function PersonalInfoReadOnly({
         )}
         {!companionsUnavailable && companions.length > 0 && (
           <InfoItem
-            label="Läuft mit"
+            label="Geht mit"
             value={
               <span className="space-y-0.5">
                 {companions.map((companion) => (
