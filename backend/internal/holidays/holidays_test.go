@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rickar/cal/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -69,6 +70,22 @@ func TestForYearUnknownRegion(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestForYearSkipsDefinitionsOutsideTheirValidityWindow(t *testing.T) {
+	const region = "DE-TEST"
+	regionHolidays[region] = []*cal.Holiday{{
+		Name:      "Future holiday",
+		StartYear: 2027,
+		Month:     time.January,
+		Day:       1,
+		Func:      cal.CalcDayOfMonth,
+	}}
+	t.Cleanup(func() { delete(regionHolidays, region) })
+
+	list, err := ForYear(region, 2026)
+	require.NoError(t, err)
+	assert.Empty(t, list)
+}
+
 func TestInRangeCrossesYears(t *testing.T) {
 	list, err := InRange("DE-NW", date(2026, time.December, 20), date(2027, time.January, 10))
 	require.NoError(t, err)
@@ -84,6 +101,11 @@ func TestInRangeInvalid(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestInRangeRejectsUnknownRegion(t *testing.T) {
+	_, err := InRange("DE-XX", date(2026, time.June, 1), date(2026, time.June, 2))
+	assert.Error(t, err)
+}
+
 func TestDateSet(t *testing.T) {
 	set, err := DateSet("DE-NW", date(2026, time.May, 1), date(2026, time.May, 31))
 	require.NoError(t, err)
@@ -92,6 +114,11 @@ func TestDateSet(t *testing.T) {
 	assert.True(t, set[date(2026, time.May, 14)]) // Christi Himmelfahrt
 	assert.True(t, set[date(2026, time.May, 25)]) // Pfingstmontag
 	assert.False(t, set[date(2026, time.May, 2)])
+}
+
+func TestDateSetPropagatesRangeErrors(t *testing.T) {
+	_, err := DateSet("DE-NW", date(2026, time.June, 2), date(2026, time.June, 1))
+	assert.Error(t, err)
 }
 
 func TestRegionsComplete(t *testing.T) {

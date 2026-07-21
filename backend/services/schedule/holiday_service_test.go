@@ -63,4 +63,9 @@ func TestHolidayServiceErrors(t *testing.T) {
 		HolidayDates(context.Background(), timezone.NewDate(2026, time.January, 1), timezone.NewDate(2026, time.January, 2))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported region")
+
+	_, err = NewHolidayService(&holidayMockSettings{err: errors.New("boom")}, nil).
+		HolidaysInRange(context.Background(), timezone.NewDate(2026, time.January, 1), timezone.NewDate(2026, time.January, 2))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to resolve federal state setting")
 }
