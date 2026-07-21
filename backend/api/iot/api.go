@@ -12,6 +12,7 @@ import (
 	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
 	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
+	staffclockAPI "github.com/moto-nrw/project-phoenix/api/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -24,6 +25,7 @@ import (
 	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
+	staffclockSvc "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -43,6 +45,7 @@ func delegateHandler(router chi.Router) http.HandlerFunc {
 type ServiceDependencies struct {
 	IoTService            iotSvc.Service
 	CheckinService        *checkinSvc.CheckinService
+	StaffClockService     *staffclockSvc.Service
 	UsersService          usersSvc.PersonService
 	ActiveService         activeSvc.Service
 	ActivitiesService     activitiesSvc.ActivityService
@@ -154,6 +157,12 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/pickup-query", checkinHandler)
 		r.Post("/ping", checkinHandler)
 		r.Get("/status", checkinHandler)
+
+		// Pure staff time tracking, independent of activities or groups.
+		staffClockResource := staffclockAPI.NewResource(rs.StaffClockService)
+		staffClockHandler := delegateHandler(staffClockResource.Router())
+		r.Post("/staff-clock", staffClockHandler)
+		r.Post("/staff-clock/state", staffClockHandler)
 
 		// Feedback endpoint (device-based feedback submission)
 		feedbackResource := dataAPI.NewFeedbackResource(rs.IoTService, rs.UsersService, rs.FeedbackService, rs.SettingsService)

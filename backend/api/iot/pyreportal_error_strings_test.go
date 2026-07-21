@@ -124,6 +124,20 @@ var pyreportalErrorStrings = []string{
 	"student not found",
 }
 
+// Staff-clock screens branch on stable codes rather than English prose. Keep
+// those codes under the same cross-repository tripwire as legacy substrings.
+var pyreportalErrorCodes = []string{
+	"invalid_staff_clock_request",
+	"invalid_rfid_tag",
+	"rfid_tag_not_found",
+	"rfid_tag_inactive",
+	"rfid_tag_not_staff",
+	"reopen_status_conflict",
+	"planned_start_not_reached",
+	"deviation_reason_required",
+	"invalid_staff_clock_state",
+}
+
 // extraGuardSources are files OUTSIDE api/iot whose error strings surface
 // through IoT routes: device auth middleware, active-service sentinels
 // bubbled by the checkin/session workflows, and the api/common message
@@ -188,6 +202,13 @@ func TestPyrePortalErrorStringsGuard(t *testing.T) {
 				"PyrePortal's German translation for this error. If the change is "+
 				"intentional, update PyrePortal/src/services/apiErrors.ts "+
 				"ERROR_MESSAGE_MAPPINGS and this test in the same PR.",
+			want,
+		)
+	}
+	for _, want := range pyreportalErrorCodes {
+		assert.Containsf(t, corpus, want,
+			"PyrePortal branches on the stable IoT error code %q. Update the backend and "+
+				"PyrePortal mapping together if this contract changes.",
 			want,
 		)
 	}

@@ -1,0 +1,248 @@
+// Package staffclock coordinates NFC-based staff time tracking for kiosks.
+package staffclock
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+)
+
+const (
+	ActionCheckIn    = "checkin"
+	ActionCheckOut   = "checkout"
+	ActionBreakStart = "break_start"
+	ActionBreakEnd   = "break_end"
+
+	StateCheckedOut = "checked_out"
+	StateCheckedIn  = "checked_in"
+	StateOnBreak    = "on_break"
+)
+
+var (
+	ErrInvalidRFIDTag  = errors.New("invalid RFID tag")
+	ErrRFIDTagNotFound = errors.New("RFID tag not found")
+	ErrRFIDTagInactive = errors.New("RFID tag is inactive")
+	ErrRFIDTagNotStaff = errors.New("RFID tag is not assigned to staff")
+	ErrInvalidAction   = errors.New("invalid staff clock action")
+	ErrStatusRequired  = errors.New("status is required for check-in")
+)
+
+type personService interface {
+	FindByTagID(ctx context.Context, tagID string) (*userModels.Person, error)
+	GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error)
+}
+
+type workSessionService interface {
+	CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error)
+	CheckOut(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error)
+	StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
+	EndBreak(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	GetSessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
+	UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error)
+	GetCurrentSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	GetHistory(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error)
+}
+
+// Service owns the pure NFC stamp workflow. It deliberately accepts narrow
+// interfaces so its state machine can be tested without HTTP or a database.
+type Service struct {
+	people       personService
+	cards        userModels.RFIDCardRepository
+	workSessions workSessionService
+	now          func() time.Time
+}
+
+type State struct {
+	StaffID              int64                          `json:"staff_id"`
+	StaffName            string                         `json:"staff_name"`
+	State                string                         `json:"state"`
+	AllowedActions       []string                       `json:"allowed_actions"`
+	Session              *activeModels.WorkSession      `json:"session,omitempty"`
+	ActiveBreak          *activeModels.WorkSessionBreak `json:"active_break,omitempty"`
+	NetMinutes           int                            `json:"net_minutes"`
+	BreakMinutes         int                            `json:"break_minutes"`
+	RequiredBreakMinutes int                            `json:"required_break_minutes"`
+	IsBreakCompliant     bool                           `json:"is_break_compliant"`
+}
+
+type Command struct {
+	RFIDTag                string
+	Action                 string
+	Status                 string
+	Reason                 string
+	PlannedDurationMinutes *int
+}
+
+func NewService(people personService, cards userModels.RFIDCardRepository, workSessions workSessionService) *Service {
+	return &Service{people: people, cards: cards, workSessions: workSessions}
+}
+
+func (s *Service) currentTime() time.Time {
+	if s.now != nil {
+		return s.now()
+	}
+	return time.Now()
+}
+
+// GetState resolves a staff card and returns the authoritative kiosk state.
+func (s *Service) GetState(ctx context.Context, rawTag string) (*State, error) {
+	person, staff, err := s.resolveStaff(ctx, rawTag)
+	if err != nil {
+		return nil, err
+	}
+	return s.loadState(ctx, person, staff)
+}
+
+// Execute performs one explicit stamp action with source=nfc, then reloads
+// state so the kiosk never has to predict the result locally.
+func (s *Service) Execute(ctx context.Context, command Command) (*State, error) {
+	person, staff, err := s.resolveStaff(ctx, command.RFIDTag)
+	if err != nil {
+		return nil, err
+	}
+
+	switch command.Action {
+	case ActionCheckIn:
+		if command.Status == "" {
+			return nil, ErrStatusRequired
+		}
+		if command.Status != activeModels.WorkSessionStatusPresent && command.Status != activeModels.WorkSessionStatusHomeOffice {
+			return nil, fmt.Errorf("%w: status must be 'present' or 'home_office'", ErrStatusRequired)
+		}
+		_, err = s.workSessions.CheckIn(ctx, staff.ID, command.Status, activeModels.WorkSessionSourceNFC, command.Reason)
+		var conflict *activeSvc.ReopenStatusConflictError
+		if errors.As(err, &conflict) {
+			if strings.TrimSpace(command.Reason) == "" {
+				return nil, conflict
+			}
+			if _, err = s.workSessions.CheckIn(ctx, staff.ID, conflict.ExistingStatus, activeModels.WorkSessionSourceNFC, command.Reason); err != nil {
+				return nil, fmt.Errorf("reopen session with existing status: %w", err)
+			}
+			reason := strings.TrimSpace(command.Reason)
+			status := command.Status
+			if _, err = s.workSessions.UpdateSession(ctx, staff.ID, conflict.SessionID, activeSvc.SessionUpdateRequest{Status: &status, Notes: &reason}); err != nil {
+				// The request transaction must roll back the successful reopen if
+				// this audit-bearing status update cannot be persisted.
+				return nil, fmt.Errorf("update reopened session status: %w", err)
+			}
+		}
+	case ActionCheckOut:
+		_, err = s.workSessions.CheckOut(ctx, staff.ID, command.Reason)
+	case ActionBreakStart:
+		_, err = s.workSessions.StartBreak(ctx, staff.ID, command.PlannedDurationMinutes)
+	case ActionBreakEnd:
+		_, err = s.workSessions.EndBreak(ctx, staff.ID)
+	default:
+		return nil, ErrInvalidAction
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return s.loadState(ctx, person, staff)
+}
+
+func (s *Service) resolveStaff(ctx context.Context, rawTag string) (*userModels.Person, *userModels.Staff, error) {
+	normalized := userModels.NormalizeTagID(rawTag)
+	cardCandidate := &userModels.RFIDCard{}
+	cardCandidate.ID = normalized
+	if err := cardCandidate.Validate(); err != nil {
+		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidRFIDTag, err)
+	}
+
+	card, err := s.cards.FindByID(ctx, normalized)
+	if err != nil {
+		return nil, nil, fmt.Errorf("look up RFID card: %w", err)
+	}
+	if card == nil {
+		return nil, nil, ErrRFIDTagNotFound
+	}
+	if !card.Active {
+		return nil, nil, ErrRFIDTagInactive
+	}
+
+	person, err := s.people.FindByTagID(ctx, normalized)
+	if err != nil {
+		if errors.Is(err, usersSvc.ErrPersonNotFound) {
+			return nil, nil, ErrRFIDTagNotFound
+		}
+		return nil, nil, fmt.Errorf("look up person by RFID tag: %w", err)
+	}
+	staff, err := s.people.GetStaffByPersonID(ctx, person.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil, ErrRFIDTagNotStaff
+		}
+		return nil, nil, fmt.Errorf("look up staff for RFID tag: %w", err)
+	}
+	if staff == nil {
+		return nil, nil, ErrRFIDTagNotStaff
+	}
+	return person, staff, nil
+}
+
+func (s *Service) loadState(ctx context.Context, person *userModels.Person, staff *userModels.Staff) (*State, error) {
+	result := &State{
+		StaffID:          staff.ID,
+		StaffName:        person.GetFullName(),
+		State:            StateCheckedOut,
+		AllowedActions:   []string{ActionCheckIn},
+		IsBreakCompliant: true,
+	}
+	session, err := s.workSessions.GetCurrentSession(ctx, staff.ID)
+	if err != nil {
+		return nil, fmt.Errorf("load current work session: %w", err)
+	}
+	if session == nil {
+		today := timezone.DateFromTime(s.currentTime())
+		history, historyErr := s.workSessions.GetHistory(ctx, staff.ID, today, today)
+		if historyErr != nil {
+			return nil, fmt.Errorf("load today's work session: %w", historyErr)
+		}
+		if history != nil && len(history.Sessions) > 0 {
+			todaySession := history.Sessions[0]
+			result.Session = todaySession.WorkSession
+			result.NetMinutes = todaySession.NetMinutes
+			result.BreakMinutes = todaySession.BreakMinutes
+			result.IsBreakCompliant = todaySession.IsBreakCompliant
+			result.RequiredBreakMinutes = activeSvc.EvaluateLaborTime(
+				todaySession.WorkSession,
+				todaySession.Breaks,
+				s.currentTime(),
+			).RequiredBreakMinutes
+		}
+		return result, nil
+	}
+
+	breaks, err := s.workSessions.GetSessionBreaks(ctx, staff.ID, session.ID)
+	if err != nil {
+		return nil, fmt.Errorf("load work session breaks: %w", err)
+	}
+	result.Session = session
+	result.State = StateCheckedIn
+	result.AllowedActions = []string{ActionBreakStart, ActionCheckOut}
+	for _, workBreak := range breaks {
+		if workBreak.IsActive() {
+			result.State = StateOnBreak
+			result.ActiveBreak = workBreak
+			result.AllowedActions = []string{ActionBreakEnd, ActionCheckOut}
+			break
+		}
+	}
+
+	evaluation := activeSvc.EvaluateLaborTime(session, breaks, s.currentTime())
+	result.NetMinutes = evaluation.NetMinutes
+	result.BreakMinutes = evaluation.BreakMinutes
+	result.RequiredBreakMinutes = evaluation.RequiredBreakMinutes
+	result.IsBreakCompliant = evaluation.IsBreakCompliant
+	return result, nil
+}
