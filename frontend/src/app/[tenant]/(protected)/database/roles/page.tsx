@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
@@ -41,9 +41,19 @@ function WarningIcon({ className }: { readonly className?: string }) {
 }
 
 export default function RolesPage() {
+  return (
+    <Suspense fallback={null}>
+      <RolesPageContent />
+    </Suspense>
+  );
+}
+
+function RolesPageContent() {
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 
+  // The query value only selects an already-loaded row; role mutations still
+  // require authenticated backend authorization and explicit confirmation.
   const selectedId = searchParams.get("role");
   const [searchTerm, setSearchTerm] = useState("");
   const isMobile = useIsMobile();

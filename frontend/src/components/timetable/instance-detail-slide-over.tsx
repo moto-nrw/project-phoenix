@@ -34,6 +34,7 @@ import { Button } from "~/components/ui/button";
 import { useModal } from "~/components/dashboard/modal-context";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { OriginChip } from "~/components/ui/origin-chip";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
@@ -49,6 +50,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { parseISODate } from "~/lib/date-helpers";
 import {
   getActivityTypeBadge,
   getGermanWeekdayLong,
@@ -71,6 +73,7 @@ import type {
   InstanceStudentSummary,
   InstanceStatus,
 } from "~/lib/timetable-types";
+import { isNotScheduledRow } from "~/lib/timetable-types";
 
 export type LifecycleAction = "start" | "complete" | "cancel";
 
@@ -136,6 +139,28 @@ function germanFullDate(iso: string): string {
   return `${getGermanWeekdayLong(d)}, ${day}.${month}.${d.getFullYear()}`;
 }
 
+/**
+ * Regeltermin-Herkunftstext für den OriginChip im Slide-Over
+ * (docs/planung-redesign/docs/06-betreuungsplan.md Abschnitt 3.2: "aus
+ * Regeltermin {Titel}, montags 12:00"). Die Instanz trägt keinen separaten
+ * Template-Titel — materialisierte Instanzen erben den Titel des
+ * Regeltermins 1:1 (timetable-helpers.ts Mapper), daher genügt
+ * `instance.title`. Der Wochentag wird aus dem Instanzdatum abgeleitet
+ * (materialisierte Instanzen liegen exakt auf dem Regeltermin-Wochentag)
+ * und als Adverb kleingeschrieben ("Montag" -> "montags").
+ */
+function regelterminOriginLabel(instance: EnrichedInstance): string {
+  const weekdayLong = getGermanWeekdayLong(parseISODate(instance.date));
+  const weekdayAdverb = weekdayLong ? `${weekdayLong.toLowerCase()}s` : "";
+  return [
+    `aus Regeltermin ${instance.title},`,
+    weekdayAdverb,
+    instance.startTime,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 interface StatusBadgeProps {
   status: InstanceStatus;
 }
@@ -192,6 +217,18 @@ function attendanceSubstatusLabel(
   }
 }
 
+/**
+ * Row label for a child the care plan does not place here today (#1747). The
+ * assignment row still says "expected", so labelling it "Erwartet" would
+ * contradict the header count, which leaves the child out.
+ */
+function careDayLabel(status: InstanceStudentSummary["careDayStatus"]): string {
+  return status === "cancelled" ? "Heute abgemeldet" : "Heute nicht eingeplant";
+}
+
+/** Neutral surface for rows grouped as "heute nicht eingeplant". */
+const NOT_SCHEDULED_TONE = "border-gray-200 bg-gray-50 text-gray-600";
+
 function attendanceTone(status: InstanceStudentSummary["status"]): string {
   switch (status) {
     case "present":
@@ -207,6 +244,7 @@ function fallbackStudentRows(studentIds: string[]): InstanceStudentSummary[] {
   return studentIds.map((studentId) => ({
     studentId,
     status: "expected",
+    careDayStatus: "unknown",
   }));
 }
 
@@ -300,7 +338,7 @@ function InstanceStudentsSection({
   students,
 }: Readonly<{
   groupedStudents: Record<
-    InstanceStudentSummary["status"],
+    InstanceStudentSummary["status"] | "notScheduled",
     InstanceStudentSummary[]
   >;
   handleAttendancePatch: (
@@ -321,20 +359,31 @@ function InstanceStudentsSection({
     );
   }
 
+  // The care-day group carries exactly one attendance action: "anwesend", for
+  // the child who is not in care today and turns up anyway (#1747 review).
+  // "abmelden" and "zurücksetzen" stay out — they would write attendance for a
+  // day the counts already treat as not in care.
   const groups = [
-    ["expected", groupedStudents.expected],
-    ["present", groupedStudents.present],
-    ["absent", groupedStudents.absent],
+    { key: "expected", status: "expected", rows: groupedStudents.expected },
+    {
+      key: "not-scheduled",
+      status: "expected",
+      rows: groupedStudents.notScheduled,
+      careDayGroup: true,
+    },
+    { key: "present", status: "present", rows: groupedStudents.present },
+    { key: "absent", status: "absent", rows: groupedStudents.absent },
   ] as const;
 
   return (
     <Section title="Kinder">
       <div className="space-y-3">
-        {groups.map(([status, rows]) => (
+        {groups.map((group) => (
           <StudentGroup
-            key={status}
-            status={status}
-            students={rows}
+            key={group.key}
+            status={group.status}
+            careDayGroup={"careDayGroup" in group}
+            students={group.rows}
             studentNames={studentNames}
             pendingStudentId={pendingStudentId}
             onAttendancePatch={onAttendancePatch}
@@ -378,11 +427,26 @@ export function InstanceDetailSlideOver({
   );
   const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
   const students = useMemo(() => studentsForInstance(instance), [instance]);
+  // Same split the header counts use (#1747): an assignment row still reads
+  // "expected" when the care plan does not place the child here today, so it
+  // gets its own group instead of padding "Erwartet" with children the
+  // expected count — and the staffing maths — deliberately leave out.
   const groupedStudents = useMemo(
     () => ({
-      expected: students.filter((student) => student.status === "expected"),
+      expected: students.filter(
+        (student) =>
+          student.status === "expected" &&
+          !isNotScheduledRow(student.status, student.careDayStatus),
+      ),
+      notScheduled: students.filter((student) =>
+        isNotScheduledRow(student.status, student.careDayStatus),
+      ),
       present: students.filter((student) => student.status === "present"),
-      absent: students.filter((student) => student.status === "absent"),
+      absent: students.filter(
+        (student) =>
+          student.status === "absent" &&
+          !isNotScheduledRow(student.status, student.careDayStatus),
+      ),
     }),
     [students],
   );
@@ -526,6 +590,12 @@ export function InstanceDetailSlideOver({
                   {germanFullDate(instance.date)} • {instance.startTime} –{" "}
                   {instance.endTime}
                 </SlideOverDescription>
+                {instance.activityGroupId && (
+                  <OriginChip
+                    label={regelterminOriginLabel(instance)}
+                    className="mt-1.5"
+                  />
+                )}
               </div>
               <SlideOverCloseButton />
             </div>
@@ -539,8 +609,8 @@ export function InstanceDetailSlideOver({
                   {instance.conflictWarnings.length} Konflikt(e)
                 </div>
                 <ul className="mt-1 space-y-0.5 text-xs text-[#CC2626]">
-                  {instance.conflictWarnings.map((w, i) => (
-                    <li key={i}>• {w.message}</li>
+                  {instance.conflictWarnings.map((warning) => (
+                    <li key={warning.message}>• {warning.message}</li>
                   ))}
                 </ul>
               </div>
@@ -574,6 +644,12 @@ export function InstanceDetailSlideOver({
                   eingetragen
                   {instance.presentStudentsCount > 0
                     ? ` • ${instance.presentStudentsCount} anwesend`
+                    : ""}
+                  {/* Names the gap between the assignment list and the care
+                      plan (#1747) instead of leaving a smaller number
+                      unexplained. */}
+                  {instance.notScheduledStudentsCount > 0
+                    ? ` • ${instance.notScheduledStudentsCount} heute nicht eingeplant`
                     : ""}
                 </Row>
               ) : null}
@@ -626,7 +702,7 @@ export function InstanceDetailSlideOver({
                     className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                   >
                     <UserCog className="h-4 w-4" />
-                    Vertretung regeln
+                    Vertretung bearbeiten
                   </Link>
                 )}
               {instance.status === "planned" && !editDeferred && onEdit && (
@@ -803,6 +879,7 @@ export function InstanceDetailSlideOver({
 
 function StudentGroup({
   status,
+  careDayGroup = false,
   students,
   studentNames,
   pendingStudentId,
@@ -811,6 +888,12 @@ function StudentGroup({
   handleAttendancePatch,
 }: {
   status: InstanceStudentSummary["status"];
+  /**
+   * True for the "not in care today" group: it is labelled by the care-day
+   * verdict rather than the attendance status, and keeps only the "anwesend"
+   * action for a child who turns up anyway (#1747).
+   */
+  careDayGroup?: boolean;
   students: InstanceStudentSummary[];
   studentNames: Map<string, string>;
   pendingStudentId: string | null;
@@ -827,7 +910,11 @@ function StudentGroup({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-[11px] font-bold tracking-wide text-gray-400 uppercase">
-        <span>{attendanceLabel(status, isPlanned)}</span>
+        <span>
+          {careDayGroup
+            ? "Heute nicht eingeplant"
+            : attendanceLabel(status, isPlanned)}
+        </span>
         {showTimetableCounts ? <span>{students.length}</span> : null}
       </div>
       {students.map((student) => {
@@ -837,16 +924,21 @@ function StudentGroup({
         return (
           <div
             key={student.studentId}
-            className={`flex flex-wrap items-center justify-between gap-2 ${NESTED_SURFACE_BASE} px-3 py-2 ${attendanceTone(
-              student.status,
-            )}`}
+            className={`flex flex-wrap items-center justify-between gap-2 ${NESTED_SURFACE_BASE} px-3 py-2 ${
+              // A non-booking is not an attendance outcome: a row that landed
+              // here carrying a status-day 'absent' must not be tinted like a
+              // real absence (#1747).
+              careDayGroup ? NOT_SCHEDULED_TONE : attendanceTone(student.status)
+            }`}
           >
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold text-gray-900">
                 {studentName}
               </div>
               <div className="text-[11px] text-gray-500">
-                {attendanceLabel(student.status, isPlanned)}
+                {careDayGroup
+                  ? careDayLabel(student.careDayStatus)
+                  : attendanceLabel(student.status, isPlanned)}
                 {student.substatus
                   ? ` • ${attendanceSubstatusLabel(student.substatus)}`
                   : ""}
@@ -855,6 +947,14 @@ function StudentGroup({
             </div>
             {onAttendancePatch && (
               <div className="flex shrink-0 items-center gap-1">
+                {/*
+                  A child who is not in care today but turns up anyway is still
+                  checked in from here (#1747 review). The care-day group keeps
+                  only this one action: "anwesend" records what actually
+                  happened and takes the row out of the group, while "abmelden"
+                  and "zurücksetzen" would write attendance for a day the child
+                  was never expected on.
+                */}
                 {!isPlanned && student.status !== "present" && (
                   <IconActionButton
                     icon={<Check className="h-3.5 w-3.5" />}
@@ -870,7 +970,7 @@ function StudentGroup({
                     }
                   />
                 )}
-                {student.status !== "absent" && (
+                {!careDayGroup && student.status !== "absent" && (
                   <IconActionButton
                     icon={<X className="h-3.5 w-3.5" />}
                     label={
@@ -889,7 +989,7 @@ function StudentGroup({
                     }
                   />
                 )}
-                {student.status !== "expected" && (
+                {!careDayGroup && student.status !== "expected" && (
                   <IconActionButton
                     icon={<RotateCcw className="h-3.5 w-3.5" />}
                     label={`Status von ${studentName} zurücksetzen`}

@@ -8,13 +8,13 @@ RUN apk add --no-cache tzdata && \
 # Install dependencies needed for all stages
 FROM base AS deps
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile --prod
 
 # Development dependencies
 FROM base AS dev-deps
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 # Development stage

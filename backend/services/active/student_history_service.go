@@ -25,6 +25,12 @@ type StudentHistoryService interface {
 
 	GetSlotAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*scheduleModels.ScheduledInstanceRow, error)
 
+	// HasPlannedSlotsInRange reports whether the tenant has any planned
+	// (non-walk-in) slot assignment on a non-cancelled instance within the
+	// inclusive date range — the tenant-level signal that the care plan is
+	// in use.
+	HasPlannedSlotsInRange(ctx context.Context, startDate, endDate timezone.Date) (bool, error)
+
 	// RecordDataAccess writes a GDPR data-access log entry.
 	RecordDataAccess(ctx context.Context, entry *auditModels.DataAccessLog) error
 }
@@ -54,6 +60,13 @@ func (s *studentHistoryService) GetSlotAttendanceByStudentAndDateRange(ctx conte
 		return []*scheduleModels.ScheduledInstanceRow{}, nil
 	}
 	return s.slotRepo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, startDate, endDate)
+}
+
+func (s *studentHistoryService) HasPlannedSlotsInRange(ctx context.Context, startDate, endDate timezone.Date) (bool, error) {
+	if s.slotRepo == nil {
+		return false, nil
+	}
+	return s.slotRepo.HasPlannedSlotsInRange(ctx, startDate, endDate)
 }
 
 func (s *studentHistoryService) GetAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*activeModels.Attendance, error) {

@@ -203,7 +203,9 @@ export function BaseCommentAccordion({
                                 dateTime={comment.createdAt}
                                 title={new Date(
                                   comment.createdAt,
-                                ).toLocaleString("de-DE")}
+                                ).toLocaleString("de-DE", {
+                                  timeZone: "Europe/Berlin",
+                                })}
                                 className="text-xs text-gray-400"
                               >
                                 · {getRelativeTime(comment.createdAt)}

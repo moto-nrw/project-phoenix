@@ -21,7 +21,7 @@ func (s *RendererService) Render(doc Document, format Format, filenameBase strin
 	}
 	switch format {
 	case FormatPDF:
-		data, err := renderPDF(doc)
+		data, err := renderPDFDesigned(doc)
 		if err != nil {
 			return File{}, err
 		}
@@ -57,6 +57,8 @@ func DefaultColumnsForPreset(preset Preset) []ColumnID {
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnDeparture, ColumnPlannedPickup, ColumnDailyNotes}
 	case PresetBlankChecklist:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup}
+	case PresetBirthdayList:
+		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnBirthday, ColumnAge}
 	default:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnWeeklyMonday, ColumnWeeklyTuesday, ColumnWeeklyWednesday, ColumnWeeklyThursday, ColumnWeeklyFriday}
 	}
@@ -94,6 +96,8 @@ func ColumnCatalog() map[ColumnID]Column {
 		ColumnContactName:       {ID: ColumnContactName, Label: "Kontakt"},
 		ColumnContactPhone:      {ID: ColumnContactPhone, Label: "Telefonnummer"},
 		ColumnGuardianContacts:  {ID: ColumnGuardianContacts, Label: "Erziehungsberechtigte"},
+		ColumnBirthday:          {ID: ColumnBirthday, Label: "Geburtstag"},
+		ColumnAge:               {ID: ColumnAge, Label: "Alter"},
 	}
 }
 

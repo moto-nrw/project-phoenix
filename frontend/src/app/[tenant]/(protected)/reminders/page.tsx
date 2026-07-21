@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
+import { redirect } from "next/navigation";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
 import { useReminders } from "~/lib/hooks/use-reminders";
-import { useTenantRouter } from "~/lib/tenant-router";
 import type { Reminder } from "~/lib/reminders-api";
 import {
   REMINDER_SECTIONS,
+  reminderKey,
   reminderRelativeLabel,
   reminderToneClass,
 } from "~/lib/reminders-display";
@@ -34,8 +35,8 @@ function ReminderRow({ reminder }: { reminder: Reminder }) {
 }
 
 export default function RemindersPage() {
+  const tenantPath = useTenantAwarePath();
   const { reminders, count, error, isLoading, data } = useReminders();
-  const router = useTenantRouter();
 
   // Feature gate for direct URL entry. The header bell is the only discoverable
   // way here and it hides when the tenant has no reminder type enabled, so the
@@ -46,15 +47,8 @@ export default function RemindersPage() {
   // `enabled`: during the initial load / no-token window `enabled` is falsy too,
   // and redirecting then would bounce users off a page whose feature is on.
   const featureDisabled = data?.enabled === false;
-  useEffect(() => {
-    if (featureDisabled) {
-      router.replace("/dashboard");
-    }
-  }, [featureDisabled, router]);
-
-  // Don't flash the empty state while the redirect is in flight.
   if (featureDisabled) {
-    return null;
+    redirect(tenantPath("/dashboard"));
   }
 
   return (
@@ -105,9 +99,9 @@ export default function RemindersPage() {
                   </span>
                 </div>
                 <ul className="divide-y divide-gray-100">
-                  {items.map((reminder, index) => (
+                  {items.map((reminder) => (
                     <ReminderRow
-                      key={`${reminder.type}-${reminder.student_id ?? reminder.title}-${index}`}
+                      key={reminderKey(reminder)}
                       reminder={reminder}
                     />
                   ))}

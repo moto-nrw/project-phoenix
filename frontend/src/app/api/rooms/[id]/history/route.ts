@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { apiGet, ApiResponseError } from "~/lib/api-helpers.server";
 import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { createLogger } from "~/lib/logger";
 import { ROOM_HISTORY_STATUS_FEATURE_DISABLED } from "~/lib/room-helpers";
 
@@ -55,7 +56,7 @@ function normalizeRangeParam(value: string, boundary: "start" | "end"): string {
  * Custom handler for GET /api/rooms/[id]/history
  * Returns history of a specific room's usage
  */
-export async function GET(request: NextRequest): Promise<NextResponse> {
+async function GETHandler(request: NextRequest): Promise<NextResponse> {
   const session = await auth();
 
   if (!session?.user?.token) {
@@ -132,3 +133,5 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 }
+
+export const GET = withTenantAuth(GETHandler);

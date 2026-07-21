@@ -446,6 +446,7 @@ export default function StaffImportPage() {
         <div className="relative">
           <Alert type="error" message={error} />
           <button
+            type="button"
             onClick={() => setError(null)}
             className="absolute top-1/2 right-4 -translate-y-1/2 text-red-600 hover:text-red-800"
             aria-label="Fehler schließen"
@@ -609,7 +610,7 @@ export default function StaffImportPage() {
             <div className="space-y-2 p-3">
               {previewData.map((staff, idx) => (
                 <div
-                  key={`${staff.row}-${idx}`}
+                  key={staff.row}
                   className="rounded-xl border border-gray-100 bg-white p-3"
                 >
                   <div className="flex items-center gap-3">

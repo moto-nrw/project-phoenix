@@ -618,6 +618,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
         <div data-testid="page-header" data-count={badge?.count}>
           {tabs?.items.map((tab) => (
             <button
+              type="button"
               key={tab.id}
               data-testid={`tab-${tab.id}`}
               data-active={tab.id === tabs.activeTab}
@@ -1439,6 +1440,7 @@ describe("ID-based selection coverage: loadRoomVisits 403 handling", () => {
         <div data-testid="page-header" data-count={badge?.count}>
           {tabs?.items.map((tab) => (
             <button
+              type="button"
               key={tab.id}
               data-testid={`tab-${tab.id}`}
               onClick={() => tabs.onTabChange(tab.id)}

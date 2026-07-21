@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -22,7 +23,7 @@ async function resolveId(context: {
   return encodeURIComponent(raw);
 }
 
-export async function GET(
+async function GETHandler(
   _request: NextRequest,
   context: {
     params: Promise<Record<string, string | string[] | undefined>>;
@@ -54,7 +55,9 @@ export async function GET(
   }
 }
 
-export async function PUT(
+export const GET = withTenantAuth(GETHandler);
+
+async function PUTHandler(
   request: NextRequest,
   context: {
     params: Promise<Record<string, string | string[] | undefined>>;
@@ -115,7 +118,9 @@ export async function PUT(
   }
 }
 
-export async function PATCH(
+export const PUT = withTenantAuth(PUTHandler);
+
+async function PATCHHandler(
   request: NextRequest,
   context: {
     params: Promise<Record<string, string | string[] | undefined>>;
@@ -157,7 +162,9 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
+export const PATCH = withTenantAuth(PATCHHandler);
+
+async function DELETEHandler(
   _request: NextRequest,
   context: {
     params: Promise<Record<string, string | string[] | undefined>>;
@@ -194,3 +201,5 @@ export async function DELETE(
     );
   }
 }
+
+export const DELETE = withTenantAuth(DELETEHandler);

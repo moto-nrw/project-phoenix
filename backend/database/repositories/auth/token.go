@@ -76,6 +76,61 @@ func (r *TokenRepository) FindByTokenForUpdate(ctx context.Context, token string
 	return authToken, nil
 }
 
+// MarkRotated records the successor of a consumed refresh handle. Keeping the
+// handoff in the database lets another frontend process recover an interrupted
+// rotation without accepting arbitrary or unbounded replay.
+func (r *TokenRepository) MarkRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.Token)(nil)).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Set(`rotated_at = ?`, rotatedAt).
+		Set(`replacement_token = ?`, replacementToken).
+		Set(`recovery_proof_hash = ?`, recoveryProofHash).
+		Where(`"token".id = ?`, id).
+		Where(`"token".rotated_at IS NULL`)
+
+	query = base.WithTenantFilter(ctx, query, "token")
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "mark refresh token rotated", Err: err}
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "count rotated refresh tokens", Err: err}
+	}
+	if affected != 1 {
+		return &modelBase.DatabaseError{Op: "mark refresh token rotated", Err: errors.New("refresh token was already rotated or not found")}
+	}
+	return nil
+}
+
+// DeleteExpiredRotatedForAccount removes predecessor rows only after their
+// refresh JWTs expire. Until then they are replay-detection evidence and must
+// remain attributable to their token family.
+func (r *TokenRepository) DeleteExpiredRotatedForAccount(ctx context.Context, accountID int64, now time.Time) error {
+	db := base.GetDB(ctx, r.db)
+	candidates := db.NewSelect().
+		Model((*auth.Token)(nil)).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		ColumnExpr(`"token".id`).
+		Where(`"token".account_id = ?`, accountID).
+		Where(`"token".rotated_at IS NOT NULL`).
+		Where(`"token".expiry <= ?`, now)
+	candidates = base.WithTenantFilter(ctx, candidates, "token").
+		For("UPDATE SKIP LOCKED")
+
+	query := db.NewDelete().
+		Model((*auth.Token)(nil)).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".id IN (?)`, candidates)
+
+	query = base.WithTenantFilter(ctx, query, "token")
+	if _, err := query.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "delete expired rotated account refresh tokens", Err: err}
+	}
+	return nil
+}
+
 // FindByAccountID retrieves all tokens for an account
 func (r *TokenRepository) FindByAccountID(ctx context.Context, accountID int64) ([]*auth.Token, error) {
 	var tokens []*auth.Token
@@ -254,15 +309,18 @@ func (r *TokenRepository) applyExpiredTokenFilter(query *bun.SelectQuery, value 
 	return query
 }
 
-// CleanupOldTokensForAccount keeps only the most recent N tokens for an account
-// This is useful to allow multiple sessions while preventing unlimited token accumulation
+// CleanupOldTokensForAccount keeps only the most recent N active, unexpired
+// sessions for an account. Rotated predecessor rows are recovery metadata and
+// are cleaned separately after their refresh JWTs expire.
 func (r *TokenRepository) CleanupOldTokensForAccount(ctx context.Context, accountID int64, keepCount int) error {
-	// First, get all tokens for the account ordered by creation date (newest first)
+	// First, get all active sessions for the account ordered newest first.
 	var tokens []*auth.Token
 	selectQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(&tokens).
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".account_id = ?`, accountID).
+		Where(`"token".rotated_at IS NULL`).
+		Where(`"token".expiry > ?`, time.Now()).
 		OrderExpr(`"token".id DESC`) // Assuming ID is auto-incrementing, so higher ID = newer
 
 	selectQuery = base.WithTenantFilter(ctx, selectQuery, "token")

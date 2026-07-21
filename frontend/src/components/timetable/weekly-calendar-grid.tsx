@@ -14,10 +14,12 @@
  * positioning by time is the whole point of a week view.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { CapacityStrip } from "~/components/ui/capacity-strip";
 import {
   assignBlockLanes,
+  countPlannedStaff,
   formatDayHeader,
   getCurrentTimeOffset,
   getEventBlockPosition,
@@ -40,6 +42,12 @@ const GRID_COLS_CLASS_WEEK =
   "grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-[64px_repeat(7,minmax(0,1fr))]";
 const GRID_COLS_CLASS_DAY =
   "grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-[64px_minmax(0,1fr)]";
+// Inline-Style-Pendant zu den sm+-Klassen oben (die Tageskopfzeile rendert
+// nur ab sm). Muss mit Gutter-Breite und Spaltenbasis der Klassen-Strings
+// übereinstimmen — bei Änderungen BEIDE Stellen anpassen.
+const SM_TIME_GUTTER_PX = 64;
+const smGridTemplate = (dayCount: number) =>
+  `${SM_TIME_GUTTER_PX}px repeat(${dayCount}, minmax(0,1fr))`;
 
 interface WeeklyCalendarGridProps {
   weekDays: Date[]; // Mo-So (7 dates)
@@ -59,10 +67,25 @@ interface WeeklyCalendarGridProps {
    * renders exactly as before (no extra elements).
    */
   onSlotClick?: (dateISO: string, hour: number) => void;
+  /**
+   * Instanz-IDs offener (nicht quittierter) Personal-Lücken. Ein Block, dessen
+   * ID hier liegt, zeigt das eine Lücken-Status-Icon (Betreuungsplan Abschnitt
+   * 5.1/5.2). Optional und per Default leer: ohne Set zeigt kein Block ein
+   * Lücken-Icon, beide bestehenden Call-Sites bleiben verhaltensgleich.
+   */
+  gapInstanceIds?: ReadonlySet<string>;
   emptyState?: {
     title: string;
     description: string;
   };
+  /**
+   * Betreuungsplan-Tageskopfzeile (06-betreuungsplan.md Abschnitt 3.1): zeigt
+   * pro Wochentagsspalte die eingeplante Personenzahl als CapacityStrip-Zeile
+   * unter dem Sticky-Tagesheader. Default aus (false) — die
+   * Vertretungs-Einzeltagesnutzung dieses Grids bleibt unverändert ohne
+   * Kopfzeile.
+   */
+  showDayHeader?: boolean;
 }
 
 export function WeeklyCalendarGrid({
@@ -75,11 +98,26 @@ export function WeeklyCalendarGrid({
   dayEndHour,
   hourHeightPx,
   onSlotClick,
+  gapInstanceIds,
   emptyState,
+  showDayHeader = false,
 }: WeeklyCalendarGridProps) {
   const gridColsClass =
     weekDays.length === 1 ? GRID_COLS_CLASS_DAY : GRID_COLS_CLASS_WEEK;
-  const grouped = groupInstancesByDate(instances);
+  const grouped = useMemo(() => groupInstancesByDate(instances), [instances]);
+  // Zellen der Tageskopfzeile nur bei Daten-/Wochenwechsel neu ableiten —
+  // nicht bei jedem unabhängigen Re-Render (Popover, Selektion, Modals).
+  const dayHeaderCells = useMemo(
+    () =>
+      showDayHeader
+        ? weekDays.map((day) => {
+            const iso = toISODate(day);
+            const count = countPlannedStaff(grouped.get(iso) ?? []);
+            return { key: iso, content: `${count} P.` };
+          })
+        : [],
+    [showDayHeader, weekDays, grouped],
+  );
   const eventStarts = instances
     .map((instance) => parseTimeToMinutes(instance.startTime))
     .filter((minutes) => Number.isFinite(minutes));
@@ -202,6 +240,23 @@ export function WeeklyCalendarGrid({
         })}
       </div>
 
+      {/* Day-header capacity strip (Betreuungsplan opt-in, 06-betreuungsplan.md
+          Abschnitt 3.1) — sm+ only, matches the desktop day-header columns;
+          on mobile the day strip above already shows one day at a time. */}
+      {showDayHeader && (
+        <div className="hidden sm:block">
+          <CapacityStrip
+            as="div"
+            position="header"
+            stickyLabel={false}
+            labelWidthClassName="w-[64px]"
+            rowLabel=""
+            gridTemplateColumns={smGridTemplate(weekDays.length)}
+            cells={dayHeaderCells}
+          />
+        </div>
+      )}
+
       {/* Scrollable body */}
       <div className="relative max-h-[720px] overflow-y-auto">
         <div className={`grid ${gridColsClass}`}>
@@ -310,6 +365,7 @@ export function WeeklyCalendarGrid({
                       left={`${lane * widthPct}%`}
                       width={`calc(${widthPct}% - 4px)`}
                       isSelected={selectedId === instance.id}
+                      isGap={gapInstanceIds?.has(instance.id) ?? false}
                       onClick={() => onInstanceClick(instance)}
                     />
                   );

@@ -16,6 +16,7 @@ import (
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -174,6 +175,10 @@ func (w *workSessionServiceForSessionUnitTest) SaveCustomScheduleAsTemplate(cont
 	return nil
 }
 
+func (w *workSessionServiceForSessionUnitTest) UpdateSchedule(context.Context, *userModels.Staff, ScheduleUpdateInput) error {
+	return nil
+}
+
 func newSessionSQLMockDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
 	t.Helper()
 	sqlDB, mock, err := sqlmock.New()
@@ -290,6 +295,217 @@ func TestProcessSessionTimeoutByID_ReturnsCheckoutAndEndErrors(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "session end failed")
+	})
+}
+
+// A timed-out session is a session end like any other: the mirrored timetable
+// instance has to be completed through the bridge, or it stays active forever
+// with its expected rows unfinalized (#1747 review). Both timeout entry points
+// (the kiosk /timeout endpoint and the abandoned-session sweep) come through
+// ProcessSessionTimeoutByID, so one guard covers both.
+func TestProcessSessionTimeoutByID_CompletesTimetableMirrorBeforeEndingSession(t *testing.T) {
+	ctx := context.Background()
+	activeGroup := &activeModels.Group{Model: modelBase.Model{ID: 100}}
+
+	newService := func(order *[]string, bridgeErr error) *service {
+		return &service{ServiceDependencies: ServiceDependencies{
+			Logger: slog.Default(),
+			GroupRepo: &mockGroupRepository{
+				findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
+					return activeGroup, nil
+				},
+				endSessionFunc: func(context.Context, int64) error {
+					*order = append(*order, "session")
+					return nil
+				},
+			},
+			VisitRepo: &mockVisitRepository{},
+			TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
+				completeFunc: func(_ context.Context, activeGroupIDs []int64, _ time.Time) (int64, error) {
+					assert.Equal(t, []int64{100}, activeGroupIDs)
+					*order = append(*order, "timetable")
+					return 1, bridgeErr
+				},
+			},
+		}}
+	}
+
+	t.Run("closes the timetable first", func(t *testing.T) {
+		var order []string
+
+		result, err := newService(&order, nil).ProcessSessionTimeoutByID(ctx, 100)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, []string{"timetable", "session"}, order)
+	})
+
+	t.Run("a failing bridge leaves the session open", func(t *testing.T) {
+		var order []string
+
+		result, err := newService(&order, errors.New("bridge down")).ProcessSessionTimeoutByID(ctx, 100)
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "bridge down")
+		assert.Equal(t, []string{"timetable"}, order,
+			"the session must not be ended while its timetable side is unfinished")
+	})
+}
+
+// The abandoned-session sweep calls the timeout path straight from the
+// scheduler, with no request middleware to open a transaction for it. Without
+// one of its own the bridge commits a completed timetable instance and a later
+// failure leaves the session open beside it — a split the next sweep cannot
+// repair, because it only ever sees the still-active session (#1747 review).
+func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
+	ctx := context.Background()
+	activeGroup := &activeModels.Group{Model: modelBase.Model{ID: 100}}
+
+	newService := func(db *bun.DB, endSessionErr error) *service {
+		return &service{ServiceDependencies: ServiceDependencies{
+			Logger: slog.Default(),
+			DB:     db,
+			GroupRepo: &mockGroupRepository{
+				findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
+					return activeGroup, nil
+				},
+				endSessionFunc: func(context.Context, int64) error { return endSessionErr },
+			},
+			VisitRepo: &mockVisitRepository{},
+			TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
+				completeFunc: func(ctx context.Context, _ []int64, _ time.Time) (int64, error) {
+					_, inTx := modelBase.TxFromContext(ctx)
+					assert.True(t, inTx, "the bridge must write inside the timeout transaction")
+					return 1, nil
+				},
+			},
+		}}
+	}
+
+	t.Run("commits both halves together", func(t *testing.T) {
+		db, mock := newSessionSQLMockDB(t)
+		mock.ExpectBegin()
+		mock.ExpectCommit()
+
+		result, err := newService(db, nil).ProcessSessionTimeoutByID(ctx, 100)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("a failing session end takes the bridge write with it", func(t *testing.T) {
+		db, mock := newSessionSQLMockDB(t)
+		mock.ExpectBegin()
+		mock.ExpectRollback()
+
+		result, err := newService(db, errors.New("session end failed")).ProcessSessionTimeoutByID(ctx, 100)
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+// Ending a group by hand is a session end like any other: POST
+// /active/groups/{id}/end has to close the timetable side too, or the linked
+// instance stays active with its expected rows unfinalized — and the nightly
+// bridge never repairs it, because it only looks at active.groups that are
+// still running (#1747 review).
+// newEndGroupService builds the service EndActiveGroupSession is exercised
+// against. sessionEndErr fails GroupRepo.EndSession, i.e. the session end AFTER
+// the bridge has already completed the mirrored instance.
+func newEndGroupService(
+	t *testing.T,
+	order *[]string,
+	group *activeModels.Group,
+	bridgeErr error,
+	sessionEndErr error,
+) *service {
+	t.Helper()
+
+	return &service{ServiceDependencies: ServiceDependencies{
+		Logger: slog.Default(),
+		GroupRepo: &mockGroupRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
+				return group, nil
+			},
+			endSessionFunc: func(context.Context, int64) error {
+				*order = append(*order, "session")
+				return sessionEndErr
+			},
+		},
+		VisitRepo:      &mockVisitRepository{},
+		SupervisorRepo: &mockGroupSupervisorRepository{},
+		TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
+			completeFunc: func(_ context.Context, activeGroupIDs []int64, _ time.Time) (int64, error) {
+				assert.Equal(t, []int64{100}, activeGroupIDs)
+				*order = append(*order, "timetable")
+				return 1, bridgeErr
+			},
+		},
+	}}
+}
+
+func TestEndActiveGroupSession_CompletesTimetableMirrorBeforeEndingSession(t *testing.T) {
+	ctx := context.Background()
+
+	newService := func(order *[]string, group *activeModels.Group, bridgeErr error) *service {
+		return newEndGroupService(t, order, group, bridgeErr, nil)
+	}
+
+	t.Run("closes the timetable first", func(t *testing.T) {
+		var order []string
+
+		err := newService(&order, &activeModels.Group{Model: modelBase.Model{ID: 100}}, nil).
+			EndActiveGroupSession(ctx, 100)
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"timetable", "session"}, order)
+	})
+
+	t.Run("a failing bridge leaves the session open", func(t *testing.T) {
+		var order []string
+
+		err := newService(&order, &activeModels.Group{Model: modelBase.Model{ID: 100}}, errors.New("bridge down")).
+			EndActiveGroupSession(ctx, 100)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "bridge down")
+		assert.Equal(t, []string{"timetable"}, order,
+			"the session must not be ended while its timetable side is unfinished")
+	})
+
+	// The handler renders "already ended" as 4xx and the tenant middleware only
+	// rolls back on its own for 5xx, so a bridge write here would be committed
+	// beside the rejection.
+	t.Run("an already ended group is rejected before the bridge writes", func(t *testing.T) {
+		var order []string
+		endTime := time.Now()
+		ended := &activeModels.Group{Model: modelBase.Model{ID: 100}, EndTime: &endTime}
+
+		err := newService(&order, ended, nil).EndActiveGroupSession(ctx, 100)
+
+		require.ErrorIs(t, err, ErrActiveGroupAlreadyEnded)
+		assert.Empty(t, order)
+	})
+
+	// The bridge has already completed the mirrored instance at this point. The
+	// handler maps most session-end errors to 4xx and the tenant middleware only
+	// rolls back on its own for 5xx, so the service has to ask for the rollback
+	// itself — otherwise a completed instance commits beside an open group.
+	t.Run("a failing session end asks for a rollback", func(t *testing.T) {
+		var order []string
+		rollbackCtx := tenant.WithRollbackMarker(ctx)
+
+		err := newEndGroupService(t, &order, &activeModels.Group{Model: modelBase.Model{ID: 100}}, nil,
+			errors.New("session end refused")).EndActiveGroupSession(rollbackCtx, 100)
+
+		require.Error(t, err)
+		assert.Equal(t, []string{"timetable", "session"}, order)
+		assert.True(t, tenant.RollbackRequested(rollbackCtx),
+			"the completed timetable instance must not commit beside a group that is still open")
 	})
 }
 
@@ -774,7 +990,7 @@ func TestTransferForceStartedActivityState_PropagatesTransferErrors(t *testing.T
 	})
 }
 
-func TestCompleteForceEndedTimetableMirrors_PropagatesRepositoryError(t *testing.T) {
+func TestCompleteTimetableMirrorsForEndedSessions_PropagatesRepositoryError(t *testing.T) {
 	expectedErr := errors.New("bridge update failed")
 	svc := &service{ServiceDependencies: ServiceDependencies{TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
 		completeFunc: func(_ context.Context, activeGroupIDs []int64, _ time.Time) (int64, error) {
@@ -784,10 +1000,10 @@ func TestCompleteForceEndedTimetableMirrors_PropagatesRepositoryError(t *testing
 	}},
 	}
 
-	err := svc.completeForceEndedTimetableMirrors(context.Background(), []int64{10, 20})
+	err := svc.completeTimetableMirrorsForEndedSessions(context.Background(), []int64{10, 20})
 
 	require.ErrorIs(t, err, expectedErr)
-	assert.Contains(t, err.Error(), "complete force-ended timetable mirrors")
+	assert.Contains(t, err.Error(), "complete timetable mirrors for ended sessions")
 }
 
 func TestTransferActiveSupervisorsBetweenGroups_ErrorBranches(t *testing.T) {

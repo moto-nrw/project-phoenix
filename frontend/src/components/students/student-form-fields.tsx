@@ -156,12 +156,18 @@ function TextInput({
   required?: boolean;
   placeholder?: string;
 }>) {
+  const inputId = useId();
+
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-gray-700">
+      <label
+        htmlFor={inputId}
+        className="mb-1 block text-xs font-medium text-gray-700"
+      >
         {label} {required && <span className="text-red-500">*</span>}
       </label>
       <input
+        id={inputId}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}

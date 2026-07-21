@@ -399,60 +399,28 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	var (
-		offerings      []*enrollmentModels.CareOffering
-		selectionMode  = enrollmentModels.PhaseCareOfferingSelectionOptional
-		schoolClassCfg PublicSchoolClassConfig
-		capabilities   enrollmentService.FormCapabilities
-		classErr       error
-	)
+	var data *enrollmentService.PublicFormBootstrapData
 	lateInviteToken := lateInviteTokenFromRequest(r)
 	schoolID, err := rs.resolvePublicTenantID(r.Context(), slug)
 	if err == nil {
 		err = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
-			if rs.RequestService == nil {
-				return errors.New("request service not configured")
-			}
-			// Shared public phase gate: enabled + active + open window, or
-			// a valid late-invite exception for this exact phase.
-			phase, phaseErr := rs.RequestService.LoadPublicPhaseWithLateInvite(txCtx, phaseID, time.Now(), lateInviteToken)
-			if phaseErr != nil {
-				return phaseErr
-			}
-			selectionMode = phase.CareOfferingSelectionMode
-			resolvedCapabilities, capabilityErr := rs.RequestService.FormCapabilities(txCtx)
-			if capabilityErr != nil {
-				// A settings-resolution failure (corrupt override, repo
-				// error) is a server problem, not "not found" — flag it so
-				// the outer handler returns 500 instead of a misleading 404.
-				classErr = capabilityErr
-				return capabilityErr
-			}
-			capabilities = resolvedCapabilities
-			schoolClassCfg = toPublicSchoolClassConfig(phase, capabilities.CollectSchoolClass)
-			if !capabilities.CareOfferingsEnabled {
-				offerings = []*enrollmentModels.CareOffering{}
-				return nil
-			}
-			list, listErr := rs.CareOfferingService.ListActiveByPhase(txCtx, phaseID)
-			offerings = list
-			return listErr
+			loaded, loadErr := rs.RequestService.LoadPublicCareOfferings(txCtx, phaseID, time.Now(), lateInviteToken)
+			data = loaded
+			return loadErr
 		})
 	}
 	if err != nil {
-		if classErr != nil {
-			common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("resolve collect_school_class: %w", classErr)))
-			return
-		}
-		renderPublicEnrollmentError(w, r, err)
+		renderPublicBootstrapError(w, r, err)
 		return
 	}
 
-	items := make([]CareOfferingResponse, 0, len(offerings))
-	for _, o := range offerings {
+	selectionMode := data.Phase.CareOfferingSelectionMode
+	schoolClassCfg := toPublicSchoolClassConfig(data.Phase, data.Capabilities.CollectSchoolClass)
+	items := make([]CareOfferingResponse, 0, len(data.Offerings))
+	for _, o := range data.Offerings {
 		items = append(items, toCareOfferingResponse(o))
 	}
-	capabilities = enrollmentService.EffectiveFormCapabilities(capabilities, offerings)
+	capabilities := enrollmentService.EffectiveFormCapabilities(data.Capabilities, data.Offerings)
 	common.Respond(w, r, http.StatusOK, PublicCareOfferingsResponse{
 		Offerings:                 items,
 		CareOfferingSelectionMode: effectiveCareOfferingSelectionMode(selectionMode, capabilities.CareOfferingsEnabled),
@@ -499,6 +467,25 @@ func renderPublicEnrollmentError(w http.ResponseWriter, r *http.Request, err err
 		return
 	}
 	common.RenderError(w, r, common.ErrorNotFound(err))
+}
+
+// renderPublicBootstrapError maps a public-bootstrap error: a stage error
+// (capability/legal resolution failure) is a server problem rendered as a
+// 500 with the stage-specific wrap; everything else falls through to the
+// public gate mapping (404 + stable codes).
+func renderPublicBootstrapError(w http.ResponseWriter, r *http.Request, err error) {
+	var stageErr *enrollmentService.BootstrapStageError
+	if errors.As(err, &stageErr) {
+		switch stageErr.Stage {
+		case enrollmentService.BootstrapStageCapabilities:
+			common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("resolve collect_school_class: %w", stageErr.Err)))
+			return
+		case enrollmentService.BootstrapStageLegal:
+			common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("resolve legal texts: %w", stageErr.Err)))
+			return
+		}
+	}
+	renderPublicEnrollmentError(w, r, err)
 }
 
 // PublicCareOfferingsResponse wraps the public care-offering catalog with
@@ -626,94 +613,38 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var (
-		phase        *enrollmentModels.Phase
-		schema       *enrollmentModels.FormSchema
-		offerings    []*enrollmentModels.CareOffering
-		texts        enrollmentService.LegalTexts
-		captcha      PublicCaptchaConfigResponse
-		capabilities enrollmentService.FormCapabilities
-		classErr     error
-		legalErr     error
+		data    *enrollmentService.PublicFormBootstrapData
+		captcha PublicCaptchaConfigResponse
 	)
 	lateInviteToken := lateInviteTokenFromRequest(r)
 	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
 	if resolveErr == nil {
 		resolveErr = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
-			// Shared public phase gate: enabled + active + open window, or
-			// a valid late-invite exception for this exact phase.
-			loadedPhase, phaseErr := rs.RequestService.LoadPublicPhaseWithLateInvite(txCtx, phaseID, time.Now(), lateInviteToken)
-			if phaseErr != nil {
-				return phaseErr
+			loaded, loadErr := rs.RequestService.LoadPublicFormBootstrap(txCtx, phaseID, time.Now(), lateInviteToken)
+			if loadErr != nil {
+				return loadErr
 			}
-			phase = loadedPhase
-			resolvedCapabilities, capabilityErr := rs.RequestService.FormCapabilities(txCtx)
-			if capabilityErr != nil {
-				// Settings-resolution failure is a server problem, not "not
-				// found" — flag it so the outer handler returns 500.
-				classErr = capabilityErr
-				return capabilityErr
-			}
-			capabilities = resolvedCapabilities
-			if phase.FormSchemaID != nil {
-				if rs.FormSchemaService == nil {
-					return errors.New("form schema service not configured")
-				}
-				loadedSchema, schemaErr := rs.FormSchemaService.GetByID(txCtx, *phase.FormSchemaID)
-				if schemaErr != nil {
-					if !errors.Is(schemaErr, enrollmentService.ErrFormSchemaNotFound) {
-						return schemaErr
-					}
-					// Stale pinned schema: degrade to Basis/core fields.
-				} else {
-					schema = loadedSchema
-				}
-			}
-			if capabilities.CareOfferingsEnabled {
-				list, listErr := rs.CareOfferingService.ListActiveByPhase(txCtx, phaseID)
-				if listErr != nil {
-					return listErr
-				}
-				offerings = list
-			} else {
-				offerings = []*enrollmentModels.CareOffering{}
-			}
+			data = loaded
 			captcha.Enabled = rs.CaptchaService.IsEnabled(txCtx)
 			captcha.SiteKey = rs.CaptchaService.SiteKey(txCtx)
-			legalTexts, legalTextErr := rs.RequestService.LegalTextsForPhaseWithLateInvite(txCtx, phaseID, lateInviteToken)
-			if legalTextErr != nil {
-				if !errors.Is(legalTextErr, enrollmentService.ErrInvalidSubmission) &&
-					!errors.Is(legalTextErr, enrollmentService.ErrEnrollmentDisabled) &&
-					!errors.Is(legalTextErr, enrollmentService.ErrEnrollmentWindowClosed) &&
-					!errors.Is(legalTextErr, enrollmentService.ErrLateInviteInvalid) {
-					legalErr = legalTextErr
-				}
-				return legalTextErr
-			}
-			texts = legalTexts
 			return nil
 		})
 	}
 	if resolveErr != nil {
-		if classErr != nil {
-			common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("resolve collect_school_class: %w", classErr)))
-			return
-		}
-		if legalErr != nil {
-			common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("resolve legal texts: %w", legalErr)))
-			return
-		}
-		renderPublicEnrollmentError(w, r, resolveErr)
+		renderPublicBootstrapError(w, r, resolveErr)
 		return
 	}
 
-	items := make([]CareOfferingResponse, 0, len(offerings))
-	for _, o := range offerings {
+	items := make([]CareOfferingResponse, 0, len(data.Offerings))
+	for _, o := range data.Offerings {
 		items = append(items, toCareOfferingResponse(o))
 	}
-	capabilities = enrollmentService.EffectiveFormCapabilities(capabilities, offerings)
+	phase := data.Phase
+	texts := data.LegalTexts
+	capabilities := enrollmentService.EffectiveFormCapabilities(data.Capabilities, data.Offerings)
 	common.Respond(w, r, http.StatusOK, PublicEnrollmentFormBootstrapResponse{
 		Phase:                     toPublicPhase(phase),
-		Schema:                    toPublicFormSchemaResponse(schema),
+		Schema:                    toPublicFormSchemaResponse(data.Schema),
 		Offerings:                 items,
 		CareOfferingSelectionMode: effectiveCareOfferingSelectionMode(phase.CareOfferingSelectionMode, capabilities.CareOfferingsEnabled),
 		CareRequired:              capabilities.CareOfferingsEnabled && phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,

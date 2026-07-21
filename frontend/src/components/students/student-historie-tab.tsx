@@ -64,6 +64,7 @@ function formatDateLabel(isoDate: string): string {
   const date = new Date(`${isoDate}T00:00:00`);
   if (Number.isNaN(date.getTime())) return isoDate;
   return date.toLocaleDateString("de-DE", {
+    timeZone: "Europe/Berlin",
     weekday: "long",
     day: "2-digit",
     month: "2-digit",
@@ -75,6 +76,7 @@ function formatTime(isoString: string): string {
   const date = new Date(isoString);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleTimeString("de-DE", {
+    timeZone: "Europe/Berlin",
     hour: "2-digit",
     minute: "2-digit",
   });

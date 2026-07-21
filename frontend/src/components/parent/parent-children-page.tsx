@@ -6,6 +6,7 @@ import { ArrowRight, Users } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { type Child, listMyChildren } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
+import { formatLocalizedDate } from "~/lib/localized-date-format";
 
 const logger = createLogger({ component: "ParentChildrenPage" });
 
@@ -15,11 +16,7 @@ function formatDate(
   empty: string,
 ): string {
   if (!iso) return empty;
-  return new Intl.DateTimeFormat(locale, {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(iso));
+  return formatLocalizedDate(iso, locale);
 }
 
 function formatServiceRange(

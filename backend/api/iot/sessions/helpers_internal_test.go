@@ -26,6 +26,7 @@ type mirrorInstanceRepoStub struct {
 	findByActiveGroupID func(context.Context, int64) (*scheduleModel.ActivityInstance, error)
 	create              func(context.Context, *scheduleModel.ActivityInstance) error
 	markCompleted       func(context.Context, int64, time.Time) error
+	completeActive      func(context.Context, []int64, time.Time) (int64, error)
 }
 
 func (r *mirrorInstanceRepoStub) FindByActiveGroupID(ctx context.Context, activeGroupID int64) (*scheduleModel.ActivityInstance, error) {
@@ -38,6 +39,38 @@ func (r *mirrorInstanceRepoStub) Create(ctx context.Context, inst *scheduleModel
 
 func (r *mirrorInstanceRepoStub) MarkCompleted(ctx context.Context, instanceID int64, completedAt time.Time) error {
 	return r.markCompleted(ctx, instanceID, completedAt)
+}
+
+func (r *mirrorInstanceRepoStub) CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error) {
+	if r.completeActive != nil {
+		return r.completeActive(ctx, activeGroupIDs, completedAt)
+	}
+	return 1, nil
+}
+
+// mirrorInstanceStudentRepoStub is the attendance half the bridge finalizes
+// before an instance may be stamped completed. The mirrored-completion tests
+// only care THAT the bridge runs, so the writes are no-ops.
+type mirrorInstanceStudentRepoStub struct {
+	scheduleModel.InstanceStudentRepository
+}
+
+func (r *mirrorInstanceStudentRepoStub) MarkNotScheduled(context.Context, []scheduleModel.StudentInstanceRef) error {
+	return nil
+}
+
+func (r *mirrorInstanceStudentRepoStub) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time, []scheduleModel.StudentInstanceRef) error {
+	return nil
+}
+
+// mirrorBridge builds the completion bridge the IoT session-end path goes
+// through (#1747): completing the instance without finalizing its attendance
+// first would leave every expected row behind.
+func mirrorBridge(instances scheduleModel.ActivityInstanceRepository) *scheduleSvc.TimetableBridgeService {
+	return scheduleSvc.NewTimetableBridgeService(scheduleSvc.TimetableBridgeDependencies{
+		Instances:        instances,
+		InstanceStudents: &mirrorInstanceStudentRepoStub{},
+	})
 }
 
 type mirrorInstanceStaffRepoStub struct {
@@ -141,43 +174,6 @@ func TestMirrorSessionToTimetableCreatesInstanceStaffAndBroadcasts(t *testing.T)
 	calls := bc.CallsByMethod("tenant")
 	require.Len(t, calls, 1)
 	assert.Equal(t, realtime.EventInstanceStarted, calls[0].Event.Type)
-}
-
-func TestCompleteMirroredTimetableInstanceMarksCompletedAndBroadcasts(t *testing.T) {
-	ctx, drain := tenant.WithAfterCommitHooksForTest(tenant.WithTenantID(context.Background(), 42))
-	activeGroupID := int64(66)
-	inst := &scheduleModel.ActivityInstance{
-		RoomID:        55,
-		Date:          timezone.NewDate(2026, 5, 12),
-		StartTime:     time.Date(2000, 1, 1, 14, 15, 0, 0, time.UTC),
-		ActiveGroupID: &activeGroupID,
-	}
-	inst.ID = 77
-	var completedID int64
-	instanceRepo := &mirrorInstanceRepoStub{
-		findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
-			return inst, nil
-		},
-		markCompleted: func(_ context.Context, instanceID int64, _ time.Time) error {
-			completedID = instanceID
-			return nil
-		},
-	}
-	bc := testpkg.NewRecordingBroadcaster()
-	rs := &Resource{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActivityInstanceRepo: instanceRepo}), Broadcaster: bc}
-
-	rs.completeMirroredTimetableInstance(ctx, activeGroupID)
-
-	assert.Equal(t, int64(77), completedID)
-	assert.Equal(t, scheduleModel.InstanceStatusCompleted, inst.Status)
-	require.NotNil(t, inst.CompletedAt)
-	assert.Empty(t, bc.CallsByMethod("tenant"))
-
-	drain()
-
-	calls := bc.CallsByMethod("tenant")
-	require.Len(t, calls, 1)
-	assert.Equal(t, realtime.EventInstanceCompleted, calls[0].Event.Type)
 }
 
 func TestMirrorHelperFallbacks(t *testing.T) {
@@ -291,43 +287,56 @@ func TestMirrorSessionToTimetableHandlesCreateFailures(t *testing.T) {
 }
 
 func TestCompleteMirroredTimetableInstanceSkipsInvalidAndFailedLookups(t *testing.T) {
+	// Nothing wired and nothing to complete are the two genuine no-ops.
 	rs := &Resource{}
-	rs.completeMirroredTimetableInstance(context.Background(), 0)
-	rs.completeMirroredTimetableInstance(context.Background(), 66)
+	require.NoError(t, rs.completeMirroredTimetableInstance(context.Background(), 0))
+	require.NoError(t, rs.completeMirroredTimetableInstance(context.Background(), 66))
 
-	markCalled := false
+	completeCalled := false
+	repo := &mirrorInstanceRepoStub{
+		findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
+			return nil, errors.New("db down")
+		},
+		completeActive: func(context.Context, []int64, time.Time) (int64, error) {
+			completeCalled = true
+			return 1, nil
+		},
+	}
 	rs = &Resource{
 		TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{
-			ActivityInstanceRepo: &mirrorInstanceRepoStub{
-				findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
-					return nil, errors.New("db down")
-				},
-				markCompleted: func(context.Context, int64, time.Time) error {
-					markCalled = true
-					return nil
-				},
-			},
+			ActivityInstanceRepo: repo,
 		}),
+		TimetableBridge: mirrorBridge(repo),
 	}
-	rs.completeMirroredTimetableInstance(context.Background(), 66)
-	assert.False(t, markCalled)
+	// A failed lookup must surface: the caller rolls the session close back
+	// with it rather than leaving the block running (#1747 review).
+	require.Error(t, rs.completeMirroredTimetableInstance(context.Background(), 66))
+	assert.False(t, completeCalled)
 
-	rs.TimetableData = scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{
-		ActivityInstanceRepo: &mirrorInstanceRepoStub{
-			findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
-				return nil, nil
-			},
-			markCompleted: func(context.Context, int64, time.Time) error {
-				markCalled = true
-				return nil
-			},
+	repo = &mirrorInstanceRepoStub{
+		findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
+			return nil, nil
 		},
+		completeActive: func(context.Context, []int64, time.Time) (int64, error) {
+			completeCalled = true
+			return 1, nil
+		},
+	}
+	rs.TimetableData = scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{
+		ActivityInstanceRepo: repo,
 	})
-	rs.completeMirroredTimetableInstance(context.Background(), 66)
-	assert.False(t, markCalled)
+	rs.TimetableBridge = mirrorBridge(repo)
+	// No mirrored instance for this session: nothing to complete, no error.
+	require.NoError(t, rs.completeMirroredTimetableInstance(context.Background(), 66))
+	assert.False(t, completeCalled)
 }
 
-func TestCompleteMirroredTimetableInstanceStopsWhenMarkCompletedFails(t *testing.T) {
+// Mirroring wired without its completion bridge is a wiring bug, and it fails
+// loudly. Sessions started on this path DO create instances, so a silent skip
+// would leak one permanently active block per kiosk session — and stamping the
+// instance completed instead would leave its attendance unfinalized (#1747
+// review).
+func TestCompleteMirroredTimetableInstanceRequiresBridge(t *testing.T) {
 	activeGroupID := int64(66)
 	inst := &scheduleModel.ActivityInstance{ActiveGroupID: &activeGroupID}
 	inst.ID = 77
@@ -339,16 +348,91 @@ func TestCompleteMirroredTimetableInstanceStopsWhenMarkCompletedFails(t *testing
 					return inst, nil
 				},
 				markCompleted: func(context.Context, int64, time.Time) error {
-					return errors.New("update failed")
+					t.Fatal("the mirrored completion must never bypass the attendance bridge")
+					return nil
 				},
 			},
 		}),
 		Broadcaster: bc,
 	}
 
-	rs.completeMirroredTimetableInstance(context.Background(), activeGroupID)
+	err := rs.completeMirroredTimetableInstance(context.Background(), activeGroupID)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "completion bridge")
+	assert.Empty(t, bc.CallsByMethod("tenant"))
+}
+
+func TestCompleteMirroredTimetableInstanceStopsWhenCompletionFails(t *testing.T) {
+	activeGroupID := int64(66)
+	inst := &scheduleModel.ActivityInstance{ActiveGroupID: &activeGroupID}
+	inst.ID = 77
+	bc := testpkg.NewRecordingBroadcaster()
+	repo := &mirrorInstanceRepoStub{
+		findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
+			return inst, nil
+		},
+		completeActive: func(context.Context, []int64, time.Time) (int64, error) {
+			return 0, errors.New("update failed")
+		},
+	}
+	rs := &Resource{
+		TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{
+			ActivityInstanceRepo: repo,
+		}),
+		TimetableBridge: mirrorBridge(repo),
+		Broadcaster:     bc,
+	}
+
+	// The bridge failing is what must reach the handler: it rolls the RFID
+	// session close back instead of acknowledging a half-closed session.
+	require.Error(t, rs.completeMirroredTimetableInstance(context.Background(), activeGroupID))
 
 	assert.Empty(t, bc.CallsByMethod("tenant"))
+}
+
+// The kiosk's session end finalizes the attendance through the bridge and only
+// then announces the completed instance (#1747 review).
+func TestCompleteMirroredTimetableInstanceGoesThroughBridge(t *testing.T) {
+	activeGroupID := int64(66)
+	inst := &scheduleModel.ActivityInstance{
+		Date:          timezone.NewDate(2026, 5, 11),
+		StartTime:     time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
+		ActiveGroupID: &activeGroupID,
+	}
+	inst.ID = 77
+	bc := testpkg.NewRecordingBroadcaster()
+	var bridged []int64
+	repo := &mirrorInstanceRepoStub{
+		findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
+			return inst, nil
+		},
+		completeActive: func(_ context.Context, ids []int64, _ time.Time) (int64, error) {
+			bridged = ids
+			return 1, nil
+		},
+	}
+	rs := &Resource{
+		TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{
+			ActivityInstanceRepo: repo,
+		}),
+		TimetableBridge: mirrorBridge(repo),
+		Broadcaster:     bc,
+	}
+
+	ctx, drain := tenant.WithAfterCommitHooksForTest(tenant.WithTenantID(context.Background(), 42))
+	require.NoError(t, rs.completeMirroredTimetableInstance(ctx, activeGroupID))
+
+	assert.Equal(t, []int64{activeGroupID}, bridged, "completion must go through the attendance bridge")
+	assert.Equal(t, scheduleModel.InstanceStatusCompleted, inst.Status)
+	require.NotNil(t, inst.CompletedAt)
+	assert.Empty(t, bc.CallsByMethod("tenant"), "mirrored timetable SSE must wait for commit")
+
+	drain()
+
+	calls := bc.CallsByMethod("tenant")
+	require.Len(t, calls, 1)
+	assert.Equal(t, realtime.EventInstanceCompleted, calls[0].Event.Type)
 }
 
 func TestResourceRouterIsWired(t *testing.T) {
@@ -363,8 +447,10 @@ func TestConfigureTimetableMirrorStoresDependencies(t *testing.T) {
 	bc := testpkg.NewRecordingBroadcaster()
 	rs := &Resource{}
 
-	rs.ConfigureTimetableMirror(timetableData, bc)
+	bridge := scheduleSvc.NewTimetableBridgeService(scheduleSvc.TimetableBridgeDependencies{})
+	rs.ConfigureTimetableMirror(timetableData, bridge, bc)
 
 	assert.Same(t, timetableData, rs.TimetableData)
+	assert.Same(t, bridge, rs.TimetableBridge)
 	assert.Same(t, bc, rs.Broadcaster)
 }

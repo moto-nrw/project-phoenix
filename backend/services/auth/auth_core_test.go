@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -249,6 +250,55 @@ func TestAuthService_Login(t *testing.T) {
 	})
 }
 
+func TestAuthService_Login_ConcurrentIssuanceKeepsFiveActiveSessions(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	service := setupAuthService(t, db)
+	email, username := uniqueTestCredentials("concurrent-session-cap")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	for range 5 {
+		_, _, err = service.Login(ctx, email, testPassword)
+		require.NoError(t, err)
+	}
+
+	const concurrency = 8
+	issuers := make([]auth.AuthService, concurrency)
+	for i := range issuers {
+		issuers[i] = setupAuthService(t, db)
+	}
+
+	var barrier sync.WaitGroup
+	barrier.Add(concurrency)
+	results := make(chan error, concurrency)
+	for _, issuer := range issuers {
+		go func() {
+			barrier.Done()
+			barrier.Wait()
+			_, _, loginErr := issuer.Login(ctx, email, testPassword)
+			results <- loginErr
+		}()
+	}
+
+	for range concurrency {
+		require.NoError(t, <-results)
+	}
+
+	activeCount, err := db.NewSelect().
+		TableExpr("auth.tokens").
+		Where("account_id = ?", account.ID).
+		Where("rotated_at IS NULL").
+		Where("expiry > ?", time.Now()).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 5, activeCount, "concurrent issuers must not bypass the session cap")
+}
+
 // =============================================================================
 // ValidateToken Tests
 // =============================================================================
@@ -372,6 +422,171 @@ func TestAuthService_RefreshToken_ConcurrentSingleflight(t *testing.T) {
 		}
 	}
 	assert.Equal(t, concurrency, successes, "all concurrent refresh calls should succeed")
+}
+
+// TestAuthService_RefreshToken_InterruptedRotationRecovery reproduces the
+// tablet/deploy failure from #1938: the backend commits a rotation, but the
+// browser retries with the predecessor because the response/cookie was lost.
+// Recovery must work from persisted lineage, not process-local singleflight.
+func TestAuthService_RefreshToken_InterruptedRotationRecovery(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	serviceBeforeRestart := setupAuthService(t, db)
+	email, username := uniqueTestCredentials("rotation-recovery")
+	account, err := serviceBeforeRestart.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	_, predecessorJWT, err := serviceBeforeRestart.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	recoveryCtx := rotation.WithRecoveryProof(ctx, "independent-recovery-secret")
+	_, firstSuccessorJWT, err := serviceBeforeRestart.RefreshToken(recoveryCtx, predecessorJWT)
+	require.NoError(t, err)
+
+	// A new service instance has empty in-memory singleflight/cache state and
+	// models a frontend/backend process replacement during deployment.
+	serviceAfterRestart := setupAuthService(t, db)
+	accessToken, recoveredRefreshJWT, err := serviceAfterRestart.RefreshToken(recoveryCtx, predecessorJWT)
+	require.NoError(t, err)
+	assert.NotEmpty(t, accessToken)
+	assert.NotEmpty(t, firstSuccessorJWT)
+	assert.NotEmpty(t, recoveredRefreshJWT)
+
+	var generations []int
+	err = db.NewSelect().
+		TableExpr("auth.tokens").
+		Column("generation").
+		Where("account_id = ?", account.ID).
+		OrderExpr("generation ASC").
+		Scan(ctx, &generations)
+	require.NoError(t, err)
+	assert.Equal(t, []int{0, 1}, generations,
+		"recovery must reuse the committed successor instead of rotating again")
+}
+
+func TestAuthService_RefreshToken_InterruptedRotationRecoveryAcrossMultipleHandoffs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	service := setupAuthService(t, db)
+	email, username := uniqueTestCredentials("rotation-multi-hop-recovery")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	_, predecessorJWT, err := service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	firstProofCtx := rotation.WithRecoveryProof(ctx, "first-recovery-secret")
+	_, firstSuccessorJWT, err := service.RefreshToken(firstProofCtx, predecessorJWT)
+	require.NoError(t, err)
+	secondProofCtx := rotation.WithRecoveryProof(ctx, "second-recovery-secret")
+	_, secondSuccessorJWT, err := service.RefreshToken(secondProofCtx, firstSuccessorJWT)
+	require.NoError(t, err)
+
+	accessToken, recoveredRefreshJWT, err := setupAuthService(t, db).RefreshToken(firstProofCtx, predecessorJWT)
+	require.NoError(t, err)
+	assert.NotEmpty(t, accessToken)
+	assert.NotEmpty(t, secondSuccessorJWT)
+	assert.NotEmpty(t, recoveredRefreshJWT)
+
+	var generations []int
+	err = db.NewSelect().
+		TableExpr("auth.tokens").
+		Column("generation").
+		Where("account_id = ?", account.ID).
+		OrderExpr("generation ASC").
+		Scan(ctx, &generations)
+	require.NoError(t, err)
+	assert.Equal(t, []int{0, 1, 2}, generations,
+		"a delayed predecessor must follow the persisted lineage without revoking or rotating it")
+
+	currentCount, err := db.NewSelect().
+		TableExpr("auth.tokens").
+		Where("account_id = ?", account.ID).
+		Where("rotated_at IS NULL").
+		Where("generation = 2").
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, currentCount)
+}
+
+func TestAuthService_RefreshToken_ReplayAfterGraceCommitsFamilyRevocation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := testpkg.TenantContext(1)
+	email, username := uniqueTestCredentials("rotation-replay")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	_, predecessorJWT, err := service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	recoveryCtx := rotation.WithRecoveryProof(ctx, "independent-recovery-secret")
+	_, successorJWT, err := service.RefreshToken(recoveryCtx, predecessorJWT)
+	require.NoError(t, err)
+
+	_, err = db.NewUpdate().
+		Table("auth.tokens").
+		Set("rotated_at = ?", time.Now().Add(-rotation.RecoveryGrace-time.Minute)).
+		Where("account_id = ?", account.ID).
+		Where("rotated_at IS NOT NULL").
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// Rotate the successor after the predecessor leaves the recovery window.
+	// Cleanup must retain the predecessor until its JWT expiry so a later replay
+	// can still revoke the whole family.
+	_, _, err = service.RefreshToken(rotation.WithRecoveryProof(ctx, "successor-recovery-secret"), successorJWT)
+	require.NoError(t, err)
+
+	_, _, err = setupAuthService(t, db).RefreshToken(recoveryCtx, predecessorJWT)
+	require.Error(t, err)
+	var authErr *auth.AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, auth.ErrInvalidToken)
+
+	count, countErr := db.NewSelect().
+		TableExpr("auth.tokens").
+		Where("account_id = ?", account.ID).
+		Count(ctx)
+	require.NoError(t, countErr)
+	assert.Zero(t, count, "replay rejection must commit token-family deletion")
+}
+
+func TestAuthService_RefreshToken_WrongRecoveryProofRevokesFamily(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := testpkg.TenantContext(1)
+	email, username := uniqueTestCredentials("rotation-wrong-proof")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	_, predecessorJWT, err := service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	_, _, err = service.RefreshToken(rotation.WithRecoveryProof(ctx, "independent-recovery-secret"), predecessorJWT)
+	require.NoError(t, err)
+
+	_, _, err = setupAuthService(t, db).RefreshToken(rotation.WithRecoveryProof(ctx, "attacker-does-not-have-the-recovery-secret"), predecessorJWT)
+	require.Error(t, err)
+	var authErr *auth.AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, auth.ErrInvalidToken)
+
+	count, countErr := db.NewSelect().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Count(ctx)
+	require.NoError(t, countErr)
+	assert.Zero(t, count, "failed possession proof must commit token-family revocation")
 }
 
 // =============================================================================

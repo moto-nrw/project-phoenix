@@ -42,7 +42,20 @@ import {
   AdminEnrollmentDetail,
   ChildOfferingAdjustment,
   ChildOfferings,
+  formatPlainDate,
 } from "./admin-enrollment-detail";
+
+describe("formatPlainDate", () => {
+  it("preserves a date-only birthday east of Berlin", () => {
+    const originalTZ = process.env.TZ;
+    process.env.TZ = "Asia/Tokyo";
+    try {
+      expect(formatPlainDate("2015-06-15")).toBe("15.06.2015");
+    } finally {
+      process.env.TZ = originalTZ;
+    }
+  });
+});
 
 function field(
   type: string,

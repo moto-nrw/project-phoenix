@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
@@ -272,7 +273,8 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 	ipAddress := getClientIP(r)
 	userAgent := r.Header.Get(headerUserAgent)
 
-	accessToken, newRefreshToken, err := rs.AuthService.RefreshTokenWithAudit(r.Context(), refreshToken, ipAddress, userAgent)
+	ctx := rotation.WithRecoveryProof(r.Context(), r.Header.Get(rotation.RecoveryProofHeader))
+	accessToken, newRefreshToken, err := rs.AuthService.RefreshTokenWithAudit(ctx, refreshToken, ipAddress, userAgent)
 	if err != nil {
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
@@ -289,6 +291,8 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountInactive))
 			case errors.Is(authErr.Err, authService.ErrTenantNotFound):
 				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantNotFound))
+			case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}

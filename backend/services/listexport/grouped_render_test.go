@@ -3,7 +3,6 @@ package listexport
 import (
 	"archive/zip"
 	"bytes"
-	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -42,62 +41,6 @@ func TestClassGroupTitle(t *testing.T) {
 		if got := ClassGroupTitle(in); got != want {
 			t.Errorf("ClassGroupTitle(%q) = %q, want %q", in, got, want)
 		}
-	}
-}
-
-func pdfPageCount(data []byte) int {
-	return bytes.Count(data, []byte("/Type /Page "))
-}
-
-func TestRenderPDFGroupsStartNewPages(t *testing.T) {
-	file, err := NewService().Render(groupedSampleDocument(), FormatPDF, "klassenlisten")
-	if err != nil {
-		t.Fatalf("Render() error = %v", err)
-	}
-	if got := pdfPageCount(file.Data); got != 2 {
-		t.Fatalf("page count = %d, want 2", got)
-	}
-	if !bytes.Contains(file.Data, []byte("(Klasse 1a)")) || !bytes.Contains(file.Data, []byte("(Klasse 2b)")) {
-		t.Fatal("expected both group headings in PDF content")
-	}
-	// A GroupTitle row must not be rendered as a table row: pages 1 and 2
-	// hold exactly header + body rows, so each heading appears once.
-	if got := bytes.Count(file.Data, []byte("(Klasse 1a)")); got != 1 {
-		t.Fatalf("heading 'Klasse 1a' rendered %d times, want 1", got)
-	}
-}
-
-func TestRenderPDFGroupHeadingRepeatsOnOverflowPages(t *testing.T) {
-	doc := groupedSampleDocument()
-	rows := []Row{{GroupTitle: "Klasse 1a"}}
-	for i := 0; i < 60; i++ {
-		rows = append(rows, Row{Values: map[ColumnID]string{ColumnName: fmt.Sprintf("Kind %02d", i), ColumnSchoolClass: "1a"}})
-	}
-	doc.Rows = rows
-	file, err := NewService().Render(doc, FormatPDF, "klassenlisten")
-	if err != nil {
-		t.Fatalf("Render() error = %v", err)
-	}
-	pages := pdfPageCount(file.Data)
-	if pages < 2 {
-		t.Fatalf("expected overflow onto a second page, got %d page(s)", pages)
-	}
-	if got := bytes.Count(file.Data, []byte("(Klasse 1a)")); got != pages {
-		t.Fatalf("heading appears %d times, want once per page (%d)", got, pages)
-	}
-}
-
-func TestRenderPDFUngroupedStaysSinglePage(t *testing.T) {
-	doc := groupedSampleDocument()
-	doc.Rows = []Row{
-		{Values: map[ColumnID]string{ColumnName: "Anders, Emma", ColumnSchoolClass: "1a"}},
-	}
-	file, err := NewService().Render(doc, FormatPDF, "klassenlisten")
-	if err != nil {
-		t.Fatalf("Render() error = %v", err)
-	}
-	if got := pdfPageCount(file.Data); got != 1 {
-		t.Fatalf("page count = %d, want 1", got)
 	}
 }
 

@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { LOCATION_COLORS } from "~/lib/location-helper";
 
@@ -100,11 +106,9 @@ export function DataTable<T>({
   );
   // If the caller toggles pageSize on/off after mount, snap the visible window
   // back to the new page size so we never strand the user on a stale slice.
-  const lastPageSize = useRef(pageSize);
-  if (lastPageSize.current !== pageSize) {
-    lastPageSize.current = pageSize;
+  useEffect(() => {
     setVisibleCount(pageSize ?? Number.POSITIVE_INFINITY);
-  }
+  }, [pageSize]);
   const visibleRows = useMemo(() => {
     if (visibleCount >= sortedRows.length) return sortedRows;
     return sortedRows.slice(0, visibleCount);
@@ -286,15 +290,25 @@ interface DataTableStatusBadgeProps {
   active: boolean;
   activeLabel?: string;
   inactiveLabel?: string;
+  // Tri-state: when the underlying value is unknown / not disclosed, render a
+  // neutral badge instead of asserting the inactive state.
+  unknown?: boolean;
+  unknownLabel?: string;
 }
 
 export function DataTableStatusBadge({
   active,
   activeLabel = "Aktiv",
   inactiveLabel = "Inaktiv",
+  unknown = false,
+  unknownLabel = "Unbekannt",
 }: Readonly<DataTableStatusBadgeProps>) {
-  const label = active ? activeLabel : inactiveLabel;
-  const color = active ? LOCATION_COLORS.GROUP_ROOM : LOCATION_COLORS.HOME;
+  const label = unknown ? unknownLabel : active ? activeLabel : inactiveLabel;
+  const color = unknown
+    ? LOCATION_COLORS.UNKNOWN
+    : active
+      ? LOCATION_COLORS.GROUP_ROOM
+      : LOCATION_COLORS.HOME;
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-xs font-medium">
       <span

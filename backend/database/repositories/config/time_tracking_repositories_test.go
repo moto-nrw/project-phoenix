@@ -33,7 +33,7 @@ func TestStaffWorkScheduleReplaceSchedule_UsesExclusiveValidUntil(t *testing.T) 
 			WeekIndex:      0,
 			RotationLength: 1,
 		},
-	}))
+	}, timezone.Date{}))
 	require.NoError(t, repo.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{
 		{
 			DayOfWeek:      configModel.DayTuesday,
@@ -41,7 +41,7 @@ func TestStaffWorkScheduleReplaceSchedule_UsesExclusiveValidUntil(t *testing.T) 
 			WeekIndex:      0,
 			RotationLength: 1,
 		},
-	}))
+	}, timezone.Date{}))
 
 	today := timezone.TodayDate()
 	entries, err := repo.GetByStaffIDAndDate(ctx, staff.ID, today)
@@ -68,7 +68,7 @@ func TestStaffWorkScheduleReplaceSchedule_InvalidEntryKeepsCurrentSchedule(t *te
 			WeekIndex:      0,
 			RotationLength: 1,
 		},
-	}))
+	}, timezone.Date{}))
 
 	err := repo.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{
 		{
@@ -77,7 +77,7 @@ func TestStaffWorkScheduleReplaceSchedule_InvalidEntryKeepsCurrentSchedule(t *te
 			WeekIndex:      0,
 			RotationLength: 1,
 		},
-	})
+	}, timezone.Date{})
 	require.Error(t, err)
 
 	entries, err := repo.GetCurrentByStaffID(ctx, staff.ID)
@@ -160,7 +160,7 @@ func TestWorkTimeModelRefreshAssignedStaffSchedules_UpdatesCurrentSnapshots(t *t
 			DayOfWeek:      configModel.DayMonday,
 			TargetMinutes:  300,
 		},
-	}))
+	}, timezone.Date{}))
 	_, err := db.NewUpdate().
 		Table("users.staff").
 		Set("work_time_model_id = ?", model.ID).

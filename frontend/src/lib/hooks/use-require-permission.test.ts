@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 
-const { mockUseSession, mockIsAdmin, mockHasPermission, mockReplace } =
+const { mockUseSession, mockIsAdmin, mockHasPermission, mockRedirect } =
   vi.hoisted(() => ({
     mockUseSession: vi.fn(),
     mockIsAdmin: vi.fn(),
     mockHasPermission: vi.fn(),
-    mockReplace: vi.fn(),
+    mockRedirect: vi.fn(),
   }));
 
 vi.mock("next-auth/react", () => ({
@@ -19,8 +19,12 @@ vi.mock("~/lib/auth-utils", () => ({
     mockHasPermission(...args) as boolean,
 }));
 
-vi.mock("~/lib/tenant-router", () => ({
-  useTenantRouter: () => ({ replace: mockReplace }),
+vi.mock("next/navigation", () => ({
+  redirect: mockRedirect,
+}));
+
+vi.mock("~/lib/tenant-path", () => ({
+  useTenantAwarePath: () => (path: string) => path,
 }));
 
 import { useRequirePermission } from "./use-require-permission";
@@ -39,7 +43,7 @@ describe("useRequirePermission", () => {
 
     expect(result.current.isLoading).toBe(true);
     expect(result.current.isReady).toBe(false);
-    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it("is ready and does not redirect when the user holds the permission", () => {
@@ -53,7 +57,7 @@ describe("useRequirePermission", () => {
 
     expect(result.current.isReady).toBe(true);
     expect(result.current.isLoading).toBe(false);
-    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
     expect(mockHasPermission).toHaveBeenCalledWith(
       { user: { id: "1" } },
       "users:update",
@@ -71,7 +75,7 @@ describe("useRequirePermission", () => {
     const { result } = renderHook(() => useRequirePermission("users:update"));
 
     expect(result.current.isReady).toBe(true);
-    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it("redirects an authenticated user who lacks the permission to /dashboard", () => {
@@ -83,7 +87,7 @@ describe("useRequirePermission", () => {
     const { result } = renderHook(() => useRequirePermission("users:update"));
 
     expect(result.current.isReady).toBe(false);
-    expect(mockReplace).toHaveBeenCalledWith("/dashboard");
+    expect(mockRedirect).toHaveBeenCalledWith("/dashboard");
   });
 
   it("is ready when the user holds any permission of an array", () => {
@@ -101,7 +105,7 @@ describe("useRequirePermission", () => {
     );
 
     expect(result.current.isReady).toBe(true);
-    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it("redirects when the user holds none of the array permissions", () => {
@@ -115,7 +119,7 @@ describe("useRequirePermission", () => {
     );
 
     expect(result.current.isReady).toBe(false);
-    expect(mockReplace).toHaveBeenCalledWith("/dashboard");
+    expect(mockRedirect).toHaveBeenCalledWith("/dashboard");
   });
 
   it("does not redirect while unauthenticated (NextAuth's required:true owns that)", () => {
@@ -127,6 +131,6 @@ describe("useRequirePermission", () => {
     const { result } = renderHook(() => useRequirePermission("users:update"));
 
     expect(result.current.isReady).toBe(false);
-    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 });

@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { apiGet } from "~/lib/api-helpers.server";
 import { createLogger } from "~/lib/logger";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 
 const logger = createLogger({ component: "StudentAttendanceHistoryRoute" });
 
@@ -15,7 +16,7 @@ const logger = createLogger({ component: "StudentAttendanceHistoryRoute" });
  * the audit row. We just forward the request and surface the response
  * shape unchanged so the client can render error codes directly.
  */
-export async function GET(request: NextRequest): Promise<NextResponse> {
+async function GETHandler(request: NextRequest): Promise<NextResponse> {
   const session = await auth();
 
   if (!session?.user?.token) {
@@ -86,3 +87,5 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 }
+
+export const GET = withTenantAuth(GETHandler);

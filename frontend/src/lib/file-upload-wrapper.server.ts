@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "../server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import type { ApiErrorResponse, ApiResponse } from "./api-helpers.server";
 import { handleApiError } from "./api-helpers.server";
 
@@ -102,73 +103,77 @@ export function createFileUploadHandler<T>(
   ) => Promise<T>,
   options?: FileUploadOptions,
 ) {
-  return async (
-    request: NextRequest,
-    context: { params: Promise<Record<string, string | string[] | undefined>> },
-  ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse | T>> => {
-    try {
-      const session = await auth();
-
-      if (!session?.user?.token) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
-
-      // Extract parameters
-      const safeParams: Record<string, unknown> = {};
-
-      const contextParams = await context.params;
-      if (contextParams) {
-        Object.entries(contextParams).forEach(([key, value]) => {
-          if (value !== undefined) {
-            safeParams[key] = value;
-          }
-        });
-      }
-
-      // Get form data
-      const formData = await request.formData();
-
-      // Validate all files in the form data — return the semantically correct
-      // HTTP status (413/415/422) instead of letting validation errors fall
-      // through to the generic 500 handler.
+  return withTenantAuth(
+    async (
+      request,
+      context: {
+        params: Promise<Record<string, string | string[] | undefined>>;
+      },
+    ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse | T>> => {
       try {
-        for (const [, value] of formData.entries()) {
-          if (value instanceof File) {
-            validateFile(value, options ?? {});
-          }
+        const session = await auth();
+
+        if (!session?.user?.token) {
+          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
-      } catch (validationError) {
-        if (validationError instanceof FileValidationError) {
+
+        // Extract parameters
+        const safeParams: Record<string, unknown> = {};
+
+        const contextParams = await context.params;
+        if (contextParams) {
+          Object.entries(contextParams).forEach(([key, value]) => {
+            if (value !== undefined) {
+              safeParams[key] = value;
+            }
+          });
+        }
+
+        // Get form data
+        const formData = await request.formData();
+
+        // Validate all files in the form data — return the semantically correct
+        // HTTP status (413/415/422) instead of letting validation errors fall
+        // through to the generic 500 handler.
+        try {
+          for (const [, value] of formData.entries()) {
+            if (value instanceof File) {
+              validateFile(value, options ?? {});
+            }
+          }
+        } catch (validationError) {
+          if (validationError instanceof FileValidationError) {
+            return NextResponse.json(
+              { error: validationError.message },
+              { status: validationError.status },
+            );
+          }
+          throw validationError;
+        }
+
+        const data = await handler(
+          request,
+          formData,
+          session.user.token,
+          safeParams,
+        );
+
+        // Wrap the response in ApiResponse format if it's not already
+        const response: ApiResponse<T> =
+          typeof data === "object" && data !== null && "success" in data
+            ? (data as unknown as ApiResponse<T>)
+            : { success: true, message: "Success", data };
+
+        return NextResponse.json(response);
+      } catch (error) {
+        if (error instanceof FileValidationError) {
           return NextResponse.json(
-            { error: validationError.message },
-            { status: validationError.status },
+            { error: error.message },
+            { status: error.status },
           );
         }
-        throw validationError;
+        return handleApiError(error);
       }
-
-      const data = await handler(
-        request,
-        formData,
-        session.user.token,
-        safeParams,
-      );
-
-      // Wrap the response in ApiResponse format if it's not already
-      const response: ApiResponse<T> =
-        typeof data === "object" && data !== null && "success" in data
-          ? (data as unknown as ApiResponse<T>)
-          : { success: true, message: "Success", data };
-
-      return NextResponse.json(response);
-    } catch (error) {
-      if (error instanceof FileValidationError) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: error.status },
-        );
-      }
-      return handleApiError(error);
-    }
-  };
+    },
+  );
 }

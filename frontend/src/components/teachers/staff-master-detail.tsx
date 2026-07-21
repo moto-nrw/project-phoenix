@@ -309,6 +309,7 @@ function StaffStammdatenTab({
             {teacher.created_at && (
               <DataField label="Erstellt am">
                 {new Date(teacher.created_at).toLocaleDateString("de-DE", {
+                  timeZone: "Europe/Berlin",
                   day: "2-digit",
                   month: "2-digit",
                   year: "numeric",
@@ -320,6 +321,7 @@ function StaffStammdatenTab({
             {teacher.updated_at && (
               <DataField label="Aktualisiert am">
                 {new Date(teacher.updated_at).toLocaleDateString("de-DE", {
+                  timeZone: "Europe/Berlin",
                   day: "2-digit",
                   month: "2-digit",
                   year: "numeric",

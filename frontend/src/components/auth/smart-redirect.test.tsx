@@ -2,14 +2,10 @@ import { render, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SmartRedirect } from "./smart-redirect";
 
-const mockPush = vi.fn();
-const mockRefresh = vi.fn();
+const { mockRedirect } = vi.hoisted(() => ({ mockRedirect: vi.fn() }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({
-    push: mockPush,
-    refresh: mockRefresh,
-  }),
+  redirect: mockRedirect,
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -63,14 +59,14 @@ describe("SmartRedirect", () => {
     const { container } = render(<SmartRedirect />);
 
     expect(container.firstChild).toBeNull();
+    expect(mockRedirect).toHaveBeenCalledWith("/test-tenant/dashboard");
   });
 
   it("redirects to dashboard when authenticated and ready", async () => {
     render(<SmartRedirect />);
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/test-tenant/dashboard");
-      expect(mockRefresh).toHaveBeenCalled();
+      expect(mockRedirect).toHaveBeenCalledWith("/test-tenant/dashboard");
     });
   });
 
@@ -83,7 +79,7 @@ describe("SmartRedirect", () => {
 
     render(<SmartRedirect />);
 
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it("does not redirect when token is missing", () => {
@@ -95,7 +91,7 @@ describe("SmartRedirect", () => {
 
     render(<SmartRedirect />);
 
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it("does not redirect when not ready", () => {
@@ -106,7 +102,7 @@ describe("SmartRedirect", () => {
 
     render(<SmartRedirect />);
 
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it("calls onRedirect callback instead of router.push when provided", async () => {
@@ -125,7 +121,7 @@ describe("SmartRedirect", () => {
 
     await waitFor(() => {
       expect(onRedirect).toHaveBeenCalledWith("/ogs-groups");
-      expect(mockPush).not.toHaveBeenCalled();
+      expect(mockRedirect).not.toHaveBeenCalled();
     });
   });
 
@@ -143,7 +139,9 @@ describe("SmartRedirect", () => {
     render(<SmartRedirect />);
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/test-tenant/active-supervisions");
+      expect(mockRedirect).toHaveBeenCalledWith(
+        "/test-tenant/active-supervisions",
+      );
     });
   });
 

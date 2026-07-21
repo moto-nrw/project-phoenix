@@ -169,9 +169,10 @@ export default function ParentMessagesPage() {
   // the shared useMessagesActivity hook (eventName override) like OgsConversation
   // does, instead of a hand-rolled addEventListener — one place owns the
   // matching + backgrounded-tab deferral.
+  const refreshThreads = useCallback(() => void load({ silent: true }), [load]);
   useMessagesActivity({
     eventName: "parent-threads-refresh",
-    onMatch: () => void load({ silent: true }),
+    onMatch: refreshThreads,
     // Refetch-only multi-child list (never advances a read cursor), so fire even
     // in a background tab instead of deferring to focus.
     marksRead: false,

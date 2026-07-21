@@ -80,8 +80,16 @@ func (s *TimetableDataService) GetInstanceStudents(ctx context.Context, instance
 	return s.deps.InstanceStudentRepo.FindByInstanceID(ctx, instanceID)
 }
 
-func (s *TimetableDataService) GetExpectedInstanceStudentsByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModel.InstanceStudent, error) {
-	return s.deps.InstanceStudentRepo.FindExpectedByInstanceIDs(ctx, instanceIDs)
+// GetCareDayCandidateStudentsByInstanceIDs returns the rows whose care-day
+// verdict can still change something: rows still 'expected', plus rows a broad
+// day status (sick / excused / class trip) flipped to 'absent' and still owns.
+// The second group matters because ApplyStatusDay runs before anything knows
+// whether the child was booked into care that day, so an unbooked child can
+// already sit there as 'absent' — asking only for 'expected' rows would leave
+// the planner unable to tell that story (#1747). Same candidate set the
+// session-end bridge resolves.
+func (s *TimetableDataService) GetCareDayCandidateStudentsByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModel.InstanceStudent, error) {
+	return s.deps.InstanceStudentRepo.FindNotScheduledCandidatesByInstanceIDs(ctx, instanceIDs)
 }
 
 func (s *TimetableDataService) GetStudentInstancesWithAttendance(ctx context.Context, studentID int64, from, to timezone.Date) ([]*scheduleModel.ScheduledInstanceRow, error) {

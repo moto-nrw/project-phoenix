@@ -99,7 +99,7 @@ describe("FilterPanel", () => {
     );
 
     await waitFor(() => {
-      const panel = screen.getByRole("dialog", { name: "Filter" });
+      const panel = screen.getByRole("region", { name: "Filter" });
       expect(panel).toHaveStyle({ top: "168px" });
       expect(panel).toHaveStyle({ position: "fixed" });
       expect(panel.style.maxHeight).toBe(
@@ -130,7 +130,7 @@ describe("FilterPanel", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByRole("dialog", { name: "Filter" })).toHaveStyle({
+      expect(screen.getByRole("region", { name: "Filter" })).toHaveStyle({
         top: "168px",
       }),
     );
@@ -139,7 +139,7 @@ describe("FilterPanel", () => {
     fireEvent.scroll(window);
 
     await waitFor(() => {
-      const panel = screen.getByRole("dialog", { name: "Filter" });
+      const panel = screen.getByRole("region", { name: "Filter" });
       expect(panel).toHaveStyle({ top: "148px" });
       expect(panel.style.maxHeight).toBe(
         "min(80vh, calc(100dvh - 148px - calc(6rem + env(safe-area-inset-bottom))))",
@@ -638,7 +638,7 @@ describe("FilterPanel", () => {
         />,
       );
 
-      const panel = screen.getByRole("dialog", { name: "Filter" });
+      const panel = screen.getByRole("region", { name: "Filter" });
       expect(panel).toHaveStyle({
         left: "24px",
         top: "88px",
@@ -666,7 +666,7 @@ describe("FilterPanel", () => {
         />,
       );
 
-      expect(screen.getByRole("dialog", { name: "Filter" })).toHaveStyle({
+      expect(screen.getByRole("region", { name: "Filter" })).toHaveStyle({
         position: "fixed",
         left: "48px",
         top: "104px",
@@ -687,7 +687,7 @@ describe("FilterPanel", () => {
         />,
       );
 
-      expect(screen.getByRole("dialog", { name: "Filter" })).toHaveStyle({
+      expect(screen.getByRole("region", { name: "Filter" })).toHaveStyle({
         top: "8px",
       });
     });
@@ -711,7 +711,7 @@ describe("FilterPanel", () => {
         );
 
         // 64px topbar bottom + 8px gap = 72px, not the trigger's negative top.
-        expect(screen.getByRole("dialog", { name: "Filter" })).toHaveStyle({
+        expect(screen.getByRole("region", { name: "Filter" })).toHaveStyle({
           top: "72px",
         });
       } finally {
@@ -720,7 +720,7 @@ describe("FilterPanel", () => {
     });
   });
 
-  it("renders the mobile sheet as a non-modal dialog", () => {
+  it("renders the mobile sheet as a non-modal filter region", () => {
     render(
       <FilterPanel
         isOpen={true}
@@ -730,7 +730,7 @@ describe("FilterPanel", () => {
     );
 
     // Transparent backdrop, page stays interactive — non-modal, no aria-modal.
-    expect(screen.getByRole("dialog", { name: "Filter" })).not.toHaveAttribute(
+    expect(screen.getByRole("region", { name: "Filter" })).not.toHaveAttribute(
       "aria-modal",
     );
   });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Eye, Info, ShieldCheck } from "lucide-react";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
@@ -22,6 +22,14 @@ import {
 } from "~/lib/enrollment-form-schema-api";
 
 export default function EnrollmentPreviewPage() {
+  return (
+    <Suspense fallback={null}>
+      <EnrollmentPreviewPageContent />
+    </Suspense>
+  );
+}
+
+function EnrollmentPreviewPageContent() {
   const searchParams = useSearchParams();
   const schemaId = searchParams.get("schemaId");
   const isBasePreview = searchParams.get("base") === "1";

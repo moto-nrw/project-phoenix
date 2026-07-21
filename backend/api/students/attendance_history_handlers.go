@@ -104,6 +104,9 @@ type attendanceHistorySources struct {
 	Attendance []*active.Attendance
 	Statuses   []*active.StudentStatusDay
 	Slots      []*scheduleModel.ScheduledInstanceRow
+	// SlotExpectation reports whether assignment hints apply to the loaded
+	// range at all (see resolveSlotExpectation).
+	SlotExpectation bool
 }
 
 // getStudentAttendanceHistory returns the daily attendance log and (conditionally)
@@ -175,32 +178,12 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 
 	// 6. Conditionally load visits for days within the room-detail cap
 	roomCutoff := today.AddDate(0, 0, -(roomCap - 1))
-	visitsByDate := map[string][]*active.Visit{}
-	visitQueryFailed := false
-	if roomCap > 0 && !start.After(endOfToday) {
-		visitStart := start
-		if roomCutoff.After(visitStart) {
-			visitStart = roomCutoff
-		}
-		visits, visitErr := rs.StudentHistoryService.GetVisitsByStudentAndTimeRange(ctx, student.ID, visitStart, end)
-		if visitErr != nil {
-			logger.Warn("visit history query failed, falling back to attendance-only",
-				slog.Int64("student_id", student.ID),
-				slog.String("error", visitErr.Error()),
-			)
-			visitQueryFailed = true
-		} else {
-			for _, v := range visits {
-				key := timezone.DateOf(v.EntryTime).Format("2006-01-02")
-				visitsByDate[key] = append(visitsByDate[key], v)
-			}
-		}
-	}
+	visitsByDate, visitQueryFailed := rs.loadRoomVisitsByDate(ctx, student.ID, start, end, endOfToday, roomCutoff, roomCap, logger)
 
 	// 7. Assemble per-day response
 	days := buildAttendanceHistoryDays(sources.Attendance, sources.Statuses, visitsByDate, roomCutoff, visitQueryFailed)
 	days = attachSlotAttendance(days, sources.Slots, visitsByDate, roomCutoff, visitQueryFailed)
-	days = attachUnassignedAttendance(days)
+	days = attachUnassignedAttendance(days, sources.SlotExpectation)
 
 	resp := attendanceHistoryResponse{
 		StudentID: strconv.FormatInt(student.ID, 10),
@@ -236,7 +219,74 @@ func (rs *Resource) loadAttendanceHistorySources(
 		}
 	}
 	sources.Slots, err = rs.StudentHistoryService.GetSlotAttendanceByStudentAndDateRange(ctx, studentID, from, to)
+	if err != nil {
+		return sources, err
+	}
+	sources.SlotExpectation, err = rs.resolveSlotExpectation(ctx, sources.Slots, from, to)
 	return sources, err
+}
+
+// loadRoomVisitsByDate loads the per-day room movement timeline for the days
+// inside the room-detail cap and groups it by calendar date. It returns the
+// empty map when room detail is disabled (roomCap <= 0) or the requested range
+// is entirely in the future; the second return reports whether the visit query
+// failed, in which case the caller falls back to attendance-only days.
+func (rs *Resource) loadRoomVisitsByDate(
+	ctx context.Context, studentID int64, start, end, endOfToday, roomCutoff time.Time, roomCap int, logger *slog.Logger,
+) (map[string][]*active.Visit, bool) {
+	visitsByDate := map[string][]*active.Visit{}
+	if roomCap <= 0 || start.After(endOfToday) {
+		return visitsByDate, false
+	}
+	visitStart := start
+	if roomCutoff.After(visitStart) {
+		visitStart = roomCutoff
+	}
+	visits, err := rs.StudentHistoryService.GetVisitsByStudentAndTimeRange(ctx, studentID, visitStart, end)
+	if err != nil {
+		logger.Warn("visit history query failed, falling back to attendance-only",
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+		return visitsByDate, true
+	}
+	for _, v := range visits {
+		key := timezone.DateOf(v.EntryTime).Format("2006-01-02")
+		visitsByDate[key] = append(visitsByDate[key], v)
+	}
+	return visitsByDate, false
+}
+
+// resolveSlotExpectation reports whether assignment hints — the synthetic
+// "Ohne Zuordnung" history entries and the export's offering/assignment
+// columns — apply to the requested range. A planned slot row of the student
+// answers it directly; otherwise the tenant-wide check decides, so a student
+// without a single booking still gets the hint at a school that maintains its
+// care plan (their observed sessions ARE valid unassigned cases there).
+// Walk-in rows (is_unplanned) never count as plan evidence: a spontaneous
+// drop-in also happens at schools that plan nothing.
+func (rs *Resource) resolveSlotExpectation(
+	ctx context.Context, slots []*scheduleModel.ScheduledInstanceRow, from, to timezone.Date,
+) (bool, error) {
+	if hasPlannedSlotRow(slots) {
+		return true, nil
+	}
+	return rs.StudentHistoryService.HasPlannedSlotsInRange(ctx, from, to)
+}
+
+// hasPlannedSlotRow reports whether any usable slot row (instance and
+// attendance present) carries a planned booking. Walk-ins are excluded on
+// purpose — see resolveSlotExpectation. Cancelled instances are excluded too:
+// their instance_students rows survive the cancellation, but a booking on a
+// cancelled-only occurrence is no usable slot to report assignments against.
+func hasPlannedSlotRow(slots []*scheduleModel.ScheduledInstanceRow) bool {
+	for _, row := range slots {
+		if row != nil && row.Instance != nil && row.Attendance != nil &&
+			!row.Attendance.IsUnplanned && row.Instance.Status != scheduleModel.InstanceStatusCancelled {
+			return true
+		}
+	}
+	return false
 }
 
 // attendanceHistoryLogger returns a scoped logger, falling back to slog.Default.
@@ -319,62 +369,90 @@ func clampAttendanceHistoryRange(start, end, endOfToday time.Time, attendanceCap
 // If visitQueryFailed is true, all days are marked as RoomDetailAvailable=false
 // because the visit data could not be loaded.
 func buildAttendanceHistoryDays(rows []*active.Attendance, statusRows []*active.StudentStatusDay, visitsByDate map[string][]*active.Visit, roomCutoff time.Time, visitQueryFailed bool) []attendanceHistoryDay {
-	// Preserve insertion order while grouping by date.
+	dayMap, dayOrder := groupAttendanceRowsByDate(rows)
+	dayOrder = appendStatusDays(dayMap, dayOrder, statusRows)
+
+	sort.SliceStable(dayOrder, func(i, j int) bool {
+		return dayOrder[i] > dayOrder[j]
+	})
+
+	return assembleAttendanceHistoryDays(dayMap, dayOrder, visitsByDate, roomCutoff, visitQueryFailed)
+}
+
+// groupAttendanceRowsByDate groups attendance rows by calendar date, preserving
+// first-seen order in dayOrder. Multiple rows on the same day are consolidated
+// into one attendance record (see mergeAttendanceRow).
+func groupAttendanceRowsByDate(rows []*active.Attendance) (map[string]*attendanceHistoryDay, []string) {
 	dayOrder := make([]string, 0, len(rows))
 	dayMap := make(map[string]*attendanceHistoryDay, len(rows))
 
 	for _, row := range rows {
 		dateKey := row.Date.String()
-
 		existing, seen := dayMap[dateKey]
 		if !seen {
-			day := &attendanceHistoryDay{
-				Date: dateKey,
-				Attendance: &attendanceDayRecord{
-					CheckInTime:  row.CheckInTime,
-					CheckOutTime: row.CheckOutTime,
-					CheckedInBy:  row.CheckedInBy,
-					CheckedOutBy: row.CheckedOutBy,
-					DeviceID:     row.DeviceID,
-					Sessions:     []attendanceSessionRecord{newAttendanceSession(row)},
-				},
-				StatusEntries: []attendanceStatusEntry{},
-				Visits:        []attendanceVisitEntry{},
-				Slots:         []attendanceSlotEntry{},
-			}
-			dayMap[dateKey] = day
+			dayMap[dateKey] = newAttendanceHistoryDay(dateKey, row)
 			dayOrder = append(dayOrder, dateKey)
-		} else {
-			existing.Attendance.Sessions = append(existing.Attendance.Sessions, newAttendanceSession(row))
-			// Consolidate: earliest check-in wins.
-			if row.CheckInTime.Before(existing.Attendance.CheckInTime) {
-				existing.Attendance.CheckInTime = row.CheckInTime
-				existing.Attendance.CheckedInBy = row.CheckedInBy
-				existing.Attendance.DeviceID = row.DeviceID
-			}
-			// Latest check-out wins (nil means still checked in, which takes precedence).
-			if existing.Attendance.CheckOutTime != nil {
-				if row.CheckOutTime == nil {
-					existing.Attendance.CheckOutTime = nil
-					existing.Attendance.CheckedOutBy = nil
-				} else if row.CheckOutTime.After(*existing.Attendance.CheckOutTime) {
-					existing.Attendance.CheckOutTime = row.CheckOutTime
-					existing.Attendance.CheckedOutBy = row.CheckedOutBy
-				}
-			}
+			continue
 		}
+		mergeAttendanceRow(existing.Attendance, row)
 	}
+	return dayMap, dayOrder
+}
 
+func newAttendanceHistoryDay(dateKey string, row *active.Attendance) *attendanceHistoryDay {
+	day := newEmptyAttendanceHistoryDay(dateKey)
+	day.Attendance = &attendanceDayRecord{
+		CheckInTime:  row.CheckInTime,
+		CheckOutTime: row.CheckOutTime,
+		CheckedInBy:  row.CheckedInBy,
+		CheckedOutBy: row.CheckedOutBy,
+		DeviceID:     row.DeviceID,
+		Sessions:     []attendanceSessionRecord{newAttendanceSession(row)},
+	}
+	return day
+}
+
+func newEmptyAttendanceHistoryDay(dateKey string) *attendanceHistoryDay {
+	return &attendanceHistoryDay{
+		Date:          dateKey,
+		StatusEntries: []attendanceStatusEntry{},
+		Visits:        []attendanceVisitEntry{},
+		Slots:         []attendanceSlotEntry{},
+	}
+}
+
+// mergeAttendanceRow folds an additional same-day attendance row into an
+// existing record: earliest check-in wins, latest check-out wins, and a nil
+// check-out (still checked in) takes precedence over any completed one.
+func mergeAttendanceRow(rec *attendanceDayRecord, row *active.Attendance) {
+	rec.Sessions = append(rec.Sessions, newAttendanceSession(row))
+	if row.CheckInTime.Before(rec.CheckInTime) {
+		rec.CheckInTime = row.CheckInTime
+		rec.CheckedInBy = row.CheckedInBy
+		rec.DeviceID = row.DeviceID
+	}
+	if rec.CheckOutTime == nil {
+		return
+	}
+	if row.CheckOutTime == nil {
+		rec.CheckOutTime = nil
+		rec.CheckedOutBy = nil
+		return
+	}
+	if row.CheckOutTime.After(*rec.CheckOutTime) {
+		rec.CheckOutTime = row.CheckOutTime
+		rec.CheckedOutBy = row.CheckedOutBy
+	}
+}
+
+// appendStatusDays attaches status entries (sick/excused) to their day,
+// creating a status-only day when no attendance row exists for that date.
+func appendStatusDays(dayMap map[string]*attendanceHistoryDay, dayOrder []string, statusRows []*active.StudentStatusDay) []string {
 	for _, row := range statusRows {
 		dateKey := row.Date.String()
 		day, seen := dayMap[dateKey]
 		if !seen {
-			day = &attendanceHistoryDay{
-				Date:          dateKey,
-				StatusEntries: []attendanceStatusEntry{},
-				Visits:        []attendanceVisitEntry{},
-				Slots:         []attendanceSlotEntry{},
-			}
+			day = newEmptyAttendanceHistoryDay(dateKey)
 			dayMap[dateKey] = day
 			dayOrder = append(dayOrder, dateKey)
 		}
@@ -385,12 +463,12 @@ func buildAttendanceHistoryDays(rows []*active.Attendance, statusRows []*active.
 			ClearedAt:  row.ClearedAt,
 		})
 	}
+	return dayOrder
+}
 
-	sort.SliceStable(dayOrder, func(i, j int) bool {
-		return dayOrder[i] > dayOrder[j]
-	})
-
-	// Calculate durations and attach visits.
+// assembleAttendanceHistoryDays materializes the ordered days, computing each
+// day's duration and attaching room-detail visits within the retention cutoff.
+func assembleAttendanceHistoryDays(dayMap map[string]*attendanceHistoryDay, dayOrder []string, visitsByDate map[string][]*active.Visit, roomCutoff time.Time, visitQueryFailed bool) []attendanceHistoryDay {
 	days := make([]attendanceHistoryDay, 0, len(dayOrder))
 	for _, dateKey := range dayOrder {
 		day := dayMap[dateKey]
@@ -509,10 +587,16 @@ func attachSlotAttendance(
 // matched to a concrete slot. This is intentional in binary mode when zero or
 // multiple booked slots overlap: the session stays neutrally unassigned
 // instead of the system guessing an offering (or claiming it was unbooked).
-func attachUnassignedAttendance(days []attendanceHistoryDay) []attendanceHistoryDay {
+//
+// Synthetic entries appear only when expectSlots is true — the caller resolves
+// it tenant-wide via resolveSlotExpectation. Without any planned slot there is
+// nothing a session could have been assigned to, so "Ohne Zuordnung" would
+// label every single day of a school that does not keep a care plan — a
+// permanent error state for a system working as configured.
+func attachUnassignedAttendance(days []attendanceHistoryDay, expectSlots bool) []attendanceHistoryDay {
 	for dayIndex := range days {
 		day := &days[dayIndex]
-		if day.Attendance != nil {
+		if expectSlots && day.Attendance != nil {
 			coverages := slotEntryCoverages(day.Slots)
 			for sessionIndex, session := range day.Attendance.Sessions {
 				if sessionCoveredBySlots(coverages, session.CheckInTime) {

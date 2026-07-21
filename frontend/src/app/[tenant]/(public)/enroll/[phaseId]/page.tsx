@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { Suspense, use, useEffect, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- public page; tenant-router not needed
 import { useRouter, useSearchParams } from "next/navigation";
 import { CalendarDays, Check, Mail, ShieldCheck } from "lucide-react";
@@ -38,6 +38,14 @@ interface PageProps {
  * enforces the same tenant setting as submission validation.
  */
 export default function EnrollPhaseFormPage({ params }: PageProps) {
+  return (
+    <Suspense fallback={null}>
+      <EnrollPhaseFormPageContent params={params} />
+    </Suspense>
+  );
+}
+
+function EnrollPhaseFormPageContent({ params }: PageProps) {
   const t = useTranslations("enrollmentPublic");
   const locale = useLocale();
   const { phaseId } = use(params);
@@ -222,6 +230,7 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
 
 function formatDate(value: string, locale: string): string {
   return new Date(value).toLocaleDateString(locale, {
+    timeZone: "Europe/Berlin",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -230,6 +239,7 @@ function formatDate(value: string, locale: string): string {
 
 function formatDateTime(value: string, locale: string): string {
   return new Date(value).toLocaleString(locale, {
+    timeZone: "Europe/Berlin",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

@@ -7,6 +7,10 @@
 // shortfall instead of an open gap. Clearing (ack=false) also clears the note.
 // Permission: SchedulesManage — same as the lifecycle mutations. Runs in the
 // shared tenant tx.
+//
+// The past-block guard, day-lock, and concurrent-move detection live in
+// InstanceService.AcknowledgeUnderstaffed; the handler only validates the note
+// shape and shapes the response.
 package timetable
 
 import (
@@ -17,8 +21,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // understaffedAckRequest is the POST body shape. Note is trimmed to the same
@@ -86,77 +88,9 @@ func (rs *Resource) acknowledgeUnderstaffed(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	// Past blocks are historical record and read-only, exactly as on the
-	// /deviations flow (which guards the same way, mirrors /substitute and
-	// /gaps). Status alone is insufficient: a materialized past occurrence can
-	// still be "planned"/"active", so the service's status-only check would
-	// otherwise let a historical staffing record be rewritten (set OR cleared)
-	// through this public endpoint. Gate on the Berlin calendar date. The nil
-	// check only keeps the mock-based handler unit tests (which inject no data
-	// service) working — TimetableData is always wired in production.
-	if rs.TimetableData != nil {
-		instance, err := rs.TimetableData.GetActivityInstance(r.Context(), id)
-		if err != nil {
-			if base.IsNoRows(err) {
-				common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
-				return
-			}
-			common.RenderError(w, r, common.ErrorInternalServerWrap("load instance failed", err))
-			return
-		}
-		if instance != nil {
-			if instance.Date.Before(timezone.TodayDate()) {
-				common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("block date is in the past")))
-				return
-			}
-			// Serialize with substitute/deviation saves on the same (tenant, date)
-			// before validating and writing the acknowledgement. Without this lock a
-			// standalone ack=true can validate the block as understaffed while a
-			// concurrent /substitute save (which has already loaded
-			// understaffed_ack=false) is adding coverage: the ack then commits after
-			// the coverage lands, leaving a fully-staffed block still flagged
-			// acknowledged — the exact contradictory state SetUnderstaffedAck rejects
-			// synchronously. Both /substitute and /deviations take this same day lock,
-			// so taking it here serializes all three. Released when the tenant tx ends.
-			if err := rs.TimetableData.AcquireSubstituteDayLock(r.Context(), instance.Date); err != nil {
-				common.RenderError(w, r, common.ErrorInternalServerWrap("lock day failed", err))
-				return
-			}
-			// Re-read under the lock. The past-date guard above ran against a
-			// possibly-stale read: a concurrent PUT /instances/{id} may have MOVED
-			// the block to another day between that read and this lock. We now hold
-			// the lock for the ORIGINAL date, so a move to a past day would bypass
-			// the historical-record guard, and a move to another future day would
-			// leave this acknowledgement unsynchronized with staffing mutations on
-			// the day we actually hold. Detect a move (or a concurrent
-			// cancel/complete) and reject so the client reopens it on its new day,
-			// mirroring /deviations (#1840).
-			locked, err := rs.TimetableData.GetActivityInstance(r.Context(), id)
-			if err != nil {
-				if base.IsNoRows(err) {
-					common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
-					return
-				}
-				common.RenderError(w, r, common.ErrorInternalServerWrap("reload instance failed", err))
-				return
-			}
-			if locked == nil {
-				common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
-				return
-			}
-			if locked.Date != instance.Date {
-				common.RenderError(w, r, common.ErrorConflictWithCode(
-					errors.New("block was changed concurrently; reopen it and try again"),
-					"instance_moved",
-				))
-				return
-			}
-		}
-	}
-
-	instance, err := rs.InstanceService.SetUnderstaffedAck(r.Context(), id, *req.Ack, req.Note, resolveActorAccountID(r.Context()))
+	instance, err := rs.InstanceService.AcknowledgeUnderstaffed(r.Context(), id, *req.Ack, req.Note, resolveActorAccountID(r.Context()))
 	if err != nil {
-		renderInstanceLifecycleError(w, r, err)
+		renderDeviationError(w, r, err)
 		return
 	}
 

@@ -43,8 +43,8 @@ export function Tooltip({
         tabIndex={0}
         aria-describedby={id}
         className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
-        onKeyDown={(e) => {
-          if (e.key === "Escape") e.currentTarget.blur();
+        onKeyDown={(event) => {
+          if (event.key === "Escape") event.currentTarget.blur();
         }}
       >
         {children}

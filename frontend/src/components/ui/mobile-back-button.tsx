@@ -25,6 +25,7 @@ export function MobileBackButton({
 
   return (
     <button
+      type="button"
       onClick={() => (globalThis.location.href = href)}
       className="relative z-10 mb-3 flex items-center gap-2 text-gray-600 transition-colors duration-200 hover:text-gray-900"
       aria-label={ariaLabel}

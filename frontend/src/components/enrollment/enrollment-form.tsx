@@ -43,6 +43,10 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { createLogger } from "~/lib/logger";
 import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
 import {
+  copyStableObjectKey,
+  getStableObjectKey,
+} from "~/lib/stable-object-key";
+import {
   availableCareOfferings,
   careOfferingIsAvailable,
 } from "~/lib/care-offering-availability";
@@ -638,7 +642,11 @@ export function EnrollmentForm({
     setAdditionalGuardians((prev) => [...prev, blankGuardian()]);
   const updateGuardian = (index: number, patch: Partial<GuardianDraft>) =>
     setAdditionalGuardians((prev) =>
-      prev.map((g, i) => (i === index ? { ...g, ...patch } : g)),
+      prev.map((guardian, i) =>
+        i === index
+          ? copyStableObjectKey(guardian, { ...guardian, ...patch })
+          : guardian,
+      ),
     );
   const removeGuardian = (index: number) =>
     setAdditionalGuardians((prev) => prev.filter((_, i) => i !== index));
@@ -1362,7 +1370,7 @@ export function EnrollmentForm({
 
         {additionalGuardians.map((g, i) => (
           <div
-            key={i}
+            key={getStableObjectKey(g, "additional-guardian")}
             className="space-y-5 rounded-xl border border-gray-200 bg-white p-3 sm:p-4"
           >
             <div className="flex items-center justify-between gap-3">
@@ -3373,7 +3381,11 @@ function PhoneListInput({
   const phoneTypeLabels = asStringMap(tr.raw("phoneTypes"));
   const update = (next: PhoneEntry[]) => onChange(next);
   const setRow = (idx: number, patch: Partial<PhoneEntry>) =>
-    update(phones.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
+    update(
+      phones.map((phone, i) =>
+        i === idx ? copyStableObjectKey(phone, { ...phone, ...patch }) : phone,
+      ),
+    );
   return (
     <fieldset
       className={`rounded-2xl border bg-gray-50/70 p-4 ${error ? "border-[#FF3130]" : "border-gray-200"}`}
@@ -3396,7 +3408,7 @@ function PhoneListInput({
       <ul className="space-y-2">
         {phones.map((p, idx) => (
           <li
-            key={idx}
+            key={getStableObjectKey(p, "phone")}
             className="moto-content-surface grid items-end gap-3 rounded-xl border p-3 shadow-sm md:grid-cols-[minmax(0,1fr)_180px_auto_auto]"
           >
             <label className="block">
@@ -3441,10 +3453,12 @@ function PhoneListInput({
               checked={Boolean(p.is_primary)}
               onChange={() =>
                 update(
-                  phones.map((row, i) => ({
-                    ...row,
-                    is_primary: i === idx,
-                  })),
+                  phones.map((row, i) =>
+                    copyStableObjectKey(row, {
+                      ...row,
+                      is_primary: i === idx,
+                    }),
+                  ),
                 )
               }
               label={tr("structured.primary")}
@@ -4369,7 +4383,13 @@ function ContactListInput({
   const contacts = asContactArray(value);
   const update = (next: ContactEntryValue[]) => onChange(next);
   const setRow = (idx: number, patch: Partial<ContactEntryValue>) =>
-    update(contacts.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
+    update(
+      contacts.map((contact, i) =>
+        i === idx
+          ? copyStableObjectKey(contact, { ...contact, ...patch })
+          : contact,
+      ),
+    );
   return (
     <fieldset
       className={`rounded-2xl border bg-white p-4 shadow-sm ${error ? "border-[#FF3130]" : "border-gray-200"}`}
@@ -4392,7 +4412,7 @@ function ContactListInput({
       <ul className="space-y-3">
         {contacts.map((c, idx) => (
           <li
-            key={idx}
+            key={getStableObjectKey(c, "contact")}
             className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4"
           >
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

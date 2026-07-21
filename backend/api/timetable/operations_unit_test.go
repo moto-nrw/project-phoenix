@@ -21,6 +21,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -32,6 +33,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 func TestOperationsPlannedNow(t *testing.T) {
@@ -170,14 +172,14 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 	})
 
 	require.Equal(t, http.StatusCreated, rr.Code)
-	require.NotNil(t, instanceSvc.lastCreate)
-	assert.Equal(t, roomID, instanceSvc.lastCreate.RoomID)
-	require.NotNil(t, instanceSvc.lastCreate.ActivityGroupID)
-	assert.Equal(t, int64(71), *instanceSvc.lastCreate.ActivityGroupID)
-	require.NotNil(t, instanceSvc.lastCreate.IsSpontaneous)
-	assert.True(t, *instanceSvc.lastCreate.IsSpontaneous)
-	assert.Equal(t, []int64{321, 320}, instanceSvc.lastCreate.StaffIDs)
-	assert.Empty(t, instanceSvc.lastCreate.StudentIDs)
+	require.NotNil(t, service.lastSpontaneousInput)
+	assert.Equal(t, roomID, service.lastSpontaneousInput.RoomID)
+	require.NotNil(t, service.lastSpontaneousInput.ActivityGroupID)
+	assert.Equal(t, int64(71), *service.lastSpontaneousInput.ActivityGroupID)
+	require.NotNil(t, service.lastSpontaneousInput.IsSpontaneous)
+	assert.True(t, *service.lastSpontaneousInput.IsSpontaneous)
+	assert.Equal(t, []int64{321, 320}, service.lastSpontaneousInput.StaffIDs)
+	assert.Empty(t, service.lastSpontaneousInput.StudentIDs)
 	assert.Equal(t, int64(241), service.lastInstanceID)
 	assert.Contains(t, rr.Body.String(), `"active_group_id":341`)
 }
@@ -203,32 +205,35 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 
 	createdInstance := &schedule.ActivityInstance{Status: schedule.InstanceStatusPlanned}
 	createdInstance.ID = 244
+	// Start fails non-5xx: the real service's Start delegates to InstanceService.Start,
+	// which returns Schulhof (→ 409). The Create write made just before must roll back.
 	instanceSvc := &rollbackProbeInstanceService{
-		mockInstanceService: &mockInstanceService{},
+		mockInstanceService: &mockInstanceService{startErr: scheduleSvc.ErrSchulhofSupervisionRequired},
 		create: func(ctx context.Context, _ scheduleSvc.CreateInstanceInput) (*schedule.ActivityInstance, error) {
 			require.NoError(t, guardianRepo.Create(ctx, probe))
 			require.Greater(t, probe.ID, int64(0), "probe write must happen inside the tenant transaction")
 			return createdInstance, nil
 		},
 	}
-	operationsSvc := &fakeOperationsService{err: scheduleSvc.ErrSchulhofSupervisionRequired}
+	personSvc := &userstest.PersonServiceMock{
+		FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
+			person := &userModels.Person{}
+			person.ID = 224
+			return person, nil
+		},
+		GetStaffByPersonIDFn: func(_ context.Context, _ int64) (*userModels.Staff, error) {
+			staff := &userModels.Staff{}
+			staff.ID = 324
+			return staff, nil
+		},
+	}
+	settings := &fakeOperationSettingsService{hasOverride: true, boolValue: true}
 	res := NewResource(Dependencies{
 		InstanceService:   instanceSvc,
-		OperationsService: operationsSvc,
+		OperationsService: newRealSpontaneousOpsService(db, instanceSvc, personSvc, settings),
 		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
-		PersonService: &userstest.PersonServiceMock{
-			FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
-				person := &userModels.Person{}
-				person.ID = 224
-				return person, nil
-			},
-			GetStaffByPersonIDFn: func(_ context.Context, _ int64) (*userModels.Staff, error) {
-				staff := &userModels.Staff{}
-				staff.ID = 324
-				return staff, nil
-			},
-		},
-		SettingsService: &fakeOperationSettingsService{hasOverride: true, boolValue: true},
+		PersonService:     personSvc,
+		SettingsService:   settings,
 	})
 
 	router := chi.NewRouter()
@@ -277,11 +282,13 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 			_ = guardianRepo.Delete(testpkg.TenantContext(1), createProbe.ID)
 		}
 	})
+	// Create now fails non-5xx before Start is reached; the wrapping in
+	// SpontaneousCreateError keeps the create-specific 400 mapping, and the
+	// activity-resolution write must roll back.
 	instanceSvc.create = func(ctx context.Context, _ scheduleSvc.CreateInstanceInput) (*schedule.ActivityInstance, error) {
 		require.NoError(t, guardianRepo.Create(ctx, createProbe))
 		return nil, fmt.Errorf("%w: invalid staff_ids", scheduleSvc.ErrInvalidInstanceReference)
 	}
-	operationsSvc.err = nil
 
 	rr = execute()
 
@@ -342,9 +349,9 @@ func TestOperationsCreateAndStartSpontaneousReusesActivityByName(t *testing.T) {
 	})
 
 	require.Equal(t, http.StatusCreated, rr.Code)
-	require.NotNil(t, instanceSvc.lastCreate)
-	require.NotNil(t, instanceSvc.lastCreate.ActivityGroupID)
-	assert.Equal(t, int64(72), *instanceSvc.lastCreate.ActivityGroupID)
+	require.NotNil(t, service.lastSpontaneousInput)
+	require.NotNil(t, service.lastSpontaneousInput.ActivityGroupID)
+	assert.Equal(t, int64(72), *service.lastSpontaneousInput.ActivityGroupID)
 	assert.Equal(t, "freispiel", groupRepo.lastFindByName)
 	assert.Nil(t, groupRepo.createdGroup, "existing activity should be reused, not recreated")
 }
@@ -395,8 +402,9 @@ func TestOperationsCreateAndStartSpontaneousCreatesActivityForNewName(t *testing
 	assert.Equal(t, "Neue Werkstatt", groupRepo.createdGroup.Name)
 	assert.Equal(t, int64(910), groupRepo.createdGroup.CategoryID)
 	assert.Equal(t, int64(322), *groupRepo.createdGroup.CreatedBy)
-	require.NotNil(t, instanceSvc.lastCreate.ActivityGroupID)
-	assert.Equal(t, int64(73), *instanceSvc.lastCreate.ActivityGroupID)
+	require.NotNil(t, service.lastSpontaneousInput)
+	require.NotNil(t, service.lastSpontaneousInput.ActivityGroupID)
+	assert.Equal(t, int64(73), *service.lastSpontaneousInput.ActivityGroupID)
 }
 
 func TestServerSpontaneousActivityWindowUsesBerlinServerTime(t *testing.T) {
@@ -442,7 +450,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsStudents(t *testing.T) {
 func TestOperationsCreateAndStartSpontaneousRejectsSchulhofRoom(t *testing.T) {
 	const schulhofRoomID int64 = 42
 
-	instanceSvc := &mockInstanceService{}
+	service := &fakeOperationsService{}
 	res := NewResource(Dependencies{
 		TimetableData: operationTimetableData(scheduleSvc.TimetableDataDependencies{
 			ActiveGroupRepo: &fakeOperationActiveGroupRepo{},
@@ -450,8 +458,8 @@ func TestOperationsCreateAndStartSpontaneousRejectsSchulhofRoom(t *testing.T) {
 				room: &facilitiesModels.Room{Name: constants.SchulhofRoomName},
 			},
 		}),
-		InstanceService:   instanceSvc,
-		OperationsService: &fakeOperationsService{},
+		InstanceService:   &mockInstanceService{},
+		OperationsService: service,
 		SettingsService: &fakeOperationSettingsService{
 			hasOverride: true,
 			boolValue:   true,
@@ -466,14 +474,14 @@ func TestOperationsCreateAndStartSpontaneousRejectsSchulhofRoom(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
 	assert.Contains(t, rr.Body.String(), `"code":"schulhof_supervision_required"`)
-	assert.Nil(t, instanceSvc.lastCreate, "Schulhof must be rejected before creating a spontaneous instance")
+	assert.Nil(t, service.lastSpontaneousInput, "Schulhof must be rejected before creating a spontaneous instance")
 }
 
 func TestOperationsCreateAndStartSpontaneousRejectsOccupiedRoom(t *testing.T) {
-	instanceSvc := &mockInstanceService{}
+	service := &fakeOperationsService{}
 	res := NewResource(Dependencies{
-		InstanceService:   instanceSvc,
-		OperationsService: &fakeOperationsService{},
+		InstanceService:   &mockInstanceService{},
+		OperationsService: service,
 		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{hasRoomConflict: true}}),
 		SettingsService: &fakeOperationSettingsService{
 			hasOverride: true,
@@ -491,15 +499,15 @@ func TestOperationsCreateAndStartSpontaneousRejectsOccupiedRoom(t *testing.T) {
 	})
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
-	assert.Nil(t, instanceSvc.lastCreate, "occupied rooms must be rejected before creating an instance")
+	assert.Nil(t, service.lastSpontaneousInput, "occupied rooms must be rejected before creating an instance")
 }
 
 func TestOperationsCreateAndStartSpontaneousRequiresSetting(t *testing.T) {
-	instanceSvc := &mockInstanceService{}
+	service := &fakeOperationsService{}
 	res := NewResource(Dependencies{
 		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
-		InstanceService:   instanceSvc,
-		OperationsService: &fakeOperationsService{},
+		InstanceService:   &mockInstanceService{},
+		OperationsService: service,
 		SettingsService: &fakeOperationSettingsService{
 			hasOverride: true,
 			boolValue:   false,
@@ -516,15 +524,15 @@ func TestOperationsCreateAndStartSpontaneousRequiresSetting(t *testing.T) {
 	})
 
 	assert.Equal(t, http.StatusForbidden, rr.Code)
-	assert.Nil(t, instanceSvc.lastCreate, "disabled web spontaneous activities must not create instances")
+	assert.Nil(t, service.lastSpontaneousInput, "disabled web spontaneous activities must not create instances")
 }
 
 func TestOperationsCreateAndStartSpontaneousRejectsFixedScheduleCareConcept(t *testing.T) {
-	instanceSvc := &mockInstanceService{}
+	service := &fakeOperationsService{}
 	res := NewResource(Dependencies{
 		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
-		InstanceService:   instanceSvc,
-		OperationsService: &fakeOperationsService{},
+		InstanceService:   &mockInstanceService{},
+		OperationsService: service,
 		SettingsService: &fakeOperationSettingsService{
 			hasOverride: true,
 			boolValue:   true,
@@ -542,7 +550,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsFixedScheduleCareConcept(t *t
 	})
 
 	assert.Equal(t, http.StatusForbidden, rr.Code)
-	assert.Nil(t, instanceSvc.lastCreate, "fixed schedule must not create spontaneous instances")
+	assert.Nil(t, service.lastSpontaneousInput, "fixed schedule must not create spontaneous instances")
 }
 
 func TestOperationsCapabilities(t *testing.T) {
@@ -752,14 +760,15 @@ type fakeOperationsService struct {
 	patchRow *scheduleSvc.OperationRosterRow
 	err      error
 
-	lastAccountID      int64
-	lastIsAdmin        bool
-	lastDate           timezone.Date
-	lastPlannedOptions scheduleSvc.PlannedNowOptions
-	lastInstanceID     int64
-	lastActiveGroupID  int64
-	lastStudentID      int64
-	lastPatch          schedule.AttendanceFieldPatch
+	lastAccountID        int64
+	lastIsAdmin          bool
+	lastDate             timezone.Date
+	lastPlannedOptions   scheduleSvc.PlannedNowOptions
+	lastInstanceID       int64
+	lastActiveGroupID    int64
+	lastStudentID        int64
+	lastPatch            schedule.AttendanceFieldPatch
+	lastSpontaneousInput *scheduleSvc.CreateInstanceInput
 }
 
 type fakeOperationActiveGroupRepo struct {
@@ -782,6 +791,78 @@ func operationTimetableData(deps scheduleSvc.TimetableDataDependencies) *schedul
 		deps.RoomRepo = &fakeOperationRoomRepo{room: &facilitiesModels.Room{Name: "Lernraum"}}
 	}
 	return scheduleSvc.NewTimetableDataService(deps)
+}
+
+// Embedding stubs used to satisfy NewTimetableOperationsService's non-nil
+// dependency check when building a REAL operations service for the spontaneous
+// create+start rollback test. Only InstanceService, PersonService, Settings,
+// ActiveGroupRepo, ActivityGroupRepo and RoomRepo are exercised by that flow;
+// the rest exist solely to pass the constructor and panic if wrongly called.
+type stubOpInstanceRepo struct {
+	schedule.ActivityInstanceRepository
+}
+type stubOpInstanceStaffRepo struct {
+	schedule.InstanceStaffRepository
+}
+type stubOpInstanceStudentRepo struct {
+	schedule.InstanceStudentRepository
+}
+type stubOpSupervisorRepo struct {
+	activeModels.GroupSupervisorRepository
+}
+type stubOpVisitRepo struct{ activeModels.VisitRepository }
+type stubOpStudentRepo struct{ userModels.StudentRepository }
+type stubOpEducationGroupRepo struct {
+	educationModels.GroupRepository
+}
+
+type stubOpActiveService struct{}
+
+func (stubOpActiveService) CreateVisit(context.Context, *activeModels.Visit) error { return nil }
+func (stubOpActiveService) EndVisit(context.Context, int64) error                  { return nil }
+
+type stubOpArrivalService struct{}
+
+func (stubOpArrivalService) GetBulkEffectiveArrivalTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*scheduleSvc.EffectiveArrivalTime, error) {
+	return nil, nil
+}
+
+// stubOpCareDayService reports no care-plan verdicts, i.e. "unknown" for every
+// child — the rosters and counts below therefore behave exactly as they did
+// before the care-day derivation (#1747) existed.
+type stubOpCareDayService struct{}
+
+func (stubOpCareDayService) ResolveForDate(context.Context, []int64, timezone.Date) (map[int64]scheduleSvc.CareDayStatus, error) {
+	return map[int64]scheduleSvc.CareDayStatus{}, nil
+}
+
+func (stubOpCareDayService) ResolveForRange(context.Context, []int64, timezone.Date, timezone.Date) (map[int64]map[timezone.Date]scheduleSvc.CareDayStatus, error) {
+	return map[int64]map[timezone.Date]scheduleSvc.CareDayStatus{}, nil
+}
+
+// newRealSpontaneousOpsService wires a production timetableOperationsService so
+// the handler exercises the real CreateAndStartSpontaneous (Create + Start +
+// MarkRollback), not a fake.
+func newRealSpontaneousOpsService(db *bun.DB, instanceSvc scheduleSvc.InstanceService, personSvc scheduleSvc.OperationPersonService, settings scheduleSvc.OperationSettings) scheduleSvc.TimetableOperationsService {
+	return scheduleSvc.NewTimetableOperationsService(scheduleSvc.TimetableOperationsDependencies{
+		InstanceRepo:       stubOpInstanceRepo{},
+		InstanceStaffRepo:  stubOpInstanceStaffRepo{},
+		InstanceStudents:   stubOpInstanceStudentRepo{},
+		InstanceService:    instanceSvc,
+		ActiveGroupRepo:    &fakeOperationActiveGroupRepo{},
+		ActivityGroupRepo:  &fakeOperationActivityGroupRepo{},
+		ActiveService:      stubOpActiveService{},
+		ArrivalService:     stubOpArrivalService{},
+		CareDayService:     stubOpCareDayService{},
+		SupervisorRepo:     stubOpSupervisorRepo{},
+		VisitRepo:          stubOpVisitRepo{},
+		StudentRepo:        stubOpStudentRepo{},
+		EducationGroupRepo: stubOpEducationGroupRepo{},
+		RoomRepo:           &fakeOperationRoomRepo{room: &facilitiesModels.Room{Name: "Lernraum"}},
+		PersonService:      personSvc,
+		Settings:           settings,
+		DB:                 db,
+	})
 }
 
 func (r *fakeOperationRoomRepo) FindByID(_ context.Context, _ interface{}) (*facilitiesModels.Room, error) {
@@ -894,6 +975,20 @@ func (s *fakeOperationsService) Start(_ context.Context, accountID int64, isAdmi
 	s.lastIsAdmin = isAdmin
 	s.lastInstanceID = instanceID
 	return s.start, s.err
+}
+
+func (s *fakeOperationsService) CreateAndStartSpontaneous(_ context.Context, accountID int64, isAdmin bool, in scheduleSvc.CreateInstanceInput) (*scheduleSvc.StartInstanceResult, error) {
+	s.lastAccountID = accountID
+	s.lastIsAdmin = isAdmin
+	inCopy := in
+	s.lastSpontaneousInput = &inCopy
+	if s.err != nil {
+		return nil, s.err
+	}
+	if s.start != nil {
+		s.lastInstanceID = s.start.Instance.ID
+	}
+	return s.start, nil
 }
 
 func (s *fakeOperationsService) Complete(_ context.Context, accountID int64, isAdmin bool, instanceID int64) (*schedule.ActivityInstance, error) {

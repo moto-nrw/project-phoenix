@@ -161,61 +161,33 @@ func (rs *Resource) createManualApprovedEnrollment(w http.ResponseWriter, r *htt
 		common.RenderError(w, r, common.ErrorInvalidRequest(parseErr))
 		return
 	}
-	serviceReq.SkipRateLimit = true
-	serviceReq.AllowClosedPhase = true
-	serviceReq.SuppressSubmissionEmails = true
-	serviceReq.ExternalConsentConfirmed = true
-	serviceReq.SubmissionSource = enrollmentModels.RequestSourceAdminManual
-	serviceReq.SourceMetadata = map[string]any{
-		"external_consent_confirmed": true,
-		"admin_reason":               reason,
-		"send_notification":          body.SendNotification,
-		"actor_account_id":           actorID,
-	}
 
-	var (
-		submitResult *enrollmentService.SubmitResult
-		outcome      *enrollmentService.DecideOutcome
-	)
+	var result *enrollmentService.ManualApprovedEnrollmentResult
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
-		submitted, submitErr := rs.RequestService.Submit(ctx, serviceReq)
-		if submitErr != nil {
-			return submitErr
-		}
-		if len(submitted.Children) != 1 {
-			return fmtInvalidManualEnrollmentChildCount(len(submitted.Children))
-		}
-		decided, decideErr := rs.DecisionService.Decide(ctx, enrollmentService.DecideInput{
-			RequestID:                  submitted.Request.ID,
-			ChildID:                    submitted.Children[0].ID,
-			Status:                     enrollmentService.DecisionApproved,
-			Reason:                     reason,
-			ReviewedBy:                 actorID,
-			SuppressParentEmail:        !body.SendNotification,
-			SuppressGuardianInvitation: !body.SendNotification,
+		out, createErr := rs.RequestService.CreateManualApprovedEnrollment(ctx, enrollmentService.ManualApprovedEnrollmentInput{
+			Request:          serviceReq,
+			Reason:           reason,
+			SendNotification: body.SendNotification,
+			ActorID:          actorID,
 		})
-		if decideErr != nil {
-			return decideErr
-		}
-		submitResult = submitted
-		outcome = decided
-		return nil
+		result = out
+		return createErr
 	})
 	if err != nil {
 		mapManualEnrollmentError(w, r, err)
 		return
 	}
 
-	if outcome != nil && outcome.PendingInvite != nil && rs.GuardianInvitationService != nil {
-		go rs.dispatchPostDecisionInvite(r.Context(), outcome.PendingInvite)
+	if result.PendingInvite != nil && rs.GuardianInvitationService != nil {
+		go rs.dispatchPostDecisionInvite(r.Context(), result.PendingInvite)
 	}
 
-	child := outcome.Child
+	child := result.Child
 	resp := AdminManualApprovedEnrollmentResponse{
-		RequestID: strconv.FormatInt(submitResult.Request.ID, 10),
+		RequestID: strconv.FormatInt(result.Request.ID, 10),
 		ChildID:   strconv.FormatInt(child.ID, 10),
 		Status:    child.Status,
-		StatusURL: submitResult.StatusURL,
+		StatusURL: result.StatusURL,
 	}
 	if child.CreatedStudentID != nil {
 		resp.StudentID = strconv.FormatInt(*child.CreatedStudentID, 10)
@@ -233,49 +205,11 @@ func (rs *Resource) getManualEnrollmentBootstrap(w http.ResponseWriter, r *http.
 		return
 	}
 
-	var (
-		phase        *enrollmentModels.Phase
-		schema       *enrollmentModels.FormSchema
-		offerings    []*enrollmentModels.CareOffering
-		texts        enrollmentService.LegalTexts
-		capabilities enrollmentService.FormCapabilities
-	)
+	var data *enrollmentService.PublicFormBootstrapData
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
-		loadedPhase, phaseErr := rs.RequestService.LoadManualEnrollmentPhase(ctx, phaseID)
-		if phaseErr != nil {
-			return phaseErr
-		}
-		phase = loadedPhase
-		resolvedCapabilities, capabilityErr := rs.RequestService.FormCapabilities(ctx)
-		if capabilityErr != nil {
-			return capabilityErr
-		}
-		capabilities = resolvedCapabilities
-		if phase.FormSchemaID != nil {
-			loadedSchema, schemaErr := rs.FormSchemaService.GetByID(ctx, *phase.FormSchemaID)
-			if schemaErr != nil {
-				if !errors.Is(schemaErr, enrollmentService.ErrFormSchemaNotFound) {
-					return schemaErr
-				}
-			} else {
-				schema = loadedSchema
-			}
-		}
-		if capabilities.CareOfferingsEnabled {
-			list, listErr := rs.CareOfferingService.ListActiveByPhase(ctx, phaseID)
-			if listErr != nil {
-				return listErr
-			}
-			offerings = list
-		} else {
-			offerings = []*enrollmentModels.CareOffering{}
-		}
-		legalTexts, legalErr := rs.RequestService.LegalTextsForManualEnrollmentPhase(ctx, phaseID)
-		if legalErr != nil {
-			return legalErr
-		}
-		texts = legalTexts
-		return nil
+		loaded, loadErr := rs.RequestService.LoadManualEnrollmentBootstrap(ctx, phaseID)
+		data = loaded
+		return loadErr
 	})
 	if err != nil {
 		switch {
@@ -288,14 +222,16 @@ func (rs *Resource) getManualEnrollmentBootstrap(w http.ResponseWriter, r *http.
 		return
 	}
 
-	items := make([]CareOfferingResponse, 0, len(offerings))
-	for _, o := range offerings {
+	phase := data.Phase
+	texts := data.LegalTexts
+	items := make([]CareOfferingResponse, 0, len(data.Offerings))
+	for _, o := range data.Offerings {
 		items = append(items, toCareOfferingResponse(o))
 	}
-	capabilities = enrollmentService.EffectiveFormCapabilities(capabilities, offerings)
+	capabilities := enrollmentService.EffectiveFormCapabilities(data.Capabilities, data.Offerings)
 	common.Respond(w, r, http.StatusOK, PublicEnrollmentFormBootstrapResponse{
 		Phase:                     toPublicPhase(phase),
-		Schema:                    toPublicFormSchemaResponse(schema),
+		Schema:                    toPublicFormSchemaResponse(data.Schema),
 		Offerings:                 items,
 		CareOfferingSelectionMode: effectiveCareOfferingSelectionMode(phase.CareOfferingSelectionMode, capabilities.CareOfferingsEnabled),
 		CareRequired:              capabilities.CareOfferingsEnabled && phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
@@ -317,10 +253,6 @@ func (rs *Resource) getManualEnrollmentBootstrap(w http.ResponseWriter, r *http.
 			Blocks:              texts.Blocks,
 		},
 	}, "Manual enrollment bootstrap retrieved")
-}
-
-func fmtInvalidManualEnrollmentChildCount(count int) error {
-	return errors.New("manual approved enrollment produced " + strconv.Itoa(count) + " children")
 }
 
 func mapLateInviteAdminError(w http.ResponseWriter, r *http.Request, err error) {

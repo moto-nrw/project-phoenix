@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "SwitchTenantRoute" });
@@ -9,7 +10,7 @@ const logger = createLogger({ component: "SwitchTenantRoute" });
  * Proxies the tenant switch request to the backend.
  * Requires an authenticated session.
  */
-export async function POST(request: NextRequest) {
+async function POSTHandler(request: NextRequest) {
   try {
     const session = await auth();
     const token = session?.user?.token;
@@ -43,3 +44,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withTenantAuth(POSTHandler);

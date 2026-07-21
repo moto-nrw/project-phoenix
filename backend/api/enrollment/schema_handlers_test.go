@@ -76,6 +76,13 @@ type mockFormSchemaService struct {
 	renameName      string
 	renameResult    *enrollmentModels.FormSchema
 	renameErr       error
+
+	publishInput         enrollmentService.PublishFormInput
+	publishResult        *enrollmentModels.FormSchema
+	publishErr           error
+	publishVersionInput  enrollmentService.PublishFormVersionInput
+	publishVersionResult *enrollmentModels.FormSchema
+	publishVersionErr    error
 }
 
 func (m *mockFormSchemaService) GetActive(_ context.Context) (*enrollmentModels.FormSchema, error) {
@@ -140,6 +147,14 @@ func (m *mockFormSchemaService) RenameSchema(_ context.Context, id int64, newNam
 	m.renameID = id
 	m.renameName = newName
 	return m.renameResult, m.renameErr
+}
+func (m *mockFormSchemaService) PublishForm(_ context.Context, in enrollmentService.PublishFormInput) (*enrollmentModels.FormSchema, error) {
+	m.publishInput = in
+	return m.publishResult, m.publishErr
+}
+func (m *mockFormSchemaService) PublishFormVersion(_ context.Context, in enrollmentService.PublishFormVersionInput) (*enrollmentModels.FormSchema, error) {
+	m.publishVersionInput = in
+	return m.publishVersionResult, m.publishVersionErr
 }
 
 // buildSchemaRouter wires the schema endpoints with a mock service.
@@ -313,8 +328,13 @@ func TestPublishSchemaHandler_RejectsMissingActor(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func TestPublishSchemaHandler_WithNameCallsCreateSchema(t *testing.T) {
-	mock := &mockFormSchemaService{createResult: makeFormSchema(1234, "Klassenanmeldung", 1)}
+// The create-vs-update-vs-Standardformular orchestration lives in the
+// service now (FormSchemaService.PublishForm) and is asserted in
+// form_schema_service_test.go. These handler tests verify the handler
+// forwards the wire fields into PublishFormInput and maps the outcome.
+
+func TestPublishSchemaHandler_WithNameForwardsInput(t *testing.T) {
+	mock := &mockFormSchemaService{publishResult: makeFormSchema(1234, "Klassenanmeldung", 1)}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPost, "/enrollment/schema",
 		map[string]any{
@@ -324,14 +344,14 @@ func TestPublishSchemaHandler_WithNameCallsCreateSchema(t *testing.T) {
 			},
 		})
 	require.Equal(t, http.StatusCreated, w.Code)
-	assert.Equal(t, "Klassenanmeldung", mock.createName,
-		"non-empty name MUST route to CreateSchema")
-	assert.Equal(t, int64(4321), mock.createCreatedBy)
-	assert.Len(t, mock.createFields, 1)
+	assert.Equal(t, "Klassenanmeldung", mock.publishInput.Name,
+		"the handler must forward the schema name verbatim")
+	assert.Equal(t, int64(4321), mock.publishInput.ActorID)
+	assert.Len(t, mock.publishInput.Fields, 1)
 }
 
-func TestPublishSchemaHandler_WithLegalBlocksCallsCreateSchemaWithLegal(t *testing.T) {
-	mock := &mockFormSchemaService{createResult: makeFormSchema(1234, "Klassenanmeldung", 1)}
+func TestPublishSchemaHandler_ForwardsLegalBlocks(t *testing.T) {
+	mock := &mockFormSchemaService{publishResult: makeFormSchema(1234, "Klassenanmeldung", 1)}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPost, "/enrollment/schema",
 		map[string]any{
@@ -354,52 +374,30 @@ func TestPublishSchemaHandler_WithLegalBlocksCallsCreateSchemaWithLegal(t *testi
 			},
 		})
 	require.Equal(t, http.StatusCreated, w.Code)
-	assert.True(t, mock.createLegalSet)
-	require.Len(t, mock.createLegal, 1)
-	assert.Equal(t, "custom_pool", mock.createLegal[0].Key)
-	assert.True(t, mock.createLegal[0].Required)
+	require.NotNil(t, mock.publishInput.LegalBlocks)
+	require.Len(t, *mock.publishInput.LegalBlocks, 1)
+	assert.Equal(t, "custom_pool", (*mock.publishInput.LegalBlocks)[0].Key)
+	assert.True(t, (*mock.publishInput.LegalBlocks)[0].Required)
 }
 
-func TestPublishSchemaHandler_NoNameUsesStandardformularFallback(t *testing.T) {
-	// Without a name in the body, the handler's legacy path looks for
-	// the active schema; ErrNoActiveSchema → falls through to creating
-	// a "Standardformular" row.
-	mock := &mockFormSchemaService{
-		getActiveErr: enrollmentService.ErrNoActiveSchema,
-		listResult:   []*enrollmentModels.FormSchema{},
-		createResult: makeFormSchema(1234, "Standardformular", 1),
-	}
+func TestPublishSchemaHandler_NoNameForwardsEmptyName(t *testing.T) {
+	// An omitted name legacy-routes through the service's active/default
+	// resolution; the handler simply forwards an empty name and nil
+	// core_requirements.
+	mock := &mockFormSchemaService{publishResult: makeFormSchema(1234, "Standardformular", 1)}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPost, "/enrollment/schema",
 		map[string]any{"fields": []map[string]any{
 			{"key": "allergies", "label": "Allergien", "type": "text", "sort_order": 0},
 		}})
 	require.Equal(t, http.StatusCreated, w.Code)
-	assert.Equal(t, "Standardformular", mock.createName,
-		"no name + no active schema + no existing Standardformular → CreateSchema with the default name")
-}
-
-func TestPublishSchemaHandler_NoNameWithActiveSchemaUpdatesIt(t *testing.T) {
-	// No name + an active schema exists → UpdateSchema on that schema's
-	// id (legacy single-schema flow).
-	mock := &mockFormSchemaService{
-		getActiveResult: makeFormSchema(9999, "Standardformular", 2),
-		updateResult:    makeFormSchema(9999, "Standardformular", 3),
-	}
-	router := buildSchemaRouter(mock)
-	w := executeSchemaJSON(t, router, http.MethodPost, "/enrollment/schema",
-		map[string]any{"fields": []map[string]any{
-			{"key": "diet", "label": "Diät", "type": "text", "sort_order": 0},
-		}})
-	require.Equal(t, http.StatusCreated, w.Code)
-	assert.Equal(t, int64(9999), mock.updateID,
-		"no name + active schema exists → UpdateSchema on active.id")
-	assert.False(t, mock.updateCoreSet,
-		"omitted core_requirements must preserve the source schema's existing core requirements")
+	assert.Equal(t, "", mock.publishInput.Name)
+	assert.Nil(t, mock.publishInput.CoreRequirements,
+		"omitted core_requirements must forward as nil so the service preserves the source's matrix")
 }
 
 func TestPublishSchemaHandler_ValidationErrorReturns400(t *testing.T) {
-	mock := &mockFormSchemaService{createErr: errors.New("field 0: form field key is required")}
+	mock := &mockFormSchemaService{publishErr: errors.New("field 0: form field key is required")}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPost, "/enrollment/schema",
 		map[string]any{"name": "X", "fields": []map[string]any{}})
@@ -433,21 +431,28 @@ func TestUpdateSchemaHandler_MissingActorRejected(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
+// The rename-then-publish orchestration (rename first, atomic rollback on a
+// failed publish, blank-name skip) lives in the service now
+// (FormSchemaService.PublishFormVersion) and is asserted in
+// form_schema_service_test.go. These handler tests verify the handler
+// forwards the wire fields into PublishFormVersionInput and maps the outcome.
+
 func TestUpdateSchemaHandler_HappyPath(t *testing.T) {
-	mock := &mockFormSchemaService{updateResult: makeFormSchema(1234, "Klassenanmeldung", 2)}
+	mock := &mockFormSchemaService{publishVersionResult: makeFormSchema(1234, "Klassenanmeldung", 2)}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
 		map[string]any{"fields": []map[string]any{
 			{"key": "x", "label": "X", "type": "text", "sort_order": 0},
 		}})
 	require.Equal(t, http.StatusCreated, w.Code)
-	assert.Equal(t, int64(1234), mock.updateID)
-	assert.Equal(t, int64(4321), mock.updateUpdatedBy)
-	assert.Len(t, mock.updateFields, 1)
+	assert.Equal(t, int64(1234), mock.publishVersionInput.ID)
+	assert.Equal(t, int64(4321), mock.publishVersionInput.ActorID)
+	assert.Len(t, mock.publishVersionInput.Fields, 1)
+	assert.Nil(t, mock.publishVersionInput.Name, "an omitted name must forward as nil")
 }
 
 func TestUpdateSchemaHandler_ForwardsCoreRequirementsWhenPresent(t *testing.T) {
-	mock := &mockFormSchemaService{updateResult: makeFormSchema(1234, "Klassenanmeldung", 2)}
+	mock := &mockFormSchemaService{publishVersionResult: makeFormSchema(1234, "Klassenanmeldung", 2)}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
 		map[string]any{
@@ -455,13 +460,13 @@ func TestUpdateSchemaHandler_ForwardsCoreRequirementsWhenPresent(t *testing.T) {
 			"core_requirements": map[string]bool{"guardian_phone": true},
 		})
 	require.Equal(t, http.StatusCreated, w.Code)
-	require.True(t, mock.updateCoreSet,
+	require.NotNil(t, mock.publishVersionInput.CoreRequirements,
 		"present core_requirements, even when sparse, must be forwarded so admins can change the matrix")
-	assert.True(t, mock.updateCore.Required(enrollmentModels.CoreRequirementGuardianPhone))
+	assert.True(t, mock.publishVersionInput.CoreRequirements.Required(enrollmentModels.CoreRequirementGuardianPhone))
 }
 
 func TestUpdateSchemaHandler_ForwardsLegalBlocksWhenPresent(t *testing.T) {
-	mock := &mockFormSchemaService{updateResult: makeFormSchema(1234, "Klassenanmeldung", 2)}
+	mock := &mockFormSchemaService{publishVersionResult: makeFormSchema(1234, "Klassenanmeldung", 2)}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
 		map[string]any{
@@ -481,28 +486,24 @@ func TestUpdateSchemaHandler_ForwardsLegalBlocksWhenPresent(t *testing.T) {
 			},
 		})
 	require.Equal(t, http.StatusCreated, w.Code)
-	require.True(t, mock.updateLegalSet)
-	require.Len(t, mock.updateLegal, 1)
-	assert.Equal(t, "custom_pool", mock.updateLegal[0].Key)
+	require.NotNil(t, mock.publishVersionInput.LegalBlocks)
+	require.Len(t, *mock.publishVersionInput.LegalBlocks, 1)
+	assert.Equal(t, "custom_pool", (*mock.publishVersionInput.LegalBlocks)[0].Key)
 }
 
 func TestUpdateSchemaHandler_ServiceErrorReturns400(t *testing.T) {
-	mock := &mockFormSchemaService{updateErr: errors.New("invalid schema")}
+	mock := &mockFormSchemaService{publishVersionErr: errors.New("invalid schema")}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
 		map[string]any{"fields": []map[string]any{}})
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestUpdateSchemaHandler_WithNameRenamesThenPublishes(t *testing.T) {
-	// Combined "rename + edit" save: a name in the PUT body renames the
-	// lineage AND publishes the new version in one request, so the two are
-	// atomic (no separate rename round-trip the frontend has to undo on
-	// failure).
-	mock := &mockFormSchemaService{
-		renameResult: makeFormSchema(1234, "Ferienprogramm", 2),
-		updateResult: makeFormSchema(1234, "Ferienprogramm", 3),
-	}
+func TestUpdateSchemaHandler_ForwardsName(t *testing.T) {
+	// A name in the PUT body forwards as a non-nil pointer so the service
+	// runs the combined rename+publish. The handler forwards a blank name
+	// too; the service owns the skip decision.
+	mock := &mockFormSchemaService{publishVersionResult: makeFormSchema(1234, "Ferienprogramm", 3)}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
 		map[string]any{
@@ -510,31 +511,15 @@ func TestUpdateSchemaHandler_WithNameRenamesThenPublishes(t *testing.T) {
 			"fields": []map[string]any{{"key": "x", "label": "X", "type": "text", "sort_order": 0}},
 		})
 	require.Equal(t, http.StatusCreated, w.Code)
-	assert.Equal(t, int64(1234), mock.renameID, "the rename must target the same lineage id")
-	assert.Equal(t, "Ferienprogramm", mock.renameName)
-	assert.Equal(t, int64(1234), mock.updateID, "the publish must run after the rename")
-}
-
-func TestUpdateSchemaHandler_BlankNameSkipsRename(t *testing.T) {
-	// A blank name in the PUT body is ignored (the dedicated PATCH route
-	// owns blank-name rejection); the publish still runs.
-	mock := &mockFormSchemaService{updateResult: makeFormSchema(1234, "Klassenanmeldung", 2)}
-	router := buildSchemaRouter(mock)
-	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
-		map[string]any{
-			"name":   "   ",
-			"fields": []map[string]any{{"key": "x", "label": "X", "type": "text", "sort_order": 0}},
-		})
-	require.Equal(t, http.StatusCreated, w.Code)
-	assert.Equal(t, int64(0), mock.renameID, "a blank name must not trigger a rename")
-	assert.Equal(t, int64(1234), mock.updateID)
+	require.NotNil(t, mock.publishVersionInput.Name)
+	assert.Equal(t, "Ferienprogramm", *mock.publishVersionInput.Name)
+	assert.Equal(t, int64(1234), mock.publishVersionInput.ID)
 }
 
 func TestUpdateSchemaHandler_RenameNameCollisionReturns409WithCode(t *testing.T) {
-	// The rename half fails on a name already used by another lineage; the
-	// publish must NOT run and the response is the same 409 + stable code the
-	// PATCH route returns, so the frontend shows "name already taken".
-	mock := &mockFormSchemaService{renameErr: enrollmentService.ErrFormSchemaNameExists}
+	// A name already used by another lineage surfaces the same 409 + stable
+	// code the PATCH route returns, so the frontend shows "name already taken".
+	mock := &mockFormSchemaService{publishVersionErr: enrollmentService.ErrFormSchemaNameExists}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
 		map[string]any{
@@ -543,11 +528,10 @@ func TestUpdateSchemaHandler_RenameNameCollisionReturns409WithCode(t *testing.T)
 		})
 	require.Equal(t, http.StatusConflict, w.Code)
 	assert.Contains(t, w.Body.String(), ErrCodeSchemaNameExists)
-	assert.Equal(t, int64(0), mock.updateID, "a failed rename must abort before the publish")
 }
 
 func TestUpdateSchemaHandler_RenameNotFoundReturns404(t *testing.T) {
-	mock := &mockFormSchemaService{renameErr: enrollmentService.ErrFormSchemaNotFound}
+	mock := &mockFormSchemaService{publishVersionErr: enrollmentService.ErrFormSchemaNotFound}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
 		map[string]any{
@@ -560,9 +544,12 @@ func TestUpdateSchemaHandler_RenameNotFoundReturns404(t *testing.T) {
 func TestUpdateSchemaHandler_RenameInfraErrorReturns500(t *testing.T) {
 	// A rename failure that is neither a name collision nor a missing lineage
 	// (a DB/lock/read fault) is infrastructure, not a client error. The
-	// combined save must surface it as a 5xx — matching the PATCH handler — so
-	// it takes the normal error-logging path, NOT the publish path's 400.
-	mock := &mockFormSchemaService{renameErr: errors.New("lineage lock failed")}
+	// service wraps it in RenameStepError; the handler surfaces it as a 5xx —
+	// matching the PATCH handler — so it takes the normal error-logging path,
+	// NOT the publish path's 400.
+	mock := &mockFormSchemaService{
+		publishVersionErr: enrollmentService.NewRenameStepError(errors.New("lineage lock failed")),
+	}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
 		map[string]any{
@@ -570,7 +557,6 @@ func TestUpdateSchemaHandler_RenameInfraErrorReturns500(t *testing.T) {
 			"fields": []map[string]any{{"key": "x", "label": "X", "type": "text", "sort_order": 0}},
 		})
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
-	assert.Equal(t, int64(0), mock.updateID, "a failed rename must abort before the publish")
 }
 
 // --- deleteSchema -----------------------------------------------------

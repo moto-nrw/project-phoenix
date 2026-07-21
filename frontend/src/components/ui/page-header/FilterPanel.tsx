@@ -223,6 +223,11 @@ export function FilterPanel({
   );
 
   const renderFilterOptions = (filter: FilterConfig) => {
+    if (filter.type === "custom") {
+      // Custom filters carry their own control (e.g. the planning-date
+      // chooser); value/options are unused. Render the supplied node verbatim.
+      return filter.render ?? null;
+    }
     const selectedValues = normalizeFilterValues(filter.value);
     switch (filter.type) {
       case "buttons":
@@ -324,17 +329,29 @@ export function FilterPanel({
     }
   };
 
-  const renderFilterField = (filter: FilterConfig) => (
-    <div key={filter.id}>
-      <label
-        htmlFor={`mobile-filter-${filter.id}`}
-        className="mb-1.5 block text-sm font-semibold text-gray-800"
-      >
-        {filter.label}
-      </label>
-      {renderFilterOptions(filter)}
-    </div>
-  );
+  const renderFilterField = (filter: FilterConfig) => {
+    // A custom filter has no single labelable form control, so its label is a
+    // plain heading (no htmlFor) rather than pointing at a non-existent input.
+    const label =
+      filter.type === "custom" ? (
+        <span className="mb-1.5 block text-sm font-semibold text-gray-800">
+          {filter.label}
+        </span>
+      ) : (
+        <label
+          htmlFor={`mobile-filter-${filter.id}`}
+          className="mb-1.5 block text-sm font-semibold text-gray-800"
+        >
+          {filter.label}
+        </label>
+      );
+    return (
+      <div key={filter.id} className={filter.className}>
+        {label}
+        {renderFilterOptions(filter)}
+      </div>
+    );
+  };
 
   const panelStyle =
     anchorRect && (isOpening || posStyle === undefined)
@@ -382,11 +399,9 @@ export function FilterPanel({
           area (MOBILE_BOTTOM_NAV_CLEARANCE), so the panel never reaches it
           geometrically — z-index only resolves the FAB overlap. */}
       <div
-        role="dialog"
-        // No aria-modal in either placement: the backdrop is transparent and
-        // the page stays interactive (no dark scrim), so this is a non-modal
-        // dialog. Claiming aria-modal would wrongly tell screen readers the
-        // rest of the page is inert.
+        role="region"
+        // This is a dismissible filter region, not a modal: page content stays
+        // interactive and is not announced as inert to assistive technology.
         aria-label="Filter"
         data-testid={testId}
         style={panelStyle}

@@ -14,6 +14,7 @@ import {
   mapInvitationValidation,
 } from "./operator-invitation-helpers";
 import { createLogger } from "~/lib/logger";
+import { OPERATOR_INVITATION_FLOW_HEADER } from "./operator-invitation-flow";
 
 const logger = createLogger({ component: "OperatorInvitationApi" });
 
@@ -63,13 +64,40 @@ export async function revokeOperatorInvitation(id: string): Promise<void> {
 
 // --- Public (unauthenticated) API functions ---
 
-export async function validateOperatorInvitation(
+export async function establishOperatorInvitationSession(
   token: string,
-): Promise<OperatorInvitationValidation> {
-  const response = await fetch("/api/operator/auth/invitations/validate", {
+): Promise<string> {
+  const response = await fetch("/api/operator/auth/invitations/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token }),
+  });
+  if (!response.ok) {
+    throw new Error("Einladungstoken konnte nicht geschützt werden");
+  }
+  const body: unknown = await response.json();
+  if (
+    typeof body !== "object" ||
+    body === null ||
+    !("flow_id" in body) ||
+    typeof body.flow_id !== "string" ||
+    body.flow_id === ""
+  ) {
+    throw new Error("Einladungssitzung ist ungültig");
+  }
+  return body.flow_id;
+}
+
+export async function validateOperatorInvitation(
+  flowID: string,
+): Promise<OperatorInvitationValidation> {
+  const response = await fetch("/api/operator/auth/invitations/validate", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      [OPERATOR_INVITATION_FLOW_HEADER]: flowID,
+    },
+    body: JSON.stringify({}),
   });
 
   if (!response.ok) {
@@ -95,15 +123,17 @@ export async function validateOperatorInvitation(
 }
 
 export async function acceptOperatorInvitation(
-  token: string,
+  flowID: string,
   data: AcceptOperatorInvitationRequest,
 ): Promise<void> {
   // Convert camelCase frontend shape to the snake_case the backend expects.
   const response = await fetch("/api/operator/auth/invitations/accept", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      [OPERATOR_INVITATION_FLOW_HEADER]: flowID,
+    },
     body: JSON.stringify({
-      token,
       display_name: data.displayName,
       password: data.password,
       confirm_password: data.confirmPassword,

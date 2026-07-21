@@ -18,7 +18,11 @@ vi.mock("~/components/ui/modal", () => ({
       isOpen ? (
         <div data-testid="confirmation-modal">
           {children}
-          <button onClick={onConfirm} data-testid="confirm-delete">
+          <button
+            type="button"
+            onClick={onConfirm}
+            data-testid="confirm-delete"
+          >
             Confirm
           </button>
         </div>
@@ -231,17 +235,18 @@ describe("BaseCommentAccordion", () => {
     const button = screen.getByRole("button", { name: /Kommentare/i });
     fireEvent.click(button);
 
-    await waitFor(() => {
-      const textarea = screen.getByPlaceholderText("Kommentar schreiben...");
-      fireEvent.change(textarea, { target: { value: "New comment" } });
-    });
+    const textarea = await screen.findByPlaceholderText(
+      "Kommentar schreiben...",
+    );
+    fireEvent.change(textarea, { target: { value: "New comment" } });
 
     const submitButton = screen.getByLabelText("Senden");
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      const textarea = screen.getByPlaceholderText("Kommentar schreiben...");
-      expect(textarea).toHaveValue("");
+      expect(screen.getByPlaceholderText("Kommentar schreiben...")).toHaveValue(
+        "",
+      );
     });
   });
 
@@ -296,10 +301,8 @@ describe("BaseCommentAccordion", () => {
     const button = screen.getByRole("button", { name: /Kommentare/i });
     fireEvent.click(button);
 
-    await waitFor(() => {
-      const deleteButtons = screen.getAllByLabelText("Kommentar löschen");
-      fireEvent.click(deleteButtons[0]!);
-    });
+    const deleteButtons = await screen.findAllByLabelText("Kommentar löschen");
+    fireEvent.click(deleteButtons[0]!);
 
     await waitFor(() => {
       expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
@@ -319,15 +322,11 @@ describe("BaseCommentAccordion", () => {
     const button = screen.getByRole("button", { name: /Kommentare/i });
     fireEvent.click(button);
 
-    await waitFor(() => {
-      const deleteButtons = screen.getAllByLabelText("Kommentar löschen");
-      fireEvent.click(deleteButtons[0]!);
-    });
+    const deleteButtons = await screen.findAllByLabelText("Kommentar löschen");
+    fireEvent.click(deleteButtons[0]!);
 
-    await waitFor(() => {
-      const confirmButton = screen.getByTestId("confirm-delete");
-      fireEvent.click(confirmButton);
-    });
+    const confirmButton = await screen.findByTestId("confirm-delete");
+    fireEvent.click(confirmButton);
 
     await waitFor(() => {
       expect(mockDeleteComment).toHaveBeenCalledWith("42", "1");
@@ -369,10 +368,10 @@ describe("BaseCommentAccordion", () => {
     const button = screen.getByRole("button", { name: /Kommentare/i });
     fireEvent.click(button);
 
-    await waitFor(() => {
-      const textarea = screen.getByPlaceholderText("Kommentar schreiben...");
-      fireEvent.change(textarea, { target: { value: "New comment" } });
-    });
+    const textarea = await screen.findByPlaceholderText(
+      "Kommentar schreiben...",
+    );
+    fireEvent.change(textarea, { target: { value: "New comment" } });
 
     const submitButton = screen.getByLabelText("Senden");
     fireEvent.click(submitButton);
@@ -439,11 +438,11 @@ describe("BaseCommentAccordion", () => {
     const button = screen.getByRole("button", { name: /Kommentare/i });
     fireEvent.click(button);
 
-    await waitFor(() => {
-      const textarea = screen.getByPlaceholderText("Kommentar schreiben...");
-      fireEvent.change(textarea, { target: { value: "New comment" } });
-      fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
-    });
+    const textarea = await screen.findByPlaceholderText(
+      "Kommentar schreiben...",
+    );
+    fireEvent.change(textarea, { target: { value: "New comment" } });
+    fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false });
 
     await waitFor(() => {
       expect(mockCreateComment).toHaveBeenCalledWith("42", "New comment");
@@ -463,11 +462,11 @@ describe("BaseCommentAccordion", () => {
     const button = screen.getByRole("button", { name: /Kommentare/i });
     fireEvent.click(button);
 
-    await waitFor(() => {
-      const textarea = screen.getByPlaceholderText("Kommentar schreiben...");
-      fireEvent.change(textarea, { target: { value: "New comment" } });
-      fireEvent.keyDown(textarea, { key: "Enter", shiftKey: true });
-    });
+    const textarea = await screen.findByPlaceholderText(
+      "Kommentar schreiben...",
+    );
+    fireEvent.change(textarea, { target: { value: "New comment" } });
+    fireEvent.keyDown(textarea, { key: "Enter", shiftKey: true });
 
     await waitFor(() => {
       expect(mockCreateComment).not.toHaveBeenCalled();

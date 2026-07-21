@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { isAdmin } from "~/lib/auth-utils";
-import { useTenantRouter } from "~/lib/tenant-router";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 interface UseRequireAdminReturn {
   /** True once the session is loaded AND the user is an admin. Render gated content only when this is true. */
@@ -22,13 +22,12 @@ interface UseRequireAdminReturn {
  */
 export function useRequireAdmin(): UseRequireAdminReturn {
   const { data: session, status } = useSession({ required: true });
-  const router = useTenantRouter();
+  const tenantPath = useTenantAwarePath();
   const userIsAdmin = isAdmin(session);
 
-  useEffect(() => {
-    if (status !== "authenticated") return;
-    if (!userIsAdmin) router.replace("/dashboard");
-  }, [status, userIsAdmin, router]);
+  if (status === "authenticated" && !userIsAdmin) {
+    redirect(tenantPath("/dashboard"));
+  }
 
   return {
     isReady: status === "authenticated" && userIsAdmin,

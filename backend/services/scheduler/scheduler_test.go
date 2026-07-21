@@ -975,6 +975,10 @@ func (m *mockActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, _
 	return nil, nil
 }
 
+func (m *mockActiveService) ConfirmDailyCheckout(_ context.Context, _, _ int64, _ string) (*activeService.DailyCheckoutResult, error) {
+	return nil, nil
+}
+
 func (m *mockActiveService) HasOpenAttendanceOn(_ context.Context, _ timezone.Date) (bool, error) {
 	return false, nil
 }

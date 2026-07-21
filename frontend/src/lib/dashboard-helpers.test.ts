@@ -45,6 +45,7 @@ describe("dashboard-helpers", () => {
         ],
         current_activities: [
           {
+            id: "101",
             name: "Soccer",
             category: "Sports",
             participants: 20,
@@ -52,6 +53,7 @@ describe("dashboard-helpers", () => {
             status: "active",
           },
           {
+            id: "102",
             name: "Art Class",
             category: "Creative",
             participants: 15,
@@ -107,6 +109,7 @@ describe("dashboard-helpers", () => {
 
       expect(result.currentActivities).toHaveLength(2);
       expect(result.currentActivities[0]).toEqual({
+        id: "101",
         name: "Soccer",
         category: "Sports",
         participants: 20,

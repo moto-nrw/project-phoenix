@@ -69,7 +69,9 @@ vi.mock("~/components/ui/password-reset-modal", () => ({
   }) =>
     isOpen ? (
       <div data-testid="password-reset-modal">
-        <button onClick={onClose}>Close</button>
+        <button type="button" onClick={onClose}>
+          Close
+        </button>
       </div>
     ) : null,
 }));

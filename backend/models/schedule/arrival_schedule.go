@@ -143,6 +143,12 @@ type StudentArrivalScheduleRepository interface {
 	// FindByStudentIDsAndWeekday finds arrival schedules for multiple students and a specific weekday (bulk query)
 	FindByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*StudentArrivalSchedule, error)
 
+	// FindByStudentIDs returns every weekday row for the given students in a
+	// single query. The care-day derivation needs the whole week per child:
+	// "no row for today" only means "not in care today" if the child has rows
+	// for other weekdays — a child with no plan at all must stay visible.
+	FindByStudentIDs(ctx context.Context, studentIDs []int64) ([]*StudentArrivalSchedule, error)
+
 	// UpsertSchedule creates or updates an arrival schedule for a student and weekday
 	UpsertSchedule(ctx context.Context, schedule *StudentArrivalSchedule) error
 
@@ -171,6 +177,11 @@ type StudentArrivalExceptionRepository interface {
 	// date. Used by the timetable per-student week endpoint to pre-load all
 	// exceptions in a single query.
 	FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*StudentArrivalException, error)
+
+	// FindByStudentIDsAndDateRange is the bulk form of the above: every
+	// exception for the given students within the inclusive range, so a
+	// planner window resolves in one query instead of one per day.
+	FindByStudentIDsAndDateRange(ctx context.Context, studentIDs []int64, from, to timezone.Date) ([]*StudentArrivalException, error)
 
 	// DeleteByStudentID deletes all arrival exceptions for a student
 	DeleteByStudentID(ctx context.Context, studentID int64) error

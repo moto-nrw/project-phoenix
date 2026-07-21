@@ -68,6 +68,11 @@ type PersonService interface {
 	// GetStaffByPersonID retrieves the staff record belonging to a person.
 	GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error)
 
+	// ResolveStaffIDByAccountID maps a JWT account id to its staff id via the
+	// account → person → staff chain. Used for self-ownership checks and
+	// audit attribution; returns a wrapped error when either lookup fails.
+	ResolveStaffIDByAccountID(ctx context.Context, accountID int64) (int64, error)
+
 	// GetStaffWithPerson retrieves a staff member with person data preloaded.
 	GetStaffWithPerson(ctx context.Context, id int64) (*userModels.Staff, error)
 

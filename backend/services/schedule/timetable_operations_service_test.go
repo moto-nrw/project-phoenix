@@ -129,7 +129,7 @@ func TestTimetableOperationsPlannedNowUsesInstanceDate(t *testing.T) {
 		tomorrowStart := time.Date(2026, time.May, 11, 0, 5, 0, 0, time.UTC)
 		inst := instanceWithTimes(335, scheduleModel.InstanceStatusPlanned, tomorrowStart, tomorrowStart.Add(time.Hour))
 
-		result := mapPlannedInstance(inst, []*scheduleModel.InstanceStaff{{StaffID: 225}}, nil, now, 225, nil)
+		result := mapPlannedInstance(inst, []*scheduleModel.InstanceStaff{{StaffID: 225}}, nil, now, 225, nil, nil)
 
 		assert.False(t, result.IsOverdue)
 		assert.Equal(t, 10, result.MinutesUntilStart)
@@ -324,6 +324,124 @@ func TestTimetableOperationsRosterCombinesPlannedStudentsAndLiveDropIns(t *testi
 	assert.Equal(t, "Zoe Zimmer", roster.Rows[1].StudentName)
 	assert.True(t, roster.Rows[1].Planned)
 	assert.Equal(t, "OGS Blau", roster.Rows[1].GroupName)
+}
+
+// A completed block's verdict is frozen in the stored marker: the care plan may
+// have been edited or deleted since, and reading it here would relabel a
+// historical row while the weekly list, parent calendar, and attendance history
+// keep the completion-time answer (#1747 review).
+func TestTimetableOperationsRosterFreezesCareDayVerdictOnCompletedInstance(t *testing.T) {
+	instanceID := int64(366)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 656, 456, 246, instanceID)
+	completed := instanceWithTimes(instanceID, scheduleModel.InstanceStatusCompleted,
+		time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
+		time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
+	completed.ID = instanceID
+	deps.instanceRepo.byID[instanceID] = completed
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 536, Status: scheduleModel.AttendanceStatusExpected, NotScheduled: true},
+	}
+	deps.students.byID[536] = &usersModel.Student{PersonID: 466, SchoolClass: "3a"}
+	deps.personService.people[466] = &usersModel.Person{FirstName: "Nora", LastName: "Neu"}
+	// The plan says "booked" today — a later edit. It must not win over the marker.
+	deps.careDayService.byStudent[536] = CareDayScheduled
+
+	roster, err := deps.service.Roster(context.Background(), 656, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 1)
+	assert.Equal(t, CareDayNotScheduled, roster.Rows[0].CareDayStatus)
+	assert.False(t, roster.Rows[0].CareDayStatus.Expected())
+}
+
+// The counterpart: a completed row without the marker reports "unknown" rather
+// than a re-derived plan verdict, so a plan edit cannot retroactively push a
+// finished row out of the expected block either.
+func TestTimetableOperationsRosterCompletedWithoutMarkerReportsUnknown(t *testing.T) {
+	instanceID := int64(367)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 657, 457, 247, instanceID)
+	completed := instanceWithTimes(instanceID, scheduleModel.InstanceStatusCompleted,
+		time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
+		time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
+	completed.ID = instanceID
+	deps.instanceRepo.byID[instanceID] = completed
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 537, Status: scheduleModel.AttendanceStatusAbsent},
+	}
+	deps.students.byID[537] = &usersModel.Student{PersonID: 467, SchoolClass: "3a"}
+	deps.personService.people[467] = &usersModel.Person{FirstName: "Ole", LastName: "Ohm"}
+	deps.careDayService.byStudent[537] = CareDayNotScheduled
+
+	roster, err := deps.service.Roster(context.Background(), 657, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 1)
+	assert.Equal(t, CareDayUnknown, roster.Rows[0].CareDayStatus)
+}
+
+// A broad day status (sick / excused / class trip) stamps every expected row of
+// the day, including days the care plan never booked. Until the block ends and
+// MarkNotScheduled undoes it, that absence is a claim about care that was never
+// owed — the roster has to report the non-booking verdict so the frontend groups
+// the row under "Heute nicht eingeplant" instead of "Abwesend" (#1747 review).
+func TestTimetableOperationsRosterReportsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
+	statusDayID := int64(9100)
+	instanceID := int64(368)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 658, 458, 248, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, 268)
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		// Owned by a day status, on a day the plan does not book.
+		{StudentID: 538, Status: scheduleModel.AttendanceStatusAbsent, StudentStatusDayID: &statusDayID},
+		// Same verdict, but the absence is a human decision: it stays an absence.
+		{StudentID: 539, Status: scheduleModel.AttendanceStatusAbsent},
+	}
+	deps.students.byID[538] = &usersModel.Student{PersonID: 468, SchoolClass: "3a"}
+	deps.students.byID[539] = &usersModel.Student{PersonID: 469, SchoolClass: "3a"}
+	deps.personService.people[468] = &usersModel.Person{FirstName: "Pia", LastName: "Plan"}
+	deps.personService.people[469] = &usersModel.Person{FirstName: "Rudi", LastName: "Rot"}
+	deps.careDayService.byStudent[538] = CareDayNotScheduled
+	deps.careDayService.byStudent[539] = CareDayNotScheduled
+
+	roster, err := deps.service.Roster(context.Background(), 658, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 2)
+	byStudent := map[int64]CareDayStatus{}
+	for _, row := range roster.Rows {
+		byStudent[row.StudentID] = row.CareDayStatus
+	}
+	assert.Equal(t, CareDayNotScheduled, byStudent[538])
+	assert.Equal(t, CareDayUnknown, byStudent[539])
+}
+
+// The planned-now card counts the same rows the roster groups: a status-day
+// absence on an unbooked day belongs under "nicht eingeplant", or the card
+// reports 0 while the slide-over shows one (#1747 review).
+func TestTimetableOperationsPlannedCardCountsStatusDayNonBookings(t *testing.T) {
+	statusDayID := int64(9101)
+	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+	inst := instanceWithTimes(369, scheduleModel.InstanceStatusPlanned, now, now.Add(time.Hour))
+	rows := []*scheduleModel.InstanceStudent{
+		{StudentID: 540, Status: scheduleModel.AttendanceStatusAbsent, StudentStatusDayID: &statusDayID},
+		{StudentID: 541, Status: scheduleModel.AttendanceStatusAbsent},
+		{StudentID: 542, Status: scheduleModel.AttendanceStatusExpected},
+		{StudentID: 543, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	careDay := map[int64]CareDayStatus{
+		540: CareDayNotScheduled,
+		541: CareDayNotScheduled,
+		542: CareDayNotScheduled,
+		543: CareDayScheduled,
+	}
+
+	result := mapPlannedInstance(inst, []*scheduleModel.InstanceStaff{{StaffID: 249}}, rows, now, 249, nil, careDay)
+
+	assert.Equal(t, 1, result.ExpectedStudentsCount)
+	assert.Equal(t, 0, result.PresentStudentsCount)
+	assert.Equal(t, 2, result.NotScheduledCount, "the status-day non-booking and the unbooked expected row")
 }
 
 func TestTimetableOperationsRosterFlagsArrivalAndClassMismatch(t *testing.T) {
@@ -1094,6 +1212,38 @@ type timetableOpsTestDeps struct {
 	personService   *fakeOpsPersonService
 	settings        *fakeOpsSettings
 	broadcaster     *testpkg.RecordingBroadcaster
+	careDayService  *fakeOpsCareDayService
+}
+
+// fakeOpsCareDayService reports the care-plan verdict per student. Empty by
+// default, which reads as "unknown" everywhere — the pre-#1747 behaviour.
+type fakeOpsCareDayService struct {
+	byStudent map[int64]CareDayStatus
+}
+
+func (f *fakeOpsCareDayService) ResolveForDate(_ context.Context, studentIDs []int64, _ timezone.Date) (map[int64]CareDayStatus, error) {
+	out := make(map[int64]CareDayStatus, len(studentIDs))
+	for _, id := range studentIDs {
+		if status, ok := f.byStudent[id]; ok {
+			out[id] = status
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeOpsCareDayService) ResolveForRange(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]CareDayStatus, error) {
+	byDate, err := f.ResolveForDate(ctx, studentIDs, from)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int64]map[timezone.Date]CareDayStatus, len(byDate))
+	for studentID, status := range byDate {
+		out[studentID] = map[timezone.Date]CareDayStatus{}
+		for date := from; !date.After(to); date = date.AddDays(1) {
+			out[studentID][date] = status
+		}
+	}
+	return out, nil
 }
 
 func newTimetableOpsDeps() *timetableOpsTestDeps {
@@ -1106,6 +1256,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		activityGroups:  &fakeOpsActivityGroupRepo{byID: map[int64]*activitiesModel.Group{}},
 		activeService:   &fakeOpsActiveService{},
 		arrivalService:  &fakeOpsArrivalService{byStudent: map[int64]*EffectiveArrivalTime{}},
+		careDayService:  &fakeOpsCareDayService{byStudent: map[int64]CareDayStatus{}},
 		supervisors:     &fakeOpsSupervisorRepo{byActiveGroup: map[int64][]*activeModel.GroupSupervisor{}},
 		visitRepo:       &fakeOpsVisitRepo{byActiveGroup: map[int64][]*activeModel.Visit{}, currentByStudent: map[int64]*activeModel.Visit{}},
 		students:        &fakeOpsStudentRepo{byID: map[int64]*usersModel.Student{}},
@@ -1123,6 +1274,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		ActiveGroupRepo:    deps.activeGroups,
 		ActivityGroupRepo:  deps.activityGroups,
 		ActiveService:      deps.activeService,
+		CareDayService:     deps.careDayService,
 		ArrivalService:     deps.arrivalService,
 		SupervisorRepo:     deps.supervisors,
 		VisitRepo:          deps.visitRepo,

@@ -54,6 +54,12 @@ type instanceStudentSummary struct {
 	Substatus   *string `json:"substatus,omitempty"`
 	Note        *string `json:"note,omitempty"`
 	CheckedInAt *string `json:"checked_in_at,omitempty"`
+	// CareDayStatus is the same per-child care-day verdict the active-
+	// supervision roster carries: "scheduled" | "not_scheduled" | "cancelled"
+	// | "unknown" (#1747). The counts below exclude the non-expected ones, so
+	// the row has to say so too — otherwise the planner lists a child under
+	// "Erwartet" that its own header count leaves out.
+	CareDayStatus scheduleSvc.CareDayStatus `json:"care_day_status"`
 }
 
 // enrichedInstance is the per-instance payload returned in the list response.
@@ -90,6 +96,13 @@ type enrichedInstance struct {
 	CancelReason          *string                  `json:"cancel_reason,omitempty"`
 	ExpectedStudentsCount int                      `json:"expected_students_count"`
 	PresentStudentsCount  int                      `json:"present_students_count"`
+	// NotScheduledCount is how many assigned children are not in care here on
+	// this day (#1747) — not booked on this weekday, or the day was cancelled.
+	// Excluded from ExpectedStudentsCount and from the staffing maths;
+	// surfaced so the planner can show why the expected number is lower than
+	// the assignment list. Which children those are is on the per-row
+	// care_day_status.
+	NotScheduledCount int `json:"not_scheduled_students_count"`
 	// RequiredStaffCount and AssignedStaffCount drive the Betreuungsplan
 	// capacity indicator (issue #1838): required is
 	// ceil(children/Betreuungsschlüssel), assigned is the non-absent staff
@@ -175,9 +188,16 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 	// setting is tenant-wide, not per-block.
 	ratio := rs.childrenPerStaffRatio(ctx)
 
+	careDays, err := rs.resolveCareDays(ctx, instances, from, to)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(
+			"resolve care days failed", err))
+		return
+	}
+
 	enriched := make([]enrichedInstance, 0, len(instances))
 	for _, inst := range instances {
-		item, err := rs.enrichInstance(ctx, inst, roomCache, typeCache, ratio)
+		item, err := rs.enrichInstance(ctx, inst, roomCache, typeCache, ratio, careDays)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap(
 				"enrich instance failed", err))
@@ -204,12 +224,174 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 // student counts for a single instance. Room and type lookups consult the
 // per-request caches to avoid duplicate queries when many instances share a
 // template (e.g. the daily Mensa).
+// resolveCareDays derives, for the whole window at once, which assigned
+// children the care plan actually places in the OGS on which day (#1747).
+//
+// The pre-pass asks for the rows whose verdict can still change something:
+// still 'expected', or flipped to 'absent' by a broad day status that still
+// owns them. A sick report lands on every expected row of the day, including
+// the days the child was never booked into care, so restricting the pre-pass
+// to 'expected' would leave exactly those rows unresolved and displayed as
+// ordinary absences (#1747). The window is capped at 56 days, but the cost does
+// not scale with it: weekly care plans are recurring, so the derivation loads
+// them once and combines them with the window's exceptions in memory.
+//
+// An unwired service yields an empty map, which reads as "unknown" everywhere
+// and leaves every count exactly as it was before this feature.
+func (rs *Resource) resolveCareDays(
+	ctx context.Context,
+	instances []*scheduleModel.ActivityInstance,
+	from, to timezone.Date,
+) (map[int64]map[timezone.Date]scheduleSvc.CareDayStatus, error) {
+	empty := map[int64]map[timezone.Date]scheduleSvc.CareDayStatus{}
+	if rs.CareDayService == nil || rs.TimetableData == nil || len(instances) == 0 {
+		return empty, nil
+	}
+
+	instanceIDs := make([]int64, 0, len(instances))
+	for _, inst := range instances {
+		if inst != nil {
+			instanceIDs = append(instanceIDs, inst.ID)
+		}
+	}
+
+	rows, err := rs.TimetableData.GetCareDayCandidateStudentsByInstanceIDs(ctx, instanceIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load care-day candidate students: %w", err)
+	}
+
+	seen := make(map[int64]bool, len(rows))
+	studentIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if !seen[row.StudentID] {
+			seen[row.StudentID] = true
+			studentIDs = append(studentIDs, row.StudentID)
+		}
+	}
+	if len(studentIDs) == 0 {
+		return empty, nil
+	}
+
+	return rs.CareDayService.ResolveForRange(ctx, studentIDs, from, to)
+}
+
+// careDaysForInstance resolves the care-day map for a single instance, used by
+// the create/update paths that re-enrich one row.
+//
+// A failure is returned, never swallowed (#1747 review). An empty map does not
+// mean "no verdict yet" to the reader — it reads as unknown, which is the
+// verdict that puts every assigned child back into "Erwartet". Degrading to it
+// would answer a successful write with counts that silently contradict the
+// planner the very next reload corrects, and the caller cannot tell the two
+// apart. Both call sites already have a path for "the write committed, the
+// enrichment did not" and route this into it.
+func (rs *Resource) careDaysForInstance(
+	ctx context.Context, inst *scheduleModel.ActivityInstance,
+) (map[int64]map[timezone.Date]scheduleSvc.CareDayStatus, error) {
+	if inst == nil {
+		return map[int64]map[timezone.Date]scheduleSvc.CareDayStatus{}, nil
+	}
+	careDays, err := rs.resolveCareDays(ctx, []*scheduleModel.ActivityInstance{inst}, inst.Date, inst.Date)
+	if err != nil {
+		return nil, fmt.Errorf("resolve care days for instance %d: %w", inst.ID, err)
+	}
+	return careDays, nil
+}
+
+// instanceStudentCareDay picks the care-day verdict reported for one
+// assignment row — the single source both the per-child payload and the
+// counts read, so a child can never be listed as "Erwartet" while the header
+// count leaves them out (#1747 review).
+//
+// The rules live in scheduleSvc.AttendanceRowCareDay, shared with the operation
+// roster and the planned-now cards; this only looks up the plan verdict for the
+// instance's date.
+func instanceStudentCareDay(
+	inst *scheduleModel.ActivityInstance,
+	row *scheduleModel.InstanceStudent,
+	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
+) scheduleSvc.CareDayStatus {
+	return scheduleSvc.AttendanceRowCareDay(
+		inst.Status == scheduleModel.InstanceStatusCompleted,
+		row,
+		careDays[row.StudentID][inst.Date],
+	)
+}
+
+// instanceAttendanceSummary is the per-instance student payload plus the three
+// counts derived from it. They are built together so the rows and the header
+// counts can never disagree about the same child (#1747 review).
+type instanceAttendanceSummary struct {
+	studentIDs   []int64
+	students     []instanceStudentSummary
+	expected     int
+	present      int
+	notScheduled int
+}
+
+// summarizeInstanceStudents groups one instance's attendance rows by the
+// care-day verdict instanceStudentCareDay reports for each of them.
+func summarizeInstanceStudents(
+	inst *scheduleModel.ActivityInstance,
+	studentRows []*scheduleModel.InstanceStudent,
+	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
+) instanceAttendanceSummary {
+	out := instanceAttendanceSummary{
+		studentIDs: make([]int64, 0, len(studentRows)),
+		students:   make([]instanceStudentSummary, 0, len(studentRows)),
+	}
+	for _, row := range studentRows {
+		out.studentIDs = append(out.studentIDs, row.StudentID)
+		var checkedInAt *string
+		if row.CheckedInAt != nil {
+			formatted := row.CheckedInAt.UTC().Format("2006-01-02T15:04:05Z07:00")
+			checkedInAt = &formatted
+		}
+		careDayStatus := instanceStudentCareDay(inst, row, careDays)
+		out.students = append(out.students, instanceStudentSummary{
+			StudentID:     row.StudentID,
+			Status:        row.Status,
+			Substatus:     row.Substatus,
+			Note:          row.Note,
+			CheckedInAt:   checkedInAt,
+			CareDayStatus: careDayStatus,
+		})
+		switch row.Status {
+		case scheduleModel.AttendanceStatusExpected:
+			// Assigned but not in care today: counted separately, and left out
+			// of the staffing maths — planning for children who are not there
+			// that day inflates the Betreuungsschlüssel (#1747). The row carries
+			// the same verdict, so the slide-over can group it exactly the way
+			// this count does.
+			if !careDayStatus.Expected() {
+				out.notScheduled++
+				continue
+			}
+			out.expected++
+		case scheduleModel.AttendanceStatusPresent:
+			out.present++
+		case scheduleModel.AttendanceStatusAbsent:
+			// A broad day status wrote this absence onto a day the care plan
+			// never booked — the block has not ended yet, so nothing has undone
+			// it. Group it where the verdict says it belongs instead of showing
+			// a school an absence from care that was never owed (#1747).
+			// instanceStudentCareDay hands out this verdict for no other absent
+			// row, so a manual absence is untouched.
+			if careDayStatus == scheduleSvc.CareDayNotScheduled {
+				out.notScheduled++
+			}
+		}
+	}
+	return out
+}
+
 func (rs *Resource) enrichInstance(
 	ctx context.Context,
 	inst *scheduleModel.ActivityInstance,
 	roomCache map[int64]string,
 	metaCache map[int64]templateMeta,
 	childrenPerStaffRatio int,
+	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
 ) (enrichedInstance, error) {
 	if inst == nil {
 		return enrichedInstance{}, errors.New("nil instance")
@@ -241,34 +423,10 @@ func (rs *Resource) enrichInstance(
 	if err != nil {
 		return enrichedInstance{}, fmt.Errorf("load students for instance %d: %w", inst.ID, err)
 	}
-	expected := 0
-	present := 0
-	studentIDs := make([]int64, 0, len(studentRows))
-	students := make([]instanceStudentSummary, 0, len(studentRows))
-	for _, row := range studentRows {
-		studentIDs = append(studentIDs, row.StudentID)
-		var checkedInAt *string
-		if row.CheckedInAt != nil {
-			formatted := row.CheckedInAt.UTC().Format("2006-01-02T15:04:05Z07:00")
-			checkedInAt = &formatted
-		}
-		students = append(students, instanceStudentSummary{
-			StudentID:   row.StudentID,
-			Status:      row.Status,
-			Substatus:   row.Substatus,
-			Note:        row.Note,
-			CheckedInAt: checkedInAt,
-		})
-		switch row.Status {
-		case scheduleModel.AttendanceStatusExpected:
-			expected++
-		case scheduleModel.AttendanceStatusPresent:
-			present++
-		}
-	}
+	attendance := summarizeInstanceStudents(inst, studentRows, careDays)
 
 	assignedStaff := len(staffRows) - absentCount
-	childrenCount := expected + present
+	childrenCount := attendance.expected + attendance.present
 
 	return enrichedInstance{
 		ID:                    inst.ID,
@@ -287,15 +445,16 @@ func (rs *Resource) enrichInstance(
 		RoomID:                inst.RoomID,
 		RoomName:              roomName,
 		Staff:                 staff,
-		StudentIDs:            studentIDs,
-		Students:              students,
+		StudentIDs:            attendance.studentIDs,
+		Students:              attendance.students,
 		StaffCount:            len(staffRows),
 		AbsentStaffCount:      absentCount,
 		UnderstaffedAck:       inst.UnderstaffedAck,
 		UnderstaffedNote:      inst.UnderstaffedNote,
 		CancelReason:          inst.CancelReason,
-		ExpectedStudentsCount: expected,
-		PresentStudentsCount:  present,
+		ExpectedStudentsCount: attendance.expected,
+		PresentStudentsCount:  attendance.present,
+		NotScheduledCount:     attendance.notScheduled,
 		RequiredStaffCount:    scheduleSvc.EffectiveRequiredStaff(instanceRequiredStaffOverride(inst.RequiredStaff, meta.requiredStaff), childrenCount, childrenPerStaffRatio),
 		AssignedStaffCount:    assignedStaff,
 		RequiredStaffOverride: inst.RequiredStaff,

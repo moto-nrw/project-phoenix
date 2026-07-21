@@ -164,7 +164,11 @@ vi.mock("~/components/students/student-card", () => ({
     studentId: string;
     onClick: () => void;
   }) => (
-    <button data-testid={`student-card-${studentId}`} onClick={onClick}>
+    <button
+      type="button"
+      data-testid={`student-card-${studentId}`}
+      onClick={onClick}
+    >
       card-{studentId}
     </button>
   ),

@@ -99,7 +99,15 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 	}
 	roomCache := make(map[int64]string)
 	typeCache := make(map[int64]templateMeta)
-	enriched, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache, rs.childrenPerStaffRatio(r.Context()))
+	// A failed care-day derivation fails the response rather than answering with
+	// counts that read every assigned child as expected again (#1747 review) —
+	// the same 500 the rest of the enrichment already returns here.
+	careDays, err := rs.careDaysForInstance(r.Context(), inst)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve care days failed", err))
+		return
+	}
+	enriched, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache, rs.childrenPerStaffRatio(r.Context()), careDays)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("enrich instance failed", err))
 		return

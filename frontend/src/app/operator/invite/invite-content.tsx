@@ -13,6 +13,7 @@ import { Loading } from "~/components/ui/loading";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { operatorPath } from "~/lib/operator-url";
 import {
+  establishOperatorInvitationSession,
   validateOperatorInvitation,
   acceptOperatorInvitation,
 } from "~/lib/operator/operator-invitation-api";
@@ -24,42 +25,20 @@ const logger = createLogger({ component: "OperatorInviteAcceptPage" });
 
 type PageState = "loading" | "form" | "submitting" | "success" | "error";
 
-const SESSION_STORAGE_KEY = "operator_invite_token";
-
-function extractToken(): string | null {
+function extractQueryToken(): string | null {
   if (typeof window === "undefined") return null;
-
-  // 1. Try URL query parameter first (fresh link click)
-  const queryToken = new URLSearchParams(window.location.search).get("token");
-  if (queryToken) {
-    try {
-      sessionStorage.setItem(SESSION_STORAGE_KEY, queryToken);
-    } catch {
-      // sessionStorage unavailable (private browsing) — fall through
-    }
-    return queryToken;
-  }
-
-  // 2. Fall back to sessionStorage (page reload after we stripped the query)
-  try {
-    return sessionStorage.getItem(SESSION_STORAGE_KEY);
-  } catch {
-    return null;
-  }
+  return new URLSearchParams(window.location.search).get("token");
 }
 
-function clearPersistedToken(): void {
-  try {
-    sessionStorage.removeItem(SESSION_STORAGE_KEY);
-  } catch {
-    // ignore
-  }
+function extractQueryFlowID(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("flow");
 }
 
 export function InviteContent() {
-  const [token, setToken] = useState<string | null>(null);
   const [invitation, setInvitation] =
     useState<OperatorInvitationValidation | null>(null);
+  const [flowID, setFlowID] = useState<string | null>(null);
   const [state, setState] = useState<PageState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -71,48 +50,48 @@ export function InviteContent() {
   const [formError, setFormError] = useState<string | null>(null);
 
   const primaryRef = useRef<HTMLButtonElement>(null);
-  const currentTokenRef = useRef<string | null>(null);
+  const processingRef = useRef(false);
 
-  const processToken = useCallback(() => {
-    const extracted = extractToken();
-    if (!extracted) {
-      setErrorMessage("Kein Token angegeben.");
-      setState("error");
-      return;
-    }
-
-    // Skip if we're already processing this exact token
-    if (extracted === currentTokenRef.current) return;
-    currentTokenRef.current = extracted;
-
-    setToken(extracted);
+  const processToken = useCallback(async () => {
+    if (processingRef.current) return;
+    processingRef.current = true;
     setState("loading");
     setFormError(null);
     setPassword("");
     setConfirmPassword("");
 
-    // Strip token from URL to prevent shoulder-surfing, but keep in sessionStorage for reload
-    if (window.location.search || window.location.hash) {
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-
-    validateOperatorInvitation(extracted)
-      .then((data) => {
-        setInvitation(data);
-        setDisplayName(data.displayName ?? "");
-        setState("form");
-      })
-      .catch((err) => {
-        logger.error("invitation_validation_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        setErrorMessage(
-          err instanceof Error
-            ? err.message
-            : "Einladung nicht gefunden oder abgelaufen.",
+    try {
+      const queryToken = extractQueryToken();
+      let nextFlowID = extractQueryFlowID();
+      if (queryToken) {
+        nextFlowID = await establishOperatorInvitationSession(queryToken);
+        const safeURL = new URL(window.location.href);
+        safeURL.search = "";
+        safeURL.searchParams.set("flow", nextFlowID);
+        window.history.replaceState(
+          {},
+          "",
+          `${safeURL.pathname}${safeURL.search}`,
         );
-        setState("error");
+      }
+      if (!nextFlowID) throw new Error("Kein Einladungsvorgang angegeben.");
+
+      const data = await validateOperatorInvitation(nextFlowID);
+      setFlowID(nextFlowID);
+      setInvitation(data);
+      setDisplayName(data.displayName ?? "");
+      setState("form");
+    } catch (err) {
+      logger.error("invitation_validation_failed", {
+        error: err instanceof Error ? err.message : String(err),
       });
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : "Einladung nicht gefunden oder abgelaufen.",
+      );
+      setState("error");
+    }
   }, []);
 
   // Process token on mount. Query-string changes trigger a full navigation
@@ -130,7 +109,7 @@ export function InviteContent() {
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!token || state === "submitting") return;
+      if (state === "submitting") return;
 
       setFormError(null);
 
@@ -150,12 +129,13 @@ export function InviteContent() {
       setState("submitting");
 
       try {
-        await acceptOperatorInvitation(token, {
+        if (!flowID) throw new Error("Kein Einladungsvorgang angegeben.");
+        await acceptOperatorInvitation(flowID, {
           displayName: displayName.trim(),
           password,
           confirmPassword,
         });
-        clearPersistedToken();
+        window.history.replaceState({}, "", window.location.pathname);
         setState("success");
       } catch (err) {
         logger.error("invitation_accept_failed", {
@@ -170,13 +150,13 @@ export function InviteContent() {
       }
     },
     [
-      token,
       state,
       displayName,
       password,
       confirmPassword,
       allPasswordRulesMet,
       passwordsMatch,
+      flowID,
     ],
   );
 

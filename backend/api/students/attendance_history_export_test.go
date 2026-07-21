@@ -133,6 +133,39 @@ func TestAttendanceExportDocument_RendersEverySupportedFormat(t *testing.T) {
 	}
 }
 
+// TestAttendanceSessionExportColumns_OmitsPlanColumns: without a care plan the
+// export lists plain sessions — no "Betreuungsangebot" and no "Zuordnung"
+// column, so no row can read as unassigned.
+func TestAttendanceSessionExportColumns_OmitsPlanColumns(t *testing.T) {
+	ids := make([]listexport.ColumnID, 0, 5)
+	for _, column := range attendanceSessionExportColumns() {
+		ids = append(ids, column.ID)
+	}
+	assert.NotContains(t, ids, attendanceColumnOffering)
+	assert.NotContains(t, ids, attendanceColumnAssignment)
+	assert.Equal(t, []listexport.ColumnID{
+		attendanceColumnDate, attendanceColumnWindow, attendanceColumnStatus,
+		attendanceColumnCheckIn, attendanceColumnCheckOut,
+	}, ids)
+}
+
+// TestAttendanceExportRows_KeepsSessionsWithoutAnyPlan: the plan-free document
+// still lists every observed session — the neutral wording comes from dropping
+// the offering/assignment columns, not from dropping rows.
+func TestAttendanceExportRows_KeepsSessionsWithoutAnyPlan(t *testing.T) {
+	date := timezone.NewDate(2026, 7, 15)
+	checkIn := time.Date(2026, 7, 15, 9, 0, 0, 0, timezone.Berlin)
+	checkOut := time.Date(2026, 7, 15, 16, 0, 0, 0, timezone.Berlin)
+
+	rows := attendanceExportRows(nil, []*activeModel.Attendance{
+		{Date: date, CheckInTime: checkIn, CheckOutTime: &checkOut},
+	})
+
+	require.Len(t, rows, 1)
+	assert.Equal(t, "09:00", rows[0].Values[attendanceColumnCheckIn])
+	assert.Equal(t, "16:00", rows[0].Values[attendanceColumnCheckOut])
+}
+
 func TestAttendanceExportRows_SortsChronologicallyAcrossSources(t *testing.T) {
 	day1 := timezone.NewDate(2026, 7, 14)
 	day2 := timezone.NewDate(2026, 7, 15)

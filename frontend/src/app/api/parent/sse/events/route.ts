@@ -1,5 +1,6 @@
 import { type NextRequest } from "next/server";
 import { parentAuth } from "~/server/auth/parent";
+import { withParentAuth } from "~/server/auth/parent-route";
 import { createLogger } from "~/lib/logger";
 import { proxySSEStream } from "~/lib/sse-proxy.server";
 
@@ -15,7 +16,7 @@ export const runtime = "nodejs";
  * /parent-sse/events, which delivers the guardian-scoped parent_message and
  * parent_message_read triggers for the tenants of the guardian's children.
  */
-export async function GET(request: NextRequest) {
+async function GETHandler(request: NextRequest) {
   const session = await parentAuth();
 
   if (!session?.user?.token) {
@@ -28,3 +29,5 @@ export async function GET(request: NextRequest) {
     logger,
   });
 }
+
+export const GET = withParentAuth(GETHandler);

@@ -18,8 +18,11 @@ type Token struct {
 	Identifier *string   `bun:"identifier" json:"identifier,omitempty"`
 
 	// Token family tracking for detecting token theft
-	FamilyID   string `bun:"family_id" json:"family_id,omitempty"`
-	Generation int    `bun:"generation,default:0" json:"generation"`
+	FamilyID          string     `bun:"family_id" json:"family_id,omitempty"`
+	Generation        int        `bun:"generation,default:0" json:"generation"`
+	RotatedAt         *time.Time `bun:"rotated_at" json:"-"`
+	ReplacementToken  *string    `bun:"replacement_token" json:"-"`
+	RecoveryProofHash []byte     `bun:"recovery_proof_hash" json:"-"`
 
 	// Relations
 	Account *Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
@@ -36,6 +39,12 @@ func (t *Token) Validate() error {
 
 	if t.Token == "" {
 		return errors.New("token value is required")
+	}
+	if (t.RotatedAt == nil) != (t.ReplacementToken == nil) {
+		return errors.New("rotation handoff must include both timestamp and replacement token")
+	}
+	if t.RotatedAt == nil && len(t.RecoveryProofHash) != 0 {
+		return errors.New("recovery proof hash requires a rotation handoff")
 	}
 
 	return nil

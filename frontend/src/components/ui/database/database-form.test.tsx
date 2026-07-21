@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import useSWR from "swr";
 import {
   getDefaultValueForField,
   hasPrivacyConsentFields,
@@ -618,6 +619,13 @@ describe("DatabaseForm", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useSWR).mockReturnValue({
+      data: undefined,
+      error: undefined,
+      isLoading: true,
+      isValidating: false,
+      mutate: vi.fn(),
+    });
   });
 
   it("renders form sections and fields", () => {
@@ -812,6 +820,76 @@ describe("DatabaseForm", () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText(/Test Field/)).toHaveValue("initial value");
+    });
+  });
+
+  it("preserves unsaved edits when privacy consent revalidates", async () => {
+    const sections: FormSection[] = [
+      {
+        title: "Stammdaten",
+        fields: [
+          { name: "test_field", label: "Test Field", type: "text" },
+          {
+            name: "privacy_consent_accepted",
+            label: "Einwilligung",
+            type: "checkbox",
+          },
+          {
+            name: "data_retention_days",
+            label: "Aufbewahrungstage",
+            type: "number",
+          },
+        ],
+      },
+    ];
+    const initialData = { id: "student-1", test_field: "initial value" };
+    const initialConsent = {
+      data: { accepted: false, data_retention_days: 30 },
+      error: undefined,
+      isLoading: false,
+      isValidating: false,
+      mutate: vi.fn(),
+    };
+    vi.mocked(useSWR).mockReturnValue(initialConsent);
+
+    const { rerender } = render(
+      <DatabaseForm
+        {...defaultProps}
+        sections={sections}
+        initialData={initialData}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Test Field")).toHaveValue("initial value");
+      expect(screen.getByLabelText("Einwilligung")).not.toBeChecked();
+      expect(screen.getByLabelText("Aufbewahrungstage")).toHaveValue(30);
+    });
+
+    fireEvent.change(screen.getByLabelText("Test Field"), {
+      target: { value: "unsaved edit" },
+    });
+    fireEvent.click(screen.getByLabelText("Einwilligung"));
+    fireEvent.change(screen.getByLabelText("Aufbewahrungstage"), {
+      target: { value: "45" },
+    });
+
+    vi.mocked(useSWR).mockReturnValue({
+      ...initialConsent,
+      data: { accepted: false, data_retention_days: 90 },
+    });
+    rerender(
+      <DatabaseForm
+        {...defaultProps}
+        sections={sections}
+        initialData={initialData}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Test Field")).toHaveValue("unsaved edit");
+      expect(screen.getByLabelText("Einwilligung")).toBeChecked();
+      expect(screen.getByLabelText("Aufbewahrungstage")).toHaveValue(45);
     });
   });
 

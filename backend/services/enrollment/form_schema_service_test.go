@@ -577,3 +577,162 @@ func TestFormSchemaService_RenameThenFailedPublish_RollsBackRename(t *testing.T)
 		return nil
 	}))
 }
+
+// --- PublishForm / PublishFormVersion (POST + PUT /schema orchestration) ---
+
+func publishFormFields() []enrollmentModels.FormField {
+	return []enrollmentModels.FormField{
+		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	}
+}
+
+func TestFormSchemaService_PublishForm_WithNameCreatesNamedSchema(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	schema, err := svc.PublishForm(ctx, enrollmentService.PublishFormInput{
+		Name:    "Klassenanmeldung",
+		Fields:  publishFormFields(),
+		ActorID: creatorID,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Klassenanmeldung", schema.Name,
+		"a non-empty name creates a new named schema")
+	assert.Equal(t, 1, schema.Version)
+	assert.True(t, schema.IsActive)
+}
+
+func TestFormSchemaService_PublishForm_NoNameNoActiveCreatesStandardformular(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	schema, err := svc.PublishForm(ctx, enrollmentService.PublishFormInput{
+		Fields:  publishFormFields(),
+		ActorID: creatorID,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Standardformular", schema.Name,
+		"no name + no active schema falls back to the default Standardformular lineage")
+	assert.Equal(t, 1, schema.Version)
+}
+
+func TestFormSchemaService_PublishForm_NoNameWithActiveUpdatesActive(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	first, err := svc.PublishForm(ctx, enrollmentService.PublishFormInput{
+		Name:    "Standardformular",
+		Fields:  publishFormFields(),
+		ActorID: creatorID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, first.Version)
+
+	second, err := svc.PublishForm(ctx, enrollmentService.PublishFormInput{
+		Fields: []enrollmentModels.FormField{
+			{Key: "diet", Label: "Diät", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+		},
+		ActorID: creatorID,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Standardformular", second.Name,
+		"no name + an active schema exists updates that schema's lineage")
+	assert.Equal(t, 2, second.Version)
+}
+
+func TestFormSchemaService_PublishFormVersion_WithNameRenamesAndPublishes(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	first, err := svc.PublishForm(ctx, enrollmentService.PublishFormInput{
+		Name:    "Ferienprogramm alt",
+		Fields:  publishFormFields(),
+		ActorID: creatorID,
+	})
+	require.NoError(t, err)
+
+	newName := "Ferienprogramm neu"
+	version, err := svc.PublishFormVersion(ctx, enrollmentService.PublishFormVersionInput{
+		ID:      first.ID,
+		Name:    &newName,
+		Fields:  publishFormFields(),
+		ActorID: creatorID,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Ferienprogramm neu", version.Name,
+		"a name in the PUT body renames the lineage AND publishes the new version")
+	assert.Equal(t, 2, version.Version)
+
+	versions, err := svc.ListVersions(ctx)
+	require.NoError(t, err)
+	for _, v := range versions {
+		assert.Equal(t, "Ferienprogramm neu", v.Name,
+			"the whole lineage shares the renamed name")
+	}
+}
+
+func TestFormSchemaService_PublishFormVersion_BlankNameSkipsRename(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	first, err := svc.PublishForm(ctx, enrollmentService.PublishFormInput{
+		Name:    "Klassenanmeldung",
+		Fields:  publishFormFields(),
+		ActorID: creatorID,
+	})
+	require.NoError(t, err)
+
+	blank := "   "
+	version, err := svc.PublishFormVersion(ctx, enrollmentService.PublishFormVersionInput{
+		ID:      first.ID,
+		Name:    &blank,
+		Fields:  publishFormFields(),
+		ActorID: creatorID,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Klassenanmeldung", version.Name,
+		"a blank name must not rename the lineage")
+	assert.Equal(t, 2, version.Version, "the publish still runs")
+}
+
+func TestFormSchemaService_PublishFormVersion_RenameCollisionWrapsError(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	target, err := svc.PublishForm(ctx, enrollmentService.PublishFormInput{
+		Name:    "Anmeldung A",
+		Fields:  publishFormFields(),
+		ActorID: creatorID,
+	})
+	require.NoError(t, err)
+	_, err = svc.PublishForm(ctx, enrollmentService.PublishFormInput{
+		Name:    "Anmeldung B",
+		Fields:  publishFormFields(),
+		ActorID: creatorID,
+	})
+	require.NoError(t, err)
+
+	collidingName := "Anmeldung B"
+	_, err = svc.PublishFormVersion(ctx, enrollmentService.PublishFormVersionInput{
+		ID:      target.ID,
+		Name:    &collidingName,
+		Fields:  publishFormFields(),
+		ActorID: creatorID,
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, enrollmentService.ErrFormSchemaNameExists,
+		"a rename onto an existing lineage name surfaces the collision sentinel")
+	var renameErr enrollmentService.RenameStepError
+	assert.ErrorAs(t, err, &renameErr,
+		"a rename-step failure is wrapped so the handler can map it distinctly")
+
+	versions, err := svc.ListVersions(ctx)
+	require.NoError(t, err)
+	aVersions := 0
+	for _, v := range versions {
+		if v.Name == "Anmeldung A" {
+			aVersions++
+		}
+	}
+	assert.Equal(t, 1, aVersions, "a failed rename must abort before the publish")
+}

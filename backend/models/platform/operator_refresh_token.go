@@ -13,11 +13,14 @@ import (
 type OperatorRefreshToken struct {
 	base.Model `bun:"schema:platform,table:operator_refresh_tokens"`
 
-	OperatorID int64     `bun:"operator_id,notnull" json:"operator_id"`
-	Token      string    `bun:"token,notnull,unique" json:"-"`
-	Expiry     time.Time `bun:"expiry,notnull" json:"expiry"`
-	FamilyID   string    `bun:"family_id,notnull" json:"family_id"`
-	Generation int       `bun:"generation,notnull,default:0" json:"generation"`
+	OperatorID        int64      `bun:"operator_id,notnull" json:"operator_id"`
+	Token             string     `bun:"token,notnull,unique" json:"-"`
+	Expiry            time.Time  `bun:"expiry,notnull" json:"expiry"`
+	FamilyID          string     `bun:"family_id,notnull" json:"family_id"`
+	Generation        int        `bun:"generation,notnull,default:0" json:"generation"`
+	RotatedAt         *time.Time `bun:"rotated_at" json:"-"`
+	ReplacementToken  *string    `bun:"replacement_token" json:"-"`
+	RecoveryProofHash []byte     `bun:"recovery_proof_hash" json:"-"`
 }
 
 func (t *OperatorRefreshToken) Validate() error {
@@ -32,6 +35,12 @@ func (t *OperatorRefreshToken) Validate() error {
 	}
 	if t.FamilyID == "" {
 		return errors.New("family ID is required")
+	}
+	if (t.RotatedAt == nil) != (t.ReplacementToken == nil) {
+		return errors.New("rotation handoff must include both timestamp and replacement token")
+	}
+	if t.RotatedAt == nil && len(t.RecoveryProofHash) != 0 {
+		return errors.New("recovery proof hash requires a rotation handoff")
 	}
 	return nil
 }

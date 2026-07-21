@@ -84,6 +84,7 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
         <div data-testid="tabs">
           {tabs.items.map((tab: any) => (
             <button
+              type="button"
               key={tab.id}
               data-testid={`tab-${tab.id}`}
               className={tabs.activeTab === tab.id ? "active" : ""}

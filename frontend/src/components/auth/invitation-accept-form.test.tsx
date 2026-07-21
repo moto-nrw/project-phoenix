@@ -162,12 +162,10 @@ describe("InvitationAcceptForm", () => {
       <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
     );
 
-    await waitFor(() => {
-      const firstNameInput =
-        screen.getByTestId<HTMLInputElement>("input-firstName");
-      fireEvent.change(firstNameInput, { target: { value: "Jane" } });
-      expect(firstNameInput.value).toBe("Jane");
-    });
+    const firstNameInput =
+      await screen.findByTestId<HTMLInputElement>("input-firstName");
+    fireEvent.change(firstNameInput, { target: { value: "Jane" } });
+    expect(firstNameInput.value).toBe("Jane");
   });
 
   it("renders without crashing when position is not provided", async () => {

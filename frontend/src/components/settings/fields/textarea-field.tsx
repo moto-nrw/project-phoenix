@@ -1,6 +1,7 @@
 "use client";
 
 interface TextareaFieldProps {
+  readonly ariaLabel?: string;
   readonly value: string;
   readonly onChange: (value: string) => void;
   readonly onBlur?: () => void;
@@ -17,6 +18,7 @@ interface TextareaFieldProps {
  * a newline (no blur-on-Enter) since multi-line content is expected.
  */
 export function TextareaField({
+  ariaLabel = "Einstellung",
   value,
   onChange,
   onBlur,
@@ -24,6 +26,7 @@ export function TextareaField({
 }: TextareaFieldProps) {
   return (
     <textarea
+      aria-label={ariaLabel}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onBlur={onBlur}

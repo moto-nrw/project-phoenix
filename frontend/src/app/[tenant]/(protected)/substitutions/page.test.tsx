@@ -94,18 +94,24 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
           onChange={(e) => search.onChange(e.target.value)}
         />
         <button
+          type="button"
           data-testid="filter-available"
           onClick={() => statusFilter?.onChange("available")}
         >
           Available
         </button>
         <button
+          type="button"
           data-testid="filter-substitution"
           onClick={() => statusFilter?.onChange("substitution")}
         >
           In Substitution
         </button>
-        <button data-testid="clear-filters" onClick={onClearAllFilters}>
+        <button
+          type="button"
+          data-testid="clear-filters"
+          onClick={onClearAllFilters}
+        >
           Clear
         </button>
       </div>
@@ -129,7 +135,7 @@ vi.mock("~/components/ui/modal", () => ({
     isOpen ? (
       <div data-testid="assignment-modal" role="dialog">
         <h2>{title}</h2>
-        <button data-testid="modal-close" onClick={onClose}>
+        <button type="button" data-testid="modal-close" onClick={onClose}>
           Close
         </button>
         {children}
@@ -152,10 +158,10 @@ vi.mock("~/components/ui/modal", () => ({
       <div data-testid="confirmation-modal" role="dialog">
         <h2>{title}</h2>
         {children}
-        <button data-testid="confirm-end" onClick={onConfirm}>
+        <button type="button" data-testid="confirm-end" onClick={onConfirm}>
           Confirm
         </button>
-        <button data-testid="cancel-end" onClick={onClose}>
+        <button type="button" data-testid="cancel-end" onClick={onClose}>
           Cancel
         </button>
       </div>

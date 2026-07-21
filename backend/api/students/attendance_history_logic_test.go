@@ -419,7 +419,7 @@ func TestAttachUnassignedAttendance_WindowMatchAndNeutralLeftover(t *testing.T) 
 			StartTime: "07:00", EndTime: "16:00",
 			Status: schedule.AttendanceStatusPresent, CheckedInAt: &reentry,
 		}},
-	}})
+	}}, true)
 
 	require.Len(t, days[0].Slots, 2, "only the out-of-window session may become a synthetic entry")
 	synthetic := days[0].Slots[1]
@@ -447,7 +447,7 @@ func TestAttachUnassignedAttendance_AbsentSlotDoesNotAbsorbSessions(t *testing.T
 			StartTime: "07:00", EndTime: "12:00",
 			Status: schedule.AttendanceStatusAbsent, Substatus: &sick,
 		}},
-	}})
+	}}, true)
 
 	require.Len(t, days[0].Slots, 2, "the observed session must surface next to the absence")
 	assert.Equal(t, "Ohne Zuordnung", days[0].Slots[1].Title)
@@ -466,7 +466,7 @@ func TestAttachUnassignedAttendance_SortsMergedSlotsByDisplayedTime(t *testing.T
 			{InstanceID: "401", Title: "Mittagsbetreuung", StartTime: "12:00", EndTime: "13:00"},
 			{InstanceID: "402", Title: "Nachmittagsbetreuung", StartTime: "14:00", EndTime: "16:00"},
 		},
-	}})
+	}}, true)
 
 	require.Len(t, days[0].Slots, 3)
 	assert.Equal(t, []string{"07:00", "12:00", "14:00"}, []string{
@@ -475,6 +475,132 @@ func TestAttachUnassignedAttendance_SortsMergedSlotsByDisplayedTime(t *testing.T
 		days[0].Slots[2].StartTime,
 	})
 	assert.Equal(t, "Ohne Zuordnung", days[0].Slots[0].Title)
+}
+
+// TestAttachUnassignedAttendance_NoSlotExpectationStaysNeutral: at a school
+// that does not keep a care plan the resolved expectation is false, so every
+// session would otherwise be labelled "Ohne Zuordnung". The history must stay
+// neutral — the day keeps its check-in/out times and gains no synthetic
+// entries.
+func TestAttachUnassignedAttendance_NoSlotExpectationStaysNeutral(t *testing.T) {
+	first := time.Date(2026, 7, 15, 8, 0, 0, 0, timezone.Berlin)
+	second := time.Date(2026, 7, 14, 9, 0, 0, 0, timezone.Berlin)
+
+	days := attachUnassignedAttendance([]attendanceHistoryDay{
+		{
+			Date: "2026-07-15",
+			Attendance: &attendanceDayRecord{
+				CheckInTime: first,
+				Sessions:    []attendanceSessionRecord{{CheckInTime: first}},
+			},
+			Slots: []attendanceSlotEntry{},
+		},
+		{
+			Date: "2026-07-14",
+			Attendance: &attendanceDayRecord{
+				CheckInTime: second,
+				Sessions:    []attendanceSessionRecord{{CheckInTime: second}},
+			},
+			Slots: []attendanceSlotEntry{},
+		},
+	}, false)
+
+	assert.Empty(t, days[0].Slots)
+	assert.Empty(t, days[1].Slots)
+	assert.Equal(t, first, days[0].Attendance.CheckInTime, "session times stay untouched")
+}
+
+// TestAttachUnassignedAttendance_ExpectationKeepsUnassignedRowOnSlotFreeDay:
+// the expectation is resolved for the whole range (tenant-wide), not per day.
+// A school with a care plan keeps its "Ohne Zuordnung" rows on days that hold
+// no slot of their own.
+func TestAttachUnassignedAttendance_ExpectationKeepsUnassignedRowOnSlotFreeDay(t *testing.T) {
+	planned := time.Date(2026, 7, 15, 7, 0, 0, 0, timezone.Berlin)
+	walkIn := time.Date(2026, 7, 14, 9, 0, 0, 0, timezone.Berlin)
+
+	days := attachUnassignedAttendance([]attendanceHistoryDay{
+		{
+			Date: "2026-07-15",
+			Attendance: &attendanceDayRecord{
+				CheckInTime: planned,
+				Sessions:    []attendanceSessionRecord{{CheckInTime: planned}},
+			},
+			Slots: []attendanceSlotEntry{{
+				InstanceID: "501", Title: "Morgenbetreuung",
+				StartTime: "07:00", EndTime: "12:00",
+				Status: schedule.AttendanceStatusPresent, CheckedInAt: &planned,
+			}},
+		},
+		{
+			Date: "2026-07-14",
+			Attendance: &attendanceDayRecord{
+				CheckInTime: walkIn,
+				Sessions:    []attendanceSessionRecord{{CheckInTime: walkIn}},
+			},
+			Slots: []attendanceSlotEntry{},
+		},
+	}, true)
+
+	require.Len(t, days[0].Slots, 1, "the booked slot claims its own session")
+	require.Len(t, days[1].Slots, 1)
+	assert.Equal(t, "Ohne Zuordnung", days[1].Slots[0].Title)
+}
+
+// TestAttachUnassignedAttendance_WalkInWithoutExpectationKeepsItsSlotOnly: a
+// spontaneous walk-in at a school without a care plan renders as its persisted
+// slot row (still marked is_unplanned), but must not resurrect synthetic
+// "Ohne Zuordnung" entries for the remaining sessions.
+func TestAttachUnassignedAttendance_WalkInWithoutExpectationKeepsItsSlotOnly(t *testing.T) {
+	walkIn := time.Date(2026, 7, 15, 9, 0, 0, 0, timezone.Berlin)
+	later := time.Date(2026, 7, 15, 17, 0, 0, 0, timezone.Berlin)
+
+	days := attachUnassignedAttendance([]attendanceHistoryDay{{
+		Date: "2026-07-15",
+		Attendance: &attendanceDayRecord{
+			CheckInTime: walkIn,
+			Sessions: []attendanceSessionRecord{
+				{CheckInTime: walkIn},
+				{CheckInTime: later},
+			},
+		},
+		Slots: []attendanceSlotEntry{{
+			InstanceID: "601", Title: "Spontan-AG",
+			StartTime: "09:00", EndTime: "10:00",
+			Status: schedule.AttendanceStatusPresent, CheckedInAt: &walkIn,
+			IsUnplanned: true,
+		}},
+	}}, false)
+
+	require.Len(t, days[0].Slots, 1, "no synthetic entries without a slot expectation")
+	assert.Equal(t, "Spontan-AG", days[0].Slots[0].Title)
+	assert.True(t, days[0].Slots[0].IsUnplanned, "the walk-in keeps its marking")
+}
+
+// TestHasPlannedSlotRow: only usable slot rows (instance + attendance) with a
+// planned booking count. Walk-in rows (is_unplanned) are no plan evidence — a
+// spontaneous drop-in also happens at schools that plan nothing — and the
+// incomplete rows the assembly skips must not count either. Cancelled
+// instances keep their assignment rows but are no evidence: a cancelled-only
+// booking was never a usable slot.
+func TestHasPlannedSlotRow(t *testing.T) {
+	date := timezone.NewDate(2026, 7, 15)
+	assert.False(t, hasPlannedSlotRow(nil))
+	assert.False(t, hasPlannedSlotRow([]*schedule.ScheduledInstanceRow{
+		nil,
+		{Instance: &schedule.ActivityInstance{Date: date}, Attendance: nil},
+	}))
+	assert.False(t, hasPlannedSlotRow([]*schedule.ScheduledInstanceRow{{
+		Instance:   &schedule.ActivityInstance{Date: date, Title: "Spontan-AG"},
+		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent, IsUnplanned: true},
+	}}), "walk-in rows must not count as care-plan evidence")
+	assert.False(t, hasPlannedSlotRow([]*schedule.ScheduledInstanceRow{{
+		Instance:   &schedule.ActivityInstance{Date: date, Title: "Ausgefallene AG", Status: schedule.InstanceStatusCancelled},
+		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected},
+	}}), "cancelled instances must not count as care-plan evidence")
+	assert.True(t, hasPlannedSlotRow([]*schedule.ScheduledInstanceRow{{
+		Instance:   &schedule.ActivityInstance{Date: date, Title: "Morgenbetreuung"},
+		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent},
+	}}))
 }
 
 func TestAttachSlotAttendance_SerializesInt64InstanceIDAsDecimalString(t *testing.T) {

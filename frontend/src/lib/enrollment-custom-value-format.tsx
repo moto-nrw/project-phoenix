@@ -127,8 +127,8 @@ export function formatCustomValue(
     if (v.length === 0) return null;
     return (
       <ul className="space-y-1 text-sm">
-        {v.map((row, i) => (
-          <li key={i} className="text-gray-800">
+        {v.map((row) => (
+          <li key={JSON.stringify(row)} className="text-gray-800">
             {formatStructuredEntry(row)}
           </li>
         ))}

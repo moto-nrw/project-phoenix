@@ -38,13 +38,15 @@ const (
 // Reminder is a single visual reminder shown to staff.
 type Reminder struct {
 	Type string `json:"type"`
-	// StudentID is serialized as a string to honor the repo's int64→string API
-	// contract (JS loses precision on int64 as a JSON number).
-	StudentID   *string `json:"student_id,omitempty"`
-	Title       string  `json:"title"`              // student name OR activity title
-	Subtitle    string  `json:"subtitle,omitempty"` // school class or room — optional
-	DueTime     string  `json:"due_time"`           // "HH:MM" of the relevant time
-	MinutesAway int     `json:"minutes_away"`       // negative when overdue
+	// Entity IDs are serialized as strings to honor the repo's int64→string API
+	// contract (JS loses precision on int64 as a JSON number). Exactly one is set
+	// according to Type and gives frontend lists a stable reconciliation key.
+	StudentID          *string `json:"student_id,omitempty"`
+	ActivityInstanceID *string `json:"activity_instance_id,omitempty"`
+	Title              string  `json:"title"`              // student name OR activity title
+	Subtitle           string  `json:"subtitle,omitempty"` // school class or room — optional
+	DueTime            string  `json:"due_time"`           // "HH:MM" of the relevant time
+	MinutesAway        int     `json:"minutes_away"`       // negative when overdue
 }
 
 // Result is the computed reminder list plus a convenience count for the badge.
@@ -492,7 +494,7 @@ func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs [
 		}
 		out = append(out, Reminder{
 			Type:        reminderType,
-			StudentID:   studentIDString(d.id),
+			StudentID:   int64String(d.id),
 			Title:       info.name,
 			Subtitle:    info.class,
 			DueTime:     formatMinutes(d.pickupMin),
@@ -597,19 +599,21 @@ func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []
 		switch {
 		case upcoming && diff >= 0 && diff <= lead:
 			out = append(out, Reminder{
-				Type:        TypeActivityStart,
-				Title:       inst.Title,
-				DueTime:     formatMinutes(startMin),
-				MinutesAway: diff,
+				Type:               TypeActivityStart,
+				ActivityInstanceID: int64String(inst.ID),
+				Title:              inst.Title,
+				DueTime:            formatMinutes(startMin),
+				MinutesAway:        diff,
 			})
 		// Overdue: planned, started late by at least the threshold, and the
 		// slot is not over yet (after end_time a reminder is pointless).
 		case overdue && !isSchulhof && diff < 0 && -diff >= overdueThreshold && nowMin < endMin:
 			out = append(out, Reminder{
-				Type:        TypeActivityOverdue,
-				Title:       inst.Title,
-				DueTime:     formatMinutes(startMin),
-				MinutesAway: diff,
+				Type:               TypeActivityOverdue,
+				ActivityInstanceID: int64String(inst.ID),
+				Title:              inst.Title,
+				DueTime:            formatMinutes(startMin),
+				MinutesAway:        diff,
 			})
 		}
 	}
@@ -816,9 +820,9 @@ func formatMinutes(m int) string {
 	return fmt.Sprintf("%02d:%02d", m/60, m%60)
 }
 
-// studentIDString renders an int64 student ID as a *string for JSON, matching
+// int64String renders an int64 ID as a *string for JSON, matching
 // the repo-wide int64→string API contract.
-func studentIDString(v int64) *string {
+func int64String(v int64) *string {
 	s := strconv.FormatInt(v, 10)
 	return &s
 }

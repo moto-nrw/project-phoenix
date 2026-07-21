@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   CalendarClock,
@@ -31,6 +38,7 @@ import {
 } from "~/lib/parent-api";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { createLogger } from "~/lib/logger";
+import { formatLocalizedDate } from "~/lib/localized-date-format";
 import {
   berlinTodayISO,
   parseISODate,
@@ -89,17 +97,7 @@ function isNextDayISO(prev: string, next: string): boolean {
 }
 
 function formatLocaleDate(iso: string, locale: string): string {
-  try {
-    const d = iso.length === 10 ? new Date(`${iso}T00:00:00Z`) : new Date(iso);
-    return new Intl.DateTimeFormat(locale, {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      timeZone: iso.length === 10 ? "UTC" : undefined,
-    }).format(d);
-  } catch {
-    return iso;
-  }
+  return formatLocalizedDate(iso, locale);
 }
 
 // --- data hook ---
@@ -334,36 +332,16 @@ export function useChildCare(studentId: string): ChildCare {
     };
   }, []);
 
-  // Reset all per-child state SYNCHRONOUSLY when studentId changes. Navigating
-  // between children reuses this hook instance (only the prop changes — see
-  // ChildDetailContent), so without this the previous child's weekdays, absence
-  // signal, care exceptions, and loaded flags stay live until B's fetch lands.
-  // The loadSeqRef guard blocks a late load(A) from overwriting B, but it does
-  // nothing about that pre-fetch window: `today` is still current, so the "Heute
-  // → Abholung" tile would resolve against A's data and render under B's name.
-  // Clearing here (React's "reset state on prop change" pattern — set functions
-  // during render, applied before paint) drops the loaded flags so todayPickup
-  // shows the neutral "unknown"/loading state for B instead of A's pickup, and
-  // the load effect below immediately refetches (#1725 review).
+  // Reset all per-child state before paint when studentId changes. The returned
+  // values are also masked below until this layout effect commits, so data from
+  // the previous child can never render under the new child's name.
   const [loadedStudentId, setLoadedStudentId] = useState(studentId);
-  if (loadedStudentId !== studentId) {
+  // This state is an ownership guard for asynchronous writes, not UI-derived
+  // state: it deliberately changes only after the old child's data is masked.
+  useLayoutEffect(() => {
+    if (loadedStudentId === studentId) return;
     setLoadedStudentId(studentId);
-    // Invalidate any in-flight load(A) SYNCHRONOUSLY. Clearing the state above is
-    // not enough on its own: load()'s stale-response guard compares its captured
-    // seq against loadSeqRef.current, and the reset does not touch that ref — so a
-    // load(A) already awaiting its fetch still "owns" the current seq and would
-    // pass the guard and repopulate B's view with A's absence/pickup state before
-    // load(B) even starts (load(B) only runs in the post-paint effect). Bumping
-    // the ref here makes every in-flight load bail (its seq !== current). Safe to
-    // mutate during render: this branch runs at most once per studentId change
-    // (setLoadedStudentId flips the guard), and a discarded/replayed render only
-    // bumps again — over-invalidating costs at most a refetch, never stale data
-    // (#1725 review).
     loadSeqRef.current += 1;
-    // Re-point the identity guard at the new child SYNCHRONOUSLY (same reasoning
-    // as the loadSeqRef bump), so a still-in-flight mutation started for the
-    // previous child bails instead of applying its result to this one (#1725
-    // review).
     currentStudentIdRef.current = studentId;
     setSickDays([]);
     setExcusedRequests([]);
@@ -375,7 +353,9 @@ export function useChildCare(studentId: string): ChildCare {
     setWeekPlanDate(null);
     setFeatures(DEFAULT_FEATURES);
     setLoading(true);
-  }
+  }, [loadedStudentId, studentId]);
+
+  const hasCurrentStudentData = loadedStudentId === studentId;
 
   const load = useCallback(async (): Promise<{ requestsOk: boolean }> => {
     const seq = ++loadSeqRef.current;
@@ -486,10 +466,11 @@ export function useChildCare(studentId: string): ChildCare {
   // so it fires even in a background tab. refetchOnFocus:true stays as the fallback
   // for a tab whose SSE stream had dropped entirely (no event ever arrives), mirroring
   // the conversation views' focus healing.
+  const refreshChildCare = useCallback(() => void load(), [load]);
   useMessagesActivity({
     eventName: "parent-conversation-refresh",
     studentId,
-    onMatch: () => void load(),
+    onMatch: refreshChildCare,
     marksRead: false,
     refetchOnFocus: true,
   });
@@ -606,16 +587,17 @@ export function useChildCare(studentId: string): ChildCare {
   const todayPickup = useMemo(
     () =>
       resolveTodayPickup({
-        weekdays,
+        weekdays: hasCurrentStudentData ? weekdays : [],
         // The week-plan signal (base plan AND todayAbsent) is only valid for the
         // day it was resolved for. If the tab crossed midnight, `today` advanced
         // ahead of the reload; treat the signal as not-yet-loaded for the new
         // date so the tile shows "unknown" (asserting nothing) instead of a stale
         // absence or pickup — safe even if the reload hangs (#1725 review).
-        weekPlanLoaded: weekPlanLoaded && weekPlanDate === today,
-        todayAbsent,
-        careExceptions,
-        careExceptionsLoaded,
+        weekPlanLoaded:
+          hasCurrentStudentData && weekPlanLoaded && weekPlanDate === today,
+        todayAbsent: hasCurrentStudentData && todayAbsent,
+        careExceptions: hasCurrentStudentData ? careExceptions : [],
+        careExceptionsLoaded: hasCurrentStudentData && careExceptionsLoaded,
         today,
       }),
     [
@@ -625,18 +607,19 @@ export function useChildCare(studentId: string): ChildCare {
       todayAbsent,
       careExceptions,
       careExceptionsLoaded,
+      hasCurrentStudentData,
       today,
     ],
   );
 
   return {
-    sickDays,
-    excusedRequests,
-    careExceptions,
-    careExceptionsLoaded,
+    sickDays: hasCurrentStudentData ? sickDays : [],
+    excusedRequests: hasCurrentStudentData ? excusedRequests : [],
+    careExceptions: hasCurrentStudentData ? careExceptions : [],
+    careExceptionsLoaded: hasCurrentStudentData && careExceptionsLoaded,
     todayPickup,
-    features,
-    loading,
+    features: hasCurrentStudentData ? features : DEFAULT_FEATURES,
+    loading: !hasCurrentStudentData || loading,
     reportSick,
     withdrawExcused,
     saveCareException,

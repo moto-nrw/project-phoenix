@@ -49,7 +49,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 	db, svc := testutil.SetupAPITest(t)
 
-	resource := staffAPI.NewResource(svc.Users, svc.StaffOffboarding, svc.Education, svc.Auth, svc.WorkSession, svc.StaffAbsence, db, slog.Default())
+	resource := staffAPI.NewResource(svc.Users, svc.StaffOffboarding, svc.Education, svc.Auth, svc.WorkSession, svc.StaffAbsence, svc.WorkTimeMonth, db, slog.Default())
 
 	router := chi.NewRouter()
 	router.Mount("/staff", resource.Router())
@@ -1273,7 +1273,7 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 			DayOfWeek:      configModels.DayMonday,
 			TargetMinutes:  300,
 		},
-	}))
+	}, timezone.Date{}))
 
 	claims := testutil.DefaultTestClaims()
 	claims.Permissions = []string{"time_tracking:manage"}
@@ -1331,7 +1331,7 @@ func TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn(t *testing.T) {
 			DayOfWeek:      configModels.DayMonday,
 			TargetMinutes:  300,
 		},
-	}))
+	}, timezone.Date{}))
 
 	claims := testutil.DefaultTestClaims()
 	claims.ID = int(account.ID)

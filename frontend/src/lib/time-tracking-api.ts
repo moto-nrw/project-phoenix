@@ -3,6 +3,9 @@
 import { getSession } from "next-auth/react";
 import { buildApiError } from "./auth-api";
 import type {
+  BackendDailyTarget,
+  BackendMonthSummary,
+  MonthSummary,
   StaffAbsence,
   WeeklySummary,
   WorkSession,
@@ -11,7 +14,9 @@ import type {
   WorkSessionHistory,
 } from "./time-tracking-helpers";
 import {
+  mapDailyTargetsResponse,
   mapHistoryResponse,
+  mapMonthSummaryResponse,
   mapStaffAbsenceResponse,
   mapWorkSessionResponse,
   mapWorkSessionBreakResponse,
@@ -198,6 +203,37 @@ class TimeTrackingService {
       weekly_summaries: unknown[];
     }>(`/history?${params}`, "GET", "Failed to get history");
     return mapHistoryResponse(result.data as never);
+  }
+
+  // Own Monatskarte (#1842): Summe Soll/Ist, Gutschriften, Übertrag, Saldo.
+  async getMonthSummary(year: number, month: number): Promise<MonthSummary> {
+    const params = new URLSearchParams({
+      year: String(year),
+      month: String(month),
+    });
+    const result = await this.request<BackendMonthSummary>(
+      `/month-summary?${params}`,
+      "GET",
+      "Failed to get month summary",
+    );
+    return mapMonthSummaryResponse(result.data);
+  }
+
+  // Date-valid Soll per day (#1842). The daily table must not derive Soll from
+  // the CURRENT schedule: after a contract change that would show historical
+  // rows with today's hours while the Monatskarte above them reports the
+  // hours that actually applied.
+  async getScheduleTargets(
+    from: string,
+    to: string,
+  ): Promise<ReadonlyMap<string, number>> {
+    const params = new URLSearchParams({ from, to });
+    const result = await this.request<BackendDailyTarget[] | null>(
+      `/schedule-targets?${params}`,
+      "GET",
+      "Failed to get schedule targets",
+    );
+    return mapDailyTargetsResponse(result.data);
   }
 
   async updateSession(

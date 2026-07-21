@@ -7,6 +7,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "LogAPI" });
@@ -28,7 +29,7 @@ const logger = createLogger({ component: "LogAPI" });
  * });
  * ```
  */
-export async function POST(request: NextRequest) {
+async function POSTHandler(request: NextRequest) {
   // Require authenticated session to prevent abuse
   const session = await auth();
   if (!session?.user) {
@@ -90,3 +91,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withTenantAuth(POSTHandler);

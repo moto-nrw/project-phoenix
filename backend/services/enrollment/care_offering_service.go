@@ -120,7 +120,7 @@ func NewCareOfferingService(cfg CareOfferingServiceConfig) CareOfferingService {
 
 func (s *careOfferingService) List(ctx context.Context) ([]*enrollmentModels.CareOffering, error) {
 	offerings, err := s.Repo.ListByTenant(ctx)
-	return s.validateLoadedAvailabilityRules(offerings, err)
+	return validateLoadedAvailabilityRules(offerings, err)
 }
 
 func (s *careOfferingService) ListByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error) {
@@ -128,7 +128,7 @@ func (s *careOfferingService) ListByPhase(ctx context.Context, phaseID int64) ([
 		return nil, careOfferingInvalidf("phase_id must be positive")
 	}
 	offerings, err := s.Repo.ListByPhase(ctx, phaseID)
-	return s.validateLoadedAvailabilityRules(offerings, err)
+	return validateLoadedAvailabilityRules(offerings, err)
 }
 
 func (s *careOfferingService) ListActiveByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error) {
@@ -136,7 +136,7 @@ func (s *careOfferingService) ListActiveByPhase(ctx context.Context, phaseID int
 		return nil, careOfferingInvalidf("phase_id must be positive")
 	}
 	offerings, err := s.Repo.ListActiveByPhase(ctx, phaseID)
-	return s.validateLoadedAvailabilityRules(offerings, err)
+	return validateLoadedAvailabilityRules(offerings, err)
 }
 
 func (s *careOfferingService) GetByID(ctx context.Context, id int64) (*enrollmentModels.CareOffering, error) {
@@ -158,7 +158,7 @@ func (s *careOfferingService) GetByID(ctx context.Context, id int64) (*enrollmen
 	return offering, nil
 }
 
-func (s *careOfferingService) validateLoadedAvailabilityRules(offerings []*enrollmentModels.CareOffering, loadErr error) ([]*enrollmentModels.CareOffering, error) {
+func validateLoadedAvailabilityRules(offerings []*enrollmentModels.CareOffering, loadErr error) ([]*enrollmentModels.CareOffering, error) {
 	if loadErr != nil {
 		return nil, loadErr
 	}
