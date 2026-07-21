@@ -2041,3 +2041,38 @@ func TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe(t *testing.T)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"2026-01-05", "2026-01-19", "2026-01-26"}, eventDates(events, calModels.EventSourceAppointment))
 }
+
+// A monthly rule that can never produce a valid occurrence (February-only on day
+// 31) must be rejected at create time rather than persisting an invisible,
+// phantom-exporting appointment.
+func TestCalendarServiceIntegration_ImpossibleMonthlyRecurrenceRejected(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Impossible", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Impossible", "Invitee")
+	t.Cleanup(func() {
+		testpkg.CleanupStaffFixtures(t, db, invitedStaff.ID, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
+	})
+
+	_, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Nie",
+		StartDate:    timezone.NewDate(2026, 2, 15), // February — reached every 12 months
+		EndDate:      timezone.NewDate(2026, 2, 15),
+		StartTime:    wallClock(9, 0),
+		EndTime:      wallClock(10, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency:     calModels.RecurrenceFrequencyMonthly,
+			IntervalCount: 12,
+			MonthDays:     []int{31}, // February never has a 31st
+		},
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+		},
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
+}

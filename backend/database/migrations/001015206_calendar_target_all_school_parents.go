@@ -43,7 +43,13 @@ func init() {
 		},
 		func(ctx context.Context, db *bun.DB) error {
 			fmt.Println("Rolling back migration 1.15.206: Removing all_school_parents from the calendar target check...")
+			// Existing all_school_parents rows would violate the tightened CHECK and
+			// abort the ALTER, so drop them first. Rolling this migration back removes
+			// the target type entirely, so those rows have no valid representation.
 			if _, err := db.NewRaw(`
+				DELETE FROM calendar.appointment_targets
+				WHERE target_type = 'all_school_parents';
+
 				ALTER TABLE calendar.appointment_targets
 					DROP CONSTRAINT IF EXISTS chk_calendar_targets_type,
 					ADD CONSTRAINT chk_calendar_targets_type CHECK (

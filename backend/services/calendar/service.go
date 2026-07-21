@@ -1765,19 +1765,14 @@ func expandOccurrences(appointment *calModels.Appointment, rule *calModels.Recur
 	return occurrences
 }
 
-// recurrenceScanCapDays bounds the forward scan for an UNBOUNDED rule's first
-// occurrence so a pathological interval can never loop forever. ~40 years
-// generously covers any realistic interval_count (a monthly interval of 24 or a
-// weekly interval of dozens still resolves well inside it).
-const recurrenceScanCapDays = 366 * 40
-
 // firstRecurrenceOccurrence returns the first calendar date on or after the
-// appointment's StartDate that satisfies the recurrence rule. ok=false ONLY when
-// the rule is bounded by EndsOn and produces no occurrence within [StartDate,
-// EndsOn] — a genuinely empty series. An unbounded or count-bounded rule always
-// eventually produces an occurrence, so it never reports ok=false even when the
-// first occurrence is far in the future (e.g. a monthly rule with a large
-// interval): rejecting those would drop valid appointments.
+// appointment's StartDate that satisfies the recurrence rule. ok=false means the
+// rule has NO valid occurrence: either it is mathematically impossible (e.g. a
+// monthly rule that only ever lands on February asking for day 31), or its first
+// occurrence falls after EndsOn. The occurrence is computed analytically per
+// frequency — no fixed scan horizon — so a valid but sparse rule (a large
+// interval whose first match is many years out) is never mis-rejected nor
+// mis-anchored to StartDate.
 //
 // For a weekly rule whose selected weekdays exclude StartDate's own weekday the
 // first occurrence is later than StartDate; the in-app expansion
@@ -1786,28 +1781,103 @@ func firstRecurrenceOccurrence(appointment *calModels.Appointment, rule *calMode
 	if rule == nil {
 		return appointment.StartDate, false
 	}
-	if rule.IntervalCount <= 0 {
-		rule.IntervalCount = 1
+	interval := rule.IntervalCount
+	if interval <= 0 {
+		interval = 1
 	}
-	// EndsOn gives a concrete, finite scan bound; an unbounded rule is scanned up
-	// to a generous cap (it is guaranteed to have an occurrence — possibly beyond
-	// the cap for an absurd interval, in which case we still report ok=true).
-	limit := appointment.StartDate.AddDays(recurrenceScanCapDays)
-	if rule.EndsOn != nil {
-		limit = *rule.EndsOn
-	}
-	for d := appointment.StartDate; !d.After(limit); d = d.AddDays(1) {
-		if matchesRule(appointment.StartDate, d, rule) {
-			return d, true
-		}
-	}
-	if rule.EndsOn != nil {
-		// Bounded window fully scanned with no match: the series is empty.
+	first, exists := firstMatchingOccurrence(appointment.StartDate, interval, rule)
+	if !exists {
 		return appointment.StartDate, false
 	}
-	// Unbounded: an occurrence exists beyond the scan cap. Don't reject; fall back
-	// to StartDate as a best-effort DTSTART anchor.
-	return appointment.StartDate, true
+	if rule.EndsOn != nil && first.After(*rule.EndsOn) {
+		return first, false
+	}
+	return first, true
+}
+
+// firstMatchingOccurrence computes the first date on or after start that the rule
+// matches, ignoring EndsOn. exists=false only for a genuinely impossible rule
+// (monthly month_days that never fall in any reachable month). Daily, weekly
+// without weekdays, monthly without month_days, and yearly always match start.
+func firstMatchingOccurrence(start timezone.Date, interval int, rule *calModels.RecurrenceRule) (timezone.Date, bool) {
+	switch rule.Frequency {
+	case calModels.RecurrenceFrequencyDaily, calModels.RecurrenceFrequencyYearly:
+		return start, true
+	case calModels.RecurrenceFrequencyWeekly:
+		if len(normalizeWeekdays(rule.Weekdays)) == 0 {
+			return start, true
+		}
+		// A selected weekday necessarily falls inside the first valid recurrence
+		// week, at most (interval+1) weeks out. Scan that bounded window via the
+		// shared matcher so the result is identical to the in-app expansion.
+		limit := start.AddDays((interval + 1) * 7)
+		for d := start; !d.After(limit); d = d.AddDays(1) {
+			if matchesRule(start, d, rule) {
+				return d, true
+			}
+		}
+		return start, false
+	case calModels.RecurrenceFrequencyMonthly:
+		if len(rule.MonthDays) == 0 {
+			return start, true
+		}
+		return firstMonthlyOccurrence(start, interval, rule.MonthDays)
+	default:
+		return start, false
+	}
+}
+
+// firstMonthlyOccurrence finds the first reachable month (start.Month + k·interval)
+// that contains a requested month-day valid for that month and on/after start.
+// The (month-of-year, leap-phase) pattern of reachable months repeats within a
+// bounded number of steps, so scanning that many steps proves impossibility
+// without an unbounded loop.
+func firstMonthlyOccurrence(start timezone.Date, interval int, monthDays []int) (timezone.Date, bool) {
+	days := append([]int(nil), monthDays...)
+	sort.Ints(days)
+	// 12/gcd distinct months of the year are reached within 12/gcd steps; the ×4
+	// (+buffer) covers up to four leap cycles for a February-only day-29 rule.
+	maxSteps := 4*(12/gcdInt(interval, 12)) + 12
+	for k := 0; k <= maxSteps; k++ {
+		year, month := addMonthsTo(start.Year, int(start.Month), k*interval)
+		dim := daysInMonth(year, month)
+		for _, day := range days {
+			if day < 1 || day > dim {
+				continue
+			}
+			candidate := timezone.NewDate(year, time.Month(month), day)
+			if candidate.Before(start) {
+				continue
+			}
+			return candidate, true
+		}
+	}
+	return start, false
+}
+
+// addMonthsTo returns the year and 1-based month reached by adding delta months.
+func addMonthsTo(year, month, delta int) (int, int) {
+	total := year*12 + (month - 1) + delta
+	return total / 12, total%12 + 1
+}
+
+// daysInMonth returns the number of days in the given 1-based month, honouring
+// leap years (day 0 of the next month is the last day of this one).
+func daysInMonth(year, month int) int {
+	return time.Date(year, time.Month(month)+1, 0, 0, 0, 0, 0, time.UTC).Day()
+}
+
+func gcdInt(a, b int) int {
+	for b != 0 {
+		a, b = b, a%b
+	}
+	if a < 0 {
+		a = -a
+	}
+	if a == 0 {
+		return 1
+	}
+	return a
 }
 
 func occurrenceDatesForAppointments(appointments []*calModels.Appointment, recurrenceByAppointment map[int64]*calModels.RecurrenceRule, from, to timezone.Date) []timezone.Date {
