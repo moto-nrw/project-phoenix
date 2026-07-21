@@ -63,6 +63,17 @@ vi.mock("~/lib/timetable-api", () => ({
 vi.mock("~/lib/settings-api", () => ({
   SETTINGS_SCHEMA_SWR_KEY: "settings-schema",
   fetchSettingsSchema: vi.fn(),
+  getSettingValue: (
+    schema: {
+      tabs?: Array<{ categories: Array<{ items: unknown[] }> }>;
+    } | null,
+    key: string,
+  ) =>
+    schema?.tabs
+      ?.flatMap((tab) => tab.categories)
+      .flatMap((category) => category.items)
+      .map((item) => item as { key: string; value: unknown })
+      .find((item) => item.key === key)?.value,
 }));
 
 vi.mock("~/lib/staff-api", () => ({

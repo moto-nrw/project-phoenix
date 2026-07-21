@@ -41,6 +41,24 @@ vi.mock("~/lib/hooks/use-berlin-today", () => ({
   useBerlinToday: mocks.useBerlinToday,
 }));
 
+vi.mock("~/components/timetable/period-switcher-dropdown", () => ({
+  PeriodSwitcherDropdown: ({
+    periods,
+    onSelect,
+  }: {
+    periods: Array<{
+      startDate: string;
+      endDate: string;
+    }>;
+    onSelect: (period: { startDate: string; endDate: string }) => void;
+  }) =>
+    periods[0] ? (
+      <button type="button" onClick={() => onSelect(periods[0]!)}>
+        Zeitraum wählen
+      </button>
+    ) : null,
+}));
+
 vi.mock("~/components/staff/dienstplan-resource-grid", () => ({
   DienstplanResourceGrid: ({
     weekDays,
@@ -436,6 +454,53 @@ describe("DienstplanView", () => {
       "2026-06-29",
     );
   });
+
+  it.each(["2026-08-01", "2026-08-02"])(
+    "snaps a period starting on %s to its first school day",
+    async (startDate) => {
+      mocks.useBerlinToday.mockReturnValue("2026-07-06");
+      mocks.useSWRAuth.mockImplementation((key: string | null) => {
+        if (key === "database-calendar-periods-list") {
+          return {
+            data: [{ startDate, endDate: "2026-08-07" }],
+            error: undefined,
+            isLoading: false,
+            mutate: vi.fn(),
+          };
+        }
+        if (key?.startsWith("dienstplan-overview-")) {
+          return {
+            data: {
+              from: "",
+              to: "",
+              dienstplanInUse: true,
+              staff: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
+              shifts: [],
+              assignments: [],
+            },
+            error: undefined,
+            isLoading: false,
+            mutate: vi.fn(),
+          };
+        }
+        return {
+          data: null,
+          error: undefined,
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      });
+
+      render(<DienstplanView />);
+      fireEvent.click(screen.getByRole("button", { name: "Zeitraum wählen" }));
+
+      await waitFor(() =>
+        expect(new URLSearchParams(window.location.search).get("d")).toBe(
+          "2026-08-03",
+        ),
+      );
+    },
+  );
 
   it("shows the Heute button only when the visible week differs from today's", () => {
     mocks.useBerlinToday.mockReturnValue("2026-07-06");

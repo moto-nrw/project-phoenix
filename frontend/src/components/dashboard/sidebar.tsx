@@ -3,15 +3,15 @@
 
 import { Suspense, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
-import useSWR from "swr";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { useTenantAwarePath } from "~/lib/tenant-path";
+import { normalizeTenantPathname, useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useDisplayEnabled,
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
+  useTenantRoutingModeSafe,
   useTenantSlugSafe,
 } from "~/lib/tenant-context";
 import { useSession } from "next-auth/react";
@@ -29,16 +29,18 @@ import { useParentMessagesUnread } from "~/lib/hooks/use-parent-messages-unread"
 import { useParentNewsUnread } from "~/lib/hooks/use-parent-news-unread";
 import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
 import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
+import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
 import { SidebarSubItem } from "~/components/dashboard/sidebar-sub-item";
 import { navigationIcons } from "~/lib/navigation-icons";
+import { getSettingValue } from "~/lib/settings-api";
 import {
-  SETTINGS_SCHEMA_SWR_KEY,
-  fetchSettingsSchema,
-} from "~/lib/settings-api";
+  getActivePlanningSubPageHref,
+  PLANNING_SUB_PAGES,
+} from "~/lib/planning-navigation";
 
 // Type für Navigation Items
 interface NavItem {
@@ -289,35 +291,6 @@ const NFC_ONLY_HREFS = new Set<string>([
   "/database/devices",
 ]);
 
-// Unterseiten des "Planung"-Akkordeons (#1946): Betreuungsplan, Dienstplan,
-// Vertretung und Kalenderzeiträume gebündelt, gated auf timetable.enabled.
-// Keep in sync with PLANNING_PATH_PREFIXES in use-sidebar-accordion.ts.
-const PLANNING_SUB_PAGES = [
-  { href: "/betreuungsplan", label: "Betreuungsplan" },
-  { href: "/dienstplan", label: "Dienstplan" },
-  { href: "/vertretung", label: "Vertretung" },
-  { href: "/calendar-periods", label: "Kalenderzeiträume" },
-];
-
-// Legacy-Redirect-Frames leuchten im jeweiligen Unterpunkt weiter
-// (docs/planung-redesign/docs/03 Abschnitt 2).
-const PLANNING_LEGACY_PREFIXES: readonly (readonly [string, string])[] = [
-  ["/timetables", "/betreuungsplan"],
-  ["/staff/dienstplan", "/dienstplan"],
-  ["/vertretungsplan", "/vertretung"],
-];
-
-function getActivePlanningSubPageHref(pathname: string): string | null {
-  const direct = PLANNING_SUB_PAGES.find(
-    (page) => pathname === page.href || pathname.startsWith(`${page.href}/`),
-  )?.href;
-  if (direct) return direct;
-  for (const [legacyPrefix, target] of PLANNING_LEGACY_PREFIXES) {
-    if (pathname.startsWith(legacyPrefix)) return target;
-  }
-  return null;
-}
-
 // Static sub-pages for Anmeldungen accordion (admin only).
 const ENROLLMENTS_SUB_PAGES = [
   { href: "/admin/enrollments", label: "Überblick" },
@@ -441,6 +414,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const tParentNav = useTranslations("parentNav");
   const rawPathname = usePathname();
   const tenantSlug = useTenantSlugSafe();
+  const routingMode = useTenantRoutingModeSafe();
   const searchParams = useSearchParams();
   const router = useTenantRouter();
   // Prefixes tenant-scoped hrefs with the slug in path-routing mode (no-op in
@@ -457,16 +431,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
     [tParentNav],
   );
 
-  // Strip tenant prefix so all path checks use unprefixed paths (e.g. "/database").
-  // useTenantRouter().push() produces paths like "/school-a/database" while <Link href="/database">
-  // goes through proxy rewrite and keeps "/database". Normalizing here avoids mismatches.
-  // When tenantSlug is null (operator mode), no stripping needed.
-  const pathname =
-    tenantSlug && rawPathname.startsWith(`/${tenantSlug}/`)
-      ? rawPathname.slice(tenantSlug.length + 1)
-      : tenantSlug && rawPathname === `/${tenantSlug}`
-        ? "/"
-        : rawPathname;
+  // Compare every active state against clean tenant-internal paths. The helper
+  // only strips in path-routing mode, avoiding slug/route collisions on tenant
+  // subdomains.
+  const pathname = normalizeTenantPathname(
+    rawPathname,
+    tenantSlug,
+    routingMode,
+  );
 
   // Get supervision state
   const {
@@ -533,38 +505,24 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Announcers are admin:* holders (see canAnnounce), who satisfy config:read
   // via the wildcard, so they are already covered here.
   const canReadConfig = userIsAdmin || hasPermission(session, "config:read");
-  const { data: settingsSchema } = useSWR(
-    canReadConfig ? SETTINGS_SCHEMA_SWR_KEY : null,
-    fetchSettingsSchema,
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      shouldRetryOnError: false,
-    },
-  );
-
-  const settingsItems = settingsSchema?.tabs
-    .flatMap((tab) => tab.categories)
-    .flatMap((category) => category.items);
+  const { data: settingsSchema } = useSettingsSchema(canReadConfig, {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    shouldRetryOnError: false,
+  });
 
   const parentNewsEnabled =
-    settingsItems?.find((item) => item.key === "operations.parent_news_enabled")
-      ?.value === true;
+    getSettingValue(settingsSchema, "operations.parent_news_enabled") === true;
 
   const mealPlanEnabled =
-    settingsSchema?.tabs
-      .flatMap((tab) => tab.categories)
-      .flatMap((category) => category.items)
-      .find((item) => item.key === "operations.meal_plan_enabled")?.value ===
-    true;
+    getSettingValue(settingsSchema, "operations.meal_plan_enabled") === true;
 
   // Planung-Akkordeon (#1946): nur verstecken, wenn timetable.enabled explizit
   // false liefert — `!== false` statt `=== true`, damit der Bereich beim
   // Schema-Laden nicht kurz verschwindet (gleiches Muster wie das Route-Gate
   // in betreuungsplan-view.tsx).
   const timetableEnabled =
-    settingsItems?.find((item) => item.key === "timetable.enabled")?.value !==
-    false;
+    getSettingValue(settingsSchema, "timetable.enabled") !== false;
 
   // Gruppenzugriff (#1940): temporäre Gruppen-Datenzugriffe sind nur bei
   // festen Gruppen sinnvoll; bei offener Betreuung arbeiten ohnehin alle

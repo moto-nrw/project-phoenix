@@ -182,6 +182,11 @@ describe("calendar-period-helpers", () => {
       expect(weekCycleLabel(4)).toBe("A/B/C/D-Wochen");
     });
 
+    it("renders unsupported long cycles without enumerating every slot", () => {
+      expect(weekCycleLabel(5)).toBe("5-Wochen-Zyklus");
+      expect(weekCycleLabel(32_767)).toBe("32767-Wochen-Zyklus");
+    });
+
     it("returns null for weekly repetition", () => {
       expect(weekCycleLabel(1)).toBeNull();
       expect(weekCycleLabel(0)).toBeNull();

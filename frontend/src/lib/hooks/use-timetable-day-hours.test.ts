@@ -1,12 +1,12 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockUseSWR } = vi.hoisted(() => ({
-  mockUseSWR: vi.fn(),
+const { mockUseSettingsSchema } = vi.hoisted(() => ({
+  mockUseSettingsSchema: vi.fn(),
 }));
 
-vi.mock("swr", () => ({
-  default: mockUseSWR,
+vi.mock("~/lib/hooks/use-settings-schema", () => ({
+  useSettingsSchema: mockUseSettingsSchema,
 }));
 
 import { useTimetableDayHours } from "./use-timetable-day-hours";
@@ -34,7 +34,9 @@ describe("useTimetableDayHours", () => {
   });
 
   it("uses configured start and end hours from settings schema", () => {
-    mockUseSWR.mockReturnValue({ data: schema("08:30", "16:15") });
+    mockUseSettingsSchema.mockReturnValue({
+      data: schema("08:30", "16:15"),
+    });
 
     const { result } = renderHook(() => useTimetableDayHours());
 
@@ -42,19 +44,23 @@ describe("useTimetableDayHours", () => {
   });
 
   it("falls back when settings are missing, malformed or inverted", () => {
-    mockUseSWR.mockReturnValueOnce({ data: null });
+    mockUseSettingsSchema.mockReturnValueOnce({ data: null });
     expect(renderHook(() => useTimetableDayHours()).result.current).toEqual({
       dayStartHour: 9,
       dayEndHour: 17,
     });
 
-    mockUseSWR.mockReturnValueOnce({ data: schema("xx", "99:00") });
+    mockUseSettingsSchema.mockReturnValueOnce({
+      data: schema("xx", "99:00"),
+    });
     expect(renderHook(() => useTimetableDayHours()).result.current).toEqual({
       dayStartHour: 9,
       dayEndHour: 17,
     });
 
-    mockUseSWR.mockReturnValueOnce({ data: schema("18:00", "12:00") });
+    mockUseSettingsSchema.mockReturnValueOnce({
+      data: schema("18:00", "12:00"),
+    });
     expect(renderHook(() => useTimetableDayHours()).result.current).toEqual({
       dayStartHour: 18,
       dayEndHour: 17,

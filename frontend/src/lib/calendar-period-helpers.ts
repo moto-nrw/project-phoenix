@@ -232,6 +232,9 @@ export function weekCycleSlotLetter(slot: number): string {
  */
 export function weekCycleLabel(cycleLength: number): string | null {
   if (cycleLength <= 1) return null;
+  // The editor supports up to four slots. Persisted/API values may be much
+  // larger, so never allocate or join an array proportional to untrusted data.
+  if (cycleLength > 4) return `${cycleLength}-Wochen-Zyklus`;
   const letters = Array.from({ length: cycleLength }, (_, i) =>
     weekCycleSlotLetter(i + 1),
   );

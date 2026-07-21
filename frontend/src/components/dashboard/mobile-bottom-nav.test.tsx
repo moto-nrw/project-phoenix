@@ -371,6 +371,46 @@ describe("MobileBottomNav", () => {
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
     });
 
+    it("prefixes all planning links in tenant path-routing mode", () => {
+      render(<MobileBottomNav />);
+
+      const moreButton = screen.getByRole("button", { name: "Mehr" });
+      fireEvent.click(moreButton);
+
+      expect(screen.getByText("Betreuungsplan").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/betreuungsplan",
+      );
+      expect(screen.getByText("Dienstplan").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/dienstplan",
+      );
+      expect(screen.getByText("Vertretung").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/vertretung",
+      );
+    });
+
+    it("keeps planning links bare in subdomain mode", () => {
+      mockUseTenantRoutingModeSafe.mockReturnValue("subdomain");
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.getByText("Betreuungsplan").closest("a")).toHaveAttribute(
+        "href",
+        "/betreuungsplan",
+      );
+      expect(screen.getByText("Dienstplan").closest("a")).toHaveAttribute(
+        "href",
+        "/dienstplan",
+      );
+      expect(screen.getByText("Vertretung").closest("a")).toHaveAttribute(
+        "href",
+        "/vertretung",
+      );
+    });
+
     it("highlights Dienstplan without also highlighting Mitarbeiter in the overflow menu", () => {
       // /staff/dienstplan ist nur noch der Redirect-Frame des Dienstplans
       // (Planung-Redesign) und gehört nicht mehr zur Mitarbeiter-Sektion.
@@ -389,6 +429,17 @@ describe("MobileBottomNav", () => {
       const staffLink = screen.getByText("Mitarbeiter").closest("a");
       expect(dienstplanLink).toHaveClass("bg-gray-900");
       expect(staffLink).not.toHaveClass("bg-gray-900");
+    });
+
+    it("highlights Dienstplan under a tenant-prefixed path", () => {
+      mockUsePathname.mockReturnValue("/test-tenant/dienstplan");
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.getByText("Dienstplan").closest("a")).toHaveClass(
+        "bg-gray-900",
+      );
     });
 
     it("highlights Betreuungsplan on /calendar-periods in the overflow menu", () => {
@@ -985,6 +1036,16 @@ describe("MobileBottomNav", () => {
       expect(screen.queryByText("Vertretung")).not.toBeInTheDocument();
       // Gruppenzugriff bleibt sichtbar (fixed_groups default).
       expect(screen.getByText("Gruppenzugriff")).toBeInTheDocument();
+    });
+
+    it("reads timetable.enabled from the tenant-scoped SWR key", () => {
+      render(<MobileBottomNav />);
+
+      expect(mockUseSWRDefault).toHaveBeenCalledWith(
+        "test-tenant:settings-schema",
+        expect.any(Function),
+        expect.any(Object),
+      );
     });
   });
 });

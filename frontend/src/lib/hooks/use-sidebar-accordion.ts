@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useEffect } from "react";
 
+import { isPlanningPath } from "~/lib/planning-navigation";
+
 type AccordionSection =
   | "groups"
   | "supervisions"
@@ -37,23 +39,6 @@ const ELTERN_PATH_PREFIXES = [
 
 function isElternPath(p: string): boolean {
   return ELTERN_PATH_PREFIXES.some((prefix) => p.startsWith(prefix));
-}
-
-// Paths that belong to the "Planung" accordion (Betreuungsplan, Dienstplan,
-// Vertretung, Kalenderzeiträume) including the legacy redirect stubs.
-// Keep in sync with PLANNING_SUB_PAGES in sidebar.tsx.
-const PLANNING_PATH_PREFIXES = [
-  "/betreuungsplan",
-  "/dienstplan",
-  "/vertretung",
-  "/calendar-periods",
-  "/timetables",
-  "/vertretungsplan",
-  "/staff/dienstplan",
-];
-
-function isPlanningPath(p: string): boolean {
-  return PLANNING_PATH_PREFIXES.some((prefix) => p.startsWith(prefix));
 }
 
 const STORAGE_KEY = "sidebar-accordion-expanded";

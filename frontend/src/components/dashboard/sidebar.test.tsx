@@ -70,6 +70,7 @@ import {
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
+  useTenantRoutingModeSafe,
 } from "~/lib/tenant-context";
 import useSWR from "swr";
 
@@ -82,6 +83,7 @@ const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
 const mockUseOpenCareGroupMode = vi.mocked(useOpenCareGroupMode);
+const mockUseTenantRoutingModeSafe = vi.mocked(useTenantRoutingModeSafe);
 const mockUseSWRDefault = vi.mocked(useSWR);
 
 // Helper to create mock search params
@@ -152,6 +154,7 @@ describe("Sidebar", () => {
       refresh: vi.fn(),
     });
     mockIsAdmin.mockReturnValue(false);
+    mockUseTenantRoutingModeSafe.mockReturnValue("path");
   });
 
   describe("rendering", () => {
@@ -342,6 +345,32 @@ describe("Sidebar", () => {
       const staffLink = screen.getByText("Mitarbeiter").closest("a");
       expect(dienstplanLink).toHaveClass("bg-gray-100");
       expect(staffLink).not.toHaveClass("bg-gray-100");
+    });
+
+    it("expands and highlights Planung under a tenant-prefixed path", () => {
+      mockUsePathname.mockReturnValue("/test-tenant/dienstplan");
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Dienstplan").closest("a")).toHaveClass(
+        "bg-gray-100",
+      );
+      expect(screen.getByText("Planung")).toBeInTheDocument();
+    });
+
+    it("does not strip a route-like slug in subdomain mode", () => {
+      mockUseTenantRoutingModeSafe.mockReturnValue("subdomain");
+      mockUsePathname.mockReturnValue("/dienstplan");
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Dienstplan").closest("a")).toHaveClass(
+        "bg-gray-100",
+      );
     });
 
     it("highlights Kalenderzeiträume on /calendar-periods", () => {
@@ -1669,6 +1698,16 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Vertretung")).not.toBeInTheDocument();
       expect(screen.queryByText("Kalenderzeiträume")).not.toBeInTheDocument();
+    });
+
+    it("reads the settings schema from the tenant-scoped SWR key", () => {
+      render(<Sidebar />);
+
+      expect(mockUseSWRDefault).toHaveBeenCalledWith(
+        "test-tenant:settings-schema",
+        expect.any(Function),
+        expect.any(Object),
+      );
     });
 
     it("shows the Planung accordion while the settings schema is loading", () => {
