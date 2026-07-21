@@ -71,6 +71,16 @@ func TestAppointmentWhenText(t *testing.T) {
 	}
 	assert.Equal(t, "02.04.2026, 18:00–19:30 Uhr", appointmentWhenText(timed))
 
+	// A multi-day timed appointment shows both dates so the times aren't read as
+	// a single-day range.
+	multiDay := &calModels.Appointment{
+		StartDate: timezone.NewDate(2026, 6, 3),
+		EndDate:   timezone.NewDate(2026, 6, 4),
+		StartTime: clock(18, 0),
+		EndTime:   clock(9, 0),
+	}
+	assert.Equal(t, "03.06.2026, 18:00 Uhr – 04.06.2026, 09:00 Uhr", appointmentWhenText(multiDay))
+
 	assert.Equal(t, "02.04.2026 (ganztägig)", appointmentWhenText(&calModels.Appointment{
 		StartDate: timezone.NewDate(2026, 4, 2),
 		EndDate:   timezone.NewDate(2026, 4, 2),

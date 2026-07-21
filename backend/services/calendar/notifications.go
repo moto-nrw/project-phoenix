@@ -167,5 +167,12 @@ func appointmentWhenText(appointment *calModels.Appointment) string {
 		}
 		return fmt.Sprintf("%s (ganztägig)", day)
 	}
-	return fmt.Sprintf("%s, %s–%s Uhr", day, formatClock(appointment.StartTime), formatClock(appointment.EndTime))
+	start := formatClock(appointment.StartTime)
+	end := formatClock(appointment.EndTime)
+	if appointment.EndDate.After(appointment.StartDate) {
+		// Multi-day timed appointment: show the end date too, or the times read as
+		// a single-day range (e.g. "18:00–09:00" instead of overnight).
+		return fmt.Sprintf("%s, %s Uhr – %s, %s Uhr", day, start, appointment.EndDate.Format("02.01.2006"), end)
+	}
+	return fmt.Sprintf("%s, %s–%s Uhr", day, start, end)
 }
