@@ -225,10 +225,6 @@ func (m *absWorkSessionRepoMock) GetCurrentByStaffID(ctx context.Context, staffI
 	return nil, nil
 }
 
-func (m *absWorkSessionRepoMock) GetCurrentByStaffIDForUpdate(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
-	return m.GetCurrentByStaffID(ctx, staffID)
-}
-
 func (m *absWorkSessionRepoMock) GetOpenByStaffAndDate(ctx context.Context, staffID int64, _ timezone.Date) (*activeModels.WorkSession, error) {
 	return m.GetCurrentByStaffID(ctx, staffID)
 }

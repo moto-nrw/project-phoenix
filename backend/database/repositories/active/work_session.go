@@ -62,11 +62,6 @@ func (r *WorkSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID
 	return r.getOpenByStaffAndDate(ctx, staffID, timezone.TodayDate(), false)
 }
 
-// GetCurrentByStaffIDForUpdate returns the active session for a staff member today and locks it.
-func (r *WorkSessionRepository) GetCurrentByStaffIDForUpdate(ctx context.Context, staffID int64) (*active.WorkSession, error) {
-	return r.getOpenByStaffAndDate(ctx, staffID, timezone.TodayDate(), true)
-}
-
 // GetOpenByStaffAndDate returns the not-checked-out session of a staff member on
 // an explicit calendar day. Callers that must not re-derive "today" mid-request
 // (a kiosk stamp can straddle Berlin midnight) use this instead of

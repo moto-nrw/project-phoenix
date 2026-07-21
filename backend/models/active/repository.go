@@ -291,9 +291,6 @@ type WorkSessionRepository interface {
 	// GetCurrentByStaffID returns the active (not checked out) session for a staff member
 	GetCurrentByStaffID(ctx context.Context, staffID int64) (*WorkSession, error)
 
-	// GetCurrentByStaffIDForUpdate returns and locks the active session row for a staff member.
-	GetCurrentByStaffIDForUpdate(ctx context.Context, staffID int64) (*WorkSession, error)
-
 	// GetOpenByStaffAndDate returns the not-checked-out session of a staff
 	// member on an explicit calendar day, for callers that must not re-derive
 	// "today" while the request is running.
