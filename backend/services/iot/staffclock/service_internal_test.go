@@ -65,6 +65,9 @@ func (s *stubCards) Deactivate(context.Context, string) error { return nil }
 type stubWorkSessions struct {
 	checkInErr  error
 	checkInCall int
+	// historyByDay mirrors the date-scoped read: only the day the session was
+	// stamped on returns it.
+	historyByDay map[string]*activeSvc.SessionResponse
 }
 
 func (s *stubWorkSessions) CheckIn(context.Context, int64, string, string, string) (*activeModels.WorkSession, error) {
@@ -96,7 +99,10 @@ func (s *stubWorkSessions) GetCurrentSession(context.Context, int64) (*activeMod
 	return nil, nil
 }
 
-func (s *stubWorkSessions) GetHistory(context.Context, int64, timezone.Date, timezone.Date) (*activeSvc.HistoryResponse, error) {
+func (s *stubWorkSessions) GetHistory(_ context.Context, _ int64, from, _ timezone.Date) (*activeSvc.HistoryResponse, error) {
+	if session, ok := s.historyByDay[from.String()]; ok {
+		return &activeSvc.HistoryResponse{Sessions: []*activeSvc.SessionResponse{session}}, nil
+	}
 	return &activeSvc.HistoryResponse{}, nil
 }
 
@@ -139,6 +145,46 @@ func TestExecute_ConcurrentCheckInReportsStateConflict(t *testing.T) {
 	// The duplicate INSERT left the request transaction aborted, so the partial
 	// work must never be committed alongside the 409.
 	assert.True(t, tenant.RollbackRequested(ctx))
+}
+
+// A stamp placed just before midnight must be read back on the day it was
+// written. Re-deriving the day after the write reported "checked_out, no
+// session", which invites the kiosk to check in again and leaves the first
+// session open overnight.
+func TestExecute_CheckInBeforeMidnightReportsTheStampedDay(t *testing.T) {
+	service, sessions := newRacedService(nil)
+
+	stampedAt := time.Date(2026, 7, 21, 23, 59, 59, 0, timezone.Berlin)
+	stampedDay := timezone.DateFromTime(stampedAt)
+	sessions.historyByDay = map[string]*activeSvc.SessionResponse{
+		stampedDay.String(): {
+			WorkSession: &activeModels.WorkSession{
+				StaffID:     7,
+				Date:        stampedDay,
+				Status:      activeModels.WorkSessionStatusPresent,
+				Source:      activeModels.WorkSessionSourceNFC,
+				CheckInTime: stampedAt,
+			},
+		},
+	}
+
+	// The clock crosses midnight between the stamp and the reload; GetCurrentSession
+	// is date-scoped and no longer sees yesterday's open session.
+	clock := []time.Time{stampedAt, stampedAt.Add(2 * time.Second)}
+	call := 0
+	service.now = func() time.Time {
+		tick := clock[min(call, len(clock)-1)]
+		call++
+		return tick
+	}
+
+	state, err := service.Execute(context.Background(), checkInCommand())
+
+	require.NoError(t, err)
+	require.NotNil(t, state.Session)
+	assert.Equal(t, stampedDay, timezone.DateFromTime(state.Session.CheckInTime))
+	assert.Equal(t, StateCheckedIn, state.State)
+	assert.Equal(t, []string{ActionBreakStart, ActionCheckOut}, state.AllowedActions)
 }
 
 // A unique violation on another constraint is a genuine fault and must keep

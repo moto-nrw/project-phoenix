@@ -150,16 +150,24 @@ func (s *Service) GetState(ctx context.Context, rawTag string) (*State, error) {
 	if err != nil {
 		return nil, err
 	}
-	return s.loadState(ctx, person, staff)
+	return s.loadState(ctx, person, staff, s.currentTime())
 }
 
 // Execute performs one explicit stamp action with source=nfc, then reloads
 // state so the kiosk never has to predict the result locally.
+//
+// The request timestamp is taken once, before the stamp, and the reload is
+// evaluated against that same calendar day. Deriving the day a second time
+// after the write would let a stamp placed at 23:59:59 be read back on the
+// following day: the session exists on yesterday's date, today's read finds
+// nothing, and the kiosk would be told to check in again while the first
+// session stays open.
 func (s *Service) Execute(ctx context.Context, command Command) (*State, error) {
 	person, staff, err := s.resolveStaff(ctx, command.RFIDTag)
 	if err != nil {
 		return nil, err
 	}
+	now := s.currentTime()
 
 	switch command.Action {
 	case ActionCheckIn:
@@ -177,7 +185,7 @@ func (s *Service) Execute(ctx context.Context, command Command) (*State, error) 
 		return nil, err
 	}
 
-	return s.loadState(ctx, person, staff)
+	return s.loadState(ctx, person, staff, now)
 }
 
 // checkIn stamps the arrival, resolving the reopen-status conflict when the
@@ -266,7 +274,10 @@ func (s *Service) resolveStaff(ctx context.Context, rawTag string) (*userModels.
 	return person, staff, nil
 }
 
-func (s *Service) loadState(ctx context.Context, person *userModels.Person, staff *userModels.Staff) (*State, error) {
+// loadState renders the kiosk state of the calendar day `now` falls in. It
+// never derives that day itself — the caller pins one timestamp per request so
+// stamp and reload cannot land on different dates.
+func (s *Service) loadState(ctx context.Context, person *userModels.Person, staff *userModels.Staff, now time.Time) (*State, error) {
 	result := &State{
 		StaffID:          staff.ID,
 		StaffName:        person.GetFullName(),
@@ -274,51 +285,64 @@ func (s *Service) loadState(ctx context.Context, person *userModels.Person, staf
 		AllowedActions:   []string{ActionCheckIn},
 		IsBreakCompliant: true,
 	}
-	session, err := s.workSessions.GetCurrentSession(ctx, staff.ID)
+
+	session, breaks, err := s.resolveDay(ctx, staff.ID, timezone.DateFromTime(now))
 	if err != nil {
-		return nil, fmt.Errorf("load current work session: %w", err)
+		return nil, err
 	}
 	if session == nil {
-		today := timezone.DateFromTime(s.currentTime())
-		history, historyErr := s.workSessions.GetHistory(ctx, staff.ID, today, today)
-		if historyErr != nil {
-			return nil, fmt.Errorf("load today's work session: %w", historyErr)
-		}
-		if history != nil && len(history.Sessions) > 0 {
-			todaySession := history.Sessions[0]
-			result.Session = newSession(todaySession.WorkSession)
-			result.NetMinutes = todaySession.NetMinutes
-			result.BreakMinutes = todaySession.BreakMinutes
-			result.IsBreakCompliant = todaySession.IsBreakCompliant
-			result.RequiredBreakMinutes = activeSvc.EvaluateLaborTime(
-				todaySession.WorkSession,
-				todaySession.Breaks,
-				s.currentTime(),
-			).RequiredBreakMinutes
-		}
 		return result, nil
 	}
 
-	breaks, err := s.workSessions.GetSessionBreaks(ctx, staff.ID, session.ID)
-	if err != nil {
-		return nil, fmt.Errorf("load work session breaks: %w", err)
-	}
 	result.Session = newSession(session)
-	result.State = StateCheckedIn
-	result.AllowedActions = []string{ActionBreakStart, ActionCheckOut}
-	for _, workBreak := range breaks {
-		if workBreak.IsActive() {
-			result.State = StateOnBreak
-			result.ActiveBreak = newBreak(workBreak)
-			result.AllowedActions = []string{ActionBreakEnd, ActionCheckOut}
-			break
+	if session.CheckOutTime == nil {
+		result.State = StateCheckedIn
+		result.AllowedActions = []string{ActionBreakStart, ActionCheckOut}
+		for _, workBreak := range breaks {
+			if workBreak.IsActive() {
+				result.State = StateOnBreak
+				result.ActiveBreak = newBreak(workBreak)
+				result.AllowedActions = []string{ActionBreakEnd, ActionCheckOut}
+				break
+			}
 		}
 	}
 
-	evaluation := activeSvc.EvaluateLaborTime(session, breaks, s.currentTime())
+	evaluation := activeSvc.EvaluateLaborTime(session, breaks, now)
 	result.NetMinutes = evaluation.NetMinutes
 	result.BreakMinutes = evaluation.BreakMinutes
 	result.RequiredBreakMinutes = evaluation.RequiredBreakMinutes
 	result.IsBreakCompliant = evaluation.IsBreakCompliant
 	return result, nil
+}
+
+// resolveDay returns the session of `day` together with its breaks.
+//
+// The fast path is the open session, but that lookup is scoped to the server's
+// current date. When the day rolled over between the stamp and this read it
+// finds nothing, so the pinned day is asked explicitly — that query returns the
+// row whether it is still open or already closed, which keeps a session stamped
+// seconds before midnight visible to the kiosk instead of silently vanishing.
+func (s *Service) resolveDay(ctx context.Context, staffID int64, day timezone.Date) (*activeModels.WorkSession, []*activeModels.WorkSessionBreak, error) {
+	session, err := s.workSessions.GetCurrentSession(ctx, staffID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load current work session: %w", err)
+	}
+	if session != nil {
+		breaks, breaksErr := s.workSessions.GetSessionBreaks(ctx, staffID, session.ID)
+		if breaksErr != nil {
+			return nil, nil, fmt.Errorf("load work session breaks: %w", breaksErr)
+		}
+		return session, breaks, nil
+	}
+
+	history, err := s.workSessions.GetHistory(ctx, staffID, day, day)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load work session of the day: %w", err)
+	}
+	if history == nil || len(history.Sessions) == 0 {
+		return nil, nil, nil
+	}
+	daySession := history.Sessions[0]
+	return daySession.WorkSession, daySession.Breaks, nil
 }
