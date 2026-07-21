@@ -6,6 +6,9 @@ export interface BackendWorkSession {
   staff_id: number;
   date: string;
   status: "present" | "home_office";
+  // Channel the row was created on (active.work_sessions.source, Issue #1368).
+  // Optional because pre-#1368 payloads predate the column.
+  source?: "app" | "nfc" | "unknown";
   check_in_time: string;
   check_out_time: string | null;
   break_minutes: number;
@@ -160,6 +163,7 @@ export interface WorkSession {
   staffId: string;
   date: string;
   status: "present" | "home_office";
+  source?: "app" | "nfc" | "unknown";
   checkInTime: string;
   checkOutTime: string | null;
   breakMinutes: number;
@@ -227,6 +231,7 @@ export function mapWorkSessionResponse(data: BackendWorkSession): WorkSession {
     staffId: data.staff_id.toString(),
     date: data.date.split("T")[0] ?? data.date,
     status: data.status,
+    source: data.source,
     checkInTime: data.check_in_time,
     checkOutTime: data.check_out_time ?? null,
     breakMinutes: data.break_minutes,

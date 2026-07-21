@@ -5,7 +5,9 @@ import type {
   StaffHistorySession,
   StaffSchedule,
 } from "./staff-api";
+import type { WorkSessionHistory } from "./time-tracking-helpers";
 import {
+  adaptHistorySessionForMetrics,
   computePeriodTotalsFromTargets,
   computeStaffMetrics,
   getDeltaStatus,
@@ -508,5 +510,48 @@ describe("indexAbsenceCreditByDay", () => {
     ]);
 
     expect(byDay.get("2026-06-06")).toBe(0);
+  });
+});
+
+describe("adaptHistorySessionForMetrics", () => {
+  const historySession = (
+    overrides: Partial<WorkSessionHistory> = {},
+  ): WorkSessionHistory => ({
+    id: "42",
+    staffId: "100",
+    date: "2026-07-21",
+    status: "home_office",
+    checkInTime: "2026-07-21T13:30:00Z",
+    checkOutTime: null,
+    breakMinutes: 0,
+    notes: "",
+    autoCheckedOut: false,
+    createdBy: "100",
+    updatedBy: null,
+    createdAt: "2026-07-21T13:30:00Z",
+    updatedAt: "2026-07-21T13:30:00Z",
+    netMinutes: 5,
+    isOvertime: false,
+    isBreakCompliant: true,
+    restPeriodWarning: null,
+    breaks: [],
+    editCount: 0,
+    ...overrides,
+  });
+
+  // A kiosk stamp must stay recognisable as one in the staff member's OWN
+  // view, not just in the admin view: the source column previously dropped
+  // the field here and rendered every NFC session as "App".
+  it("keeps an NFC stamp attributed to NFC", () => {
+    expect(
+      adaptHistorySessionForMetrics(historySession({ source: "nfc" })).source,
+    ).toBe("nfc");
+  });
+
+  it("keeps a legacy row's unknown source unknown", () => {
+    expect(
+      adaptHistorySessionForMetrics(historySession({ source: "unknown" }))
+        .source,
+    ).toBe("unknown");
   });
 });
