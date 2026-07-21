@@ -62,16 +62,57 @@ type Service struct {
 }
 
 type State struct {
-	StaffID              int64                          `json:"staff_id"`
-	StaffName            string                         `json:"staff_name"`
-	State                string                         `json:"state"`
-	AllowedActions       []string                       `json:"allowed_actions"`
-	Session              *activeModels.WorkSession      `json:"session,omitempty"`
-	ActiveBreak          *activeModels.WorkSessionBreak `json:"active_break,omitempty"`
-	NetMinutes           int                            `json:"net_minutes"`
-	BreakMinutes         int                            `json:"break_minutes"`
-	RequiredBreakMinutes int                            `json:"required_break_minutes"`
-	IsBreakCompliant     bool                           `json:"is_break_compliant"`
+	StaffID              int64    `json:"staff_id"`
+	StaffName            string   `json:"staff_name"`
+	State                string   `json:"state"`
+	AllowedActions       []string `json:"allowed_actions"`
+	Session              *Session `json:"session,omitempty"`
+	ActiveBreak          *Break   `json:"active_break,omitempty"`
+	NetMinutes           int      `json:"net_minutes"`
+	BreakMinutes         int      `json:"break_minutes"`
+	RequiredBreakMinutes int      `json:"required_break_minutes"`
+	IsBreakCompliant     bool     `json:"is_break_compliant"`
+}
+
+// Session is the kiosk projection of a work session. The persistence model
+// carries tenant, audit and free-text note columns — status-change and
+// administrative notes among them — that a shared device in a hallway has no
+// use for and must not receive, so only the rendered fields are exposed.
+type Session struct {
+	ID           int64      `json:"id"`
+	StaffID      int64      `json:"staff_id"`
+	CheckInTime  time.Time  `json:"check_in_time"`
+	CheckOutTime *time.Time `json:"check_out_time,omitempty"`
+	Status       string     `json:"status"`
+	Source       string     `json:"source"`
+}
+
+// Break is the kiosk projection of an active break: enough to show that one is
+// running, nothing more.
+type Break struct {
+	ID        int64     `json:"id"`
+	StartedAt time.Time `json:"started_at"`
+}
+
+func newSession(session *activeModels.WorkSession) *Session {
+	if session == nil {
+		return nil
+	}
+	return &Session{
+		ID:           session.ID,
+		StaffID:      session.StaffID,
+		CheckInTime:  session.CheckInTime,
+		CheckOutTime: session.CheckOutTime,
+		Status:       session.Status,
+		Source:       session.Source,
+	}
+}
+
+func newBreak(workBreak *activeModels.WorkSessionBreak) *Break {
+	if workBreak == nil {
+		return nil
+	}
+	return &Break{ID: workBreak.ID, StartedAt: workBreak.StartedAt}
 }
 
 type Command struct {
@@ -210,7 +251,7 @@ func (s *Service) loadState(ctx context.Context, person *userModels.Person, staf
 		}
 		if history != nil && len(history.Sessions) > 0 {
 			todaySession := history.Sessions[0]
-			result.Session = todaySession.WorkSession
+			result.Session = newSession(todaySession.WorkSession)
 			result.NetMinutes = todaySession.NetMinutes
 			result.BreakMinutes = todaySession.BreakMinutes
 			result.IsBreakCompliant = todaySession.IsBreakCompliant
@@ -227,13 +268,13 @@ func (s *Service) loadState(ctx context.Context, person *userModels.Person, staf
 	if err != nil {
 		return nil, fmt.Errorf("load work session breaks: %w", err)
 	}
-	result.Session = session
+	result.Session = newSession(session)
 	result.State = StateCheckedIn
 	result.AllowedActions = []string{ActionBreakStart, ActionCheckOut}
 	for _, workBreak := range breaks {
 		if workBreak.IsActive() {
 			result.State = StateOnBreak
-			result.ActiveBreak = workBreak
+			result.ActiveBreak = newBreak(workBreak)
 			result.AllowedActions = []string{ActionBreakEnd, ActionCheckOut}
 			break
 		}
