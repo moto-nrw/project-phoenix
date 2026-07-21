@@ -133,6 +133,63 @@ describe("PeriodSwitcherDropdown", () => {
     expect(screen.getByRole("button", { name: /Sommerferien/ })).toBeVisible();
   });
 
+  it("labels multi-week cycles with their actual length and slot", () => {
+    // Vier-Wochen-Zyklus, Anker Mo 2026-08-03: die Woche ab dem 17.08. ist
+    // Slot 3 (Woche C). Die Liste nennt den echten Zyklus statt pauschal A/B.
+    const fourWeekPeriod: CalendarPeriod = {
+      ...basePeriods[0]!,
+      weekCycleLength: 4,
+      weekCycleAnchor: "2026-08-03",
+    };
+    const slotCWeek = [
+      new Date("2026-08-17T00:00:00"),
+      new Date("2026-08-18T00:00:00"),
+      new Date("2026-08-19T00:00:00"),
+      new Date("2026-08-20T00:00:00"),
+      new Date("2026-08-21T00:00:00"),
+    ];
+
+    render(
+      <PeriodSwitcherDropdown
+        periods={[fourWeekPeriod]}
+        weekDays={slotCWeek}
+        onCreate={vi.fn()}
+        onEdit={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Schuljahr/ }));
+
+    // Exakter String-Match trifft nur die inneren Slot-Spans (keine Eltern).
+    expect(screen.getAllByText("· Woche C")).toHaveLength(5);
+    expect(screen.getAllByText(/A\/B\/C\/D-Wochen/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/· A\/B-Wochen/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the A/B labels for two-week cycles", () => {
+    const twoWeekPeriod: CalendarPeriod = {
+      ...basePeriods[0]!,
+      weekCycleLength: 2,
+      weekCycleAnchor: "2026-08-03",
+    };
+
+    render(
+      <PeriodSwitcherDropdown
+        periods={[twoWeekPeriod]}
+        weekDays={weekDays}
+        onCreate={vi.fn()}
+        onEdit={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Schuljahr/ }));
+
+    expect(screen.getAllByText("· Woche A")).toHaveLength(5);
+    expect(screen.getAllByText(/A\/B-Wochen/).length).toBeGreaterThan(0);
+  });
+
   it("summarizes month period coverage for full, missing, and mixed months", () => {
     const fullMonthDays = [
       new Date("2026-08-03T00:00:00"),

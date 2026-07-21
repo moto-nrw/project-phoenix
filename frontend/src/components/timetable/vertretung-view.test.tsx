@@ -60,8 +60,10 @@ vi.mock("~/lib/timetable-api", () => ({
   },
 }));
 
-vi.mock("~/lib/settings-api", () => ({
-  SETTINGS_SCHEMA_SWR_KEY: "settings-schema",
+// Nur den Netzwerk-Fetcher mocken; getSettingValue & Co. bleiben die echten
+// Implementierungen, damit die Tests nicht gegen eine driftende Kopie laufen.
+vi.mock("~/lib/settings-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/settings-api")>()),
   fetchSettingsSchema: vi.fn(),
 }));
 

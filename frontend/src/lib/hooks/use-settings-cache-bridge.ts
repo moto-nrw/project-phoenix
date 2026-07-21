@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect } from "react";
-import { mutate } from "swr";
 import { SETTINGS_SCHEMA_SWR_KEY } from "~/lib/settings-api";
 import { subscribeSettingsChanged } from "~/lib/settings-broadcast";
+import { useTenantMutate } from "~/lib/swr";
 
 /**
- * Bridges cross-tab/cross-origin settings-change broadcasts to the SWR cache
- * keyed by SETTINGS_SCHEMA_SWR_KEY. Mount once in the protected layout —
+ * Bridges cross-tab/cross-origin settings-change broadcasts to the active
+ * tenant's SWR cache entry for SETTINGS_SCHEMA_SWR_KEY. Mount once in the
+ * protected layout —
  * every SWR consumer (sidebar, mobile bottom nav, settings page, timetable
  * day hours) then refreshes automatically when:
  *   1. another same-origin tab calls notifySettingsChanged()  → BroadcastChannel
@@ -17,9 +18,11 @@ import { subscribeSettingsChanged } from "~/lib/settings-broadcast";
  * value; other tabs' SWR caches stayed stale until navigation or reload.
  */
 export function useSettingsCacheBridge(): void {
+  const tenantMutate = useTenantMutate();
+
   useEffect(() => {
     const invalidate = () => {
-      void mutate(SETTINGS_SCHEMA_SWR_KEY);
+      void tenantMutate(SETTINGS_SCHEMA_SWR_KEY);
     };
     const unsubscribeBroadcast = subscribeSettingsChanged(invalidate);
     if (typeof window !== "undefined") {
@@ -31,5 +34,5 @@ export function useSettingsCacheBridge(): void {
         window.removeEventListener("phoenix:tenant-settings-stale", invalidate);
       }
     };
-  }, []);
+  }, [tenantMutate]);
 }

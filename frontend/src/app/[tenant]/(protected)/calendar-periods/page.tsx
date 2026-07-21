@@ -5,8 +5,15 @@ import { Loading } from "~/components/ui/loading";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 
+/**
+ * Bewusst KEIN timetable.enabled-Route-Gate wie auf den übrigen
+ * Planungsseiten: Kalenderzeiträume sind eine geteilte Ressource — die
+ * Anmeldephasen (Anmeldungen-Bereich) verknüpfen sich mit ihnen, auch wenn
+ * der Planungsbereich für die Schule abgeschaltet ist.
+ */
 export default function CalendarPeriodsPage() {
   const { isReady } = useRequireAdmin();
+
   if (!isReady) return <Loading fullPage={false} />;
 
   return (

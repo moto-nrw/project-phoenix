@@ -236,7 +236,7 @@ export function getTeacherStatus(teacher: TeacherAvailability): string {
   if (teacher.inSubstitution && teacher.substitutionCount > 0) {
     if (teacher.substitutionCount === 1) {
       const sub = teacher.substitutions[0];
-      const type = sub?.isTransfer ? "Übergabe" : "Vertretung";
+      const type = sub?.isTransfer ? "Tagesübergabe" : "Zugriff";
       return `${type}: ${sub?.groupName ?? teacher.currentGroup ?? "Gruppe"}`;
     }
     return `${teacher.substitutionCount} Zuweisungen aktiv`;

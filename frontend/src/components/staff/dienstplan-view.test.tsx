@@ -41,6 +41,24 @@ vi.mock("~/lib/hooks/use-berlin-today", () => ({
   useBerlinToday: mocks.useBerlinToday,
 }));
 
+vi.mock("~/components/timetable/period-switcher-dropdown", () => ({
+  PeriodSwitcherDropdown: ({
+    periods,
+    onSelect,
+  }: {
+    periods: Array<{
+      startDate: string;
+      endDate: string;
+    }>;
+    onSelect: (period: { startDate: string; endDate: string }) => void;
+  }) =>
+    periods[0] ? (
+      <button type="button" onClick={() => onSelect(periods[0]!)}>
+        Zeitraum wählen
+      </button>
+    ) : null,
+}));
+
 vi.mock("~/components/staff/dienstplan-resource-grid", () => ({
   DienstplanResourceGrid: ({
     weekDays,
@@ -437,6 +455,53 @@ describe("DienstplanView", () => {
     );
   });
 
+  it.each(["2026-08-01", "2026-08-02"])(
+    "snaps a period starting on %s to its first school day",
+    async (startDate) => {
+      mocks.useBerlinToday.mockReturnValue("2026-07-06");
+      mocks.useSWRAuth.mockImplementation((key: string | null) => {
+        if (key === "database-calendar-periods-list") {
+          return {
+            data: [{ startDate, endDate: "2026-08-07" }],
+            error: undefined,
+            isLoading: false,
+            mutate: vi.fn(),
+          };
+        }
+        if (key?.startsWith("dienstplan-overview-")) {
+          return {
+            data: {
+              from: "",
+              to: "",
+              dienstplanInUse: true,
+              staff: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
+              shifts: [],
+              assignments: [],
+            },
+            error: undefined,
+            isLoading: false,
+            mutate: vi.fn(),
+          };
+        }
+        return {
+          data: null,
+          error: undefined,
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      });
+
+      render(<DienstplanView />);
+      fireEvent.click(screen.getByRole("button", { name: "Zeitraum wählen" }));
+
+      await waitFor(() =>
+        expect(new URLSearchParams(window.location.search).get("d")).toBe(
+          "2026-08-03",
+        ),
+      );
+    },
+  );
+
   it("shows the Heute button only when the visible week differs from today's", () => {
     mocks.useBerlinToday.mockReturnValue("2026-07-06");
     mockOverviewLoaded();
@@ -569,6 +634,64 @@ describe("DienstplanView", () => {
     expect(
       screen.queryByRole("tab", { name: "Halbjahr" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("renders the disabled state when timetable.enabled is false", () => {
+    // Route-Gate wie Betreuungsplan/Vertretung: Direktaufruf bei
+    // ausgeschaltetem Planungsbereich zeigt den Hinweis statt des Rasters.
+    mocks.useSWRAuth.mockImplementation((key: string | null) => {
+      if (key === "settings-schema") {
+        return {
+          data: {
+            tabs: [
+              {
+                categories: [
+                  { items: [{ key: "timetable.enabled", value: false }] },
+                ],
+              },
+            ],
+          },
+          error: undefined,
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      return { data: [], error: undefined, isLoading: false, mutate: vi.fn() };
+    });
+
+    render(<DienstplanView />);
+
+    expect(screen.getByTestId("dienstplan-disabled-state")).toBeInTheDocument();
+    expect(screen.getByText("Dienstplan ist deaktiviert")).toBeInTheDocument();
+    expect(screen.queryByTestId("dienstplan-grid")).not.toBeInTheDocument();
+  });
+
+  it("renders normally while the settings schema is unreadable or enabled", () => {
+    // fetchSettingsSchema liefert null ohne Leserecht — die Seite rendert
+    // normal (Graceful Default wie Sidebar und Betreuungsplan).
+    mockOverviewLoaded();
+
+    render(<DienstplanView />);
+
+    expect(
+      screen.queryByTestId("dienstplan-disabled-state"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
+  });
+
+  it("does not request calendar periods for non-admins", () => {
+    // Der Periods-Key ist auf canEdit gegated: bei Direktaufruf durch
+    // Nicht-Admins darf vor dem Redirect kein schedules:read-Request feuern.
+    mocks.isAdmin.mockReturnValue(false);
+    mockOverviewLoaded();
+
+    render(<DienstplanView />);
+
+    expect(
+      mocks.useSWRAuth.mock.calls.some(
+        (call) => call[0] === "database-calendar-periods-list",
+      ),
+    ).toBe(false);
   });
 
   it("shows the blocking load error in the Halbjahr view when the schedule fails", () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 
 // Mock dependencies before importing component
@@ -94,10 +94,12 @@ import { isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import {
   useNFCEnabled,
+  useOpenCareGroupMode,
   usePresenceMode,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
 } from "~/lib/tenant-context";
+import useSWR from "swr";
 
 const mockUsePathname = vi.mocked(usePathname);
 const mockUseSearchParams = vi.mocked(useSearchParams);
@@ -109,6 +111,8 @@ const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseTenantRoutingModeSafe = vi.mocked(useTenantRoutingModeSafe);
 const mockUseTenantSlugSafe = vi.mocked(useTenantSlugSafe);
+const mockUseOpenCareGroupMode = vi.mocked(useOpenCareGroupMode);
+const mockUseSWRDefault = vi.mocked(useSWR);
 
 // Helper to create mock search params - use unknown cast for test flexibility
 function createMockSearchParams(
@@ -361,8 +365,50 @@ describe("MobileBottomNav", () => {
       expect(screen.getByText("Dienstplan")).toBeInTheDocument();
       expect(screen.getByText("Vertretung")).toBeInTheDocument();
       expect(screen.queryByText("Planung")).not.toBeInTheDocument();
-      expect(screen.getByText("Übergaben")).toBeInTheDocument();
+      // "Übergaben" heißt jetzt "Gruppenzugriff" (#1940).
+      expect(screen.getByText("Gruppenzugriff")).toBeInTheDocument();
+      expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
+    });
+
+    it("prefixes all planning links in tenant path-routing mode", () => {
+      render(<MobileBottomNav />);
+
+      const moreButton = screen.getByRole("button", { name: "Mehr" });
+      fireEvent.click(moreButton);
+
+      expect(screen.getByText("Betreuungsplan").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/betreuungsplan",
+      );
+      expect(screen.getByText("Dienstplan").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/dienstplan",
+      );
+      expect(screen.getByText("Vertretung").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/vertretung",
+      );
+    });
+
+    it("keeps planning links bare in subdomain mode", () => {
+      mockUseTenantRoutingModeSafe.mockReturnValue("subdomain");
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.getByText("Betreuungsplan").closest("a")).toHaveAttribute(
+        "href",
+        "/betreuungsplan",
+      );
+      expect(screen.getByText("Dienstplan").closest("a")).toHaveAttribute(
+        "href",
+        "/dienstplan",
+      );
+      expect(screen.getByText("Vertretung").closest("a")).toHaveAttribute(
+        "href",
+        "/vertretung",
+      );
     });
 
     it("highlights Dienstplan without also highlighting Mitarbeiter in the overflow menu", () => {
@@ -383,6 +429,17 @@ describe("MobileBottomNav", () => {
       const staffLink = screen.getByText("Mitarbeiter").closest("a");
       expect(dienstplanLink).toHaveClass("bg-gray-900");
       expect(staffLink).not.toHaveClass("bg-gray-900");
+    });
+
+    it("highlights Dienstplan under a tenant-prefixed path", () => {
+      mockUsePathname.mockReturnValue("/test-tenant/dienstplan");
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.getByText("Dienstplan").closest("a")).toHaveClass(
+        "bg-gray-900",
+      );
     });
 
     it("highlights Betreuungsplan on /calendar-periods in the overflow menu", () => {
@@ -913,6 +970,82 @@ describe("MobileBottomNav", () => {
         expect(svg).toHaveAttribute("viewBox", "0 0 24 24");
         expect(svg).toHaveAttribute("stroke", "currentColor");
       });
+    });
+  });
+
+  describe("feature gating (#1940/#1946)", () => {
+    beforeEach(() => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+    });
+
+    afterEach(() => {
+      mockUseOpenCareGroupMode.mockReturnValue(false);
+      // Restore the global SWR default so the schema override doesn't leak.
+      mockUseSWRDefault.mockReturnValue({
+        data: undefined,
+        error: undefined,
+        isLoading: true,
+        isValidating: false,
+        mutate: vi.fn(),
+      } as unknown as ReturnType<typeof useSWR>);
+    });
+
+    function openDrawer() {
+      const navButtons = screen.getAllByRole("button");
+      const moreButton = navButtons.find(
+        (btn) => !btn.hasAttribute("data-testid"),
+      );
+      expect(moreButton).toBeDefined();
+      fireEvent.click(moreButton!);
+    }
+
+    it("hides Gruppenzugriff for open-care tenants", () => {
+      mockUseOpenCareGroupMode.mockReturnValue(true);
+
+      render(<MobileBottomNav />);
+      openDrawer();
+
+      expect(screen.queryByText("Gruppenzugriff")).not.toBeInTheDocument();
+      // Planung-Einträge bleiben sichtbar (timetable.enabled ungesetzt).
+      expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
+    });
+
+    it("hides the planning entries when timetable.enabled is false", () => {
+      mockUseSWRDefault.mockReturnValue({
+        data: {
+          tabs: [
+            {
+              categories: [
+                { items: [{ key: "timetable.enabled", value: false }] },
+              ],
+            },
+          ],
+        },
+        error: undefined,
+        isLoading: false,
+        isValidating: false,
+        mutate: vi.fn(),
+      } as unknown as ReturnType<typeof useSWR>);
+
+      render(<MobileBottomNav />);
+      openDrawer();
+
+      expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
+      expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
+      expect(screen.queryByText("Vertretung")).not.toBeInTheDocument();
+      // Gruppenzugriff bleibt sichtbar (fixed_groups default).
+      expect(screen.getByText("Gruppenzugriff")).toBeInTheDocument();
+    });
+
+    it("reads timetable.enabled from the tenant-scoped SWR key", () => {
+      render(<MobileBottomNav />);
+
+      expect(mockUseSWRDefault).toHaveBeenCalledWith(
+        "test-tenant:settings-schema",
+        expect.any(Function),
+        expect.any(Object),
+      );
     });
   });
 });

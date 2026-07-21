@@ -215,6 +215,32 @@ export function weekPatternForDate(
   return null;
 }
 
+/**
+ * Letter for a 1-based week-cycle slot (1=A, 2=B, 3=C, …). Falls back to the
+ * numeric slot for cycles longer than 26 weeks (the UI caps at 4, the backend
+ * only enforces >= 1).
+ */
+export function weekCycleSlotLetter(slot: number): string {
+  return slot >= 1 && slot <= 26
+    ? String.fromCharCode(64 + slot)
+    : String(slot);
+}
+
+/**
+ * Display label for a period's week cycle ("A/B-Wochen", "A/B/C-Wochen", …).
+ * Returns null when the period repeats weekly (no cycle to label).
+ */
+export function weekCycleLabel(cycleLength: number): string | null {
+  if (cycleLength <= 1) return null;
+  // The editor supports up to four slots. Persisted/API values may be much
+  // larger, so never allocate or join an array proportional to untrusted data.
+  if (cycleLength > 4) return `${cycleLength}-Wochen-Zyklus`;
+  const letters = Array.from({ length: cycleLength }, (_, i) =>
+    weekCycleSlotLetter(i + 1),
+  );
+  return `${letters.join("/")}-Wochen`;
+}
+
 export function findPeriodForDate(
   periods: CalendarPeriod[],
   isoDate: string,
