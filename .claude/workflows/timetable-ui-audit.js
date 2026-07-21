@@ -25,7 +25,7 @@ const FILES = [
   { path: `${DIR}/conflict-warnings-banner.tsx`, role: 'Inline warning banner for conflicts' },
   { path: `${DIR}/calendar-period-modal.tsx`, role: 'Modal: create/edit calendar period (contains native <select>)' },
   { path: `${DIR}/timetable-event-modal.tsx`, role: 'Large modal/slide-over: create/edit instance or series (many native <select>)' },
-  { path: `${DIR}/instance-detail-slide-over.tsx`, role: 'Slide-over: instance detail, lifecycle actions, roster' },
+  { path: `${DIR}/instance-detail-modal.tsx`, role: 'Modal: instance detail, lifecycle actions, roster' },
 ]
 
 // ---- Kit reference embedded so auditors share one rubric ----
