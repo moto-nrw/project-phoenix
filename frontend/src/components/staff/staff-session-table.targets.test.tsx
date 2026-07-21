@@ -334,4 +334,57 @@ describe("StaffSessionTable Wochenendtage", () => {
 
     expect(screen.getByText("10.01.")).toBeInTheDocument();
   });
+
+  // Ein ungelöstes Soll ist kein Beleg für einen leeren Tag: ein vertraglich
+  // verplanter Samstag darf beim Laden oder nach einem Fehler nicht aus der
+  // Tabelle fallen, sonst ist er weder als ungelöst erkennbar noch
+  // korrigierbar.
+  const weekendSchedule: StaffSchedule = {
+    ...schedule,
+    entries: [
+      ...schedule.entries,
+      { weekIndex: 0, dayOfWeek: 5, targetMinutes: 240 },
+    ],
+    weeklyTotals: [2640],
+  };
+
+  function renderScheduledWeekend(props: {
+    dailyTargetsPending?: boolean;
+    dailyTargetsError?: boolean;
+  }) {
+    return render(
+      <StaffSessionTable
+        staffId="1"
+        from={from}
+        to={to}
+        sessions={[]}
+        schedule={weekendSchedule}
+        dailyTargetsPending={props.dailyTargetsPending}
+        dailyTargetsError={props.dailyTargetsError}
+        accountStartDate=""
+        accountStartDatePending={false}
+        accountStartDateError={false}
+        today={today}
+        isAdminView
+      />,
+    );
+  }
+
+  it("behält einen verplanten Samstag, während die Targets laden", () => {
+    renderScheduledWeekend({ dailyTargetsPending: true });
+
+    const row = screen.getByText("10.01.").closest("tr");
+    expect(row).not.toBeNull();
+    // Sichtbar, aber ohne erfundenes Soll aus dem aktuellen Plan.
+    expect(within(row!).getAllByRole("cell")[5]).toHaveTextContent("…");
+    expect(screen.queryByText("11.01.")).not.toBeInTheDocument();
+  });
+
+  it("behält einen verplanten Samstag nach einem Targets-Fehler", () => {
+    renderScheduledWeekend({ dailyTargetsError: true });
+
+    const row = screen.getByText("10.01.").closest("tr");
+    expect(row).not.toBeNull();
+    expect(within(row!).getAllByRole("cell")[5]).toHaveTextContent("?");
+  });
 });

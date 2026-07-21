@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronRight, SquarePen } from "lucide-react";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useSWRConfig } from "swr";
 
 import { EditHistoryAccordion } from "~/components/time-tracking/edit-history-accordion";
@@ -179,6 +179,25 @@ export function StaffSessionTable({
     return map;
   }, [absences]);
 
+  // Soll eines Tages, exakt so wie die Zeile es später anzeigt: server-
+  // aufgelöst, sonst der aktuelle Plan — und ungelöst, solange der Fetch
+  // läuft oder fehlgeschlagen ist (#1842).
+  const resolveDayTarget = useCallback(
+    (day: Date) => {
+      const resolved = dailyTargets?.get(toDateKey(day));
+      const unresolved =
+        resolved === undefined &&
+        (dailyTargetsError === true || dailyTargetsPending === true);
+      const planned = schedule ? resolveTargetForDate(schedule, day) : 0;
+      return {
+        unresolved,
+        planned,
+        displayed: resolved ?? (unresolved ? 0 : planned),
+      };
+    },
+    [dailyTargets, dailyTargetsError, dailyTargetsPending, schedule],
+  );
+
   // Sa/So erscheinen nur, wenn es dort etwas zu zeigen gibt (#1967). Ein
   // harter Wochenend-Filter versteckte Ferienbetreuung, Elternabende und
   // Wochenend-Schichten komplett, während Monatskarte und KPI-Karten sie
@@ -195,17 +214,32 @@ export function StaffSessionTable({
       d.setDate(d.getDate() + i);
       if (toIsoDayOfWeek(d) >= 5) {
         const key = toDateKey(d);
+        const { unresolved, planned, displayed } = resolveDayTarget(d);
+        // Fehlende Target-Daten sind kein Beleg dafür, dass der Tag leer ist:
+        // solange das Soll ungelöst ist, entscheidet der aktuelle Plan über
+        // die Sichtbarkeit. Ein vertraglich verplanter Samstag bleibt damit
+        // sichtbar (mit „?“/„…“ im Soll) und korrigierbar, statt beim Laden
+        // oder nach einem Fehler ganz zu verschwinden. Für die ANGEZEIGTEN
+        // Werte bleibt der Plan tabu — nur fürs Ein-/Ausblenden zählt er.
         const hasContent =
           sessionsByDate.has(key) ||
           absencesByDate.has(key) ||
           (shiftsByDate.get(key)?.length ?? 0) > 0 ||
-          (dailyTargets?.get(key) ?? 0) > 0;
+          displayed > 0 ||
+          (unresolved && planned > 0);
         if (!hasContent) continue;
       }
       result.push(d);
     }
     return result;
-  }, [from, to, sessionsByDate, absencesByDate, shiftsByDate, dailyTargets]);
+  }, [
+    from,
+    to,
+    sessionsByDate,
+    absencesByDate,
+    shiftsByDate,
+    resolveDayTarget,
+  ]);
 
   // Inline-expandable row: clicking a row toggles an EditHistoryAccordion in
   // a second <tr> directly below. Mirrors the MA-side /time-tracking page so
@@ -286,15 +320,8 @@ export function StaffSessionTable({
               // bleibt ungelöst, damit die Tabelle keinen erfundenen
               // Soll-/Saldo-Wert behauptet — weder dauerhaft (Fehler) noch
               // kurzzeitig beim Zeitraumwechsel (pending, stale Map).
-              const resolvedTarget = dailyTargets?.get(key);
-              const targetUnresolved =
-                resolvedTarget === undefined &&
-                (dailyTargetsError === true || dailyTargetsPending === true);
-              const target =
-                resolvedTarget ??
-                (targetUnresolved || !schedule
-                  ? 0
-                  : resolveTargetForDate(schedule, day));
+              const { unresolved: targetUnresolved, displayed: target } =
+                resolveDayTarget(day);
               const isFuture = day > today;
               const isToday = sameDay(day, today);
               const ist = session?.net_minutes ?? 0;
