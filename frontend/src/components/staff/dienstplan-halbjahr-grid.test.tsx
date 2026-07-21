@@ -171,7 +171,7 @@ function configureSWR(opts: SWROptions) {
         mutate: vi.fn(),
       };
     }
-    if (key === "dienstplan-calendar-periods") {
+    if (key === "database-calendar-periods-list") {
       return {
         data: opts.periods,
         error: opts.periodsError,
