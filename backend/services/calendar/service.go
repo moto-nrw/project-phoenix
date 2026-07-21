@@ -25,6 +25,7 @@ import (
 const (
 	EventSourceAppointment = calModels.EventSourceAppointment
 	EventSourceTimetable   = calModels.EventSourceTimetable
+	EventSourceShift       = calModels.EventSourceShift
 
 	maxCalendarWindowDays = 92
 
@@ -68,6 +69,8 @@ type Config struct {
 	InstanceStaffRepo    scheduleModels.InstanceStaffRepository
 	InstanceStudentRepo  scheduleModels.InstanceStudentRepository
 	ActivityInstanceRepo scheduleModels.ActivityInstanceRepository
+	StaffShiftRepo       scheduleModels.StaffShiftRepository
+	ShiftTypeRepo        scheduleModels.ShiftTypeRepository
 	// CareDays judges unfinished timetable blocks against the care plan; a
 	// completed block is read from its persisted marker instead (#1747).
 	CareDays    scheduleSvc.CareDayService
@@ -213,8 +216,13 @@ func (s *service) ListMyStaffEvents(ctx context.Context, from, to timezone.Date)
 	if err != nil {
 		return nil, err
 	}
+	shiftEvents, err := s.staffShiftEvents(ctx, staff.ID, from, to)
+	if err != nil {
+		return nil, err
+	}
 
 	events := append(appointmentEvents, timetableEvents...)
+	events = append(events, shiftEvents...)
 	sortEvents(events)
 	return events, nil
 }
@@ -820,6 +828,71 @@ func (s *service) staffTimetableEvents(ctx context.Context, staffID int64, from,
 				AllDay:      false,
 			})
 		}
+	}
+	return events, nil
+}
+
+// shiftsReferenceTypes reports whether any shift carries a ShiftTypeID —
+// the guard that keeps windows without typed shifts free of the ListAll query.
+func shiftsReferenceTypes(shifts []*scheduleModels.StaffShift) bool {
+	for _, shift := range shifts {
+		if shift.ShiftTypeID != nil {
+			return true
+		}
+	}
+	return false
+}
+
+// staffShiftEvents maps the staff member's Dienstplan shifts
+// (schedule.staff_shifts) in the window to calendar events. Cancelled shifts
+// stay hidden, mirroring how cancelled timetable instances are skipped. The
+// range finder does not load the ShiftType relation, so names come from one
+// batch ListAll (the tenant's shift-type table is small); a type missing from
+// the map (concurrently deleted) falls back to the generic title.
+func (s *service) staffShiftEvents(ctx context.Context, staffID int64, from, to timezone.Date) ([]Event, error) {
+	if s.cfg.StaffShiftRepo == nil {
+		return []Event{}, nil
+	}
+	shifts, err := s.cfg.StaffShiftRepo.FindByStaffAndDateRange(ctx, staffID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	typeNames := map[int64]string{}
+	if s.cfg.ShiftTypeRepo != nil && shiftsReferenceTypes(shifts) {
+		shiftTypes, err := s.cfg.ShiftTypeRepo.ListAll(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, shiftType := range shiftTypes {
+			typeNames[shiftType.ID] = shiftType.Name
+		}
+	}
+	events := []Event{}
+	for _, shift := range shifts {
+		if shift.Cancelled {
+			continue
+		}
+		title := "Dienst"
+		if shift.ShiftTypeID != nil {
+			if name := typeNames[*shift.ShiftTypeID]; name != "" {
+				title = name
+			}
+		}
+		event := Event{
+			ID:        fmt.Sprintf("shift:%d", shift.ID),
+			Source:    EventSourceShift,
+			Title:     title,
+			StartDate: shift.Date.String(),
+			EndDate:   shift.Date.String(),
+			StartTime: formatClock(shift.StartTime),
+			EndTime:   formatClock(shift.EndTime),
+			AllDay:    false,
+		}
+		if shift.Notes != "" {
+			notes := shift.Notes
+			event.Description = &notes
+		}
+		events = append(events, event)
 	}
 	return events, nil
 }

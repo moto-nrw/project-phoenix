@@ -5,7 +5,7 @@ interface ApiEnvelope<T> {
   readonly data?: T;
 }
 
-type CalendarSource = "appointment" | "timetable";
+type CalendarSource = "appointment" | "timetable" | "shift";
 export type CalendarDeliveryMode = "rsvp_required" | "informational";
 export type CalendarOverviewVisibility = "organizer" | "staff" | "all";
 export type CalendarResponseStatus =

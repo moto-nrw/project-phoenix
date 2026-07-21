@@ -65,6 +65,8 @@ func setupCalendarService(t *testing.T, db *bun.DB) calendarSvc.Service {
 		InstanceStaffRepo:    repos.InstanceStaff,
 		InstanceStudentRepo:  repos.InstanceStudent,
 		ActivityInstanceRepo: repos.ActivityInstance,
+		StaffShiftRepo:       repos.StaffShift,
+		ShiftTypeRepo:        repos.ShiftType,
 		CareDays: scheduleSvc.NewCareDayService(scheduleSvc.CareDayDependencies{
 			ArrivalSchedules:  repos.StudentArrivalSchedule,
 			ArrivalExceptions: repos.StudentArrivalException,
@@ -879,6 +881,62 @@ func TestCalendarServiceIntegration_StaffCalendarIncludesAssignedTimetable(t *te
 	assert.Equal(t, "14:15", events[0].StartTime)
 	assert.Equal(t, "15:45", events[0].EndTime)
 	assert.False(t, events[0].CanRespond)
+}
+
+func TestCalendarServiceIntegration_StaffCalendarIncludesShifts(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Shift", "Staff")
+
+	shiftType := &scheduleModels.ShiftType{Name: "Frühdienst", Color: "#F78C10", IsActive: true}
+	shiftType.SetTenantID(1)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := db.NewInsert().Model(shiftType).ModelTableExpr(`schedule.shift_types`).Exec(ctx)
+	require.NoError(t, err)
+
+	day := timezone.NewDate(2026, 5, 4)
+	typed := testpkg.CreateTestStaffShift(t, db, staff.ID, day, testpkg.StaffShiftOpts{
+		StartHHMM:   "08:00",
+		EndHHMM:     "12:00",
+		Notes:       "Vertretung Gruppe B",
+		ShiftTypeID: &shiftType.ID,
+	})
+	untyped := testpkg.CreateTestStaffShift(t, db, staff.ID, day, testpkg.StaffShiftOpts{
+		StartHHMM: "13:00",
+		EndHHMM:   "16:00",
+	})
+	cancelled := testpkg.CreateTestStaffShift(t, db, staff.ID, day.AddDays(1), testpkg.StaffShiftOpts{
+		Cancelled: true,
+	})
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.staff_shifts", typed.ID, untyped.ID, cancelled.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.shift_types", shiftType.ID)
+		testpkg.CleanupStaffFixtures(t, db, staff.ID)
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+	})
+
+	events, err := service.ListMyStaffEvents(calendarContext(account.ID), day, day.AddDays(1))
+	require.NoError(t, err)
+	require.Len(t, events, 2)
+
+	assert.Equal(t, calModels.EventSourceShift, events[0].Source)
+	assert.Equal(t, "Frühdienst", events[0].Title)
+	assert.Equal(t, "08:00", events[0].StartTime)
+	assert.Equal(t, "12:00", events[0].EndTime)
+	require.NotNil(t, events[0].Description)
+	assert.Equal(t, "Vertretung Gruppe B", *events[0].Description)
+	assert.False(t, events[0].CanRespond)
+	assert.False(t, events[0].CanEdit)
+
+	assert.Equal(t, calModels.EventSourceShift, events[1].Source)
+	assert.Equal(t, "Dienst", events[1].Title)
+	assert.Equal(t, "13:00", events[1].StartTime)
+	assert.Equal(t, "16:00", events[1].EndTime)
+	assert.Nil(t, events[1].Description)
 }
 
 func TestCalendarServiceIntegration_ParentCalendarIncludesChildTimetable(t *testing.T) {

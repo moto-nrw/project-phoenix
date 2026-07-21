@@ -27,6 +27,7 @@ const (
 
 	EventSourceAppointment = "appointment"
 	EventSourceTimetable   = "timetable"
+	EventSourceShift       = "shift"
 
 	TargetTypeStaff            = "staff"
 	TargetTypeGuardianProfile  = "guardian_profile"
