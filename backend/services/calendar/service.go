@@ -1876,7 +1876,9 @@ func hasOccurrenceInWindow(appointment *calModels.Appointment, rule *calModels.R
 		rule.IntervalCount = 1
 	}
 	if rule.OccurrenceCount != nil {
-		// Bounded by the count: expandOccurrences breaks after N matches.
+		// Bounded by the count: expandOccurrences breaks after N matches, and the
+		// count itself is capped at MaxRecurrenceOccurrenceCount during validation,
+		// so the scan can never walk unbounded history on a feed poll.
 		return len(expandOccurrences(appointment, rule, from, to)) > 0
 	}
 	// Scan only the window. Start early enough to catch a multi-day occurrence

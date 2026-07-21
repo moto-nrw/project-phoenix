@@ -1,4 +1,4 @@
-package api
+package middleware
 
 import (
 	"context"
@@ -14,13 +14,16 @@ const feedCalendarPathMarker = "/public/calendar/"
 
 // feedTokenRedactor wraps a slog.Handler and rewrites the calendar-feed
 // subscription token in any log record (message, string attributes, and nested
-// groups) to "[REDACTED]". It is applied to the HTTP request logger, whose
-// per-request "path" attribute would otherwise capture the token verbatim.
+// groups) to "[REDACTED]". It is applied to both the HTTP request logger and the
+// security logger, whose "path" attribute would otherwise capture the token
+// verbatim (the security logger records it on rate-limited requests).
 type feedTokenRedactor struct {
 	inner slog.Handler
 }
 
-func newFeedTokenRedactor(inner slog.Handler) slog.Handler {
+// NewFeedTokenRedactor wraps inner so calendar-feed tokens are redacted from
+// every emitted log record.
+func NewFeedTokenRedactor(inner slog.Handler) slog.Handler {
 	return &feedTokenRedactor{inner: inner}
 }
 

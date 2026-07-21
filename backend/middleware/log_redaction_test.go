@@ -1,9 +1,10 @@
-package api
+package middleware
 
 import (
 	"bytes"
 	"context"
 	"log/slog"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -27,7 +28,7 @@ func TestRedactFeedToken(t *testing.T) {
 func TestFeedTokenRedactorHandler(t *testing.T) {
 	var buf bytes.Buffer
 	base := slog.NewTextHandler(&buf, &slog.HandlerOptions{})
-	logger := slog.New(newFeedTokenRedactor(base))
+	logger := slog.New(NewFeedTokenRedactor(base))
 
 	// A grouped "request" attribute (as the request logger emits) must be redacted.
 	logger.Info("request",
@@ -54,11 +55,27 @@ func TestFeedTokenRedactorHandler(t *testing.T) {
 	}
 }
 
-// ensure the handler satisfies the interface at compile time
+// The security logger derived from NewSecurityLogger must redact feed tokens.
+func TestSecurityLoggerRedactsFeedToken(t *testing.T) {
+	var buf bytes.Buffer
+	sl := &SecurityLogger{logger: slog.New(NewFeedTokenRedactor(slog.NewTextHandler(&buf, nil)))}
+
+	req := httptest.NewRequest("GET", "/public/calendar/rate-limited-token", nil)
+	sl.LogRateLimitExceeded(req)
+
+	out := buf.String()
+	if strings.Contains(out, "rate-limited-token") {
+		t.Errorf("security logger leaked feed token:\n%s", out)
+	}
+	if !strings.Contains(out, "[REDACTED]") {
+		t.Errorf("expected redacted path in security log:\n%s", out)
+	}
+}
+
 var _ slog.Handler = (*feedTokenRedactor)(nil)
 
 func TestFeedTokenRedactorEnabled(t *testing.T) {
-	h := newFeedTokenRedactor(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	h := NewFeedTokenRedactor(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	if !h.Enabled(context.Background(), slog.LevelInfo) {
 		t.Error("expected Info to be enabled")
 	}

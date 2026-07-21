@@ -40,6 +40,11 @@ const (
 	RecurrenceFrequencyWeekly  = "weekly"
 	RecurrenceFrequencyMonthly = "monthly"
 	RecurrenceFrequencyYearly  = "yearly"
+
+	// MaxRecurrenceOccurrenceCount caps a count-bounded recurrence so occurrence
+	// expansion stays bounded (a leap-year of daily occurrences is the most a
+	// realistic appointment needs; EndsOn covers longer ranges).
+	MaxRecurrenceOccurrenceCount = 366
 )
 
 // validRecurrenceWeekdays holds the lowercase day names produced by
@@ -145,6 +150,11 @@ func (r *RecurrenceRule) Validate() error {
 	}
 	if r.OccurrenceCount != nil && *r.OccurrenceCount <= 0 {
 		return errors.New("occurrence_count must be positive")
+	}
+	// Bound the count so occurrence expansion (feed overlap checks, single-
+	// occurrence validation) can never scan an unbounded number of periods.
+	if r.OccurrenceCount != nil && *r.OccurrenceCount > MaxRecurrenceOccurrenceCount {
+		return errors.New("occurrence_count exceeds the maximum of 366")
 	}
 	for _, weekday := range r.Weekdays {
 		if !validRecurrenceWeekdays[strings.ToLower(strings.TrimSpace(weekday))] {

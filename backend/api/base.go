@@ -186,7 +186,7 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *o
 	// Redact the parent calendar-feed token (the sole credential for the public
 	// /public/calendar/{token} feed) from the per-request "path" attribute so it
 	// never lands in access logs.
-	requestLogger := slog.New(newFeedTokenRedactor(logger.Handler()))
+	requestLogger := slog.New(customMiddleware.NewFeedTokenRedactor(logger.Handler()))
 	router.Use(slogchi.NewWithConfig(requestLogger, slogchi.Config{
 		DefaultLevel:     slog.LevelInfo,
 		ClientErrorLevel: slog.LevelWarn,
