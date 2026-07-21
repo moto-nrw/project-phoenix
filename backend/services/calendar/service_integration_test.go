@@ -828,6 +828,66 @@ func TestCalendarServiceIntegration_AttendeeOverviewVisibility(t *testing.T) {
 	assert.True(t, parentEvents[0].CanViewOverview)
 }
 
+func TestCalendarServiceIntegration_DeletedAppointmentUnreachableViaOverviewAndRSVP(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Deleted", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Deleted", "Teacher")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, invitedStaff.ID, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
+	})
+
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:              "Wird gelöscht",
+		StartDate:          timezone.NewDate(2026, 2, 10),
+		EndDate:            timezone.NewDate(2026, 2, 10),
+		StartTime:          wallClock(9, 0),
+		EndTime:            wallClock(10, 0),
+		DeliveryMode:       calModels.DeliveryModeRSVPRequired,
+		OverviewVisibility: calModels.OverviewVisibilityAll,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	// Soft-deleted, so it must be cleaned up explicitly.
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	staffRecipientID := findRecipientByStaff(t, detail, invitedStaff.ID)
+	guardianRecipientID := findRecipientByGuardian(t, detail, parentChain.GuardianProfileID)
+
+	// Sanity: while live, overview and RSVP are reachable.
+	_, err = service.GetStaffAppointmentOverview(calendarContext(invitedAccount.ID), detail.Appointment.ID)
+	require.NoError(t, err)
+	require.NoError(t, service.RespondToStaffInvitation(calendarContext(invitedAccount.ID), staffRecipientID, calModels.ResponseStatusAccepted))
+
+	// It targets a guardian, so delete tombstones (soft-deletes) it.
+	require.NoError(t, service.DeleteStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID))
+
+	// Every interactive detail/overview/RSVP path — staff and parent — must now
+	// treat the retained appointment/recipient IDs as not found.
+	_, err = service.GetStaffAppointmentDetail(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
+
+	_, err = service.GetStaffAppointmentOverview(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
+	_, err = service.GetStaffAppointmentOverview(calendarContext(invitedAccount.ID), detail.Appointment.ID)
+	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
+	_, err = service.GetParentAppointmentOverview(testpkg.TenantContext(1), parentChain.AccountID, detail.Appointment.ID)
+	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
+
+	err = service.RespondToStaffInvitation(calendarContext(invitedAccount.ID), staffRecipientID, calModels.ResponseStatusDeclined)
+	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
+	err = service.RespondToParentInvitation(testpkg.TenantContext(1), parentChain.AccountID, guardianRecipientID, calModels.ResponseStatusDeclined)
+	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
+}
+
 func TestCalendarServiceIntegration_AttendeeOverviewAccessRules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })

@@ -110,6 +110,29 @@ func TestRecurrenceRuleValidate(t *testing.T) {
 	}
 }
 
+func TestRecurrenceRuleValidateDeduplicates(t *testing.T) {
+	// Duplicate (and mixed-case) weekdays normalise to a single lowercase entry —
+	// otherwise the occurrence expansion emits the date twice and exhausts
+	// occurrence_count early, and the RRULE exports an invalid BYDAY=MO,MO.
+	weekly := RecurrenceRule{
+		AppointmentID: 1,
+		Frequency:     RecurrenceFrequencyWeekly,
+		IntervalCount: 1,
+		Weekdays:      []string{"Monday", "monday", " MONDAY ", "wednesday"},
+	}
+	require.NoError(t, weekly.Validate())
+	require.Equal(t, []string{"monday", "wednesday"}, weekly.Weekdays)
+
+	monthly := RecurrenceRule{
+		AppointmentID: 1,
+		Frequency:     RecurrenceFrequencyMonthly,
+		IntervalCount: 1,
+		MonthDays:     []int{5, 5, 20, 5},
+	}
+	require.NoError(t, monthly.Validate())
+	require.Equal(t, []int{5, 20}, monthly.MonthDays)
+}
+
 func TestAppointmentRecipientValidate(t *testing.T) {
 	staffID := int64(11)
 	guardianID := int64(12)

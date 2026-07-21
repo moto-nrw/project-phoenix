@@ -736,7 +736,9 @@ func (s *service) GetStaffAppointmentOverview(ctx context.Context, appointmentID
 	if err != nil {
 		return nil, err
 	}
-	if appointment == nil {
+	// A soft-deleted appointment is gone from every interactive surface, so its
+	// overview is not reachable even with a retained appointment ID.
+	if appointment == nil || appointment.DeletedAt != nil {
 		return nil, ErrNotFound
 	}
 	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointment.ID)
@@ -775,7 +777,8 @@ func (s *service) GetParentAppointmentOverview(ctx context.Context, accountID, a
 			if err != nil {
 				return err
 			}
-			if appointment == nil {
+			// A soft-deleted appointment is not viewable by parents either.
+			if appointment == nil || appointment.DeletedAt != nil {
 				return nil
 			}
 			recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(txCtx, appointment.ID)
@@ -834,7 +837,9 @@ func (s *service) RespondToStaffInvitation(ctx context.Context, recipientID int6
 	if err != nil {
 		return err
 	}
-	if appointment == nil {
+	// A soft-deleted appointment can no longer be answered — it is gone from every
+	// interactive surface, so a retained recipient ID must not reach the RSVP.
+	if appointment == nil || appointment.DeletedAt != nil {
 		return ErrNotFound
 	}
 	if appointment.CancelledAt != nil {
@@ -891,7 +896,8 @@ func (s *service) RespondToParentInvitation(ctx context.Context, accountID, reci
 			if err != nil {
 				return err
 			}
-			if appointment == nil {
+			// A soft-deleted appointment is unanswerable — treat as not found.
+			if appointment == nil || appointment.DeletedAt != nil {
 				return nil
 			}
 			if appointment.CancelledAt != nil {
@@ -2129,7 +2135,17 @@ func monthlyCandidateDays(rule *calModels.RecurrenceRule, start timezone.Date) [
 	if len(rule.MonthDays) == 0 {
 		return []int{start.Day}
 	}
-	days := append([]int(nil), rule.MonthDays...)
+	// De-duplicate: a repeated month day would emit that occurrence twice and
+	// exhaust occurrence_count early.
+	seen := make(map[int]bool, len(rule.MonthDays))
+	days := make([]int, 0, len(rule.MonthDays))
+	for _, day := range rule.MonthDays {
+		if seen[day] {
+			continue
+		}
+		seen[day] = true
+		days = append(days, day)
+	}
 	sort.Ints(days)
 	return days
 }
@@ -2401,11 +2417,16 @@ func matchesRule(start, candidate timezone.Date, rule *calModels.RecurrenceRule)
 
 func normalizeWeekdays(days []string) []string {
 	out := make([]string, 0, len(days))
+	seen := make(map[string]bool, len(days))
 	for _, day := range days {
 		normalized := strings.ToLower(strings.TrimSpace(day))
-		if normalized != "" {
-			out = append(out, normalized)
+		// De-duplicate: a repeated weekday would make the count-bounded expansion
+		// emit that date twice and exhaust occurrence_count early.
+		if normalized == "" || seen[normalized] {
+			continue
 		}
+		seen[normalized] = true
+		out = append(out, normalized)
 	}
 	return out
 }

@@ -447,6 +447,34 @@ func TestBoundedRecurrenceDates(t *testing.T) {
 	}
 }
 
+func TestBoundedRecurrenceDatesDeduplicates(t *testing.T) {
+	start := timezone.NewDate(2026, 1, 5) // Monday
+	appt := &calModels.Appointment{StartDate: start, EndDate: start}
+
+	// A repeated weekday must not emit the same date twice (which would consume
+	// two of the occurrence_count slots for one real occurrence).
+	weeklyDup := &calModels.RecurrenceRule{
+		Frequency:     calModels.RecurrenceFrequencyWeekly,
+		IntervalCount: 1,
+		Weekdays:      []string{"monday", "monday"},
+	}
+	assert.Equal(t, []timezone.Date{
+		timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 12),
+		timezone.NewDate(2026, 1, 19),
+	}, boundedRecurrenceDates(appt, weeklyDup, 3))
+
+	// A repeated month day likewise collapses to one occurrence.
+	monthlyDup := &calModels.RecurrenceRule{
+		Frequency:     calModels.RecurrenceFrequencyMonthly,
+		IntervalCount: 1,
+		MonthDays:     []int{5, 5, 20},
+	}
+	assert.Equal(t, []timezone.Date{
+		timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 20),
+		timezone.NewDate(2026, 2, 5),
+	}, boundedRecurrenceDates(appt, monthlyDup, 3))
+}
+
 func TestOccurrenceExistsSparseCountBounded(t *testing.T) {
 	// A count-bounded monthly "day 31" series: the reachable occurrences are the
 	// first N months that actually have a 31st. Membership must be exact without

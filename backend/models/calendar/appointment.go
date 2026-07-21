@@ -165,15 +165,40 @@ func (r *RecurrenceRule) Validate() error {
 	if r.OccurrenceCount != nil && *r.OccurrenceCount > MaxRecurrenceOccurrenceCount {
 		return errors.New("occurrence_count exceeds the maximum of 366")
 	}
-	for _, weekday := range r.Weekdays {
-		if !validRecurrenceWeekdays[strings.ToLower(strings.TrimSpace(weekday))] {
-			return errors.New("weekdays must be valid day names (monday–sunday)")
+	// Normalise (lowercase) and de-duplicate weekdays: a duplicate would make the
+	// occurrence expansion emit the same date twice, exhausting occurrence_count
+	// early, and would export an invalid BYDAY=MO,MO in the RRULE.
+	if len(r.Weekdays) > 0 {
+		seen := make(map[string]bool, len(r.Weekdays))
+		deduped := make([]string, 0, len(r.Weekdays))
+		for _, weekday := range r.Weekdays {
+			normalized := strings.ToLower(strings.TrimSpace(weekday))
+			if !validRecurrenceWeekdays[normalized] {
+				return errors.New("weekdays must be valid day names (monday–sunday)")
+			}
+			if seen[normalized] {
+				continue
+			}
+			seen[normalized] = true
+			deduped = append(deduped, normalized)
 		}
+		r.Weekdays = deduped
 	}
-	for _, day := range r.MonthDays {
-		if day < 1 || day > 31 {
-			return errors.New("month_days must be between 1 and 31")
+	// Same for month days — a duplicate day double-counts against occurrence_count.
+	if len(r.MonthDays) > 0 {
+		seen := make(map[int]bool, len(r.MonthDays))
+		deduped := make([]int, 0, len(r.MonthDays))
+		for _, day := range r.MonthDays {
+			if day < 1 || day > 31 {
+				return errors.New("month_days must be between 1 and 31")
+			}
+			if seen[day] {
+				continue
+			}
+			seen[day] = true
+			deduped = append(deduped, day)
 		}
+		r.MonthDays = deduped
 	}
 	return nil
 }
