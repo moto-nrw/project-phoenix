@@ -528,6 +528,8 @@ POST /api/iot/session/end
 POST /api/iot/session/start
 POST /api/iot/session/timeout
 POST /api/iot/session/validate-timeout
+POST /api/iot/staff-clock
+POST /api/iot/staff-clock/state
 POST /api/iot/staff/{staffId}/rfid
 POST /api/me/profile/avatar
 POST /api/messages/threads

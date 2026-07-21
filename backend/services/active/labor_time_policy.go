@@ -27,6 +27,35 @@ const (
 	breakLongRequiredMinutes = 45
 )
 
+// LaborTimeEvaluation is the shared, as-of-now view used by both the web app
+// and device flows. Keeping these values behind one function prevents the
+// kiosk from reimplementing ArbZG thresholds or mishandling a running break.
+type LaborTimeEvaluation struct {
+	NetMinutes           int
+	BreakMinutes         int
+	RequiredBreakMinutes int
+	IsBreakCompliant     bool
+}
+
+// EvaluateLaborTime applies the same work/break calculations used by session
+// history to a single session. A running break is included up to now.
+func EvaluateLaborTime(ws *activeModels.WorkSession, breaks []*activeModels.WorkSessionBreak, now time.Time) LaborTimeEvaluation {
+	net := netMinutesWithBreaks(ws, breaks, now)
+	taken := totalBreakMinutes(ws, breaks, now)
+	required := 0
+	if net > breakShortThresholdMinutes {
+		required = breakLongRequiredMinutes
+	} else if net > breakNoneThresholdMinutes {
+		required = breakShortRequiredMinutes
+	}
+	return LaborTimeEvaluation{
+		NetMinutes:           net,
+		BreakMinutes:         taken,
+		RequiredBreakMinutes: required,
+		IsBreakCompliant:     taken >= required,
+	}
+}
+
 // grossMinutes is the wall-clock span of a session. For an open session (no
 // check-out) it measures against now.
 func grossMinutes(ws *activeModels.WorkSession, now time.Time) int {
@@ -118,14 +147,5 @@ func isOvertime(ws *activeModels.WorkSession, breaks []*activeModels.WorkSession
 // cache alone would flag a staff member as non-compliant *while* they are
 // taking the very break that makes them compliant.
 func isBreakCompliant(ws *activeModels.WorkSession, breaks []*activeModels.WorkSessionBreak, now time.Time) bool {
-	net := netMinutesWithBreaks(ws, breaks, now)
-	taken := totalBreakMinutes(ws, breaks, now)
-	if net <= breakNoneThresholdMinutes { // <= 6h: no break required
-		return true
-	}
-	if net <= breakShortThresholdMinutes { // <= 9h: 30 min break required
-		return taken >= breakShortRequiredMinutes
-	}
-	// > 9h: 45 min break required
-	return taken >= breakLongRequiredMinutes
+	return EvaluateLaborTime(ws, breaks, now).IsBreakCompliant
 }

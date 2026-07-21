@@ -566,7 +566,7 @@ export function adaptHistorySessionForMetrics(
     id: session.id ? Number(session.id) : undefined,
     date: session.date,
     status: session.status,
-    source: undefined,
+    source: session.source,
     net_minutes: session.netMinutes,
     check_in_time: session.checkInTime,
     check_out_time: session.checkOutTime,

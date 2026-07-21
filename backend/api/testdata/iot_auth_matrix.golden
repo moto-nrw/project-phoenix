@@ -37,6 +37,8 @@ POST /api/iot/session/end -> 401 {"status":"error","error":"device API key is re
 POST /api/iot/session/start -> 401 {"status":"error","error":"device API key is required"}
 POST /api/iot/session/timeout -> 401 {"status":"error","error":"device API key is required"}
 POST /api/iot/session/validate-timeout -> 401 {"status":"error","error":"device API key is required"}
+POST /api/iot/staff-clock -> 401 {"status":"error","error":"device API key is required"}
+POST /api/iot/staff-clock/state -> 401 {"status":"error","error":"device API key is required"}
 POST /api/iot/staff/{staffId}/rfid -> 401 {"status":"error","error":"device API key is required"}
 PUT /api/iot/*/{id} -> 401 {"status":"error","error":"token unauthorized"}
 PUT /api/iot/session/{sessionId}/supervisors -> 401 {"status":"error","error":"device API key is required"}

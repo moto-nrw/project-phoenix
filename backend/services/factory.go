@@ -40,6 +40,7 @@ import (
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	iotcheckin "github.com/moto-nrw/project-phoenix/services/iot/checkin"
+	staffclock "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/mealplan"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
@@ -77,6 +78,7 @@ type Factory struct {
 	Suggestions              suggestions.Service
 	IoT                      iot.Service
 	Checkin                  *iotcheckin.CheckinService
+	StaffClock               *staffclock.Service
 	Settings                 config.SettingsService
 	Schedule                 schedule.Service
 	StaffShifts              schedule.StaffShiftService
@@ -338,6 +340,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence, repos.GroupSupervisor, repos.Staff, repos.StaffWorkSchedule, repos.WorkTimeModel, settingsService, activeLogger)
 	// Planned-shift lookups for the auto-checkout job (#1798).
 	workSessionService.SetStaffShiftRepo(repos.StaffShift)
+	staffClockService := staffclock.NewService(usersService, repos.RFIDCard, workSessionService)
 
 	// Monatskarte read model (#1842) — everything computed on read, the
 	// Übertrag is live.
@@ -1507,6 +1510,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Suggestions:              suggestionsService,
 		IoT:                      iotService,
 		Checkin:                  checkinService,
+		StaffClock:               staffClockService,
 		Settings:                 settingsService,
 		Schedule:                 scheduleService,
 		StaffShifts:              staffShiftService,

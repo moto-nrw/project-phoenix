@@ -1,7 +1,12 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { StaffSchedule } from "~/lib/staff-api";
+import type {
+  StaffAbsenceRow,
+  StaffHistorySession,
+  StaffSchedule,
+} from "~/lib/staff-api";
+import type { StaffShift } from "~/lib/shift-helpers";
 
 import { StaffSessionTable } from "./staff-session-table";
 
@@ -28,21 +33,41 @@ const from = new Date(2026, 0, 5);
 const to = new Date(2026, 0, 11);
 const today = new Date(2026, 5, 15);
 
+const mondaySession: StaffHistorySession = {
+  id: 41,
+  date: "2026-01-05",
+  net_minutes: 180,
+  check_in_time: "2026-01-05T09:00:00Z",
+  check_out_time: "2026-01-05T12:00:00Z",
+  break_minutes: 0,
+};
+
 function renderTable(props: {
   dailyTargets?: ReadonlyMap<string, number>;
   dailyTargetsError?: boolean;
   dailyTargetsPending?: boolean;
+  accountStartDate?: string | null;
+  accountStartDatePending?: boolean;
+  accountStartDateError?: boolean;
+  sessions?: readonly StaffHistorySession[];
 }) {
   return render(
     <StaffSessionTable
       staffId="1"
       from={from}
       to={to}
-      sessions={[]}
+      sessions={props.sessions ?? []}
       schedule={schedule}
+      dailyTargets={props.dailyTargets}
+      dailyTargetsError={props.dailyTargetsError}
+      dailyTargetsPending={props.dailyTargetsPending}
+      accountStartDate={
+        props.accountStartDate === undefined ? "" : props.accountStartDate
+      }
+      accountStartDatePending={props.accountStartDatePending ?? false}
+      accountStartDateError={props.accountStartDateError ?? false}
       today={today}
       isAdminView
-      {...props}
     />,
   );
 }
@@ -66,6 +91,20 @@ describe("StaffSessionTable Soll-Auflösung", () => {
     expect(screen.getAllByText("…").length).toBe(5);
     // Laden ist kein Fehler — kein Warnhinweis.
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("zeigt während des Ladens keinen Saldo für Sessions mit ungelöstem Soll", () => {
+    renderTable({
+      sessions: [mondaySession],
+      dailyTargetsPending: true,
+    });
+
+    const row = screen.getByText("05.01.").closest("tr");
+    expect(row).not.toBeNull();
+    const cells = within(row!).getAllByRole("cell");
+    expect(cells[5]).toHaveTextContent("…");
+    expect(cells[7]).toHaveTextContent("–");
+    expect(screen.queryByText("+3h")).not.toBeInTheDocument();
   });
 
   it("behält beim Zeitraumwechsel die bereits aufgelösten Tage", () => {
@@ -101,6 +140,20 @@ describe("StaffSessionTable Soll-Auflösung", () => {
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
+  it("zeigt nach einem Targets-Fehler keinen Saldo für Sessions mit ungelöstem Soll", () => {
+    renderTable({
+      sessions: [mondaySession],
+      dailyTargetsError: true,
+    });
+
+    const row = screen.getByText("05.01.").closest("tr");
+    expect(row).not.toBeNull();
+    const cells = within(row!).getAllByRole("cell");
+    expect(cells[5]).toHaveTextContent("?");
+    expect(cells[7]).toHaveTextContent("–");
+    expect(screen.queryByText("+3h")).not.toBeInTheDocument();
+  });
+
   it("bevorzugt geladene Targets auch dann, wenn ein Fehler gemeldet ist", () => {
     renderTable({
       dailyTargets: new Map([["2026-01-05", 300]]),
@@ -110,5 +163,228 @@ describe("StaffSessionTable Soll-Auflösung", () => {
     expect(screen.getAllByText("5h").length).toBeGreaterThan(0);
     // Nur die Tage ohne aufgelöstes Target bleiben ungelöst.
     expect(screen.getAllByText("?").length).toBe(4);
+  });
+
+  it("zählt Sessions vor einem untermonatigen Kontostart nicht als Plus", () => {
+    renderTable({
+      sessions: [mondaySession],
+      dailyTargets: new Map([["2026-01-05", 0]]),
+      accountStartDate: "2026-01-08",
+    });
+
+    const row = screen.getByText("05.01.").closest("tr");
+    expect(row).not.toBeNull();
+    const cells = within(row!).getAllByRole("cell");
+    expect(cells[5]).toHaveTextContent("–");
+    expect(cells[7]).toHaveTextContent("–");
+    expect(screen.queryByText("+3h")).not.toBeInTheDocument();
+  });
+
+  it("lässt einen ungelösten Kontostart bei Soll 0 nicht als Plus aufblitzen", () => {
+    renderTable({
+      sessions: [mondaySession],
+      dailyTargets: new Map([["2026-01-05", 0]]),
+      accountStartDate: null,
+      accountStartDatePending: true,
+    });
+
+    const row = screen.getByText("05.01.").closest("tr");
+    expect(row).not.toBeNull();
+    const cells = within(row!).getAllByRole("cell");
+    expect(cells[7]).toHaveTextContent("–");
+    expect(screen.queryByText("+3h")).not.toBeInTheDocument();
+  });
+
+  it("zeigt Soll-0-Salden mit Warnung, wenn der Kontostart nicht geladen werden konnte", () => {
+    renderTable({
+      sessions: [mondaySession],
+      dailyTargets: new Map([["2026-01-05", 0]]),
+      accountStartDate: null,
+      accountStartDateError: true,
+    });
+
+    expect(screen.getByText("+3h")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Der Stundenkonto-Start konnte nicht geladen werden.",
+    );
+  });
+});
+
+// #1967: Sa/So waren hart aus der Tagesansicht gefiltert, während Monatskarte
+// und KPI-Karten sie serverseitig mitzählten. Die Summe der sichtbaren Zeilen
+// ergab dann nicht mehr das ausgewiesene Ist.
+describe("StaffSessionTable Wochenendtage", () => {
+  // Sa, 10.01.2026 — im Zeitraum from/to und in der Vergangenheit.
+  const saturday = "2026-01-10";
+
+  const weekendSession: StaffHistorySession = {
+    id: 42,
+    date: saturday,
+    net_minutes: 180,
+    check_in_time: `${saturday}T09:00:00Z`,
+    check_out_time: `${saturday}T12:00:00Z`,
+    break_minutes: 0,
+  };
+
+  function renderWeekend(props: {
+    sessions?: readonly StaffHistorySession[];
+    plannedShifts?: readonly StaffShift[];
+    absences?: readonly StaffAbsenceRow[];
+  }) {
+    return render(
+      <StaffSessionTable
+        staffId="1"
+        from={from}
+        to={to}
+        sessions={props.sessions ?? []}
+        absences={props.absences}
+        plannedShifts={props.plannedShifts}
+        schedule={schedule}
+        accountStartDate="2026-01-08"
+        dailyTargets={
+          new Map([
+            ["2026-01-05", 480],
+            ["2026-01-06", 480],
+            ["2026-01-07", 480],
+            ["2026-01-08", 480],
+            ["2026-01-09", 480],
+            // Der Server liefert Wochenenden mit Soll 0 mit.
+            ["2026-01-10", 0],
+            ["2026-01-11", 0],
+          ])
+        }
+        today={today}
+        isAdminView
+        accountStartDatePending={false}
+        accountStartDateError={false}
+      />,
+    );
+  }
+
+  it("blendet leere Wochenenden weiter aus", () => {
+    renderWeekend({});
+
+    // 10.01. = Sa, 11.01. = So — beide Datumszellen fehlen.
+    expect(screen.queryByText("10.01.")).not.toBeInTheDocument();
+    expect(screen.queryByText("11.01.")).not.toBeInTheDocument();
+  });
+
+  it("zeigt einen Samstag mit Session als Zeile", () => {
+    renderWeekend({ sessions: [weekendSession] });
+
+    expect(screen.getByText("10.01.")).toBeInTheDocument();
+    // Der Sonntag bleibt leer und damit unsichtbar.
+    expect(screen.queryByText("11.01.")).not.toBeInTheDocument();
+  });
+
+  it("zählt das Ist eines Wochenendtags voll als Plus", () => {
+    // Soll ist 0, die Monatskarte rechnet actual - targetToDate. Ein "–" im
+    // Saldo machte die Monatskarte aus der Tabelle unerklärbar.
+    renderWeekend({ sessions: [weekendSession] });
+
+    expect(screen.getByText("+3h")).toBeInTheDocument();
+  });
+
+  it("zeigt für eine zukünftige Session keinen Saldo", () => {
+    render(
+      <StaffSessionTable
+        staffId="1"
+        from={new Date(2026, 0, 10)}
+        to={new Date(2026, 0, 10)}
+        sessions={[weekendSession]}
+        schedule={schedule}
+        dailyTargets={new Map([[saturday, 0]])}
+        accountStartDate=""
+        accountStartDatePending={false}
+        accountStartDateError={false}
+        today={new Date(2026, 0, 9)}
+        isAdminView
+      />,
+    );
+
+    const row = screen.getByText("10.01.").closest("tr");
+    expect(row).not.toBeNull();
+    const cells = within(row!).getAllByRole("cell");
+    expect(cells[7]).toHaveTextContent("–");
+    expect(screen.queryByText("+3h")).not.toBeInTheDocument();
+  });
+
+  it("zeigt einen Wochenendtag mit geplanter Schicht", () => {
+    renderWeekend({
+      plannedShifts: [
+        {
+          id: "1",
+          staffId: "1",
+          date: saturday,
+          startTime: "09:00",
+          endTime: "12:00",
+          breakMinutes: 0,
+          shiftTypeId: null,
+          shiftTypeName: null,
+          shiftTypeColor: null,
+          notes: "",
+          seriesId: null,
+          detached: false,
+          cancelled: false,
+          changeReason: null,
+          originShiftId: null,
+        },
+      ],
+    });
+
+    expect(screen.getByText("10.01.")).toBeInTheDocument();
+  });
+
+  // Ein ungelöstes Soll ist kein Beleg für einen leeren Tag: ein vertraglich
+  // verplanter Samstag darf beim Laden oder nach einem Fehler nicht aus der
+  // Tabelle fallen, sonst ist er weder als ungelöst erkennbar noch
+  // korrigierbar.
+  const weekendSchedule: StaffSchedule = {
+    ...schedule,
+    entries: [
+      ...schedule.entries,
+      { weekIndex: 0, dayOfWeek: 5, targetMinutes: 240 },
+    ],
+    weeklyTotals: [2640],
+  };
+
+  function renderScheduledWeekend(props: {
+    dailyTargetsPending?: boolean;
+    dailyTargetsError?: boolean;
+  }) {
+    return render(
+      <StaffSessionTable
+        staffId="1"
+        from={from}
+        to={to}
+        sessions={[]}
+        schedule={weekendSchedule}
+        dailyTargetsPending={props.dailyTargetsPending}
+        dailyTargetsError={props.dailyTargetsError}
+        accountStartDate=""
+        accountStartDatePending={false}
+        accountStartDateError={false}
+        today={today}
+        isAdminView
+      />,
+    );
+  }
+
+  it("behält einen verplanten Samstag, während die Targets laden", () => {
+    renderScheduledWeekend({ dailyTargetsPending: true });
+
+    const row = screen.getByText("10.01.").closest("tr");
+    expect(row).not.toBeNull();
+    // Sichtbar, aber ohne erfundenes Soll aus dem aktuellen Plan.
+    expect(within(row!).getAllByRole("cell")[5]).toHaveTextContent("…");
+    expect(screen.queryByText("11.01.")).not.toBeInTheDocument();
+  });
+
+  it("behält einen verplanten Samstag nach einem Targets-Fehler", () => {
+    renderScheduledWeekend({ dailyTargetsError: true });
+
+    const row = screen.getByText("10.01.").closest("tr");
+    expect(row).not.toBeNull();
+    expect(within(row!).getAllByRole("cell")[5]).toHaveTextContent("?");
   });
 });

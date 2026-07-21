@@ -90,7 +90,15 @@ func (m *wsMockWorkSessionRepository) GetCurrentByStaffID(ctx context.Context, s
 	return nil, sql.ErrNoRows
 }
 
-func (m *wsMockWorkSessionRepository) GetCurrentByStaffIDForUpdate(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+func (m *wsMockWorkSessionRepository) GetOpenByStaffAndDate(ctx context.Context, staffID int64, _ timezone.Date) (*activeModels.WorkSession, error) {
+	return m.GetCurrentByStaffID(ctx, staffID)
+}
+
+func (m *wsMockWorkSessionRepository) GetLatestOpenByStaffID(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+	return m.GetCurrentByStaffID(ctx, staffID)
+}
+
+func (m *wsMockWorkSessionRepository) GetOpenByStaffAndDateForUpdate(ctx context.Context, staffID int64, _ timezone.Date) (*activeModels.WorkSession, error) {
 	if m.getCurrentForUpdateFunc != nil {
 		return m.getCurrentForUpdateFunc(ctx, staffID)
 	}
@@ -2858,6 +2866,95 @@ func TestWSCheckIn_ReopenSkipsDeviationGate(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, session)
 	assert.Nil(t, session.CheckOutTime, "session must be reopened")
+}
+
+// A kiosk resolves its calendar day before it stamps. When the request crosses
+// Berlin midnight on the way in, the day it pinned selects the row to reopen —
+// but a session created fresh belongs to the day of its own check_in_time.
+// Storing 21.07 next to a 22.07 stamp misfiles the session in the daily
+// history, in shift and deviation lookups, and in every total keyed on the date
+// column.
+func TestWSCheckInOn_NewSessionUsesTheStampDay(t *testing.T) {
+	pinnedDay := timezone.NewDate(2026, 7, 21)
+	stampedAt := time.Date(2026, time.July, 22, 0, 0, 1, 0, timezone.Berlin)
+
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	svc.nowFunc = func() time.Time { return stampedAt }
+
+	var lookedUp timezone.Date
+	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, day timezone.Date) (*activeModels.WorkSession, error) {
+		lookedUp = day
+		return nil, sql.ErrNoRows
+	}
+	var created *activeModels.WorkSession
+	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+		created = entity
+		entity.ID = 5
+		return nil
+	}
+
+	session, err := svc.CheckInOn(context.Background(), 100, pinnedDay, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceNFC, "")
+	require.NoError(t, err)
+	require.NotNil(t, session)
+
+	assert.Equal(t, pinnedDay, lookedUp, "the pinned day still selects the session to reopen")
+	require.NotNil(t, created)
+	assert.Equal(t, timezone.DateFromTime(stampedAt), created.Date)
+	assert.Equal(t, timezone.DateFromTime(created.CheckInTime), created.Date)
+}
+
+// The pinned day may be stale by the time the stamp is written. A session that
+// is still running on it is a night shift and stays the caller's business, but
+// a closed row belongs to a day this arrival is no longer part of: reopening it
+// would move yesterday's check-in and delete yesterday's checkout. The stamp
+// must open its own day instead.
+func TestWSCheckInOn_StalePinnedDayDoesNotReopenYesterday(t *testing.T) {
+	pinnedDay := timezone.NewDate(2026, 7, 21)
+	stampedAt := time.Date(2026, time.July, 22, 0, 0, 1, 0, timezone.Berlin)
+	stampDay := timezone.DateFromTime(stampedAt)
+
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	svc.nowFunc = func() time.Time { return stampedAt }
+
+	checkOut := time.Date(2026, time.July, 21, 16, 0, 0, 0, timezone.Berlin)
+	yesterday := &activeModels.WorkSession{
+		Model:        base.Model{ID: 9},
+		StaffID:      100,
+		Date:         pinnedDay,
+		CreatedBy:    100,
+		Status:       activeModels.WorkSessionStatusPresent,
+		Source:       activeModels.WorkSessionSourceNFC,
+		CheckInTime:  time.Date(2026, time.July, 21, 8, 0, 0, 0, timezone.Berlin),
+		CheckOutTime: &checkOut,
+	}
+
+	var lookedUp []timezone.Date
+	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, day timezone.Date) (*activeModels.WorkSession, error) {
+		lookedUp = append(lookedUp, day)
+		if day == pinnedDay {
+			return yesterday, nil
+		}
+		return nil, sql.ErrNoRows
+	}
+	sessionRepo.updateFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("a closed session of a past day must never be reopened")
+		return nil
+	}
+	var created *activeModels.WorkSession
+	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+		created = entity
+		entity.ID = 11
+		return nil
+	}
+
+	session, err := svc.CheckInOn(context.Background(), 100, pinnedDay, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceNFC, "")
+	require.NoError(t, err)
+	require.NotNil(t, session)
+
+	assert.Equal(t, []timezone.Date{pinnedDay, stampDay}, lookedUp, "the stale day is re-resolved to the stamp's own day")
+	require.NotNil(t, created)
+	assert.Equal(t, stampDay, created.Date)
+	assert.NotNil(t, yesterday.CheckOutTime, "yesterday's departure stays recorded")
 }
 
 func TestWSEnsureCheckedIn_SkipsDeviationGate(t *testing.T) {

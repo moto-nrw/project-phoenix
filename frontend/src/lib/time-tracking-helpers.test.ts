@@ -88,6 +88,20 @@ describe("mapWorkSessionResponse", () => {
     expect(result.updatedBy).toBeNull();
   });
 
+  it("carries source through to the own-portal view", () => {
+    const backend = createMockBackendSession({ source: "nfc" });
+    const result = mapWorkSessionResponse(backend);
+
+    expect(result.source).toBe("nfc");
+  });
+
+  it("leaves source undefined when the payload predates the column", () => {
+    const backend = createMockBackendSession();
+    const result = mapWorkSessionResponse(backend);
+
+    expect(result.source).toBeUndefined();
+  });
+
   it("handles empty notes string", () => {
     const backend = createMockBackendSession({ notes: "" });
     const result = mapWorkSessionResponse(backend);
