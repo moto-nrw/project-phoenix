@@ -408,7 +408,7 @@ export function StaffSessionTable({
                       {session ? formatDuration(ist) : "–"}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums">
-                      {session ? (
+                      {session && !targetUnresolved ? (
                         <span className={deltaClass(delta)}>
                           {formatSignedDuration(delta)}
                         </span>

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type {
@@ -33,21 +33,33 @@ const from = new Date(2026, 0, 5);
 const to = new Date(2026, 0, 11);
 const today = new Date(2026, 5, 15);
 
+const mondaySession: StaffHistorySession = {
+  id: 41,
+  date: "2026-01-05",
+  net_minutes: 180,
+  check_in_time: "2026-01-05T09:00:00Z",
+  check_out_time: "2026-01-05T12:00:00Z",
+  break_minutes: 0,
+};
+
 function renderTable(props: {
   dailyTargets?: ReadonlyMap<string, number>;
   dailyTargetsError?: boolean;
   dailyTargetsPending?: boolean;
+  sessions?: readonly StaffHistorySession[];
 }) {
   return render(
     <StaffSessionTable
       staffId="1"
       from={from}
       to={to}
-      sessions={[]}
+      sessions={props.sessions ?? []}
       schedule={schedule}
+      dailyTargets={props.dailyTargets}
+      dailyTargetsError={props.dailyTargetsError}
+      dailyTargetsPending={props.dailyTargetsPending}
       today={today}
       isAdminView
-      {...props}
     />,
   );
 }
@@ -71,6 +83,20 @@ describe("StaffSessionTable Soll-Auflösung", () => {
     expect(screen.getAllByText("…").length).toBe(5);
     // Laden ist kein Fehler — kein Warnhinweis.
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("zeigt während des Ladens keinen Saldo für Sessions mit ungelöstem Soll", () => {
+    renderTable({
+      sessions: [mondaySession],
+      dailyTargetsPending: true,
+    });
+
+    const row = screen.getByText("05.01.").closest("tr");
+    expect(row).not.toBeNull();
+    const cells = within(row!).getAllByRole("cell");
+    expect(cells[5]).toHaveTextContent("…");
+    expect(cells[7]).toHaveTextContent("–");
+    expect(screen.queryByText("+3h")).not.toBeInTheDocument();
   });
 
   it("behält beim Zeitraumwechsel die bereits aufgelösten Tage", () => {
@@ -104,6 +130,20 @@ describe("StaffSessionTable Soll-Auflösung", () => {
     // Die Tabelle zeigt nur Mo–Fr.
     expect(screen.getAllByText("?").length).toBe(5);
     expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
+  it("zeigt nach einem Targets-Fehler keinen Saldo für Sessions mit ungelöstem Soll", () => {
+    renderTable({
+      sessions: [mondaySession],
+      dailyTargetsError: true,
+    });
+
+    const row = screen.getByText("05.01.").closest("tr");
+    expect(row).not.toBeNull();
+    const cells = within(row!).getAllByRole("cell");
+    expect(cells[5]).toHaveTextContent("?");
+    expect(cells[7]).toHaveTextContent("–");
+    expect(screen.queryByText("+3h")).not.toBeInTheDocument();
   });
 
   it("bevorzugt geladene Targets auch dann, wenn ein Fehler gemeldet ist", () => {
