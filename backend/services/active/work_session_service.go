@@ -410,11 +410,25 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, lookupD
 	}
 
 	now := s.now()
+	stampDay := timezone.DateFromTime(now)
 
 	// Check if there's already a session on the day this call acts on
 	existingSession, err := s.repo.GetByStaffAndDate(ctx, staffID, lookupDay)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to check existing session: %w", err)
+	}
+
+	// A pinned day that no longer matches the stamp may only carry a session
+	// that is still running: that is a night shift the caller is right to act
+	// on. A closed row on that day is finished business from a day this stamp
+	// does not belong to, and reopening it would move yesterday's arrival and
+	// erase yesterday's departure. Act on the stamp's own day instead.
+	if existingSession != nil && !existingSession.IsActive() && lookupDay != stampDay {
+		lookupDay = stampDay
+		existingSession, err = s.repo.GetByStaffAndDate(ctx, staffID, lookupDay)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("failed to check existing session: %w", err)
+		}
 	}
 
 	if existingSession != nil {
@@ -444,8 +458,6 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, lookupD
 	// stamp: the schedule and deviation checks below have to be read on that
 	// same day, or a stamp taken just after midnight is measured against the
 	// previous day's shift.
-	stampDay := timezone.DateFromTime(now)
-
 	if err := s.ensurePlannedStartReached(ctx, staffID, stampDay, now); err != nil {
 		return nil, err
 	}

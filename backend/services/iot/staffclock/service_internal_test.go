@@ -403,3 +403,58 @@ func TestExecute_UnrelatedUniqueViolationStaysAnError(t *testing.T) {
 	assert.NotErrorIs(t, err, ErrCheckInRaced)
 	assert.False(t, tenant.RollbackRequested(ctx))
 }
+
+// An RFID card that is active but linked to nobody resolves to no person. The
+// terminal must be told the tag is unknown, the same answer a never-seen card
+// gets — dereferencing the missing person turned an unassigned card into a 500.
+func TestGetState_UnassignedCardIsReportedAsUnknownTag(t *testing.T) {
+	card := &userModels.RFIDCard{Active: true}
+	card.ID = "A1654BEEF"
+	service := NewService(&stubPeople{}, &stubCards{card: card}, &stubWorkSessions{})
+
+	state, err := service.GetState(context.Background(), "A1654BEEF")
+
+	require.ErrorIs(t, err, ErrRFIDTagNotFound)
+	assert.Nil(t, state)
+}
+
+// The labor-time figures belong to the clock as it stands after the stamp. The
+// instant that resolved the day is older than the write it preceded, so reusing
+// it measures a session from before its own check-in: zero elapsed work and a
+// break requirement computed for the wrong point in the shift.
+func TestExecute_LaborTimeIsEvaluatedAfterTheStamp(t *testing.T) {
+	requestedAt := time.Date(2026, 7, 21, 23, 59, 59, 0, timezone.Berlin)
+	stampedAt := requestedAt.Add(2 * time.Second) // the write lands after midnight
+	evaluatedAt := stampedAt.Add(10 * time.Minute)
+
+	service, sessions := newRacedService(nil)
+	stamped := &activeModels.WorkSession{
+		StaffID:     7,
+		Date:        timezone.DateFromTime(stampedAt),
+		Status:      activeModels.WorkSessionStatusPresent,
+		Source:      activeModels.WorkSessionSourceNFC,
+		CheckInTime: stampedAt,
+	}
+	stamped.ID = 93
+	sessions.historyByDay = map[string]*activeSvc.SessionResponse{
+		stamped.Date.String(): {WorkSession: stamped},
+	}
+
+	// The clock the request resolved its day on, the clock the write landed on,
+	// and the clock the state is rendered against are three distinct instants.
+	instants := []time.Time{requestedAt, stampedAt, evaluatedAt}
+	calls := 0
+	setClock(service, sessions, func() time.Time {
+		if calls < len(instants) {
+			calls++
+		}
+		return instants[calls-1]
+	})
+
+	state, err := service.Execute(context.Background(), checkInCommand())
+
+	require.NoError(t, err)
+	require.NotNil(t, state.Session)
+	assert.Equal(t, StateCheckedIn, state.State)
+	assert.Equal(t, 10, state.NetMinutes, "elapsed work is measured against the clock after the write")
+}

@@ -223,7 +223,13 @@ func (s *Service) Execute(ctx context.Context, command Command) (*State, error) 
 		day = stamped.Date
 	}
 
-	return s.loadState(ctx, person, staff, day, now)
+	// The labor-time figures are read against the clock as it stands after the
+	// write, not against the instant the request was admitted. `now` selected
+	// the day and is deliberately left alone; reusing it here would measure the
+	// session from before its own check-in whenever the stamp crossed midnight,
+	// reporting zero elapsed work and a break requirement computed for the
+	// wrong point in the shift.
+	return s.loadState(ctx, person, staff, day, s.currentTime())
 }
 
 // checkIn stamps the arrival, resolving the reopen-status conflict when the
@@ -307,6 +313,13 @@ func (s *Service) resolveStaff(ctx context.Context, rawTag string) (*userModels.
 			return nil, nil, ErrRFIDTagNotFound
 		}
 		return nil, nil, fmt.Errorf("look up person by RFID tag: %w", err)
+	}
+	// An active card that is not linked to anybody resolves to no person. The
+	// kiosk gets the same stable "unknown tag" answer it gets for a card the
+	// system has never seen — dereferencing the nil would turn an unassigned
+	// card into a 500 at the terminal.
+	if person == nil {
+		return nil, nil, ErrRFIDTagNotFound
 	}
 	staff, err := s.people.GetStaffByPersonID(ctx, person.ID)
 	if err != nil {

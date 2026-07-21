@@ -2903,6 +2903,60 @@ func TestWSCheckInOn_NewSessionUsesTheStampDay(t *testing.T) {
 	assert.Equal(t, timezone.DateFromTime(created.CheckInTime), created.Date)
 }
 
+// The pinned day may be stale by the time the stamp is written. A session that
+// is still running on it is a night shift and stays the caller's business, but
+// a closed row belongs to a day this arrival is no longer part of: reopening it
+// would move yesterday's check-in and delete yesterday's checkout. The stamp
+// must open its own day instead.
+func TestWSCheckInOn_StalePinnedDayDoesNotReopenYesterday(t *testing.T) {
+	pinnedDay := timezone.NewDate(2026, 7, 21)
+	stampedAt := time.Date(2026, time.July, 22, 0, 0, 1, 0, timezone.Berlin)
+	stampDay := timezone.DateFromTime(stampedAt)
+
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	svc.nowFunc = func() time.Time { return stampedAt }
+
+	checkOut := time.Date(2026, time.July, 21, 16, 0, 0, 0, timezone.Berlin)
+	yesterday := &activeModels.WorkSession{
+		Model:        base.Model{ID: 9},
+		StaffID:      100,
+		Date:         pinnedDay,
+		CreatedBy:    100,
+		Status:       activeModels.WorkSessionStatusPresent,
+		Source:       activeModels.WorkSessionSourceNFC,
+		CheckInTime:  time.Date(2026, time.July, 21, 8, 0, 0, 0, timezone.Berlin),
+		CheckOutTime: &checkOut,
+	}
+
+	var lookedUp []timezone.Date
+	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, day timezone.Date) (*activeModels.WorkSession, error) {
+		lookedUp = append(lookedUp, day)
+		if day == pinnedDay {
+			return yesterday, nil
+		}
+		return nil, sql.ErrNoRows
+	}
+	sessionRepo.updateFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("a closed session of a past day must never be reopened")
+		return nil
+	}
+	var created *activeModels.WorkSession
+	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+		created = entity
+		entity.ID = 11
+		return nil
+	}
+
+	session, err := svc.CheckInOn(context.Background(), 100, pinnedDay, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceNFC, "")
+	require.NoError(t, err)
+	require.NotNil(t, session)
+
+	assert.Equal(t, []timezone.Date{pinnedDay, stampDay}, lookedUp, "the stale day is re-resolved to the stamp's own day")
+	require.NotNil(t, created)
+	assert.Equal(t, stampDay, created.Date)
+	assert.NotNil(t, yesterday.CheckOutTime, "yesterday's departure stays recorded")
+}
+
 func TestWSEnsureCheckedIn_SkipsDeviationGate(t *testing.T) {
 	// The supervision auto-stamp has no way to collect a reason; an early
 	// start must still produce a work session.
