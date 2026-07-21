@@ -310,6 +310,42 @@ func init() {
 		},
 	})
 
+	// --- Bundesland (public-holiday calendar, operator-only, #1418 3a) ---
+
+	config.Register(config.Definition{
+		Key:             config.KeyFederalState,
+		Label:           "Bundesland",
+		Description:     "Bundesland des Standorts. Bestimmt die gesetzlichen Feiertage in der Zeiterfassung (Soll = 0 an Feiertagen).",
+		Type:            config.FieldSelect,
+		Default:         "DE-NW",
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "standort",
+		SortOrder:       45,
+		AccessPolicy:    config.AccessOperatorOnly,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Baden-Württemberg", Value: "DE-BW"},
+				{Label: "Bayern", Value: "DE-BY"},
+				{Label: "Berlin", Value: "DE-BE"},
+				{Label: "Brandenburg", Value: "DE-BB"},
+				{Label: "Bremen", Value: "DE-HB"},
+				{Label: "Hamburg", Value: "DE-HH"},
+				{Label: "Hessen", Value: "DE-HE"},
+				{Label: "Mecklenburg-Vorpommern", Value: "DE-MV"},
+				{Label: "Niedersachsen", Value: "DE-NI"},
+				{Label: "Nordrhein-Westfalen", Value: "DE-NW"},
+				{Label: "Rheinland-Pfalz", Value: "DE-RP"},
+				{Label: "Saarland", Value: "DE-SL"},
+				{Label: "Sachsen", Value: "DE-SN"},
+				{Label: "Sachsen-Anhalt", Value: "DE-ST"},
+				{Label: "Schleswig-Holstein", Value: "DE-SH"},
+				{Label: "Thüringen", Value: "DE-TH"},
+			},
+		},
+	})
+
 	// --- Anwesenheitserfassung (setup-level decisions) ---
 
 	config.Register(config.Definition{

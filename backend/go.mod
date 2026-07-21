@@ -17,6 +17,7 @@ require (
 	github.com/k3a/html2text v1.4.0
 	github.com/lestrrat-go/jwx/v3 v3.1.1
 	github.com/prometheus/client_golang v1.23.2
+	github.com/rickar/cal/v2 v2.1.28
 	github.com/samber/slog-chi v1.19.1
 	github.com/signintech/gopdf v0.37.0
 	github.com/spf13/cobra v1.10.2

@@ -42,7 +42,11 @@ type Resource struct {
 	StaffAssignmentService scheduleSvc.StaffAssignmentService
 	// WorkTimeMonthService backs GET /month-summary — the Monatskarte (#1842).
 	WorkTimeMonthService activeSvc.WorkTimeMonthService
-	db                   *bun.DB
+	// HolidayService backs GET /holidays — the tenant's public holidays for
+	// calendar marking and the holiday-session warning (#1418 3a). Injected
+	// as a field in api/base.go to keep the constructor signature stable.
+	HolidayService scheduleSvc.HolidayService
+	db             *bun.DB
 }
 
 // NewResource creates a new time-tracking resource
@@ -76,6 +80,7 @@ func (rs *Resource) Router() chi.Router {
 		// manage-only role must be able to read it — the staff summary
 		// endpoints it pairs with gate on TimeTrackingManage alone.
 		r.With(authorize.RequiresAnyPermission(permissions.TimeTrackingOwn, permissions.TimeTrackingManage), withTx).Get("/config", rs.getConfig)
+		r.With(authorize.RequiresAnyPermission(permissions.TimeTrackingOwn, permissions.TimeTrackingManage), withTx).Get("/holidays", rs.getHolidays)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/history", rs.getHistory)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Put("/{id}", rs.updateSession)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/{id}/edits", rs.getSessionEdits)

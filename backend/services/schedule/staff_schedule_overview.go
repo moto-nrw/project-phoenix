@@ -127,6 +127,9 @@ type StaffScheduleOverviewDependencies struct {
 	// planned-minutes-only summaries (TargetMinutes stays nil).
 	WorkSchedules StaffWorkScheduleBatchReader
 	WorkModels    WorkTimeModelBatchReader
+	// Holidays reduces the weekly targets by public-holiday Soll (#1418 3a).
+	// Optional: nil skips the reduction (unit fixtures).
+	Holidays HolidayService
 }
 
 type StaffScheduleOverviewGetter interface {
@@ -594,6 +597,11 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 ) (map[staffDateKey]int, error) {
 	targets := make(map[staffDateKey]int)
 
+	holidaySet, err := s.holidayDatesForWeeks(ctx, weekStarts)
+	if err != nil {
+		return nil, err
+	}
+
 	entriesByStaff := make(map[int64][]*configModel.StaffWorkSchedule)
 	for _, entry := range schedules {
 		if entry != nil {
@@ -612,6 +620,13 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 		if entries := entriesByStaff[member.ID]; len(entries) > 0 {
 			for _, weekStart := range weekStarts {
 				if target, ok := configModel.WeeklyTargetFromSchedule(entries, member.RotationAnchorDate, weekStart); ok {
+					for offset := 0; offset < 7; offset++ {
+						day := weekStart.AddDays(offset)
+						if holidaySet[day] {
+							dayTarget, _ := configModel.DailyTargetFromSchedule(entries, member.RotationAnchorDate, day)
+							target -= dayTarget
+						}
+					}
 					targets[staffDateKey{member.ID, weekStart}] = target
 					found = true
 				}
@@ -650,10 +665,40 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 			anchor = *member.RotationAnchorDate
 		}
 		for weekStart, target := range configModel.WeeklyTargetsFromModel(model, anchor, weekStarts) {
+			for offset := 0; offset < 7; offset++ {
+				day := weekStart.AddDays(offset)
+				if holidaySet[day] {
+					dayTarget, _ := configModel.DailyTargetFromModel(model, anchor, day)
+					target -= dayTarget
+				}
+			}
 			targets[staffDateKey{member.ID, weekStart}] = target
 		}
 	}
 	return targets, nil
+}
+
+// holidayDatesForWeeks loads the public holidays covering the given weeks.
+// A resolver error fails the overview read — a silently unreduced Soll
+// would fake minus hours in holiday weeks.
+func (s *staffScheduleOverviewService) holidayDatesForWeeks(ctx context.Context, weekStarts []timezone.Date) (map[timezone.Date]bool, error) {
+	if s.deps.Holidays == nil || len(weekStarts) == 0 {
+		return nil, nil
+	}
+	from, to := weekStarts[0], weekStarts[0]
+	for _, weekStart := range weekStarts[1:] {
+		if weekStart.Before(from) {
+			from = weekStart
+		}
+		if weekStart.After(to) {
+			to = weekStart
+		}
+	}
+	set, err := s.deps.Holidays.HolidayDates(ctx, from, to.AddDays(6))
+	if err != nil {
+		return nil, fmt.Errorf("load public holidays: %w", err)
+	}
+	return set, nil
 }
 
 func plannedShiftMinutes(shifts []*scheduleModel.StaffShift) map[staffDateKey]int {

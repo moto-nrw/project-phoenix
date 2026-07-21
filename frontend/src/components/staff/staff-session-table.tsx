@@ -58,6 +58,7 @@ export function StaffSessionTable({
   dailyTargets,
   dailyTargetsError,
   dailyTargetsPending,
+  holidays,
   today,
   isAdminView,
   plannedShifts,
@@ -89,6 +90,12 @@ export function StaffSessionTable({
   // vorherige Zeitraum bereits aufgelöst hat, bleiben gültig: dasselbe Datum
   // liefert für dieselbe Person immer dasselbe Soll.
   readonly dailyTargetsPending?: boolean;
+  // Gesetzliche Feiertage im sichtbaren Zeitraum, keyed YYYY-MM-DD → Name
+  // (#1418 3a). Feiertage tragen ein eigenes Status-Badge statt "Nicht
+  // erfasst", und eine Session an einem Feiertag bekommt eine
+  // Feiertagsarbeit-Warnung (§9 ArbZG). Das Soll dieser Tage kommt bereits
+  // als 0 vom Server — die Map ist reine Anzeige, keine Rechengrundlage.
+  readonly holidays?: ReadonlyMap<string, string>;
   readonly today: Date;
   readonly isAdminView: boolean;
   // Planned Dienstplan shifts for the visible range. When provided (admin
@@ -250,6 +257,7 @@ export function StaffSessionTable({
               const dow = toIsoDayOfWeek(day);
               const session = sessionsByDate.get(key);
               const absence = absencesByDate.get(key);
+              const holidayName = holidays?.get(key);
               // Ein fehlgeschlagener ODER noch laufender Targets-Fetch darf
               // NICHT auf den aktuellen Plan zurückfallen (#1842): der Tag
               // bleibt ungelöst, damit die Tabelle keinen erfundenen
@@ -271,6 +279,7 @@ export function StaffSessionTable({
               const status = computeRowStatus(
                 session,
                 absence,
+                holidayName,
                 target,
                 isFuture,
               );
@@ -399,7 +408,10 @@ export function StaffSessionTable({
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-between gap-3">
-                        <HintBadges session={session} />
+                        <HintBadges
+                          session={session}
+                          holidayName={holidayName}
+                        />
                         {canEdit && (
                           <button
                             type="button"
@@ -554,6 +566,7 @@ type RowStatus =
   | { kind: "present" }
   | { kind: "home-office" }
   | { kind: "absence"; absenceType: string }
+  | { kind: "holiday"; name: string }
   | { kind: "missing" };
 
 // Renders the planned Dienstplan window(s) for one day: each active shift as
@@ -590,6 +603,7 @@ function PlannedShiftCell({
 function computeRowStatus(
   session: StaffHistorySession | undefined,
   absence: StaffAbsenceRow | undefined,
+  holidayName: string | undefined,
   target: number,
   isFuture: boolean,
 ): RowStatus | null {
@@ -598,6 +612,13 @@ function computeRowStatus(
       return { kind: "home-office" };
     }
     return { kind: "present" };
+  }
+  // Feiertag wins over absence and "missing": the day has no Soll for
+  // EVERYONE, so neither a Krank badge nor "Nicht erfasst" describes it
+  // (#1418 3a). A session on a holiday still shows present + the
+  // Feiertagsarbeit hint.
+  if (holidayName) {
+    return { kind: "holiday", name: holidayName };
   }
   // Absence wins over "missing" so an admin sees Krank/Urlaub instead of a
   // misleading "Nicht erfasst" badge (the MA-side already does this).
@@ -642,6 +663,16 @@ function StatusBadge({ status }: { readonly status: RowStatus }) {
     return (
       <span className="inline-flex items-center rounded-full bg-[#83CD2D]/10 px-2 py-0.5 text-xs font-medium text-[#70b525]">
         OGS
+      </span>
+    );
+  }
+  if (status.kind === "holiday") {
+    return (
+      <span
+        title={status.name}
+        className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+      >
+        Feiertag
       </span>
     );
   }
@@ -700,13 +731,27 @@ function SourceBadge({
 // UND nachträglicher Korrektur).
 function HintBadges({
   session,
+  holidayName,
 }: {
   readonly session: StaffHistorySession | undefined;
+  readonly holidayName?: string;
 }) {
   if (!session) {
     return <span className="text-xs text-gray-300">–</span>;
   }
-  const pills: { key: string; label: string }[] = [];
+  const pills: { key: string; label: string; title?: string; tone?: string }[] =
+    [];
+  // Arbeit an einem gesetzlichen Feiertag ist nach §9 ArbZG grundsätzlich
+  // untersagt (OGS-Ausnahmen nach §10 möglich) — Warnung, kein Block
+  // (#1418 3a/3f).
+  if (holidayName) {
+    pills.push({
+      key: "holiday-work",
+      label: "Feiertagsarbeit",
+      title: `Arbeitszeit an ${holidayName}: nach §9 ArbZG nur ausnahmsweise zulässig (ggf. Sondergenehmigung erforderlich).`,
+      tone: "bg-red-50 text-red-700",
+    });
+  }
   if ((session.edit_count ?? 0) > 0) {
     pills.push({ key: "edited", label: "Manuell korrigiert" });
   }
@@ -721,7 +766,10 @@ function HintBadges({
       {pills.map((pill) => (
         <span
           key={pill.key}
-          className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700"
+          title={pill.title}
+          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+            pill.tone ?? "bg-amber-50 text-amber-700"
+          }`}
         >
           {pill.label}
         </span>
