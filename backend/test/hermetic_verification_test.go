@@ -298,6 +298,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"setupTestContext",               // Indirect setup via shared helper (calls SetupAPITest)
 		"newScenario",                    // E2E timetable flows — shared_setup.go wraps SetupAPITest
 		"setupRolloverTest",              // services/enrollment rollover integration tests — wraps SetupTestDB
+		"setupDecisionTest",              // services/enrollment decision integration tests — wraps setupRolloverTest
 		"setupCareTest",                  // services/enrollment care-offering integration tests — wraps SetupTestDB
 		"setupAutoApproveIntegrationEnv", // services/enrollment auto-approve integration tests — wraps setupRolloverTest
 		"setupGuardianInvitationTest",    // services/auth guardian invitation + related-accounts tests — wraps SetupTestDB

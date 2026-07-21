@@ -3,6 +3,7 @@ package enrollment
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -316,25 +317,36 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 				PreviousSnapshot:       input.PreviousSnapshot,
 				KeepGuardianProfileIDs: keepGuardianProfileIDs,
 			})
-			// A persisted departure plan makes the repository reconcile the
-			// "läuft mit" links against it — a narrowed plan drops edges that
-			// are rows on ANOTHER child's card too. Announce it exactly like
-			// the student PUT, care-request and master-data-review writers do,
-			// or open detail cards and the Laufgemeinschaft search keep
-			// showing the pre-sync links. After-commit: a rolled-back sync
-			// (including the replacement-error return below) fires nothing.
-			if planSynced {
-				s.deferStudentPlanBroadcasts(ctx, student.ID)
-			}
 			if terr != nil {
 				s.Logger.Warn("decision: approved child targeted-field sync had errors",
 					slog.Int64("request_id", req.ID),
 					slog.Int64("child_id", child.ID),
 					slog.String("error", terr.Error()),
 				)
+				// The two companion sentinels are NOT best-effort field noise:
+				// they mean the departure-plan sync was REFUSED, either because
+				// it would strand a linked child without an allowed Heimweg or
+				// because another editor holds the linked child's row. Swallowing
+				// them outside the replacement path (as every other field error is
+				// swallowed) would report success for a correction that never
+				// landed. Propagate so the tenant transaction rolls back and the
+				// handler answers with the actionable 400/409 the student PUT
+				// gives (#1694).
 				if input.ReplaceTargetedData {
 					return nil, fmt.Errorf("decision: approved child targeted-field replacement sync: %w", terr)
 				}
+				if errors.Is(terr, users.ErrCompanionWouldLoseDeparture) ||
+					errors.Is(terr, users.ErrCompanionLockBusy) {
+					return nil, fmt.Errorf("decision: approved child departure sync refused: %w", terr)
+				}
+			}
+			// A departure-plan sync that actually TRIMMED a link changed rows on
+			// ANOTHER child's card too. Announce it exactly like the student PUT,
+			// care-request and master-data-review writers do, or open detail cards
+			// and the Laufgemeinschaft search keep showing the pre-sync links.
+			// After the refusal returns above, so a rolled-back sync stays silent.
+			if planSynced {
+				s.deferStudentPlanBroadcasts(ctx, student.ID)
 			}
 		}
 	}

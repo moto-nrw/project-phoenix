@@ -2446,10 +2446,12 @@ func (s *decisionService) ensureGuardianRoleForTenant(ctx context.Context, accou
 // enrollment handlers can answer with the actionable 4xx the student PUT
 // gives instead of a blind 500.
 //
-// The returned bool reports whether a DEPARTURE-PLAN-carrying student write
-// was persisted — the write that makes the repository reconcile (and possibly
-// trim) the "läuft mit" links, and therefore the signal for the caller's
-// student_companions_changed broadcast.
+// The returned bool reports whether the student write actually TRIMMED a
+// "läuft mit" link — read from the write itself via
+// users.CompanionChangeRecorder, not from the fact that the payload carried a
+// departure plan. It is the caller's signal for the student_companions_changed
+// broadcast, and a false positive there costs somebody an in-progress
+// companion edit.
 type targetedFieldSyncOptions struct {
 	Replace                bool
 	PreviousSnapshot       map[string]any
@@ -2475,13 +2477,6 @@ func (s *decisionService) applyTargetedFields(
 
 	var errs []string
 	studentDirty := false
-	// departureTouched marks the targets whose student write replaces the
-	// departure plan: the repository then reconciles the "läuft mit" links
-	// against the new plan and may trim edges — rows on ANOTHER child's card
-	// too. The flag feeds the returned plan-synced signal so the caller can
-	// announce student_companions_changed for exactly these writes and stay
-	// silent for a health-info or consent sync that can never touch a link.
-	departureTouched := false
 	// A unified departure target wins by replacing both legacy maps after the
 	// loop; the legacy Buskind/Abholregelung targets mutate their own map
 	// directly, so a form carrying both still combines correctly (#1610).
@@ -2543,7 +2538,6 @@ func (s *decisionService) applyTargetedFields(
 				student.PickupDays = users.PickupDays{}
 				student.DepartureCompanionNote = nil
 				studentDirty = true
-				departureTouched = true
 			} else if days, err := decodeDepartureDays(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
@@ -2556,7 +2550,6 @@ func (s *decisionService) applyTargetedFields(
 				}
 				explicitDeparture = &days
 				studentDirty = true
-				departureTouched = true
 			}
 		case enrollmentModels.TargetStudentAllowedDepartureModes:
 			if raw == nil {
@@ -2566,7 +2559,6 @@ func (s *decisionService) applyTargetedFields(
 				student.PickupDays = users.PickupDays{}
 				student.DepartureCompanionNote = nil
 				studentDirty = true
-				departureTouched = true
 			} else if modes, err := decodeAllowedDepartureModes(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
@@ -2575,31 +2567,26 @@ func (s *decisionService) applyTargetedFields(
 				}
 				explicitAllowedDeparture = &modes
 				studentDirty = true
-				departureTouched = true
 			}
 		case enrollmentModels.TargetStudentBusDays, enrollmentModels.TargetStudentBus:
 			if raw == nil {
 				student.BusDays = users.BusDays{}
 				studentDirty = true
-				departureTouched = true
 			} else if days, err := decodeBusDays(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
 				student.BusDays = days
 				studentDirty = true
-				departureTouched = true
 			}
 		case enrollmentModels.TargetStudentPickupStatus:
 			if raw == nil {
 				student.PickupDays = users.PickupDays{}
 				studentDirty = true
-				departureTouched = true
 			} else if days, err := decodePickupDays(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
 				student.PickupDays = days
 				studentDirty = true
-				departureTouched = true
 			}
 		case enrollmentModels.TargetSchedulePickup:
 			if options.Replace && s.PickupScheduleRepo != nil && !pickupScheduleDeleted {
@@ -2760,14 +2747,21 @@ func (s *decisionService) applyTargetedFields(
 	// into an opaque 500 at the handler (#1694).
 	var companionRefusal error
 	if studentDirty {
-		if err := s.StudentRepo.Update(ctx, student); err != nil {
+		// Carrying a departure plan is a NECESSARY, not a sufficient, condition
+		// for a companion change: writing the same modes back trims no edge, and
+		// announcing student_companions_changed for such a write makes every open
+		// companion editor in the school discard or block its draft for nothing.
+		// Only the write path knows the difference, so read it from there
+		// (users.CompanionChangeRecorder) instead of inferring it from the payload.
+		updateCtx, companionChanges := users.ContextWithCompanionChangeRecorder(ctx)
+		if err := s.StudentRepo.Update(updateCtx, student); err != nil {
 			if errors.Is(err, users.ErrCompanionWouldLoseDeparture) || errors.Is(err, users.ErrCompanionLockBusy) {
 				companionRefusal = fmt.Errorf("update student: %w", err)
 			} else {
 				errs = append(errs, fmt.Sprintf("update student: %v", err))
 			}
 		} else {
-			departurePlanSynced = departureTouched
+			departurePlanSynced = companionChanges.Changed()
 		}
 	}
 
