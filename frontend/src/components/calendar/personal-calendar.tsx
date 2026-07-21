@@ -895,9 +895,14 @@ function TimeGridEventBlock({
   const { event, startMinutes, endMinutes, column, columnCount } = placement;
   const tone = sourceTone[event.source];
   const recipientId = event.recipient_id;
+  const cancelled = event.cancelled === true;
   const responding =
     Boolean(recipientId) && respondingRecipientId === recipientId;
-  const showRespond = Boolean(event.can_respond && recipientId && onRespond);
+  // A cancelled appointment can no longer be answered — hide RSVP, matching
+  // CalendarEventItem.
+  const showRespond = Boolean(
+    !cancelled && event.can_respond && recipientId && onRespond,
+  );
   const showOverview = Boolean(
     event.can_view_overview && event.appointment_id && onShowOverview,
   );
