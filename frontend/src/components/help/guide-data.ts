@@ -796,7 +796,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Betreuungsplan bei Bedarf abschalten",
-          body: "Der Betreuungsplan ist standardmäßig sichtbar. Einrichtungen, die ihn nicht nutzen, schalten ihn unter `Einstellungen` -> `Betrieb` mit `Betreuungsplan aktivieren` aus; der komplette Bereich `Planung` (Betreuungsplan, Dienstplan, Vertretung, Kalenderzeiträume) verschwindet dann aus der Seitenleiste, und die Seiten Betreuungsplan und Vertretung zeigen bei direktem Aufruf einen Hinweis, dass die Funktion deaktiviert ist.",
+          body: "Der Betreuungsplan ist standardmäßig sichtbar. Einrichtungen, die ihn nicht nutzen, schalten ihn unter `Einstellungen` -> `Betrieb` mit `Betreuungsplan aktivieren` aus; der komplette Bereich `Planung` (Betreuungsplan, Dienstplan, Vertretung, Kalenderzeiträume) verschwindet dann aus der Seitenleiste, und alle vier Seiten zeigen bei direktem Aufruf einen Hinweis, dass die Funktion deaktiviert ist.",
           tone: "blue",
         },
         screenshot:
