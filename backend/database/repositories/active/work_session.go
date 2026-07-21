@@ -59,23 +59,35 @@ func (r *WorkSessionRepository) GetByStaffAndDate(ctx context.Context, staffID i
 
 // GetCurrentByStaffID returns the active (not checked out) session for a staff member today
 func (r *WorkSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID int64) (*active.WorkSession, error) {
-	return r.getCurrentByStaffID(ctx, staffID, false)
+	return r.getOpenByStaffAndDate(ctx, staffID, timezone.TodayDate(), false)
 }
 
 // GetCurrentByStaffIDForUpdate returns the active session for a staff member today and locks it.
 func (r *WorkSessionRepository) GetCurrentByStaffIDForUpdate(ctx context.Context, staffID int64) (*active.WorkSession, error) {
-	return r.getCurrentByStaffID(ctx, staffID, true)
+	return r.getOpenByStaffAndDate(ctx, staffID, timezone.TodayDate(), true)
 }
 
-func (r *WorkSessionRepository) getCurrentByStaffID(ctx context.Context, staffID int64, forUpdate bool) (*active.WorkSession, error) {
+// GetOpenByStaffAndDate returns the not-checked-out session of a staff member on
+// an explicit calendar day. Callers that must not re-derive "today" mid-request
+// (a kiosk stamp can straddle Berlin midnight) use this instead of
+// GetCurrentByStaffID.
+func (r *WorkSessionRepository) GetOpenByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*active.WorkSession, error) {
+	return r.getOpenByStaffAndDate(ctx, staffID, date, false)
+}
+
+// GetOpenByStaffAndDateForUpdate is GetOpenByStaffAndDate with a row lock.
+func (r *WorkSessionRepository) GetOpenByStaffAndDateForUpdate(ctx context.Context, staffID int64, date timezone.Date) (*active.WorkSession, error) {
+	return r.getOpenByStaffAndDate(ctx, staffID, date, true)
+}
+
+func (r *WorkSessionRepository) getOpenByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date, forUpdate bool) (*active.WorkSession, error) {
 	session := new(active.WorkSession)
-	today := timezone.TodayDate()
 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(session).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id = ?`, staffID).
-		Where(`"work_session".date = ?`, today).
+		Where(`"work_session".date = ?`, date).
 		Where(`"work_session".check_out_time IS NULL`)
 
 	query = base.WithTenantFilter(ctx, query, "work_session")

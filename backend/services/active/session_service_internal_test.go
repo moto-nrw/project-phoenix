@@ -109,6 +109,15 @@ func (w *workSessionServiceForSessionUnitTest) StartBreak(context.Context, int64
 func (w *workSessionServiceForSessionUnitTest) EndBreak(context.Context, int64) (*activeModels.WorkSession, error) {
 	return nil, nil
 }
+func (w *workSessionServiceForSessionUnitTest) CheckOutOn(context.Context, int64, timezone.Date, string) (*activeModels.WorkSession, error) {
+	return nil, nil
+}
+func (w *workSessionServiceForSessionUnitTest) StartBreakOn(context.Context, int64, timezone.Date, *int) (*activeModels.WorkSessionBreak, error) {
+	return nil, nil
+}
+func (w *workSessionServiceForSessionUnitTest) EndBreakOn(context.Context, int64, timezone.Date) (*activeModels.WorkSession, error) {
+	return nil, nil
+}
 func (w *workSessionServiceForSessionUnitTest) GetSessionBreaks(context.Context, int64, int64) ([]*activeModels.WorkSessionBreak, error) {
 	return nil, nil
 }

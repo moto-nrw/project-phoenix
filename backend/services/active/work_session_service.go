@@ -204,6 +204,16 @@ type WorkSessionService interface {
 	CheckOut(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error)
 	StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
 	EndBreak(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+
+	// The *On variants act on the open session of an explicit calendar day
+	// instead of re-deriving "today" from the server clock. A caller whose
+	// request straddles Berlin midnight (a kiosk stamp at 23:59:59) would
+	// otherwise look up a day the session was never written on and fail with
+	// "no active session found". The day-less forms above delegate here with
+	// the current day and keep their behaviour.
+	CheckOutOn(ctx context.Context, staffID int64, day timezone.Date, reason string) (*activeModels.WorkSession, error)
+	StartBreakOn(ctx context.Context, staffID int64, day timezone.Date, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
+	EndBreakOn(ctx context.Context, staffID int64, day timezone.Date) (*activeModels.WorkSession, error)
 	GetSessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
 	UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error)
 	// UpdateSessionAsAdmin is the admin-facing counterpart. editorStaffID is
@@ -533,8 +543,13 @@ func (s *workSessionService) reopenSession(ctx context.Context, session *activeM
 
 // CheckOut ends the current work session for the staff member
 func (s *workSessionService) CheckOut(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error) {
-	// Get current active session
-	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
+	return s.CheckOutOn(ctx, staffID, timezone.TodayDate(), reason)
+}
+
+// CheckOutOn ends the open session of an explicit calendar day.
+func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day timezone.Date, reason string) (*activeModels.WorkSession, error) {
+	// Get the open session of the requested day
+	session, err := s.repo.GetOpenByStaffAndDate(ctx, staffID, day)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New(errNoActiveSession)
@@ -763,8 +778,13 @@ func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context
 // StartBreak starts a new break for the current session
 // If plannedDurationMinutes is provided (1-240), sets planned_end_time for auto-end
 func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
-	// Get today's active session
-	session, err := s.repo.GetCurrentByStaffIDForUpdate(ctx, staffID)
+	return s.StartBreakOn(ctx, staffID, timezone.TodayDate(), plannedDurationMinutes)
+}
+
+// StartBreakOn starts a break on the open session of an explicit calendar day.
+func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, day timezone.Date, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
+	// Get the open session of the requested day
+	session, err := s.repo.GetOpenByStaffAndDateForUpdate(ctx, staffID, day)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New(errNoActiveSession)
@@ -817,8 +837,13 @@ func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plan
 
 // EndBreak ends the current active break for the staff member's session
 func (s *workSessionService) EndBreak(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
-	// Get today's active session
-	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
+	return s.EndBreakOn(ctx, staffID, timezone.TodayDate())
+}
+
+// EndBreakOn ends the active break on the open session of an explicit calendar day.
+func (s *workSessionService) EndBreakOn(ctx context.Context, staffID int64, day timezone.Date) (*activeModels.WorkSession, error) {
+	// Get the open session of the requested day
+	session, err := s.repo.GetOpenByStaffAndDate(ctx, staffID, day)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New(errNoActiveSession)

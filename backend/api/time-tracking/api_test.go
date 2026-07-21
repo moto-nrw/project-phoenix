@@ -73,6 +73,18 @@ func (m *mockWorkSessionService) EndBreak(ctx context.Context, staffID int64) (*
 	}
 	return &activeModels.WorkSession{}, nil
 }
+func (m *mockWorkSessionService) CheckOutOn(ctx context.Context, staffID int64, _ timezone.Date, reason string) (*activeModels.WorkSession, error) {
+	return m.CheckOut(ctx, staffID, reason)
+}
+
+func (m *mockWorkSessionService) StartBreakOn(ctx context.Context, staffID int64, _ timezone.Date, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
+	return m.StartBreak(ctx, staffID, plannedDurationMinutes)
+}
+
+func (m *mockWorkSessionService) EndBreakOn(ctx context.Context, staffID int64, _ timezone.Date) (*activeModels.WorkSession, error) {
+	return m.EndBreak(ctx, staffID)
+}
+
 func (m *mockWorkSessionService) GetSessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error) {
 	if m.getSessionBreaksFn != nil {
 		return m.getSessionBreaksFn(ctx, staffID, sessionID)

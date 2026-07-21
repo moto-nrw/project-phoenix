@@ -2,6 +2,7 @@ package staffclock
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -63,8 +64,14 @@ func (s *stubCards) List(context.Context, map[string]any) ([]*userModels.RFIDCar
 func (s *stubCards) Deactivate(context.Context, string) error { return nil }
 
 type stubWorkSessions struct {
-	checkInErr  error
-	checkInCall int
+	checkInErr     error
+	checkInCall    int
+	checkInSession *activeModels.WorkSession
+	// actionDays records the calendar day every mutating action was pinned to.
+	actionDays []timezone.Date
+	// openSessionByDay mirrors the day-scoped lookup inside the work session
+	// service: an action only finds the session on the day it was written on.
+	openSessionByDay map[string]*activeModels.WorkSession
 	// historyByDay mirrors the date-scoped read: only the day the session was
 	// stamped on returns it.
 	historyByDay map[string]*activeSvc.SessionResponse
@@ -72,30 +79,38 @@ type stubWorkSessions struct {
 
 func (s *stubWorkSessions) CheckIn(context.Context, int64, string, string, string) (*activeModels.WorkSession, error) {
 	s.checkInCall++
-	return nil, s.checkInErr
+	if s.checkInErr != nil {
+		return nil, s.checkInErr
+	}
+	return s.checkInSession, nil
 }
 
-func (s *stubWorkSessions) CheckOut(context.Context, int64, string) (*activeModels.WorkSession, error) {
-	return nil, nil
+// openOn is the stand-in for the day-pinned lookup the real service performs.
+func (s *stubWorkSessions) openOn(day timezone.Date) (*activeModels.WorkSession, error) {
+	s.actionDays = append(s.actionDays, day)
+	session, ok := s.openSessionByDay[day.String()]
+	if !ok {
+		return nil, errors.New("no active session found")
+	}
+	return session, nil
 }
 
-func (s *stubWorkSessions) StartBreak(context.Context, int64, *int) (*activeModels.WorkSessionBreak, error) {
-	return nil, nil
+func (s *stubWorkSessions) CheckOutOn(_ context.Context, _ int64, day timezone.Date, _ string) (*activeModels.WorkSession, error) {
+	return s.openOn(day)
 }
 
-func (s *stubWorkSessions) EndBreak(context.Context, int64) (*activeModels.WorkSession, error) {
-	return nil, nil
+func (s *stubWorkSessions) StartBreakOn(_ context.Context, _ int64, day timezone.Date, _ *int) (*activeModels.WorkSessionBreak, error) {
+	if _, err := s.openOn(day); err != nil {
+		return nil, err
+	}
+	return &activeModels.WorkSessionBreak{}, nil
 }
 
-func (s *stubWorkSessions) GetSessionBreaks(context.Context, int64, int64) ([]*activeModels.WorkSessionBreak, error) {
-	return nil, nil
+func (s *stubWorkSessions) EndBreakOn(_ context.Context, _ int64, day timezone.Date) (*activeModels.WorkSession, error) {
+	return s.openOn(day)
 }
 
 func (s *stubWorkSessions) UpdateSession(context.Context, int64, int64, activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error) {
-	return nil, nil
-}
-
-func (s *stubWorkSessions) GetCurrentSession(context.Context, int64) (*activeModels.WorkSession, error) {
 	return nil, nil
 }
 
@@ -147,36 +162,33 @@ func TestExecute_ConcurrentCheckInReportsStateConflict(t *testing.T) {
 	assert.True(t, tenant.RollbackRequested(ctx))
 }
 
-// A stamp placed just before midnight must be read back on the day it was
-// written. Re-deriving the day after the write reported "checked_out, no
-// session", which invites the kiosk to check in again and leaves the first
-// session open overnight.
-func TestExecute_CheckInBeforeMidnightReportsTheStampedDay(t *testing.T) {
+// A check-in that straddles Berlin midnight is persisted on the day the write
+// happened, and that day — not the day the request started on — decides what is
+// read back. Anchoring the reload to the request clock reported "checked_out, no
+// session" for a successful stamp, which invites the kiosk to check in a second
+// time and leaves the first session open overnight.
+func TestExecute_CheckInAcrossMidnightReportsTheStampedDay(t *testing.T) {
 	service, sessions := newRacedService(nil)
 
-	stampedAt := time.Date(2026, 7, 21, 23, 59, 59, 0, timezone.Berlin)
+	requestedAt := time.Date(2026, 7, 21, 23, 59, 59, 0, timezone.Berlin)
+	stampedAt := requestedAt.Add(2 * time.Second) // the write lands after midnight
 	stampedDay := timezone.DateFromTime(stampedAt)
+	require.NotEqual(t, timezone.DateFromTime(requestedAt), stampedDay)
+
+	stamped := &activeModels.WorkSession{
+		StaffID:     7,
+		Date:        stampedDay,
+		Status:      activeModels.WorkSessionStatusPresent,
+		Source:      activeModels.WorkSessionSourceNFC,
+		CheckInTime: stampedAt,
+	}
+	sessions.checkInSession = stamped
+	// Only the day the row carries returns it — the request day is empty.
 	sessions.historyByDay = map[string]*activeSvc.SessionResponse{
-		stampedDay.String(): {
-			WorkSession: &activeModels.WorkSession{
-				StaffID:     7,
-				Date:        stampedDay,
-				Status:      activeModels.WorkSessionStatusPresent,
-				Source:      activeModels.WorkSessionSourceNFC,
-				CheckInTime: stampedAt,
-			},
-		},
+		stampedDay.String(): {WorkSession: stamped},
 	}
 
-	// The clock crosses midnight between the stamp and the reload; GetCurrentSession
-	// is date-scoped and no longer sees yesterday's open session.
-	clock := []time.Time{stampedAt, stampedAt.Add(2 * time.Second)}
-	call := 0
-	service.now = func() time.Time {
-		tick := clock[min(call, len(clock)-1)]
-		call++
-		return tick
-	}
+	service.now = func() time.Time { return requestedAt }
 
 	state, err := service.Execute(context.Background(), checkInCommand())
 
@@ -185,6 +197,50 @@ func TestExecute_CheckInBeforeMidnightReportsTheStampedDay(t *testing.T) {
 	assert.Equal(t, stampedDay, timezone.DateFromTime(state.Session.CheckInTime))
 	assert.Equal(t, StateCheckedIn, state.State)
 	assert.Equal(t, []string{ActionBreakStart, ActionCheckOut}, state.AllowedActions)
+}
+
+// Check-out, break start and break end must look up the session on the day the
+// request was taken on. An unpinned lookup re-derives "today" while the request
+// runs and misses the session opened seconds before midnight, refusing a valid
+// stamp with "no active session found".
+func TestExecute_ActionsPinTheLookupToTheRequestDay(t *testing.T) {
+	requestedAt := time.Date(2026, 7, 21, 23, 59, 59, 0, timezone.Berlin)
+	requestDay := timezone.DateFromTime(requestedAt)
+
+	open := &activeModels.WorkSession{
+		StaffID:     7,
+		Date:        requestDay,
+		Status:      activeModels.WorkSessionStatusPresent,
+		Source:      activeModels.WorkSessionSourceNFC,
+		CheckInTime: requestedAt.Add(-8 * time.Hour),
+	}
+
+	for _, action := range []string{ActionCheckOut, ActionBreakStart, ActionBreakEnd} {
+		t.Run(action, func(t *testing.T) {
+			service, sessions := newRacedService(nil)
+			sessions.openSessionByDay = map[string]*activeModels.WorkSession{requestDay.String(): open}
+			sessions.historyByDay = map[string]*activeSvc.SessionResponse{
+				requestDay.String(): {WorkSession: open},
+			}
+
+			// The clock rolls past midnight right after the request timestamp is
+			// taken; every lookup must still land on the request day.
+			calls := 0
+			service.now = func() time.Time {
+				calls++
+				if calls == 1 {
+					return requestedAt
+				}
+				return requestedAt.Add(2 * time.Second)
+			}
+
+			state, err := service.Execute(context.Background(), Command{RFIDTag: "A1654BEEF", Action: action})
+
+			require.NoError(t, err)
+			require.NotNil(t, state.Session)
+			assert.Equal(t, []timezone.Date{requestDay}, sessions.actionDays)
+		})
+	}
 }
 
 // A unique violation on another constraint is a genuine fault and must keep
