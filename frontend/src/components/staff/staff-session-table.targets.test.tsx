@@ -1,7 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { StaffSchedule } from "~/lib/staff-api";
+import type {
+  StaffAbsenceRow,
+  StaffHistorySession,
+  StaffSchedule,
+} from "~/lib/staff-api";
+import type { StaffShift } from "~/lib/shift-helpers";
 
 import { StaffSessionTable } from "./staff-session-table";
 
@@ -110,5 +115,104 @@ describe("StaffSessionTable Soll-Auflösung", () => {
     expect(screen.getAllByText("5h").length).toBeGreaterThan(0);
     // Nur die Tage ohne aufgelöstes Target bleiben ungelöst.
     expect(screen.getAllByText("?").length).toBe(4);
+  });
+});
+
+// #1967: Sa/So waren hart aus der Tagesansicht gefiltert, während Monatskarte
+// und KPI-Karten sie serverseitig mitzählten. Die Summe der sichtbaren Zeilen
+// ergab dann nicht mehr das ausgewiesene Ist.
+describe("StaffSessionTable Wochenendtage", () => {
+  // Sa, 10.01.2026 — im Zeitraum from/to und in der Vergangenheit.
+  const saturday = "2026-01-10";
+
+  const weekendSession: StaffHistorySession = {
+    id: 42,
+    date: saturday,
+    net_minutes: 180,
+    check_in_time: `${saturday}T09:00:00Z`,
+    check_out_time: `${saturday}T12:00:00Z`,
+    break_minutes: 0,
+  };
+
+  function renderWeekend(props: {
+    sessions?: readonly StaffHistorySession[];
+    plannedShifts?: readonly StaffShift[];
+    absences?: readonly StaffAbsenceRow[];
+  }) {
+    return render(
+      <StaffSessionTable
+        staffId="1"
+        from={from}
+        to={to}
+        sessions={props.sessions ?? []}
+        absences={props.absences}
+        plannedShifts={props.plannedShifts}
+        schedule={schedule}
+        dailyTargets={
+          new Map([
+            ["2026-01-05", 480],
+            ["2026-01-06", 480],
+            ["2026-01-07", 480],
+            ["2026-01-08", 480],
+            ["2026-01-09", 480],
+            // Der Server liefert Wochenenden mit Soll 0 mit.
+            ["2026-01-10", 0],
+            ["2026-01-11", 0],
+          ])
+        }
+        today={today}
+        isAdminView
+      />,
+    );
+  }
+
+  it("blendet leere Wochenenden weiter aus", () => {
+    renderWeekend({});
+
+    // 10.01. = Sa, 11.01. = So — beide Datumszellen fehlen.
+    expect(screen.queryByText("10.01.")).not.toBeInTheDocument();
+    expect(screen.queryByText("11.01.")).not.toBeInTheDocument();
+  });
+
+  it("zeigt einen Samstag mit Session als Zeile", () => {
+    renderWeekend({ sessions: [weekendSession] });
+
+    expect(screen.getByText("10.01.")).toBeInTheDocument();
+    // Der Sonntag bleibt leer und damit unsichtbar.
+    expect(screen.queryByText("11.01.")).not.toBeInTheDocument();
+  });
+
+  it("zählt das Ist eines Wochenendtags voll als Plus", () => {
+    // Soll ist 0, die Monatskarte rechnet actual - targetToDate. Ein "–" im
+    // Saldo machte die Monatskarte aus der Tabelle unerklärbar.
+    renderWeekend({ sessions: [weekendSession] });
+
+    expect(screen.getByText("+3h")).toBeInTheDocument();
+  });
+
+  it("zeigt einen Wochenendtag mit geplanter Schicht", () => {
+    renderWeekend({
+      plannedShifts: [
+        {
+          id: "1",
+          staffId: "1",
+          date: saturday,
+          startTime: "09:00",
+          endTime: "12:00",
+          breakMinutes: 0,
+          shiftTypeId: null,
+          shiftTypeName: null,
+          shiftTypeColor: null,
+          notes: "",
+          seriesId: null,
+          detached: false,
+          cancelled: false,
+          changeReason: null,
+          originShiftId: null,
+        },
+      ],
+    });
+
+    expect(screen.getByText("10.01.")).toBeInTheDocument();
   });
 });

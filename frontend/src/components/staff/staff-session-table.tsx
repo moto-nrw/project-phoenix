@@ -168,6 +168,12 @@ export function StaffSessionTable({
     return map;
   }, [absences]);
 
+  // Sa/So erscheinen nur, wenn es dort etwas zu zeigen gibt (#1967). Ein
+  // harter Wochenend-Filter versteckte Ferienbetreuung, Elternabende und
+  // Wochenend-Schichten komplett, während Monatskarte und KPI-Karten sie
+  // serverseitig weiter mitzählen — die Summe der sichtbaren Zeilen ergab
+  // dann nicht mehr das ausgewiesene Ist. Leere Wochenenden bleiben raus,
+  // damit die Tabelle nicht aufgebläht wird.
   const days = useMemo(() => {
     const result: Date[] = [];
     const start = new Date(from);
@@ -176,11 +182,19 @@ export function StaffSessionTable({
     for (let i = 0; i < dayCount; i++) {
       const d = new Date(start);
       d.setDate(d.getDate() + i);
-      if (toIsoDayOfWeek(d) >= 5) continue;
+      if (toIsoDayOfWeek(d) >= 5) {
+        const key = toDateKey(d);
+        const hasContent =
+          sessionsByDate.has(key) ||
+          absencesByDate.has(key) ||
+          (shiftsByDate.get(key)?.length ?? 0) > 0 ||
+          (dailyTargets?.get(key) ?? 0) > 0;
+        if (!hasContent) continue;
+      }
       result.push(d);
     }
     return result;
-  }, [from, to]);
+  }, [from, to, sessionsByDate, absencesByDate, shiftsByDate, dailyTargets]);
 
   // Inline-expandable row: clicking a row toggles an EditHistoryAccordion in
   // a second <tr> directly below. Mirrors the MA-side /time-tracking page so
@@ -267,7 +281,13 @@ export function StaffSessionTable({
               const isFuture = day > today;
               const isToday = sameDay(day, today);
               const ist = session?.net_minutes ?? 0;
-              const delta = session && target > 0 ? ist - target : 0;
+              // Saldo eines Tages ist Ist minus Soll — auch bei Soll 0 (#1967).
+              // Die Monatskarte rechnet serverseitig genauso
+              // (balance = actual + credits - targetToDate), ein Wochenend-
+              // oder freier Tag mit Session ist dort also ein volles Plus.
+              // Hier "–" anzuzeigen machte die Monatskarte aus der Tabelle
+              // unerklärbar.
+              const delta = session ? ist - target : 0;
               const status = computeRowStatus(
                 session,
                 absence,
@@ -280,14 +300,17 @@ export function StaffSessionTable({
               // unchanged row should not toggle anything since there is
               // nothing to reveal.
               const canExpand = hasAuditHistory && session != null;
-              // Edit / nachtragen is available for workdays in the past or
-              // present, regardless of whether a session already exists. The
-              // SquarePen action lands on Tranche 1b — for now the wiring is
-              // in place and the click is a no-op + logger entry. Weekends,
-              // future days and absence-only days don't get the action.
-              const isWorkday = dow < 5;
-              const canEdit =
-                isAdminView && isWorkday && !isFuture && absence == null;
+              // Edit / nachtragen is available for past or present days,
+              // regardless of whether a session already exists. The SquarePen
+              // action lands on Tranche 1b — for now the wiring is in place
+              // and the click is a no-op + logger entry. Future days and
+              // absence-only days don't get the action.
+              //
+              // Wochenendtage bekommen sie sehr wohl (#1967): eine Zeile ist
+              // nur sichtbar, wenn dort real gearbeitet oder geplant wurde,
+              // und genau die muss korrigierbar sein.
+              const isWeekend = dow >= 5;
+              const canEdit = isAdminView && !isFuture && absence == null;
               return (
                 <Fragment key={key}>
                   <tr
@@ -317,7 +340,9 @@ export function StaffSessionTable({
                         ? "bg-gray-50"
                         : isToday
                           ? "bg-amber-50/40"
-                          : ""
+                          : isWeekend
+                            ? "bg-gray-50/60"
+                            : ""
                     } ${isFuture ? "opacity-40" : ""}`}
                   >
                     <td className="px-4 py-3 text-gray-700 tabular-nums">
@@ -383,7 +408,7 @@ export function StaffSessionTable({
                       {session ? formatDuration(ist) : "–"}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums">
-                      {session && target > 0 ? (
+                      {session ? (
                         <span className={deltaClass(delta)}>
                           {formatSignedDuration(delta)}
                         </span>
