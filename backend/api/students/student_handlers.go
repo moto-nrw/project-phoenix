@@ -50,6 +50,18 @@ func (rs *Resource) parseAndGetStudent(w http.ResponseWriter, r *http.Request) (
 func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters and determine access
 	params := parseStudentListParams(r)
+	// Resolved BEFORE the fetch: the room/location pre-filters below query
+	// today's live active.visits state, so a non-today planning request has to
+	// be rejected before that query runs, not after it (#1939).
+	planningDate, isToday, dateErr := resolvePlanningDate(params.date, rs.Now())
+	if dateErr != nil {
+		renderError(w, r, common.ErrorInvalidRequest(dateErr))
+		return
+	}
+	if err := liveFilterError(activeLiveListFilters(params), planningDate, isToday); err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	accessCtx := rs.determineStudentAccess(r)
 
 	// Fetch students based on parameters
@@ -86,9 +98,23 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Build and filter responses
 	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot, photosEnabled)
 
-	now := rs.Now()
-	rs.applyStatusDaysForDate(r.Context(), responses, now)
-	if err := rs.enrichWithDayPlanning(r.Context(), responses, now, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
+	if !isToday {
+		// The row-seeded Sick/Excused flags describe today; a non-today view
+		// must start clean and only carry the requested date's status days.
+		resetScheduledStatusFlags(responses)
+		// Same for the live-location snapshot: a list labelled for another day
+		// must not ship today's whereabouts. The page already renders the
+		// planned expectation instead of the location badge for a non-today
+		// date; stripping the fields keeps a direct API consumer from reading
+		// them as the plan (#1939).
+		resetLiveLocationFields(responses)
+	}
+	if err := rs.applyStatusDaysForDate(r.Context(), responses, planningDate.BerlinMidnight()); err != nil {
+		slog.Default().Error("failed to apply student status days", slog.String("error", err.Error()))
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	if err := rs.enrichWithDayPlanning(r.Context(), responses, planningDate, isToday, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
 		slog.Default().Error("failed to enrich student day planning", slog.String("error", err.Error()))
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -105,14 +131,13 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		responses, totalCount = applyInMemoryPagination(responses, params.page, params.pageSize)
 	}
 
-	for i := range responses {
-		if !responses[i].HasFullAccess {
-			continue
-		}
-		applyActualTimesFromSnapshot(&responses[i], dataSnapshot)
-	}
+	rs.enrichPaginatedPlanningTimes(r, responses, params, dataSnapshot, planningDate, isToday)
 
-	if err := rs.enrichStudentListExtras(r.Context(), responses, params, now); err != nil {
+	// Companion ids ("läuft mit") for the day being SHOWN, not for today: the
+	// grouping is per weekday, so a list rendered for another planning date must
+	// resolve the links of that date. Fatal by design (see enrichWithCompanions)
+	// — an empty grouping would be presented as a real departure arrangement.
+	if err := rs.enrichWithCompanions(r.Context(), responses, params, planningDate.BerlinMidnight()); err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -120,32 +145,31 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: params.page, PageSize: params.pageSize, Total: totalCount}, "Students retrieved successfully")
 }
 
-// enrichStudentListExtras fills the opt-in detail fields of an already
-// paginated student list.
-//
-// Companion ids ("läuft mit") for the day being shown let the Kindersuche group
-// by Laufgemeinschaft; they are restricted to full-access students because a
-// companion id points at ANOTHER child's record. Their failure is fatal (see
-// enrichWithCompanions) — an empty grouping would be presented as a real
-// departure arrangement. Pickup and arrival times are cosmetic by comparison
-// and stay best-effort.
-func (rs *Resource) enrichStudentListExtras(ctx context.Context, responses []StudentResponse, params *studentListParams, now time.Time) error {
-	if err := rs.enrichWithCompanions(ctx, responses, params, now); err != nil {
-		return err
+// enrichPaginatedPlanningTimes layers the planning-date time data onto the final
+// paginated slice: today's live check-in/out times (kept off any other day so
+// current presence is never read as a plan), and, when requested, the effective
+// pickup/arrival times for the date via a single bulk query per kind. Both skip
+// redacted students — only rows the caller has full access to are enriched.
+func (rs *Resource) enrichPaginatedPlanningTimes(r *http.Request, responses []StudentResponse, params *studentListParams, dataSnapshot *common.StudentDataSnapshot, planningDate timezone.Date, isToday bool) {
+	if isToday {
+		for i := range responses {
+			if !responses[i].HasFullAccess {
+				continue
+			}
+			applyActualTimesFromSnapshot(&responses[i], dataSnapshot)
+		}
 	}
 
-	// Single bulk query each. GDPR: skip redacted students.
 	if !params.includePickupTimes && !params.includeArrivalTimes {
-		return nil
+		return
 	}
 	fullAccessIDs := collectFullAccessStudentIDs(responses)
 	if params.includePickupTimes {
-		rs.enrichWithPickupTimes(ctx, responses, fullAccessIDs, now)
+		rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
 	}
 	if params.includeArrivalTimes {
-		rs.enrichWithArrivalTimes(ctx, responses, fullAccessIDs, now)
+		rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
 	}
-	return nil
 }
 
 // fetchStudentsForList fetches students based on the provided parameters. The
@@ -373,7 +397,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		}
 
 		single := []StudentResponse{response.StudentResponse}
-		if err := rs.enrichWithDayPlanning(r.Context(), single, now, map[int64]*activeService.AttendanceStatus{
+		if err := rs.enrichWithDayPlanning(r.Context(), single, timezone.DateFromTime(now), true, map[int64]*activeService.AttendanceStatus{
 			student.ID: attendanceStatus,
 		}); err != nil {
 			renderError(w, r, common.ErrorInternalServer(err))

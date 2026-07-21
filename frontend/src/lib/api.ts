@@ -250,6 +250,11 @@ function buildStudentQueryParams(filters?: {
   schoolClass?: string;
   locationState?: "present" | "transit";
   dayStatus?: "comes_today" | "not_coming_today";
+  /**
+   * Planning day (YYYY-MM-DD) the day-planning status, status days, and
+   * planned arrival/pickup times are evaluated for (#1939). Omit for today.
+   */
+  date?: string;
   bus?: "yes" | "no";
   photoConsent?: "yes" | "no";
   pickupStatus?: "self" | "pickedUp" | "none";
@@ -272,6 +277,7 @@ function buildStudentQueryParams(filters?: {
   if (filters?.locationState)
     params.append("location_state", filters.locationState);
   if (filters?.dayStatus) params.append("day_status", filters.dayStatus);
+  if (filters?.date) params.append("date", filters.date);
   // Administrative filters (#1492). The backend applies these in-memory in the
   // same pass as day_status, so pagination and counts stay correct server-side.
   if (filters?.bus) params.append("bus", filters.bus);
@@ -927,6 +933,7 @@ export const studentService = {
     schoolClass?: string;
     locationState?: "present" | "transit";
     dayStatus?: "comes_today" | "not_coming_today";
+    date?: string;
     bus?: "yes" | "no";
     photoConsent?: "yes" | "no";
     pickupStatus?: "self" | "pickedUp" | "none";

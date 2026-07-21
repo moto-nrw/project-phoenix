@@ -31,6 +31,7 @@ const instance: EnrichedInstance = {
   staffCount: 1,
   absentStaffCount: 0,
   expectedStudentsCount: 2,
+  notScheduledStudentsCount: 0,
   presentStudentsCount: 1,
   requiredStaffCount: 1,
   assignedStaffCount: 1,

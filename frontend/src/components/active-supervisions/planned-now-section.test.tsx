@@ -14,6 +14,7 @@ const plannedInstance: PlannedTimetableInstance = {
   endTime: "15:00",
   status: "planned",
   expectedStudentsCount: 8,
+  notScheduledStudentsCount: 0,
   presentStudentsCount: 0,
   minutesUntilStart: -5,
   assignedStaffIds: ["staff-1"],
@@ -37,6 +38,7 @@ const plannedInstance: PlannedTimetableInstance = {
       checkedInAt: null,
       visitEntryTime: null,
       warnings: [],
+      careDayStatus: "unknown",
     },
   ],
   isOverdue: true,
@@ -237,5 +239,180 @@ describe("PlannedNowSection", () => {
     expect(screen.getAllByText("AG Sport").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Startet gleich")).toHaveLength(1);
     expect(screen.getByText("Vertretung")).toBeInTheDocument();
+  });
+
+  it("sets children apart who are not in care today without hiding them", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            // The counts are the backend's, not a roster derivation: it counts
+            // only rows that are still expected AND scheduled today.
+            expectedStudentsCount: 1,
+            notScheduledStudentsCount: 1,
+            rosterPreview: [
+              plannedInstance.rosterPreview[0]!,
+              {
+                ...plannedInstance.rosterPreview[0]!,
+                studentId: "student-2",
+                studentName: "Jonas Weber",
+                careDayStatus: "not_scheduled",
+              },
+            ],
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    // Still listed, so a child who turns up anyway stays one tap from a
+    // check-in — only the status label sets them apart.
+    expect(screen.getByText("Jonas Weber")).toBeInTheDocument();
+    expect(screen.getByText("Nicht eingeplant")).toBeInTheDocument();
+    expect(
+      screen.getByText("1 erwartet · 1 heute nicht eingeplant"),
+    ).toBeInTheDocument();
+  });
+
+  it("counts an abgemeldetes Kind as not expected, like the backend does", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            // The counts are the backend's, not a roster derivation: it counts
+            // only rows that are still expected AND scheduled today.
+            expectedStudentsCount: 1,
+            notScheduledStudentsCount: 1,
+            rosterPreview: [
+              plannedInstance.rosterPreview[0]!,
+              {
+                ...plannedInstance.rosterPreview[0]!,
+                studentId: "student-2",
+                studentName: "Jonas Weber",
+                careDayStatus: "cancelled",
+              },
+            ],
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    // "cancelled" is left out of expected_students_count too — showing the
+    // child as "Erwartet" here would contradict the header count and the full
+    // roster, which groups both verdicts together (#1747).
+    expect(screen.getByText("Jonas Weber")).toBeInTheDocument();
+    expect(screen.getByText("Abgemeldet")).toBeInTheDocument();
+    expect(
+      screen.getByText("1 erwartet · 1 heute nicht eingeplant"),
+    ).toBeInTheDocument();
+  });
+
+  it("labels a not-scheduled child by the care day, not by the absence the status day reports", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            expectedStudentsCount: 1,
+            notScheduledStudentsCount: 1,
+            rosterPreview: [
+              plannedInstance.rosterPreview[0]!,
+              {
+                ...plannedInstance.rosterPreview[0]!,
+                studentId: "student-2",
+                studentName: "Jonas Weber",
+                // The status-day layer owns this false absence: the child is
+                // simply not booked today, so the backend reports "absent"
+                // alongside the not_scheduled verdict.
+                status: "absent",
+                careDayStatus: "not_scheduled",
+              },
+            ],
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    // Showing "Abwesend" here would contradict the not-scheduled count in the
+    // header and the full roster, which groups the row with the other
+    // not-scheduled children (#1747).
+    expect(screen.getByText("Nicht eingeplant")).toBeInTheDocument();
+    expect(screen.queryByText("Abwesend")).toBeNull();
+    expect(
+      screen.getByText("1 erwartet · 1 heute nicht eingeplant"),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps a present child expected even when the care plan says otherwise", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            rosterPreview: [
+              {
+                ...plannedInstance.rosterPreview[0]!,
+                careDayStatus: "not_scheduled",
+                currentlyPresent: true,
+                status: "present",
+              },
+            ],
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByText("Anwesend").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Nicht eingeplant")).toBeNull();
+  });
+
+  // The preview label and the Erwartet stat sit on the same card and must
+  // agree. Sick, absent and already-present rows are not expected either, so
+  // deriving the label from the roster length minus the not-scheduled rows
+  // overstates it (#1747 review).
+  it("reads the preview label from the backend counts, not the roster length", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            expectedStudentsCount: 5,
+            notScheduledStudentsCount: 3,
+            presentStudentsCount: 0,
+            rosterPreview: [
+              plannedInstance.rosterPreview[0]!,
+              {
+                ...plannedInstance.rosterPreview[0]!,
+                studentId: "student-2",
+                studentName: "Jonas Weber",
+                status: "absent",
+                substatus: "sick",
+              },
+              {
+                ...plannedInstance.rosterPreview[0]!,
+                studentId: "student-3",
+                studentName: "Lina Krause",
+                careDayStatus: "not_scheduled",
+              },
+            ],
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("5 erwartet · 3 heute nicht eingeplant"),
+    ).toBeInTheDocument();
   });
 });

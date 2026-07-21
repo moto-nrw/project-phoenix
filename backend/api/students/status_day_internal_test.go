@@ -176,7 +176,7 @@ func TestApplyStatusDaysForDateUsesRequestedDate(t *testing.T) {
 	resource := &Resource{ResourceConfig: ResourceConfig{StudentStatusDayService: activeService.NewStudentStatusDayService(repo), Logger: slog.Default()}}
 	responses := []StudentResponse{{ID: 90}, {ID: 91}}
 
-	resource.applyStatusDaysForDate(context.Background(), responses, now)
+	require.NoError(t, resource.applyStatusDaysForDate(context.Background(), responses, now))
 
 	assert.Equal(t, timezone.DateFromTime(now), repo.findByIDsDate)
 	assert.Equal(t, []int64{90, 91}, repo.findByIDsStudentIDs)

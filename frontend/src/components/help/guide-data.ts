@@ -458,11 +458,12 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Kindersuche",
         icon: Search,
         summary:
-          "Findet jedes Kind und zeigt seinen aktuellen Status und Aufenthaltsort.",
+          "Findet jedes Kind und zeigt seinen aktuellen Status und Aufenthaltsort. Über den Tagesfilter beantwortet sie auch die Frage, welche Kinder morgen oder an einem anderen Tag kommen.",
         steps: [
           "`Kindersuche` öffnen.",
           "Namen oder Namensbestandteil in das Suchfeld eingeben.",
           "Bei Bedarf nach Klasse, Gruppe, Stufe oder Status filtern.",
+          "Über `Filter` im Abschnitt `Anwesenheit` beim Punkt `Tag` (`Heute`, `Morgen` oder ein frei gewähltes Datum bis zum Sonntag der laufenden Woche) festlegen, für welchen Tag die geplante Anwesenheit gilt. Direkt darunter grenzt der Filter `Kommt` beziehungsweise `Kommt nicht` die Liste auf den gewählten Tag ein; Krankmeldungen, Entschuldigungen und Tagesausnahmen werden für diesen Tag ausgewertet. Bei einem anderen Tag als heute bleiben aktuelle Aufenthaltsorte und Live-Filter ausgeblendet, denn wer gerade im Haus ist, sagt nichts über einen anderen Tag aus. Auch Ergebniszahl und `Exportieren` nutzen den gewählten Tag.",
           "Für aktuelle Klassenlisten im Filter `Klasse` den Klassenverband wählen und über `Exportieren` die Vorlage `Klassenliste` ausgeben. Ohne Klassenfilter erzeugt die Option `Nach Klassen getrennt` alle Klassenlisten auf einmal: jede Klasse erhält eine eigene Überschrift, im PDF beginnt jede Klasse auf einer neuen Seite. Phasebezogene Listen für Klassenlehrkräfte erstellst du in der jeweiligen `Anmeldephase`.",
           "Die Vorlage `Tagesliste` enthält den `Tagesstatus`, damit `Krank`, `Entschuldigt` und `Klassenfahrt` direkt auf der Liste stehen.",
           "Die Vorlage `Geburtstagsliste` gibt die Geburtstage der gefilterten Kinder nach Kalender sortiert aus, voreingestellt für den aktuellen Monat. Alle Listen der Schule gebündelt findest du unter `Datenverwaltung` -> `Exporte`.",
@@ -594,6 +595,10 @@ export const appChapters: readonly GuideChapter[] = [
           "Den Schulhof über den Schulhof-Tab und `Aufsicht übernehmen` führen. Wird im Dialog für eine spontane Aktivität der Raum `Schulhof` gewählt, öffnet `Zur Schulhof-Aufsicht` direkt diesen separaten Tab.",
           "Für ein neues Angebot `Spontane Aktivität starten`.",
         ],
+        callout: {
+          title: "Warum steht ein Kind auf `Nicht eingeplant`?",
+          body: "Wird einer Aktivität eine ganze Gruppe, Klasse oder Jahrgangsstufe zugewiesen, gehören alle Kinder dauerhaft dazu. Wer laut seinen `Betreuungszeiten` an diesem Wochentag gar nicht in der OGS ist, erscheint deshalb grau als `Nicht eingeplant` und zählt nicht zu `Erwartet`. Das Kind bleibt trotzdem in der Liste: Kommt es doch, checken Sie es ganz normal ein. Kinder ohne hinterlegte Betreuungszeiten gelten weiterhin als erwartet.",
+        },
         screenshot:
           "Laufende Aufsicht mit Anwesend, Kinder unterwegs und Spontane Aktivität.",
         image: "/help/screens/aktuelle-aufsicht.webp",

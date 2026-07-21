@@ -13,6 +13,7 @@ import (
 	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // startActivitySession handles starting an activity session on a device
@@ -84,12 +85,30 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// End the session
+	// The timetable side closes FIRST, before the session end (#1747 review).
+	// Both halves run in the request's tenant transaction, so a failure here
+	// rolls everything back — but EndActivitySession emits its checkout and
+	// activity-ended SSE events eagerly, not after commit. Running it first
+	// would let a failing bridge roll the database back while kiosks and
+	// dashboards had already been told the session was over. Ordering the
+	// failure-prone half ahead of the announcing half keeps the two in step:
+	// the mirrored instance's own completion event is registered after commit
+	// and is dropped with the rollback.
+	if err := rs.completeMirroredTimetableInstance(r.Context(), currentSession.ID); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to end mirrored timetable instance", err))
+		return
+	}
+
+	// End the session. Anything failing from here on leaves a completed
+	// timetable instance next to a session that is still open, so the
+	// transaction has to go — and the tenant middleware only rolls back on its
+	// own for 5xx. ErrorRenderer maps "already ended" and friends to 4xx, which
+	// would commit exactly that split state (#1747 review).
 	if err := rs.ActiveService.EndActivitySession(r.Context(), currentSession.ID); err != nil {
+		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
-	rs.completeMirroredTimetableInstance(r.Context(), currentSession.ID)
 
 	response := map[string]interface{}{
 		"active_group_id": currentSession.ID,

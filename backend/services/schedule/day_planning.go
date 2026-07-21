@@ -40,10 +40,24 @@ type DayPlanningDecision struct {
 }
 
 // ResolveDayPlanning applies the day-planning precedence: actual attendance
-// beats a reported absence (sick, class trip, excused), which beats a planned
-// arrival, which beats a planned pickup, which beats a timetable booking. A
-// no-time arrival/pickup exception marks the child as absent, and everything
-// else falls through to "no plan".
+// beats a reported absence (sick, class trip, excused), which beats a
+// same-day cancellation, which beats a planned arrival, which beats a planned
+// pickup, which beats a timetable booking. Everything else falls through to
+// "no plan".
+//
+// A timeless exception on either leg is the "Kommt heute nicht" marker and
+// cancels the whole care day — it must not fall through to the other leg's
+// regular schedule time or a timetable booking (the contract
+// mergeCareExceptions documents for the parent portal, #1725). Staff often
+// cancel only the leg they are looking at; the child is still not coming. A
+// timed exception on the OTHER leg does not overrule the cancellation either:
+// the parent portal resolves `pickup_absent || arrival_absent` to an absence
+// before it looks at any time (frontend/src/components/parent/child-care.tsx),
+// so letting a time win here would make the guardian tile and the staff-side
+// counts disagree about the same child on the same day. The student search
+// (#1939) and the timetable's care-day derivation (#1747) arrived at this same
+// precedence independently; both paths must keep resolving through this
+// function so they never disagree.
 func ResolveDayPlanning(in DayPlanningInputs) DayPlanningDecision {
 	switch {
 	case in.HasActualAttendance:
@@ -54,6 +68,17 @@ func ResolveDayPlanning(in DayPlanningInputs) DayPlanningDecision {
 		return DayPlanningDecision{Reason: DayPlanningReasonClassTrip}
 	case in.Excused:
 		return DayPlanningDecision{Reason: DayPlanningReasonExcused}
+	}
+
+	// A day-specific exception that clears the arrival or pickup ("heute nicht
+	// da") is an absence signal and has to win even when the child also carries
+	// an unrelated presence signal — a regular pickup time, a timetable
+	// placement — for the same day.
+	if in.Arrival != nil && in.Arrival.IsException && in.Arrival.ArrivalTime == nil {
+		return DayPlanningDecision{Reason: DayPlanningReasonArrivalException, ExceptionNotes: in.Arrival.Notes}
+	}
+	if in.Pickup != nil && in.Pickup.IsException && in.Pickup.PickupTime == nil {
+		return DayPlanningDecision{Reason: DayPlanningReasonPickupException, ExceptionNotes: in.Pickup.Notes}
 	}
 
 	if in.Arrival != nil && in.Arrival.ArrivalTime != nil {
@@ -70,12 +95,6 @@ func ResolveDayPlanning(in DayPlanningInputs) DayPlanningDecision {
 	}
 	if in.HasTimetable {
 		return DayPlanningDecision{ComesToday: true, Reason: DayPlanningReasonTimetable}
-	}
-	if in.Arrival != nil && in.Arrival.IsException && in.Arrival.ArrivalTime == nil {
-		return DayPlanningDecision{Reason: DayPlanningReasonArrivalException, ExceptionNotes: in.Arrival.Notes}
-	}
-	if in.Pickup != nil && in.Pickup.IsException && in.Pickup.PickupTime == nil {
-		return DayPlanningDecision{Reason: DayPlanningReasonPickupException, ExceptionNotes: in.Pickup.Notes}
 	}
 	return DayPlanningDecision{Reason: DayPlanningReasonNoPlan}
 }

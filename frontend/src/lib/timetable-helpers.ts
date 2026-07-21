@@ -419,6 +419,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     substatus: s.substatus,
     note: s.note,
     checkedInAt: s.checked_in_at,
+    careDayStatus: s.care_day_status ?? "unknown",
   }));
   const studentIds =
     students.length > 0
@@ -453,6 +454,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     understaffedNote: raw.understaffed_note ?? undefined,
     cancelReason: raw.cancel_reason ?? undefined,
     expectedStudentsCount: raw.expected_students_count,
+    notScheduledStudentsCount: raw.not_scheduled_students_count ?? 0,
     presentStudentsCount: raw.present_students_count,
     requiredStaffCount: raw.required_staff_count,
     assignedStaffCount: raw.assigned_staff_count,

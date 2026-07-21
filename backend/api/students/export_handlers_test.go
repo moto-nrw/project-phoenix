@@ -398,7 +398,7 @@ func TestBuildExportRowsIncludesDailyStatus(t *testing.T) {
 
 	rows := buildExportRows(students, map[int64]weeklySchedule{}, map[int64]string{
 		101: "Angemeldet: OGS",
-	}, testExportDate)
+	}, testExportDate, true)
 
 	require.Len(t, rows, len(students))
 	assert.Equal(t, "Angemeldet: OGS", rows[0].Values[listexport.ColumnEnrollmentSummary])

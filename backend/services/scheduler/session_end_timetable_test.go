@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,10 +52,20 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 		testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activity.ID, room.ID, student.ID, presentStudent.ID)
 	})
 
+	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
+	instanceStudentRepo := scheduleRepo.NewInstanceStudentRepository(db)
 	s := &Scheduler{
-		instanceRepo:        scheduleRepo.NewActivityInstanceRepository(db),
-		instanceStudentRepo: scheduleRepo.NewInstanceStudentRepository(db),
-		logger:              slog.Default(),
+		instanceRepo:        instanceRepo,
+		instanceStudentRepo: instanceStudentRepo,
+		// Completion runs through the shared bridge now, so the nightly job and
+		// the force-start path leave identical rows behind (#1747). Care days
+		// stay unwired here: with no care plans in play every expected row is
+		// stamped absent, exactly as this test asserts below.
+		timetableBridge: scheduleSvc.NewTimetableBridgeService(scheduleSvc.TimetableBridgeDependencies{
+			Instances:        instanceRepo,
+			InstanceStudents: instanceStudentRepo,
+		}),
+		logger: slog.Default(),
 	}
 	completed, err := s.completeTimetableInstancesForEndedSessions(context.Background(), &activeSvc.DailySessionCleanupResult{
 		EndedActiveGroupIDs: []int64{activeGroup.ID},

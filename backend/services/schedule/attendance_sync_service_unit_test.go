@@ -208,6 +208,10 @@ func (f *fakeInstanceStudentRepo) FindExpectedByInstanceIDs(context.Context, []i
 	panic("unused")
 }
 
+func (f *fakeInstanceStudentRepo) FindNotScheduledCandidatesByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStudent, error) {
+	panic("unused")
+}
+
 func (f *fakeInstanceStudentRepo) CountNonAbsentByInstanceIDs(context.Context, []int64) (map[int64]int, error) {
 	panic("unused")
 }
@@ -231,7 +235,11 @@ func (f *fakeInstanceStudentRepo) UpdateAttendanceFields(context.Context, int64,
 	panic("unused")
 }
 
-func (f *fakeInstanceStudentRepo) BulkUpdateStatus(context.Context, int64, string, string) (int, error) {
+func (f *fakeInstanceStudentRepo) BulkUpdateStatus(context.Context, int64, string, string, []int64) (int, error) {
+	panic("unused")
+}
+
+func (f *fakeInstanceStudentRepo) MarkNotScheduled(context.Context, []scheduleModel.StudentInstanceRef) error {
 	panic("unused")
 }
 
@@ -847,7 +855,7 @@ func (f *fakeInstanceRepo) DeleteOlderThan(context.Context, string, timezone.Dat
 	return 0, nil
 }
 
-func (f *fakeInstanceStudentRepo) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time) error {
+func (f *fakeInstanceStudentRepo) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time, []scheduleModel.StudentInstanceRef) error {
 	return nil
 }
 
