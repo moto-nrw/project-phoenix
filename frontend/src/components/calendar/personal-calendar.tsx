@@ -155,7 +155,10 @@ function countWeekendEvents(
   return seen.size;
 }
 
-function gridHours(dayEvents: readonly CalendarEvent[]): {
+function gridHours(
+  dayEvents: readonly CalendarEvent[],
+  options: TimedLayoutOptions,
+): {
   startHour: number;
   endHour: number;
 } {
@@ -164,12 +167,11 @@ function gridHours(dayEvents: readonly CalendarEvent[]): {
   for (const event of dayEvents) {
     if (isAllDayLike(event)) continue;
     const startMinutes = clockToMinutes(event.start_time);
-    const endMinutes = Math.max(
-      clockToMinutes(event.end_time),
-      startMinutes + 30,
-    );
     startHour = Math.min(startHour, Math.floor(startMinutes / 60));
-    endHour = Math.max(endHour, Math.ceil(endMinutes / 60));
+    endHour = Math.max(
+      endHour,
+      Math.ceil(effectiveEndMinutes(event, options) / 60),
+    );
   }
   startHour = Math.max(0, startHour);
   endHour = Math.min(24, Math.max(endHour, startHour + 1));
@@ -215,6 +217,24 @@ function blockMinHeightPx(
   );
 }
 
+// Effektives Render-Ende eines Eintrags in Minuten: das spätere von
+// tatsächlichem Ende und der Mindesthöhe des gerenderten Inhalts. Rasterfenster
+// und Layout rechnen beide damit, sonst laufen späte Kurztermine unten heraus.
+function effectiveEndMinutes(
+  event: CalendarEvent,
+  options: TimedLayoutOptions,
+): number {
+  const startMinutes = clockToMinutes(event.start_time);
+  const minRenderMinutes =
+    event.source === "shift"
+      ? 30
+      : (blockMinHeightPx(event, options) / HOUR_PX) * 60;
+  return Math.max(
+    clockToMinutes(event.end_time),
+    startMinutes + minRenderMinutes,
+  );
+}
+
 // Klassisches Zeitraster-Layout: überlappende Einträge bilden ein Cluster und
 // teilen sich die Spaltenbreite; jeder Eintrag bekommt die erste freie Spalte.
 function layoutTimedEvents(
@@ -224,15 +244,10 @@ function layoutTimedEvents(
   const items: TimedPlacement[] = dayEvents
     .map((event) => {
       const startMinutes = clockToMinutes(event.start_time);
-      const minRenderMinutes =
-        (blockMinHeightPx(event, options) / HOUR_PX) * 60;
       return {
         event,
         startMinutes,
-        endMinutes: Math.max(
-          clockToMinutes(event.end_time),
-          startMinutes + minRenderMinutes,
-        ),
+        endMinutes: effectiveEndMinutes(event, options),
         column: 0,
         columnCount: 1,
       };
@@ -649,8 +664,13 @@ function CalendarTimeGrid({
     day,
     events: eventsForDay(events, day),
   }));
+  const layoutOptions: TimedLayoutOptions = {
+    hasRespond: Boolean(onRespond),
+    hasOverview: Boolean(onShowOverview),
+  };
   const { startHour, endHour } = gridHours(
     dayBuckets.flatMap((bucket) => bucket.events),
+    layoutOptions,
   );
   const gridStartMinutes = startHour * 60;
   const bodyHeight = (endHour - startHour) * HOUR_PX;

@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	baseModels "github.com/moto-nrw/project-phoenix/models/base"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
@@ -833,11 +832,23 @@ func (s *service) staffTimetableEvents(ctx context.Context, staffID int64, from,
 	return events, nil
 }
 
+// shiftsReferenceTypes reports whether any shift carries a ShiftTypeID —
+// the guard that keeps windows without typed shifts free of the ListAll query.
+func shiftsReferenceTypes(shifts []*scheduleModels.StaffShift) bool {
+	for _, shift := range shifts {
+		if shift.ShiftTypeID != nil {
+			return true
+		}
+	}
+	return false
+}
+
 // staffShiftEvents maps the staff member's Dienstplan shifts
 // (schedule.staff_shifts) in the window to calendar events. Cancelled shifts
 // stay hidden, mirroring how cancelled timetable instances are skipped. The
-// range finder does not load the ShiftType relation, so names are resolved
-// per distinct type id.
+// range finder does not load the ShiftType relation, so names come from one
+// batch ListAll (the tenant's shift-type table is small); a type missing from
+// the map (concurrently deleted) falls back to the generic title.
 func (s *service) staffShiftEvents(ctx context.Context, staffID int64, from, to timezone.Date) ([]Event, error) {
 	if s.cfg.StaffShiftRepo == nil {
 		return []Event{}, nil
@@ -846,28 +857,24 @@ func (s *service) staffShiftEvents(ctx context.Context, staffID int64, from, to 
 	if err != nil {
 		return nil, err
 	}
-	events := []Event{}
 	typeNames := map[int64]string{}
+	if s.cfg.ShiftTypeRepo != nil && shiftsReferenceTypes(shifts) {
+		shiftTypes, err := s.cfg.ShiftTypeRepo.ListAll(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, shiftType := range shiftTypes {
+			typeNames[shiftType.ID] = shiftType.Name
+		}
+	}
+	events := []Event{}
 	for _, shift := range shifts {
 		if shift.Cancelled {
 			continue
 		}
 		title := "Dienst"
-		if shift.ShiftTypeID != nil && s.cfg.ShiftTypeRepo != nil {
-			name, ok := typeNames[*shift.ShiftTypeID]
-			if !ok {
-				shiftType, err := s.cfg.ShiftTypeRepo.FindByID(ctx, *shift.ShiftTypeID)
-				switch {
-				case err == nil && shiftType != nil:
-					name = shiftType.Name
-				case err != nil && !baseModels.IsNoRows(err):
-					// A concurrently deleted shift type is fine (fallback title);
-					// a real database error must not degrade into a 200.
-					return nil, err
-				}
-				typeNames[*shift.ShiftTypeID] = name
-			}
-			if name != "" {
+		if shift.ShiftTypeID != nil {
+			if name := typeNames[*shift.ShiftTypeID]; name != "" {
 				title = name
 			}
 		}
