@@ -71,6 +71,10 @@ export function useGlobalSSE(): SSEHookState {
   const hasPendingDashboardEvent = useRef(false);
   const hasPendingDailyCheckoutDashboardEvent = useRef(false);
   const hasPendingArrivalScheduleEvent = useRef(false);
+  // Pickup (Gehzeit) writes get their own flag rather than riding the arrival
+  // one: they invalidate a different key set, and merging them would refetch
+  // the arrival caches on every pickup edit.
+  const hasPendingPickupScheduleEvent = useRef(false);
   const hasPendingStudentUpdateEvent = useRef(false);
   // Kept apart from the student-update flag on purpose: only a write that can
   // actually have changed the "läuft mit" links sets it.
@@ -111,6 +115,9 @@ export function useGlobalSSE(): SSEHookState {
       pendingStudentIds.current.size > 0 ||
       hasPendingDashboardEvent.current ||
       hasPendingArrivalScheduleEvent.current ||
+      // A Gehzeit change moves the pickup time the list rows render (student
+      // list responses carry it for full-access rows).
+      hasPendingPickupScheduleEvent.current ||
       hasPendingStudentUpdateEvent.current
     ) {
       mutate(
@@ -153,7 +160,11 @@ export function useGlobalSSE(): SSEHookState {
       mutate(
         (key) =>
           typeof key === "string" &&
-          key.includes(`student-detail-${studentId}`),
+          // care-plan-* is the per-child Betreuungsplan day/week view; a
+          // check-in/out changes that child's attendance on the timeline.
+          (key.includes(`student-detail-${studentId}`) ||
+            key.includes(`care-plan-day-${studentId}`) ||
+            key.includes(`care-plan-week-${studentId}`)),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -167,7 +178,9 @@ export function useGlobalSSE(): SSEHookState {
         (key) =>
           typeof key === "string" &&
           (key.includes("student-detail-") ||
-            key.includes("student-status-days-")),
+            key.includes("student-status-days-") ||
+            key.includes("care-plan-day-") ||
+            key.includes("care-plan-week-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -230,11 +243,37 @@ export function useGlobalSSE(): SSEHookState {
           (key.includes("arrival-search-") ||
             key.includes("arrival-supervisions-") ||
             key.includes("arrival-ogs-groups-") ||
-            key.includes("arrival-data-")),
+            key.includes("arrival-data-") ||
+            // the Betreuungsplan day/week view shows the resolved arrival slot
+            key.includes("care-plan-day-") ||
+            key.includes("care-plan-week-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "arrival_schedule",
+        });
+      });
+    }
+
+    // Pickup (Gehzeit) plan or exception changed. The per-child Betreuungsplan
+    // renders the resolved pickup slot, and the student detail response carries
+    // the day-planning pickup time — both fetched with focus revalidation
+    // disabled, so this event is their ONLY live update path: without it a
+    // colleague's Gehzeit edit stays invisible in an open tab indefinitely.
+    // The student list caches above are covered by the same flag.
+    if (hasPendingPickupScheduleEvent.current) {
+      mutate(
+        (key) =>
+          typeof key === "string" &&
+          (key.includes("care-plan-day-") ||
+            key.includes("care-plan-week-") ||
+            // the detail header's "Gehzeit heute" slot
+            key.includes("pickup-data-") ||
+            key.includes("student-detail-")),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "pickup_schedule",
         });
       });
     }
@@ -315,7 +354,10 @@ export function useGlobalSSE(): SSEHookState {
             // The card disables focus revalidation, making this its only live
             // update path.
             key.includes("time-tracking-own-assignments-") ||
-            key.includes("database-calendar-periods-list")),
+            key.includes("database-calendar-periods-list") ||
+            // the per-child Betreuungsplan renders these activity instances
+            key.includes("care-plan-day-") ||
+            key.includes("care-plan-week-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -366,6 +408,7 @@ export function useGlobalSSE(): SSEHookState {
     hasPendingDashboardEvent.current = false;
     hasPendingDailyCheckoutDashboardEvent.current = false;
     hasPendingArrivalScheduleEvent.current = false;
+    hasPendingPickupScheduleEvent.current = false;
     hasPendingStudentUpdateEvent.current = false;
     hasPendingCompanionEvent.current = false;
     hasPendingTimetableEvent.current = false;
@@ -461,6 +504,15 @@ export function useGlobalSSE(): SSEHookState {
 
         case "arrival_schedule_changed": {
           hasPendingArrivalScheduleEvent.current = true;
+          scheduleFlush();
+          break;
+        }
+
+        case "pickup_schedule_changed": {
+          // Staff-side Gehzeit write (weekly plan or date exception). Parent
+          // submits do NOT emit this — they broadcast student_updated, which
+          // already invalidates the same caches above.
+          hasPendingPickupScheduleEvent.current = true;
           scheduleFlush();
           break;
         }

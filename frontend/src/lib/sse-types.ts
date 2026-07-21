@@ -22,6 +22,13 @@ type SSEEventType =
   | "active_supervision_changed"
   | "dashboard_counts_changed"
   | "arrival_schedule_changed"
+  // Pickup-side counterpart of arrival_schedule_changed: a staff write changed
+  // a child's weekly Gehzeit plan or a date-specific pickup exception. Its own
+  // event so only the pickup-derived caches refetch (per-child Betreuungsplan,
+  // student lists, student detail) — those disable focus revalidation, so
+  // before it existed a staff pickup write stayed invisible in every other open
+  // tab. See backend/realtime/events.go EventPickupScheduleChanged.
+  | "pickup_schedule_changed"
   | "tenant_settings_changed"
   // Tenant-wide staff signal that a parent change-request queue changed (a
   // request was created/decided/withdrawn). Staff review lists + the pending-count

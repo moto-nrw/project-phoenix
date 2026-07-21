@@ -542,4 +542,70 @@ describe("useGlobalSSE — companion announcements", () => {
       matchers.some((matcher) => matcher("t1:search-students--all-")),
     ).toBe(true);
   });
+
+  it("invalidates the per-child Betreuungsplan on attendance, arrival, timetable, and student-update events", () => {
+    renderHook(() => useGlobalSSE());
+
+    // The Betreuungsplan day/week view (care-plan-*) must stay live: a
+    // check-in/out changes attendance, an arrival change moves the anchor, an
+    // instance lifecycle event changes the blocks, and a student edit changes
+    // header data. Without invalidation an open tab shows stale data.
+    fireSSE(makeEvent("student_checkin", { student_id: "s1" }, "grp1"));
+    fireSSE(makeEvent("student_updated", { student_id: "s1" }));
+    fireSSE(makeEvent("arrival_schedule_changed", { student_id: "s1" }));
+    fireSSE(makeEvent("instance_completed", { instance_id: "i1" }, "grp1"));
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const matchers = mockMutate.mock.calls
+      .map(([matcher]) => matcher)
+      .filter(
+        (matcher): matcher is (key: unknown) => boolean =>
+          typeof matcher === "function",
+      );
+    const dayKey = "t1:care-plan-day-s1-2026-07-22";
+    const weekKey = "t1:care-plan-week-s1-2026-07-20-2026-07-24";
+    // Probe every matcher against both keys so each modified block's clauses run.
+    expect(
+      matchers.filter((matcher) => matcher(dayKey)).length,
+    ).toBeGreaterThan(0);
+    expect(
+      matchers.filter((matcher) => matcher(weekKey)).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("refreshes pickup-derived caches on pickup_schedule_changed", () => {
+    renderHook(() => useGlobalSSE());
+
+    // A staff Gehzeit write (weekly plan or date exception) emits ONLY this
+    // event — no student_updated, no checkin. The Betreuungsplan, the detail
+    // header's pickup slot and the student lists all render that time with
+    // focus revalidation disabled, so without this branch an open tab keeps the
+    // old Gehzeit until a manual reload.
+    fireSSE(makeEvent("pickup_schedule_changed", { student_id: "s1" }));
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const matchers = mockMutate.mock.calls
+      .map(([matcher]) => matcher)
+      .filter(
+        (matcher): matcher is (key: unknown) => boolean =>
+          typeof matcher === "function",
+      );
+    // Tenant-prefixed by useSWRAuth, hence the prefix in every probe key.
+    for (const key of [
+      "t1:care-plan-day-s1-2026-07-22",
+      "t1:care-plan-week-s1-2026-07-20-2026-07-24",
+      "t1:pickup-data-s1",
+      "t1:student-detail-s1",
+      "t1:search-students--all-",
+    ]) {
+      expect(
+        matchers.some((matcher) => matcher(key)),
+        `pickup_schedule_changed must invalidate ${key}`,
+      ).toBe(true);
+    }
+  });
 });

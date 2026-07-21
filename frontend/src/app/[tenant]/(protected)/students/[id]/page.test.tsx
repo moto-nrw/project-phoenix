@@ -1697,6 +1697,58 @@ describe("StudentDetailPage", () => {
       ).not.toBeInTheDocument();
     });
 
+    it("hides the Betreuungsplan tab without schedules:read", () => {
+      // Default mock session is config:manage only -> no schedules:read.
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.queryByRole("tab", { name: "Betreuungsplan" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the Betreuungsplan tab with schedules:read", () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["config:manage", "schedules:read"],
+          },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tab", { name: "Betreuungsplan" }),
+      ).toBeInTheDocument();
+    });
+
+    it("hides the Betreuungsplan tab in the limited-access view despite schedules:read", () => {
+      // Deliberate, not an oversight: has_full_access on the student response is
+      // authorize.CanReadStudent, the SAME predicate the backend applies inside
+      // GET /timetable/student/{id}/{day,week} (api/timetable/api.go gates the
+      // route on schedules:read, resolveStudentForRead then runs CanReadStudent).
+      // A limited-access viewer therefore gets 403 from the care-plan endpoints,
+      // so showing the tab would only offer a permanently failing panel.
+      mockUseStudentData.mockReturnValue(limitedAccess);
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["config:manage", "schedules:read"],
+          },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.queryByRole("tab", { name: "Betreuungsplan" }),
+      ).not.toBeInTheDocument();
+    });
+
     it("defaults to the Stammdaten tab when no tab param is set", () => {
       render(<StudentDetailPage />);
 
