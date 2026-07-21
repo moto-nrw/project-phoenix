@@ -110,8 +110,19 @@ export function Modal({
       return;
     }
 
+    // Ignore the Escape that is already dispatching when this listener is
+    // attached: a Vaul drawer closes synchronously DURING the keydown, so a
+    // modal that remounts in that same dispatch (e.g. the Betreuungsplan
+    // detail modal resuming after the Termin-Editor, #1956) would receive
+    // the very same event and immediately close itself. Deliberately NOT a
+    // timestamp comparison — WebKit reports event.timeStamp on a wall-clock
+    // basis (not time-origin relative, webkit.org/b/211101), so it cannot
+    // be compared against performance.now(). window.event is deprecated but
+    // exactly identifies the in-flight event; outside a dispatch it is
+    // undefined and the guard never triggers.
+    const inFlightEvent = window.event;
     const handleEscKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && event !== inFlightEvent) {
         handleClose();
       }
     };

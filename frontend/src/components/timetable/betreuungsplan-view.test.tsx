@@ -318,8 +318,8 @@ vi.mock("~/components/timetable/template-list", () => ({
   ),
 }));
 
-vi.mock("~/components/timetable/instance-detail-slide-over", () => ({
-  InstanceDetailSlideOver: ({
+vi.mock("~/components/timetable/instance-detail-modal", () => ({
+  InstanceDetailModal: ({
     instance,
     onClose,
     onLifecycleAction,
