@@ -633,6 +633,13 @@ func (s *service) CancelStaffAppointmentOccurrence(ctx context.Context, appointm
 	if err := s.cfg.OverrideRepo.CancelOccurrence(ctx, appointment.ID, occurrenceDate); err != nil {
 		return err
 	}
+	// A queued create/update notice announces the appointment's first occurrence;
+	// removing an occurrence (possibly that first one) could otherwise deliver a
+	// mail for a date parents will no longer see. Kill any pending notice, matching
+	// the cancel/delete/update stale-notification cleanup.
+	if err := s.cancelPendingNotifications(ctx, appointment.ID, "occurrence cancelled"); err != nil {
+		return err
+	}
 	// Bump the parent revision so the feed re-exports with a higher SEQUENCE and
 	// subscribers honour the new EXDATE.
 	return s.cfg.AppointmentRepo.BumpRevision(ctx, appointment.ID)

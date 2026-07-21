@@ -2211,3 +2211,48 @@ func TestCalendarServiceIntegration_ParentCalendarKeepsCompletedTimetableWithout
 	require.Len(t, events, 1)
 	assert.Equal(t, calModels.EventSourceTimetable, events[0].Source)
 }
+
+// Cancelling a single occurrence must clear any pending create/update notice, so
+// a queued email can't announce a date parents will no longer see (mirrors the
+// cancel/delete/update stale-notification cleanup).
+func TestCalendarServiceIntegration_CancelOccurrenceClearsPendingNotifications(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	outbox := &recordingOutbox{}
+	service := setupCalendarServiceWithOutbox(t, db, outbox)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "OccMail", "Organizer")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	endsOn := timezone.NewDate(2026, 1, 26)
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Wöchentlich",
+		StartDate:    timezone.NewDate(2026, 1, 5), // Monday
+		EndDate:      timezone.NewDate(2026, 1, 5),
+		StartTime:    wallClock(9, 0),
+		EndTime:      wallClock(10, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		SendEmail:    true,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			IntervalCount: 1,
+			Weekdays:      []string{"monday"},
+			EndsOn:        &endsOn,
+		},
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+	require.Len(t, outbox.enqueued, 1, "create with send_email queues one notice")
+
+	// Removing a single occurrence clears the still-pending notice.
+	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
+	assert.Equal(t, 1, outbox.cancelled, "single-occurrence cancel must clear pending notifications")
+}
