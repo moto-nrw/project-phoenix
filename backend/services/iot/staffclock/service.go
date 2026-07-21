@@ -56,11 +56,12 @@ type personService interface {
 // the same calendar day, so a stamp cannot be written on one day and looked up
 // on the next when the request straddles Berlin midnight.
 type workSessionService interface {
-	CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error)
+	CheckInOn(ctx context.Context, staffID int64, day timezone.Date, status, source, reason string) (*activeModels.WorkSession, error)
 	CheckOutOn(ctx context.Context, staffID int64, day timezone.Date, reason string) (*activeModels.WorkSession, error)
 	StartBreakOn(ctx context.Context, staffID int64, day timezone.Date, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
 	EndBreakOn(ctx context.Context, staffID int64, day timezone.Date) (*activeModels.WorkSession, error)
 	UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error)
+	GetLatestOpenSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	GetHistory(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error)
 }
 
@@ -153,34 +154,59 @@ func (s *Service) GetState(ctx context.Context, rawTag string) (*State, error) {
 		return nil, err
 	}
 	now := s.currentTime()
-	return s.loadState(ctx, person, staff, timezone.DateFromTime(now), now)
+	day, err := s.clockDay(ctx, staff.ID, now)
+	if err != nil {
+		return nil, err
+	}
+	return s.loadState(ctx, person, staff, day, now)
+}
+
+// clockDay is the calendar day one kiosk request works on: the day carried by
+// the session that is still running, or today when nobody is clocked in.
+//
+// Taking "today" unconditionally would hide a session opened before Berlin
+// midnight. The kiosk would report checked_out to somebody who is demonstrably
+// still at work, offer a second check-in on the new day, and leave the first
+// session with no way to be closed through this flow at all.
+func (s *Service) clockDay(ctx context.Context, staffID int64, now time.Time) (timezone.Date, error) {
+	open, err := s.workSessions.GetLatestOpenSession(ctx, staffID)
+	if err != nil {
+		return timezone.Date{}, fmt.Errorf("look up running work session: %w", err)
+	}
+	if open != nil {
+		return open.Date, nil
+	}
+	return timezone.DateFromTime(now), nil
 }
 
 // Execute performs one explicit stamp action with source=nfc, then reloads
 // state so the kiosk never has to predict the result locally.
 //
-// One calendar day serves the whole request. It is taken from the clock once,
-// before the stamp, and handed to the action so its lookup cannot drift onto
-// the next day mid-request — an unpinned lookup at 00:00:00 would miss the
-// session opened at 23:59 and refuse the checkout with "no active session
-// found". The reload day then comes from the persisted row itself, which is
-// authoritative even when the write landed on the day after the one the
-// request started on. Re-deriving the day from the clock after the write,
-// which the previous shape did, reported "checked_out, no session" for a
-// check-in placed just before midnight: the kiosk would invite a second
-// check-in and leave the first session open overnight.
+// One calendar day serves the whole request: it is resolved once, up front,
+// and handed to every write and read the request performs. Nothing downstream
+// re-derives it from the clock, because two places asking the clock
+// independently disagree the moment a request straddles Berlin midnight — the
+// stamp lands on one day while the lookup searches the other, and a valid scan
+// fails with "no active session found" or reports "checked_out" right after a
+// successful check-in.
+//
+// The day is the running session's own day when there is one (a night shift
+// keeps working on the day it started), otherwise today.
 func (s *Service) Execute(ctx context.Context, command Command) (*State, error) {
 	person, staff, err := s.resolveStaff(ctx, command.RFIDTag)
 	if err != nil {
 		return nil, err
 	}
 	now := s.currentTime()
-	day := timezone.DateFromTime(now)
+	day, err := s.clockDay(ctx, staff.ID, now)
+	if err != nil {
+		return nil, err
+	}
 
 	var stamped *activeModels.WorkSession
 	switch command.Action {
 	case ActionCheckIn:
-		stamped, err = s.checkIn(ctx, staff.ID, command)
+		stamped, err = s.checkIn(ctx, staff.ID, day, command)
 	case ActionCheckOut:
 		stamped, err = s.workSessions.CheckOutOn(ctx, staff.ID, day, command.Reason)
 	case ActionBreakStart:
@@ -210,10 +236,12 @@ func (s *Service) Execute(ctx context.Context, command Command) (*State, error) 
 // request transaction aborted — nothing can be re-read or retried on it — so
 // the rollback is requested explicitly and the kiosk is told to rescan for
 // authoritative state.
+// Both the first stamp and the reopen retry are pinned to the day the request
+// resolved, so the retry cannot land on a fresh session of the following day
+// while the status update it is paired with rewrites the previous day's row.
 // The stamped session is returned so the caller can read the state back on the
-// day the row actually carries, rather than on whatever day the clock shows
-// once the write is done.
-func (s *Service) checkIn(ctx context.Context, staffID int64, command Command) (*activeModels.WorkSession, error) {
+// day the row actually carries.
+func (s *Service) checkIn(ctx context.Context, staffID int64, day timezone.Date, command Command) (*activeModels.WorkSession, error) {
 	if command.Status == "" {
 		return nil, ErrStatusRequired
 	}
@@ -221,13 +249,13 @@ func (s *Service) checkIn(ctx context.Context, staffID int64, command Command) (
 		return nil, fmt.Errorf("%w: status must be 'present' or 'home_office'", ErrStatusRequired)
 	}
 
-	session, err := s.workSessions.CheckIn(ctx, staffID, command.Status, activeModels.WorkSessionSourceNFC, command.Reason)
+	session, err := s.workSessions.CheckInOn(ctx, staffID, day, command.Status, activeModels.WorkSessionSourceNFC, command.Reason)
 	var conflict *activeSvc.ReopenStatusConflictError
 	if errors.As(err, &conflict) {
 		if strings.TrimSpace(command.Reason) == "" {
 			return nil, conflict
 		}
-		if _, err = s.workSessions.CheckIn(ctx, staffID, conflict.ExistingStatus, activeModels.WorkSessionSourceNFC, command.Reason); err != nil {
+		if _, err = s.workSessions.CheckInOn(ctx, staffID, day, conflict.ExistingStatus, activeModels.WorkSessionSourceNFC, command.Reason); err != nil {
 			return nil, s.classifyCheckInError(ctx, fmt.Errorf("reopen session with existing status: %w", err))
 		}
 		reason := strings.TrimSpace(command.Reason)

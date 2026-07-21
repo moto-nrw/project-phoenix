@@ -291,6 +291,11 @@ type WorkSessionRepository interface {
 	// GetCurrentByStaffID returns the active (not checked out) session for a staff member
 	GetCurrentByStaffID(ctx context.Context, staffID int64) (*WorkSession, error)
 
+	// GetLatestOpenByStaffID returns the most recent not-checked-out session of
+	// a staff member across all days. Callers that must not lose sight of a
+	// session opened before midnight use this instead of GetCurrentByStaffID.
+	GetLatestOpenByStaffID(ctx context.Context, staffID int64) (*WorkSession, error)
+
 	// GetOpenByStaffAndDate returns the not-checked-out session of a staff
 	// member on an explicit calendar day, for callers that must not re-derive
 	// "today" while the request is running.

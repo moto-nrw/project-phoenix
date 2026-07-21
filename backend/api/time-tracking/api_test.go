@@ -55,6 +55,9 @@ func (m *mockWorkSessionService) CheckIn(ctx context.Context, staffID int64, sta
 	}
 	return &activeModels.WorkSession{}, nil
 }
+func (m *mockWorkSessionService) CheckInOn(ctx context.Context, staffID int64, _ timezone.Date, status, source, reason string) (*activeModels.WorkSession, error) {
+	return m.CheckIn(ctx, staffID, status, source, reason)
+}
 func (m *mockWorkSessionService) CheckOut(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error) {
 	if m.checkOutFn != nil {
 		return m.checkOutFn(ctx, staffID, reason)
@@ -102,6 +105,9 @@ func (m *mockWorkSessionService) GetCurrentSession(ctx context.Context, staffID 
 		return m.getCurrentSessionFn(ctx, staffID)
 	}
 	return nil, nil
+}
+func (m *mockWorkSessionService) GetLatestOpenSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+	return m.GetCurrentSession(ctx, staffID)
 }
 func (m *mockWorkSessionService) GetHistory(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error) {
 	if m.getHistoryFn != nil {

@@ -100,6 +100,9 @@ type workSessionServiceForSessionUnitTest struct {
 func (w *workSessionServiceForSessionUnitTest) CheckIn(context.Context, int64, string, string, string) (*activeModels.WorkSession, error) {
 	return nil, nil
 }
+func (w *workSessionServiceForSessionUnitTest) CheckInOn(context.Context, int64, timezone.Date, string, string, string) (*activeModels.WorkSession, error) {
+	return nil, nil
+}
 func (w *workSessionServiceForSessionUnitTest) CheckOut(context.Context, int64, string) (*activeModels.WorkSession, error) {
 	return nil, nil
 }
@@ -131,6 +134,9 @@ func (w *workSessionServiceForSessionUnitTest) CreateSessionAsAdmin(context.Cont
 	return nil, nil
 }
 func (w *workSessionServiceForSessionUnitTest) GetCurrentSession(context.Context, int64) (*activeModels.WorkSession, error) {
+	return nil, nil
+}
+func (w *workSessionServiceForSessionUnitTest) GetLatestOpenSession(context.Context, int64) (*activeModels.WorkSession, error) {
 	return nil, nil
 }
 func (w *workSessionServiceForSessionUnitTest) GetHistory(context.Context, int64, timezone.Date, timezone.Date) (*HistoryResponse, error) {

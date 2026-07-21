@@ -94,6 +94,10 @@ func (m *wsMockWorkSessionRepository) GetOpenByStaffAndDate(ctx context.Context,
 	return m.GetCurrentByStaffID(ctx, staffID)
 }
 
+func (m *wsMockWorkSessionRepository) GetLatestOpenByStaffID(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+	return m.GetCurrentByStaffID(ctx, staffID)
+}
+
 func (m *wsMockWorkSessionRepository) GetOpenByStaffAndDateForUpdate(ctx context.Context, staffID int64, _ timezone.Date) (*activeModels.WorkSession, error) {
 	if m.getCurrentForUpdateFunc != nil {
 		return m.getCurrentForUpdateFunc(ctx, staffID)

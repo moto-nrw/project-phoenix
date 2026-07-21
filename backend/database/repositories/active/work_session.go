@@ -101,6 +101,34 @@ func (r *WorkSessionRepository) getOpenByStaffAndDate(ctx context.Context, staff
 	return session, nil
 }
 
+// GetLatestOpenByStaffID returns the most recent not-checked-out session of a
+// staff member, regardless of the day it was opened on. Unlike
+// GetCurrentByStaffID it does not filter on today, so a session that was opened
+// before Berlin midnight and is still running stays visible after the rollover
+// instead of looking like "no session today".
+func (r *WorkSessionRepository) GetLatestOpenByStaffID(ctx context.Context, staffID int64) (*active.WorkSession, error) {
+	session := new(active.WorkSession)
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(session).
+		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
+		Where(`"work_session".staff_id = ?`, staffID).
+		Where(`"work_session".check_out_time IS NULL`).
+		OrderExpr(`"work_session".date DESC`).
+		Limit(1)
+
+	query = base.WithTenantFilter(ctx, query, "work_session")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get latest open by staff ID",
+			Err: err,
+		}
+	}
+
+	return session, nil
+}
+
 // LockOpenByIDForUpdate returns and locks an open session row by ID.
 func (r *WorkSessionRepository) LockOpenByIDForUpdate(ctx context.Context, id int64) (*active.WorkSession, error) {
 	session := new(active.WorkSession)

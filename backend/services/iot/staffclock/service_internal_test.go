@@ -67,6 +67,11 @@ type stubWorkSessions struct {
 	checkInErr     error
 	checkInCall    int
 	checkInSession *activeModels.WorkSession
+	// checkInDays records the calendar day every check-in attempt was pinned to.
+	checkInDays []timezone.Date
+	// latestOpen is the still-running session the day resolution starts from,
+	// whatever day it was opened on.
+	latestOpen *activeModels.WorkSession
 	// actionDays records the calendar day every mutating action was pinned to.
 	actionDays []timezone.Date
 	// openSessionByDay mirrors the day-scoped lookup inside the work session
@@ -77,12 +82,19 @@ type stubWorkSessions struct {
 	historyByDay map[string]*activeSvc.SessionResponse
 }
 
-func (s *stubWorkSessions) CheckIn(context.Context, int64, string, string, string) (*activeModels.WorkSession, error) {
+func (s *stubWorkSessions) CheckInOn(_ context.Context, _ int64, day timezone.Date, _, _, _ string) (*activeModels.WorkSession, error) {
 	s.checkInCall++
-	if s.checkInErr != nil {
+	s.checkInDays = append(s.checkInDays, day)
+	// Only the first attempt fails: the reopen retry that follows a status
+	// conflict has to be able to succeed.
+	if s.checkInErr != nil && s.checkInCall == 1 {
 		return nil, s.checkInErr
 	}
 	return s.checkInSession, nil
+}
+
+func (s *stubWorkSessions) GetLatestOpenSession(context.Context, int64) (*activeModels.WorkSession, error) {
+	return s.latestOpen, nil
 }
 
 // openOn is the stand-in for the day-pinned lookup the real service performs.
@@ -218,6 +230,7 @@ func TestExecute_ActionsPinTheLookupToTheRequestDay(t *testing.T) {
 	for _, action := range []string{ActionCheckOut, ActionBreakStart, ActionBreakEnd} {
 		t.Run(action, func(t *testing.T) {
 			service, sessions := newRacedService(nil)
+			sessions.latestOpen = open
 			sessions.openSessionByDay = map[string]*activeModels.WorkSession{requestDay.String(): open}
 			sessions.historyByDay = map[string]*activeSvc.SessionResponse{
 				requestDay.String(): {WorkSession: open},
@@ -241,6 +254,108 @@ func TestExecute_ActionsPinTheLookupToTheRequestDay(t *testing.T) {
 			assert.Equal(t, []timezone.Date{requestDay}, sessions.actionDays)
 		})
 	}
+}
+
+// nightSession is a session opened the evening before and still running after
+// the Berlin midnight rollover.
+func nightSession(openedAt time.Time) *activeModels.WorkSession {
+	session := &activeModels.WorkSession{
+		StaffID:     7,
+		Date:        timezone.DateFromTime(openedAt),
+		Status:      activeModels.WorkSessionStatusPresent,
+		Source:      activeModels.WorkSessionSourceNFC,
+		CheckInTime: openedAt,
+	}
+	session.ID = 91
+	return session
+}
+
+// Somebody who clocked in yesterday evening and never clocked out is still at
+// work after midnight. Reading only today's row reported checked_out, offered a
+// second check-in on the new day, and left yesterday's session with no way to be
+// closed from the kiosk at all.
+func TestGetState_OpenSessionFromPreviousDayStaysCheckedIn(t *testing.T) {
+	service, sessions := newRacedService(nil)
+
+	openedAt := time.Date(2026, 7, 21, 22, 30, 0, 0, timezone.Berlin)
+	open := nightSession(openedAt)
+	sessions.latestOpen = open
+	sessions.historyByDay = map[string]*activeSvc.SessionResponse{
+		open.Date.String(): {WorkSession: open},
+	}
+	service.now = func() time.Time { return openedAt.Add(3 * time.Hour) } // 01:30 the next day
+
+	state, err := service.GetState(context.Background(), "A1654BEEF")
+
+	require.NoError(t, err)
+	require.NotNil(t, state.Session)
+	assert.Equal(t, open.ID, state.Session.ID)
+	assert.Equal(t, StateCheckedIn, state.State)
+	assert.Equal(t, []string{ActionBreakStart, ActionCheckOut}, state.AllowedActions)
+}
+
+// The stamp that ends such a night session must be dispatched on the day the
+// session carries. Pinning it to the new day looks up a day the session was
+// never written on and refuses a valid scan with "no active session found".
+func TestExecute_ActionsAfterMidnightUseTheOpenSessionDay(t *testing.T) {
+	openedAt := time.Date(2026, 7, 21, 22, 30, 0, 0, timezone.Berlin)
+	open := nightSession(openedAt)
+	afterMidnight := openedAt.Add(3 * time.Hour)
+	require.NotEqual(t, open.Date, timezone.DateFromTime(afterMidnight))
+
+	for _, action := range []string{ActionCheckOut, ActionBreakStart, ActionBreakEnd} {
+		t.Run(action, func(t *testing.T) {
+			service, sessions := newRacedService(nil)
+			sessions.latestOpen = open
+			sessions.openSessionByDay = map[string]*activeModels.WorkSession{open.Date.String(): open}
+			sessions.historyByDay = map[string]*activeSvc.SessionResponse{
+				open.Date.String(): {WorkSession: open},
+			}
+			service.now = func() time.Time { return afterMidnight }
+
+			state, err := service.Execute(context.Background(), Command{RFIDTag: "A1654BEEF", Action: action})
+
+			require.NoError(t, err)
+			require.NotNil(t, state.Session)
+			assert.Equal(t, []timezone.Date{open.Date}, sessions.actionDays)
+		})
+	}
+}
+
+// The reopen retry after a status conflict has to stay on the day that produced
+// the conflict. Letting it re-derive the day opens a fresh session on the new
+// day while the paired status update rewrites the previous day's closed row.
+func TestExecute_ReopenRetryStaysOnTheConflictedDay(t *testing.T) {
+	requestedAt := time.Date(2026, 7, 21, 23, 59, 59, 0, timezone.Berlin)
+	requestDay := timezone.DateFromTime(requestedAt)
+
+	service, sessions := newRacedService(&activeSvc.ReopenStatusConflictError{
+		SessionID:       91,
+		ExistingStatus:  activeModels.WorkSessionStatusHomeOffice,
+		RequestedStatus: activeModels.WorkSessionStatusPresent,
+	})
+	sessions.historyByDay = map[string]*activeSvc.SessionResponse{
+		requestDay.String(): {WorkSession: nightSession(requestedAt.Add(-8 * time.Hour))},
+	}
+
+	// The clock crosses midnight between the conflicting stamp and the retry.
+	calls := 0
+	service.now = func() time.Time {
+		calls++
+		if calls == 1 {
+			return requestedAt
+		}
+		return requestedAt.Add(2 * time.Second)
+	}
+
+	command := checkInCommand()
+	command.Reason = "Statuswechsel nach Rücksprache"
+
+	state, err := service.Execute(context.Background(), command)
+
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	assert.Equal(t, []timezone.Date{requestDay, requestDay}, sessions.checkInDays)
 }
 
 // A unique violation on another constraint is a genuine fault and must keep

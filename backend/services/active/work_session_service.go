@@ -211,6 +211,7 @@ type WorkSessionService interface {
 	// otherwise look up a day the session was never written on and fail with
 	// "no active session found". The day-less forms above delegate here with
 	// the current day and keep their behaviour.
+	CheckInOn(ctx context.Context, staffID int64, day timezone.Date, status, source, reason string) (*activeModels.WorkSession, error)
 	CheckOutOn(ctx context.Context, staffID int64, day timezone.Date, reason string) (*activeModels.WorkSession, error)
 	StartBreakOn(ctx context.Context, staffID int64, day timezone.Date, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
 	EndBreakOn(ctx context.Context, staffID int64, day timezone.Date) (*activeModels.WorkSession, error)
@@ -228,6 +229,10 @@ type WorkSessionService interface {
 	// Notes are required to preserve the audit trail's "Verlässlichkeit".
 	CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, req AdminCreateSessionRequest) (*activeModels.WorkSession, error)
 	GetCurrentSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	// GetLatestOpenSession is GetCurrentSession without the "today" filter: it
+	// finds a session that is still running even when it was opened on an
+	// earlier calendar day.
+	GetLatestOpenSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	GetHistory(ctx context.Context, staffID int64, from, to timezone.Date) (*HistoryResponse, error)
 	GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
 	// GetSessionEditsForStaff returns the audit trail of a session for a
@@ -369,7 +374,16 @@ func (s *workSessionService) now() time.Time {
 // Status must be explicitly chosen. Empty values are rejected so the caller
 // (HTTP handler or internal worker) cannot accidentally fall back to "present".
 func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error) {
-	return s.checkIn(ctx, staffID, status, source, reason, true)
+	return s.checkIn(ctx, staffID, timezone.DateFromTime(s.now()), status, source, reason, true)
+}
+
+// CheckInOn creates or reopens the session of an explicit calendar day instead
+// of deriving the day from the server clock. A kiosk that resolved its day
+// before stamping must write on that day: re-deriving it inside the write can
+// land the row on the next day when the request straddles Berlin midnight,
+// after which the caller's own day-pinned reads no longer see it.
+func (s *workSessionService) CheckInOn(ctx context.Context, staffID int64, day timezone.Date, status, source, reason string) (*activeModels.WorkSession, error) {
+	return s.checkIn(ctx, staffID, day, status, source, reason, true)
 }
 
 // checkIn is the shared body behind CheckIn and EnsureCheckedIn.
@@ -378,7 +392,7 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 // starting a supervision (EnsureCheckedIn) bypass it — those flows have no
 // way to collect a reason, and refusing the stamp would leave a supervisor
 // row without a matching work session.
-func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status, source, reason string, enforceDeviationGate bool) (*activeModels.WorkSession, error) {
+func (s *workSessionService) checkIn(ctx context.Context, staffID int64, today timezone.Date, status, source, reason string, enforceDeviationGate bool) (*activeModels.WorkSession, error) {
 	if status != activeModels.WorkSessionStatusPresent && status != activeModels.WorkSessionStatusHomeOffice {
 		return nil, fmt.Errorf("status must be 'present' or 'home_office'")
 	}
@@ -387,8 +401,6 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status,
 	}
 
 	now := s.now()
-	// Today's Berlin calendar day for the PostgreSQL DATE column
-	today := timezone.DateFromTime(now)
 
 	// Check if there's already a session today
 	existingSession, err := s.repo.GetByStaffAndDate(ctx, staffID, today)
@@ -1324,6 +1336,22 @@ func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int6
 	return session, nil
 }
 
+// GetLatestOpenSession returns the most recent still-running session of a staff
+// member across all days, or nil when none is open. It answers "is this person
+// clocked in right now" without assuming the session was opened today — a night
+// stamp survives the Berlin midnight rollover.
+func (s *workSessionService) GetLatestOpenSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+	session, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get latest open session: %w", err)
+	}
+
+	return session, nil
+}
+
 // GetHistory returns work sessions for a staff member in a date range with weekly aggregation
 func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from, to timezone.Date) (*HistoryResponse, error) {
 	sessions, err := s.repo.GetHistoryByStaffID(ctx, staffID, from, to)
@@ -1908,7 +1936,7 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64,
 	// The F9 deviation gate is bypassed: this auto-stamp fires because the
 	// staff member started a supervision, and that flow cannot collect a
 	// reason (see checkIn).
-	return s.checkIn(ctx, staffID, activeModels.WorkSessionStatusPresent, source, "", false)
+	return s.checkIn(ctx, staffID, today, activeModels.WorkSessionStatusPresent, source, "", false)
 }
 
 // German weekday names for export
