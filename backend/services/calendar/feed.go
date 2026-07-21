@@ -159,9 +159,10 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 				// set) can slip through applyAppointmentWindow, which treats a NULL
 				// ends_on as open-ended, even when all its occurrences are already
 				// before the feed's lookback. Skip any recurring appointment that
-				// produces no occurrence overlapping the feed window so subscribers
-				// don't receive a series outside the advertised bounds.
-				if recurrence != nil && len(expandOccurrences(appointment, recurrence, from, to)) == 0 {
+				// produces no occurrence overlapping the feed window. hasOccurrenceInWindow
+				// checks overlap within a bounded window instead of expanding every
+				// day since the (possibly years-old) series start on each poll.
+				if recurrence != nil && !hasOccurrenceInWindow(appointment, recurrence, from, to) {
 					continue
 				}
 				events = append(events, appointmentICSEvent(appointment, recurrence, overridesByID[appointment.ID]))

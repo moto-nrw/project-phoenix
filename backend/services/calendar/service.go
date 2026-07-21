@@ -646,9 +646,22 @@ func (s *service) CancelStaffAppointmentOccurrence(ctx context.Context, appointm
 }
 
 // occurrenceExists reports whether occurrenceDate is one of the dates the
-// recurrence generates, reusing the same expansion the in-app calendar uses so
-// the two never disagree.
+// recurrence generates. Membership is decided arithmetically via matchesRule
+// (O(1): frequency/interval/weekday/month-day and occurrenceDate >= StartDate)
+// plus the EndsOn bound, so cancelling a far-future date never walks every day
+// since the series start. Only a count-bounded rule needs expansion, and that is
+// bounded by the (small) occurrence count rather than the distance to the date.
 func occurrenceExists(appointment *calModels.Appointment, rule *calModels.RecurrenceRule, occurrenceDate timezone.Date) bool {
+	if !matchesRule(appointment.StartDate, occurrenceDate, rule) {
+		return false
+	}
+	if rule.EndsOn != nil && occurrenceDate.After(*rule.EndsOn) {
+		return false
+	}
+	if rule.OccurrenceCount == nil {
+		return true
+	}
+	// Count-bounded: expandOccurrences breaks after OccurrenceCount matches.
 	for _, occ := range expandOccurrences(appointment, rule, appointment.StartDate, occurrenceDate) {
 		if occ == occurrenceDate {
 			return true
@@ -1847,6 +1860,44 @@ func expandOccurrences(appointment *calModels.Appointment, rule *calModels.Recur
 		}
 	}
 	return occurrences
+}
+
+// hasOccurrenceInWindow reports whether the recurrence produces at least one
+// occurrence overlapping [from, to] WITHOUT walking every day since the series
+// start. For an open-ended or EndsOn-bounded series it scans only the window
+// (bounded by the window width plus the appointment's own multi-day span); for a
+// count-bounded series it expands the bounded first-N occurrences. Used by the
+// subscription feed, which is polled frequently for old series.
+func hasOccurrenceInWindow(appointment *calModels.Appointment, rule *calModels.RecurrenceRule, from, to timezone.Date) bool {
+	if rule == nil || to.Before(from) {
+		return false
+	}
+	if rule.IntervalCount <= 0 {
+		rule.IntervalCount = 1
+	}
+	if rule.OccurrenceCount != nil {
+		// Bounded by the count: expandOccurrences breaks after N matches.
+		return len(expandOccurrences(appointment, rule, from, to)) > 0
+	}
+	// Scan only the window. Start early enough to catch a multi-day occurrence
+	// that begins before `from` but reaches into it, but never before the series
+	// start; stop at `to` or EndsOn, whichever is earlier.
+	duration := appointment.StartDate.DaysUntil(appointment.EndDate)
+	start := from.AddDays(-duration)
+	if start.Before(appointment.StartDate) {
+		start = appointment.StartDate
+	}
+	end := to
+	if rule.EndsOn != nil && rule.EndsOn.Before(end) {
+		end = *rule.EndsOn
+	}
+	for d := start; !d.After(end); d = d.AddDays(1) {
+		if matchesRule(appointment.StartDate, d, rule) &&
+			dateRangesOverlap(d, d.AddDays(duration), from, to) {
+			return true
+		}
+	}
+	return false
 }
 
 // firstRecurrenceOccurrence returns the first calendar date on or after the
