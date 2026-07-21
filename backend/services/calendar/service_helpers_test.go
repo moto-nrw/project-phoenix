@@ -362,6 +362,20 @@ func TestHasOccurrenceInWindow(t *testing.T) {
 	assert.True(t, hasOccurrenceInWindow(multiDay, daily, timezone.NewDate(2026, 7, 1), timezone.NewDate(2026, 7, 1)))
 }
 
+func TestAppointmentICSEventUIDIncludesTenant(t *testing.T) {
+	// The parent feed aggregates appointments across schools, so the UID must be
+	// globally unique — appointment IDs repeat per tenant.
+	appt := &calModels.Appointment{
+		Model:       base.Model{ID: 5},
+		TenantModel: base.TenantModel{TenantID: 42},
+		Title:       "Termin",
+		StartDate:   timezone.NewDate(2026, 1, 5),
+		EndDate:     timezone.NewDate(2026, 1, 5),
+	}
+	event := appointmentICSEvent(appt, nil, nil)
+	assert.Equal(t, "appointment-42-5@moto-app.de", event.UID)
+}
+
 func TestCalendarGroupingAndDisplayHelpers(t *testing.T) {
 	children := []*parentModels.ChildSummary{
 		{TenantID: 2, GuardianProfileID: 20},

@@ -118,7 +118,11 @@ func appointmentICSEvent(appointment *calModels.Appointment, recurrence *calMode
 		location = *appointment.Location
 	}
 	event := ical.Event{
-		UID:         fmt.Sprintf("appointment-%d@moto-app.de", appointment.ID),
+		// Include the tenant so the UID is globally unique: a parent's feed
+		// aggregates appointments across schools, and appointment IDs repeat per
+		// tenant — a tenant-local UID would let one school's event overwrite
+		// another's in the subscriber's calendar.
+		UID:         fmt.Sprintf("appointment-%d-%d@moto-app.de", appointment.TenantID, appointment.ID),
 		Summary:     appointment.Title,
 		Description: description,
 		Location:    location,
