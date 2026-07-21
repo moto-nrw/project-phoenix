@@ -12,7 +12,7 @@ const feedTokenPatterns = [
   /(\/public\/calendar\/)[^/?#\s"]+/g,
 ];
 
-export function redactFeedToken(value: string): string {
+function redactFeedToken(value: string): string {
   return feedTokenPatterns.reduce(
     (acc, pattern) => acc.replace(pattern, "$1[REDACTED]"),
     value,
