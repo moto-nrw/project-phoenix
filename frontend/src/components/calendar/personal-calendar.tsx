@@ -179,23 +179,60 @@ function gridHours(dayEvents: readonly CalendarEvent[]): {
 interface TimedPlacement {
   event: CalendarEvent;
   startMinutes: number;
+  // Effektives Render-Ende: das spätere von tatsächlichem Ende und der
+  // Mindesthöhe des Karteninhalts. Layout UND Kartenhöhe rechnen mit diesem
+  // Wert, damit optisch verlängerte Karten nachfolgende nicht verdecken.
   endMinutes: number;
   column: number;
   columnCount: number;
+}
+
+interface TimedLayoutOptions {
+  hasRespond: boolean;
+  hasOverview: boolean;
+}
+
+// Mindesthöhe eines Zeitraster-Blocks in Pixeln, abhängig vom Inhalt. Muss zum
+// Markup in TimeGridEventBlock passen — Aktionen und Textzeilen brauchen Platz,
+// sonst wären sie bei kurzen Terminen abgeschnitten.
+function blockMinHeightPx(
+  event: CalendarEvent,
+  options: TimedLayoutOptions,
+): number {
+  const showRespond = Boolean(
+    event.can_respond && event.recipient_id && options.hasRespond,
+  );
+  const showOverview = Boolean(
+    event.can_view_overview && event.appointment_id && options.hasOverview,
+  );
+  return (
+    56 +
+    ((event.student_name ?? event.school_name) ? 16 : 0) +
+    (event.location ? 18 : 0) +
+    (event.description ? 36 : 0) +
+    (showRespond ? 40 : 0) +
+    (showOverview ? 36 : 0)
+  );
 }
 
 // Klassisches Zeitraster-Layout: überlappende Einträge bilden ein Cluster und
 // teilen sich die Spaltenbreite; jeder Eintrag bekommt die erste freie Spalte.
 function layoutTimedEvents(
   dayEvents: readonly CalendarEvent[],
+  options: TimedLayoutOptions,
 ): TimedPlacement[] {
   const items: TimedPlacement[] = dayEvents
     .map((event) => {
       const startMinutes = clockToMinutes(event.start_time);
+      const minRenderMinutes =
+        (blockMinHeightPx(event, options) / HOUR_PX) * 60;
       return {
         event,
         startMinutes,
-        endMinutes: Math.max(clockToMinutes(event.end_time), startMinutes + 30),
+        endMinutes: Math.max(
+          clockToMinutes(event.end_time),
+          startMinutes + minRenderMinutes,
+        ),
         column: 0,
         columnCount: 1,
       };
@@ -744,6 +781,7 @@ function TimeGridDayBody({
   );
   const timed = layoutTimedEvents(
     events.filter((event) => event.source !== "shift" && !isAllDayLike(event)),
+    { hasRespond: Boolean(onRespond), hasOverview: Boolean(onShowOverview) },
   );
   return (
     <div
@@ -829,11 +867,9 @@ function TimeGridEventBlock({
   const showOverview = Boolean(
     event.can_view_overview && event.appointment_id && onShowOverview,
   );
-  const rawHeight = ((endMinutes - startMinutes) / 60) * HOUR_PX - 2;
-  // Blöcke mit Aktionen bekommen eine Mindesthöhe, damit die Buttons bedienbar
-  // bleiben — kurze Termine dürfen dafür optisch über ihr Zeitfenster hinausragen.
-  const minHeight = 56 + (showRespond ? 40 : 0) + (showOverview ? 36 : 0);
-  const height = Math.max(rawHeight, minHeight);
+  // endMinutes ist bereits das effektive Render-Ende aus layoutTimedEvents —
+  // die Mindesthöhe steckt in der Platzierung, damit nichts überdeckt wird.
+  const height = ((endMinutes - startMinutes) / 60) * HOUR_PX - 2;
   const widthPercent = 100 / columnCount;
   return (
     <article
@@ -865,6 +901,17 @@ function TimeGridEventBlock({
         <div className="truncate text-[11px] text-gray-600">
           {[event.student_name, event.school_name].filter(Boolean).join(" · ")}
         </div>
+      ) : null}
+      {event.location ? (
+        <div className="flex items-center gap-1 text-[11px] text-gray-600">
+          <MapPin className="h-3 w-3 shrink-0" aria-hidden />
+          <span className="truncate">{event.location}</span>
+        </div>
+      ) : null}
+      {event.description ? (
+        <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-gray-600">
+          {event.description}
+        </p>
       ) : null}
       {showOverview ? (
         <Button

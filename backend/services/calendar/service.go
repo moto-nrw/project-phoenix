@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	baseModels "github.com/moto-nrw/project-phoenix/models/base"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
@@ -856,8 +857,13 @@ func (s *service) staffShiftEvents(ctx context.Context, staffID int64, from, to 
 			name, ok := typeNames[*shift.ShiftTypeID]
 			if !ok {
 				shiftType, err := s.cfg.ShiftTypeRepo.FindByID(ctx, *shift.ShiftTypeID)
-				if err == nil && shiftType != nil {
+				switch {
+				case err == nil && shiftType != nil:
 					name = shiftType.Name
+				case err != nil && !baseModels.IsNoRows(err):
+					// A concurrently deleted shift type is fine (fallback title);
+					// a real database error must not degrade into a 200.
+					return nil, err
 				}
 				typeNames[*shift.ShiftTypeID] = name
 			}

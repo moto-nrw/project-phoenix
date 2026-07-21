@@ -101,6 +101,48 @@ describe("PersonalCalendar", () => {
     expect(onRespond).toHaveBeenCalledWith("42", "declined");
   });
 
+  it("splits the column when an inflated short event visually overlaps the next one", () => {
+    // 30-Minuten-Termin mit RSVP: die gerenderte Karte ist höher als das
+    // Zeitfenster und ragt über 10:00 hinaus — der Folgetermin darf sie nicht
+    // überdecken, beide müssen sich die Spaltenbreite teilen.
+    const shortRsvp: CalendarEvent = {
+      ...appointment,
+      id: "appointment:3:2026-01-05",
+      appointment_id: "3",
+      title: "Kurzer RSVP-Termin",
+      start_time: "09:00",
+      end_time: "09:30",
+    };
+    const followUp: CalendarEvent = {
+      ...timetable,
+      id: "timetable:10",
+      timetable_id: "10",
+      title: "Direkt danach",
+      start_date: "2026-01-05",
+      end_date: "2026-01-05",
+      start_time: "10:00",
+      end_time: "11:00",
+    };
+    render(
+      <PersonalCalendar
+        title="Mein Kalender"
+        events={[shortRsvp, followUp]}
+        weekStart={new Date(2026, 0, 5)}
+        onWeekChange={vi.fn()}
+        onRespond={vi.fn()}
+      />,
+    );
+
+    const shortBlock = screen
+      .getAllByText("Kurzer RSVP-Termin")[0]!
+      .closest("article");
+    const followBlock = screen
+      .getAllByText("Direkt danach")[0]!
+      .closest("article");
+    expect(shortBlock?.style.width).toBe("calc(50% - 4px)");
+    expect(followBlock?.style.width).toBe("calc(50% - 4px)");
+  });
+
   it("hides weekend days by default and reveals them via the Sa/So toggle", () => {
     const weekendEvent: CalendarEvent = {
       id: "appointment:2:2026-01-10",
