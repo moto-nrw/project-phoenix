@@ -40,7 +40,39 @@ const timetable: CalendarEvent = {
   can_edit: false,
 };
 
+const shift: CalendarEvent = {
+  id: "shift:5",
+  source: "shift",
+  title: "Frühdienst",
+  description: "Vertretung Gruppe B",
+  start_date: "2026-01-07",
+  end_date: "2026-01-07",
+  start_time: "08:00",
+  end_time: "16:00",
+  all_day: false,
+  can_respond: false,
+  can_edit: false,
+};
+
 describe("PersonalCalendar", () => {
+  it("renders shift events with the Dienst badge", () => {
+    render(
+      <PersonalCalendar
+        title="Mein Kalender"
+        subtitle="Termine und Dienstplan"
+        events={[shift]}
+        weekStart={new Date(2026, 0, 5)}
+        onWeekChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByText("Frühdienst").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Dienst").length).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("button", { name: "Zusagen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders appointment and timetable events with RSVP actions", () => {
     const onRespond = vi.fn();
     render(

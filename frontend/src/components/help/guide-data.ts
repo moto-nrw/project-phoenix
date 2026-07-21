@@ -827,10 +827,11 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Mein Kalender",
         icon: CalendarRange,
         summary:
-          "Zeigt persönliche Termine, Einladungen und zugewiesene Betreuungsangebote. Mitarbeitende mit Verwaltungsrecht erstellen Termine für Team, Eltern oder ganze Gruppen.",
+          "Zeigt persönliche Termine, Einladungen, eigene Dienstplan-Schichten und zugewiesene Betreuungsangebote. Mitarbeitende mit Verwaltungsrecht erstellen Termine für Team, Eltern oder ganze Gruppen.",
         steps: [
           "`Mein Kalender` öffnen.",
           "Oben zwischen `Tag`, `Woche` und `Monat` wechseln und mit den Pfeilen oder `Heute` zum passenden Zeitraum springen.",
+          "Einträge an der Farbe unterscheiden: grüne Karten sind Termine (`Termin`), blaue Karten Betreuungsblöcke (`Betreuung`), orangefarbene Karten die eigenen Dienstplan-Schichten (`Dienst`). Schichten kommen aus dem Dienstplan und lassen sich hier nicht bearbeiten.",
           "Mit `Neuer Termin` den Dialog öffnen. Diese Schaltfläche sehen nur Personen mit dem Recht, Kalendertermine zu verwalten.",
           "`Titel`, Datum, Uhrzeit, Ort und Beschreibung eintragen. Bei ganztägigen Terminen `Ganztägig` aktivieren.",
           "Unter `Antwortregel` wählen, ob Eingeladene zusagen/absagen müssen oder nur informiert werden.",

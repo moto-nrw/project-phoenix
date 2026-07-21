@@ -61,6 +61,11 @@ const sourceTone = {
     bar: LOCATION_COLORS.OTHER_ROOM,
     bg: "#EBF0FB",
   },
+  shift: {
+    label: "Dienst",
+    bar: LOCATION_COLORS.SCHOOLYARD,
+    bg: "#FEF3E7",
+  },
 } satisfies Record<
   CalendarEvent["source"],
   { label: string; bar: string; bg: string }
