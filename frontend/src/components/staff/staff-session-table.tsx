@@ -58,6 +58,7 @@ export function StaffSessionTable({
   dailyTargets,
   dailyTargetsError,
   dailyTargetsPending,
+  accountStartDate,
   today,
   isAdminView,
   plannedShifts,
@@ -89,6 +90,11 @@ export function StaffSessionTable({
   // vorherige Zeitraum bereits aufgelöst hat, bleiben gültig: dasselbe Datum
   // liefert für dieselbe Person immer dasselbe Soll.
   readonly dailyTargetsPending?: boolean;
+  // `null` means the time-tracking config is still unresolved; an empty
+  // string means no explicit anchor is configured. The distinction matters
+  // for sessions with Soll 0: they are overtime on a planned day off, but
+  // must not enter the Saldo before a mid-month account start.
+  readonly accountStartDate: string | null;
   readonly today: Date;
   readonly isAdminView: boolean;
   // Planned Dienstplan shifts for the visible range. When provided (admin
@@ -281,12 +287,20 @@ export function StaffSessionTable({
               const isFuture = day > today;
               const isToday = sameDay(day, today);
               const ist = session?.net_minutes ?? 0;
-              // Saldo eines Tages ist Ist minus Soll — auch bei Soll 0 (#1967).
-              // Die Monatskarte rechnet serverseitig genauso
-              // (balance = actual + credits - targetToDate), ein Wochenend-
-              // oder freier Tag mit Session ist dort also ein volles Plus.
-              // Hier "–" anzuzeigen machte die Monatskarte aus der Tabelle
-              // unerklärbar.
+              // Saldo eines Tages ist Ist minus Soll — auch bei Soll 0 auf
+              // einem geplanten freien Tag (#1967). Vor einem untermonatigen
+              // Stundenkonto-Start zählt die Monatskarte allerdings weder
+              // Soll noch Ist. GetDailyTargets liefert dort ebenfalls 0, kann
+              // diesen Fall also nicht allein von einem freien Tag
+              // unterscheiden; dafür braucht die Zeile zusätzlich den
+              // konfigurierten Starttag.
+              const isBeforeAccountStart =
+                accountStartDate !== null &&
+                accountStartDate !== "" &&
+                key.slice(0, 7) === accountStartDate.slice(0, 7) &&
+                key < accountStartDate;
+              const balanceUnresolved =
+                targetUnresolved || (target === 0 && accountStartDate === null);
               const delta = session ? ist - target : 0;
               const status = computeRowStatus(
                 session,
@@ -408,7 +422,9 @@ export function StaffSessionTable({
                       {session ? formatDuration(ist) : "–"}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums">
-                      {session && !targetUnresolved ? (
+                      {session &&
+                      !balanceUnresolved &&
+                      !isBeforeAccountStart ? (
                         <span className={deltaClass(delta)}>
                           {formatSignedDuration(delta)}
                         </span>

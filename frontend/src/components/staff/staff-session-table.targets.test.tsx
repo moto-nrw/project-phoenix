@@ -46,6 +46,7 @@ function renderTable(props: {
   dailyTargets?: ReadonlyMap<string, number>;
   dailyTargetsError?: boolean;
   dailyTargetsPending?: boolean;
+  accountStartDate?: string | null;
   sessions?: readonly StaffHistorySession[];
 }) {
   return render(
@@ -58,6 +59,9 @@ function renderTable(props: {
       dailyTargets={props.dailyTargets}
       dailyTargetsError={props.dailyTargetsError}
       dailyTargetsPending={props.dailyTargetsPending}
+      accountStartDate={
+        props.accountStartDate === undefined ? "" : props.accountStartDate
+      }
       today={today}
       isAdminView
     />,
@@ -156,6 +160,35 @@ describe("StaffSessionTable Soll-Auflösung", () => {
     // Nur die Tage ohne aufgelöstes Target bleiben ungelöst.
     expect(screen.getAllByText("?").length).toBe(4);
   });
+
+  it("zählt Sessions vor einem untermonatigen Kontostart nicht als Plus", () => {
+    renderTable({
+      sessions: [mondaySession],
+      dailyTargets: new Map([["2026-01-05", 0]]),
+      accountStartDate: "2026-01-08",
+    });
+
+    const row = screen.getByText("05.01.").closest("tr");
+    expect(row).not.toBeNull();
+    const cells = within(row!).getAllByRole("cell");
+    expect(cells[5]).toHaveTextContent("–");
+    expect(cells[7]).toHaveTextContent("–");
+    expect(screen.queryByText("+3h")).not.toBeInTheDocument();
+  });
+
+  it("lässt einen ungelösten Kontostart bei Soll 0 nicht als Plus aufblitzen", () => {
+    renderTable({
+      sessions: [mondaySession],
+      dailyTargets: new Map([["2026-01-05", 0]]),
+      accountStartDate: null,
+    });
+
+    const row = screen.getByText("05.01.").closest("tr");
+    expect(row).not.toBeNull();
+    const cells = within(row!).getAllByRole("cell");
+    expect(cells[7]).toHaveTextContent("–");
+    expect(screen.queryByText("+3h")).not.toBeInTheDocument();
+  });
 });
 
 // #1967: Sa/So waren hart aus der Tagesansicht gefiltert, während Monatskarte
@@ -188,6 +221,7 @@ describe("StaffSessionTable Wochenendtage", () => {
         absences={props.absences}
         plannedShifts={props.plannedShifts}
         schedule={schedule}
+        accountStartDate="2026-01-08"
         dailyTargets={
           new Map([
             ["2026-01-05", 480],

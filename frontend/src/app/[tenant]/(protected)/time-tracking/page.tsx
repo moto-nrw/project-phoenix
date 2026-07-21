@@ -1863,6 +1863,7 @@ function OwnZeiterfassungSection({
             dailyTargets={dailyTargets}
             dailyTargetsError={dailyTargetsError != null}
             dailyTargetsPending={dailyTargetsLoading}
+            accountStartDate={timeTrackingConfig?.accountStartDate ?? null}
             today={today}
             isAdminView={ownStaffId !== null}
             onEditDay={(date) => handleEdit(date)}

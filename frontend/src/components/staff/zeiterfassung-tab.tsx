@@ -289,6 +289,7 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
               dailyTargets={dailyTargets}
               dailyTargetsError={dailyTargetsError != null}
               dailyTargetsPending={dailyTargetsLoading}
+              accountStartDate={timeTrackingConfig?.accountStartDate ?? null}
               today={today}
               isAdminView
               plannedShifts={visibleShifts ?? []}
