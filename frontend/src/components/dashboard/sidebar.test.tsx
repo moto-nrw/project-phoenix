@@ -1674,7 +1674,7 @@ describe("Sidebar", () => {
       } as unknown as ReturnType<typeof useSWR>);
     });
 
-    it("hides the Planung accordion when timetable.enabled is false", () => {
+    it("keeps only Kalenderzeiträume when timetable.enabled is false", () => {
       mockUseSWRDefault.mockReturnValue({
         data: {
           tabs: [
@@ -1693,11 +1693,13 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.queryByText("Planung")).not.toBeInTheDocument();
+      // Kalenderzeiträume bleiben erreichbar — die Anmeldephasen hängen
+      // daran; nur die timetable-spezifischen Seiten verschwinden.
+      expect(screen.getByText("Planung")).toBeInTheDocument();
+      expect(screen.getByText("Kalenderzeiträume")).toBeInTheDocument();
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Vertretung")).not.toBeInTheDocument();
-      expect(screen.queryByText("Kalenderzeiträume")).not.toBeInTheDocument();
     });
 
     it("reads the settings schema from the tenant-scoped SWR key", () => {

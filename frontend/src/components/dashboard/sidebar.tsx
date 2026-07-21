@@ -524,6 +524,13 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const timetableEnabled =
     getSettingValue(settingsSchema, "timetable.enabled") !== false;
 
+  // Kalenderzeiträume bleiben auch bei abgeschaltetem Planungsbereich
+  // erreichbar: die Anmeldephasen (Anmeldungen-Akkordeon) verknüpfen sich mit
+  // Kalenderzeiträumen, unabhängig von timetable.enabled.
+  const planningSubPages = timetableEnabled
+    ? PLANNING_SUB_PAGES
+    : PLANNING_SUB_PAGES.filter((page) => page.href === "/calendar-periods");
+
   // Gruppenzugriff (#1940): temporäre Gruppen-Datenzugriffe sind nur bei
   // festen Gruppen sinnvoll; bei offener Betreuung arbeiten ohnehin alle
   // Berechtigten mit allen Kindern.
@@ -1403,9 +1410,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
           )}
 
           {/* Planung accordion (admin only, #1946) — bündelt Betreuungsplan,
-              Dienstplan, Vertretung und Kalenderzeiträume. Verschwindet
-              komplett, wenn timetable.enabled explizit ausgeschaltet ist. */}
-          {userIsAdmin && timetableEnabled && (
+              Dienstplan, Vertretung und Kalenderzeiträume. Bei explizit
+              ausgeschaltetem timetable.enabled bleiben nur die
+              Kalenderzeiträume übrig (Anmeldephasen hängen daran). */}
+          {userIsAdmin && (
             <SidebarAccordionSection
               icon={navigationIcons.betreuungsplan}
               label="Planung"
@@ -1414,9 +1422,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
               onToggle={handlePlanningToggle}
               isActive={isOnPlanningPage}
               isIconActive={isOnPlanningPage}
-              hasChildren={PLANNING_SUB_PAGES.length > 0}
+              hasChildren={planningSubPages.length > 0}
             >
-              {PLANNING_SUB_PAGES.map((page) => (
+              {planningSubPages.map((page) => (
                 <SidebarSubItem
                   key={page.href}
                   // Tenant-scoped [tenant]/… Routen: im Path-Routing-Modus
