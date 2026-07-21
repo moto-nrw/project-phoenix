@@ -17,6 +17,19 @@ const (
 	EventStudentCheckOut EventType = "student_checkout"
 	EventStudentUpdated  EventType = "student_updated"
 
+	// EventStudentCompanionsChanged fires when a write may have changed a
+	// child's Laufgemeinschaft ("läuft mit", users.student_companions): a
+	// submitted companion list, or a departure-plan write, which trims the links
+	// on a weekday the new plan no longer allows.
+	//
+	// It exists BECAUSE student_updated is far too broad for this: the links are
+	// symmetric and the editing forms hold a draft they must not overwrite, so a
+	// client that treats every student_updated as a companion write blocks an
+	// in-progress edit whenever anyone renames a child, uploads a photo or marks
+	// someone sick. Emitted IN ADDITION to student_updated (never instead of
+	// it), tenant-scoped like its sibling.
+	EventStudentCompanionsChanged EventType = "student_companions_changed"
+
 	// Bulk checkout event — emitted when a whole session ends (manual end or
 	// scheduler timeout) and every active visit is closed at once. One event
 	// per affected topic carrying all student IDs, instead of one

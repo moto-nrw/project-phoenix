@@ -725,6 +725,101 @@ func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
 	assert.Positive(t, len(bc.CallsByMethod("all")), "approve must broadcast arrival_schedule_changed globally")
 }
 
+// TestDecide_ApproveCompanionEventOnlyOnEffectiveChange pins WHO the approval
+// wakes: student_companions_changed makes every open "läuft mit" editor in the
+// school mark itself stale and refuse to save, so it may only fire when the
+// approval actually reconciled a link. Carrying departure modes is not that
+// question — a merge that drops no link (and a time-only request, which cannot
+// drop one at all) has to stay silent, or routine parent requests cost unrelated
+// staff their unsaved companion edits.
+func TestDecide_ApproveCompanionEventOnlyOnEffectiveChange(t *testing.T) {
+	f := newCareFixture(t)
+	bc := testpkg.NewRecordingBroadcaster()
+	svc := schedule.NewCareScheduleRequestService(
+		f.repos.CareScheduleChangeRequest, f.repos.Student, f.repos.Person,
+		f.sf.ArrivalSchedule, f.sf.PickupSchedule, f.sf.UserContext,
+		nil, bc, slog.Default(),
+	)
+
+	approve := func(t *testing.T, payload map[string]any) {
+		t.Helper()
+		req := f.createPending(t, payload)
+		bc.Reset()
+		_, err := svc.Decide(f.staffCtx(f.staffAccount), schedule.CareRequestDecideInput{
+			RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
+		})
+		require.NoError(t, err)
+	}
+
+	t.Run("time-only approval stays silent", func(t *testing.T) {
+		approve(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00", "pickup": "16:00"}))
+		assert.False(t, bc.HasEventType(realtime.EventStudentCompanionsChanged),
+			"a request that only moves times cannot touch a link and must not mark companion editors stale")
+		assert.True(t, bc.HasEventType(realtime.EventStudentUpdated),
+			"the ordinary student_updated invalidation still has to fire")
+	})
+
+	t.Run("departure-mode approval without links stays silent", func(t *testing.T) {
+		approve(t, careWeekdays(map[string]any{"weekday": 3, "mode": "bus"}))
+		assert.False(t, bc.HasEventType(realtime.EventStudentCompanionsChanged),
+			"a plan merge that trims no link changed no Laufgemeinschaft to announce")
+		assert.True(t, bc.HasEventType(realtime.EventStudentUpdated),
+			"the ordinary student_updated invalidation still has to fire")
+	})
+
+	t.Run("departure-mode approval that drops a link announces it", func(t *testing.T) {
+		f.linkCompanionOnTuesday(t)
+		approve(t, careWeekdays(map[string]any{"weekday": 2, "mode": "bus"}))
+		assert.True(t, bc.HasEventType(realtime.EventStudentCompanionsChanged),
+			"Tuesday no longer allows 'Anderes Kind', so the link is gone from the partner's card too")
+	})
+}
+
+// linkCompanionOnTuesday gives the chain's child a Laufgemeinschaft partner on
+// Tuesday: both children get an accompanied Tuesday plus their own free-text
+// "mit wem" note (so dropping the link later does not strand the partner, which
+// is a different rule with its own test), then the undirected edge is written.
+func (f *careFixture) linkCompanionOnTuesday(t *testing.T) {
+	t.Helper()
+	ctx := testpkg.TenantContext(f.chain.TenantID)
+
+	partner := testpkg.CreateTestStudent(t, f.db, "Companion", "Partner", "1a")
+	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, f.db, partner.ID) })
+	t.Cleanup(func() {
+		_, err := f.db.NewDelete().
+			TableExpr("users.student_companions").
+			Where("student_low_id IN (?, ?) OR student_high_id IN (?, ?)",
+				f.chain.StudentID, partner.ID, f.chain.StudentID, partner.ID).
+			Exec(context.Background())
+		if err != nil {
+			t.Logf("Warning: failed to cleanup users.student_companions: %v", err)
+		}
+	})
+
+	accompaniedTuesday := func(studentID int64) {
+		student, err := f.repos.Student.FindByID(ctx, studentID)
+		require.NoError(t, err)
+		modes := usersModels.AllowedDepartureModes{}
+		for day, allowed := range student.AllowedDepartureModes {
+			modes[day] = allowed
+		}
+		modes["tue"] = []usersModels.DepartureMode{usersModels.DepartureAccompanied}
+		student.AllowedDepartureModes = modes
+		student.DepartureDays = nil
+		student.BusDays = nil
+		student.PickupDays = nil
+		note := "Nachbarskind"
+		student.DepartureCompanionNote = &note
+		require.NoError(t, f.repos.Student.Update(ctx, student))
+	}
+	accompaniedTuesday(partner.ID)
+	accompaniedTuesday(f.chain.StudentID)
+
+	edge, err := usersModels.NewStudentCompanion(f.chain.StudentID, partner.ID, 2)
+	require.NoError(t, err)
+	require.NoError(t, f.repos.StudentCompanion.ReplaceForStudent(ctx, f.chain.StudentID, []*usersModels.StudentCompanion{edge}))
+}
+
 // TestWithdrawRequest_BogusIDNotFound covers the repository's no-rows lock
 // branch: withdrawing an id that exists in no tenant returns not-found (never a
 // panic or a leak of another child's row). The id is derived from a real

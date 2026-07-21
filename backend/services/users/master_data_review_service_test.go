@@ -592,3 +592,111 @@ func TestMasterDataReview_RejectEmitsPillWithReason(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Schneider", person.LastName)
 }
+
+// TestMasterDataReview_CompanionEventOnlyOnEffectiveChange pins WHO an approval
+// wakes: student_companions_changed makes every open "läuft mit" editor in the
+// school mark itself stale and refuse to save, so it may only fire when the
+// approval actually reconciled a link. The request's TARGET is not that
+// question — a departure approval that drops no link (because the child has
+// none, or because the affected weekdays keep allowing "Anderes Kind") must stay
+// silent, or routine parent requests cost unrelated staff their unsaved edits.
+func TestMasterDataReview_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() {
+		require.NoError(t, db.Close())
+	}()
+	repos := repositories.NewFactory(db)
+	bc := testpkg.NewRecordingBroadcaster()
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default(), bc)
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	approve := func(t *testing.T, row *userModels.StudentDataChangeRequest) {
+		t.Helper()
+		bc.Reset()
+		err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+			_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true, ReviewedBy: chain.AccountID})
+			return e
+		})
+		require.NoError(t, err)
+	}
+
+	t.Run("a departure approval without links stays silent", func(t *testing.T) {
+		row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetDeparture,
+			"allowed_departure_modes", `{}`, `{"mon":["bus"]}`)
+		approve(t, row)
+		assert.False(t, bc.HasEventType(realtime.EventStudentCompanionsChanged),
+			"a plan change that trims no link changed no Laufgemeinschaft to announce")
+		assert.True(t, bc.HasEventType(realtime.EventStudentUpdated),
+			"the ordinary student_updated invalidation still has to fire")
+	})
+
+	t.Run("a departure approval that drops a link announces it", func(t *testing.T) {
+		partner := linkCompanionOnTuesday(t, db, repos, chain)
+		defer testpkg.CleanupActivityFixtures(t, db, partner)
+
+		// The approval is refused as stale unless it names the plan it starts
+		// from, so read the live one the linking left behind.
+		student, err := repos.Student.FindByID(testpkg.TenantContext(chain.TenantID), chain.StudentID)
+		require.NoError(t, err)
+		current, err := json.Marshal(student.AllowedDepartureModes)
+		require.NoError(t, err)
+		narrowed := userModels.AllowedDepartureModes{}
+		for day, allowed := range student.AllowedDepartureModes {
+			narrowed[day] = allowed
+		}
+		narrowed[userModels.PickupDayTuesday] = []userModels.DepartureMode{userModels.DepartureBus}
+		requested, err := json.Marshal(narrowed)
+		require.NoError(t, err)
+
+		row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetDeparture,
+			"allowed_departure_modes", string(current), string(requested))
+		approve(t, row)
+		assert.True(t, bc.HasEventType(realtime.EventStudentCompanionsChanged),
+			"Tuesday no longer allows 'Anderes Kind', so the link is gone from the partner's card too")
+	})
+}
+
+// linkCompanionOnTuesday gives the chain's child a Laufgemeinschaft partner on
+// Tuesday and returns the partner's id. Both children keep their own free-text
+// "mit wem" note, so dropping the link later does not strand the partner (a
+// different rule, with its own test).
+func linkCompanionOnTuesday(t *testing.T, db *bun.DB, repos *repositories.Factory, chain testpkg.ParentChain) int64 {
+	t.Helper()
+	ctx := testpkg.TenantContext(chain.TenantID)
+
+	partner := testpkg.CreateTestStudent(t, db, "ReviewCompanion", "Partner", "1a")
+	t.Cleanup(func() {
+		_, err := db.NewDelete().
+			TableExpr("users.student_companions").
+			Where("student_low_id IN (?, ?) OR student_high_id IN (?, ?)",
+				chain.StudentID, partner.ID, chain.StudentID, partner.ID).
+			Exec(context.Background())
+		if err != nil {
+			t.Logf("Warning: failed to cleanup users.student_companions: %v", err)
+		}
+	})
+
+	for _, studentID := range []int64{partner.ID, chain.StudentID} {
+		student, err := repos.Student.FindByID(ctx, studentID)
+		require.NoError(t, err)
+		modes := userModels.AllowedDepartureModes{}
+		for day, allowed := range student.AllowedDepartureModes {
+			modes[day] = allowed
+		}
+		modes[userModels.PickupDayTuesday] = []userModels.DepartureMode{userModels.DepartureAccompanied}
+		student.AllowedDepartureModes = modes
+		student.DepartureDays = nil
+		student.BusDays = nil
+		student.PickupDays = nil
+		note := "Nachbarskind"
+		student.DepartureCompanionNote = &note
+		require.NoError(t, repos.Student.Update(ctx, student))
+	}
+
+	edge, err := userModels.NewStudentCompanion(chain.StudentID, partner.ID, 2)
+	require.NoError(t, err)
+	require.NoError(t, repos.StudentCompanion.ReplaceForStudent(ctx, chain.StudentID, []*userModels.StudentCompanion{edge}))
+	return partner.ID
+}

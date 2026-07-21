@@ -215,7 +215,12 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 		return s.enrichReviewItem(ctx, row)
 	}
 
-	if err := s.applyApprovedChange(ctx, req); err != nil {
+	// Run the apply in a recording scope so the companion announcement below can
+	// be keyed off the WRITE instead of the request's target: a departure
+	// approval that changes no weekday the links depend on leaves every link in
+	// place (see userModels.CompanionChangeRecorder).
+	applyCtx, companionChanges := userModels.ContextWithCompanionChangeRecorder(ctx)
+	if err := s.applyApprovedChange(applyCtx, req); err != nil {
 		return nil, err
 	}
 	if err := s.changeRequestRepo.Decide(ctx, req.ID, userModels.DataChangeStatusApproved, reason, input.ReviewedBy, true); err != nil {
@@ -233,6 +238,13 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 	)
 	s.deferDecisionPill(ctx, req, input, true)
 	s.deferStudentUpdated(ctx, req.StudentID)
+	// Only when the write actually trimmed a "läuft mit" link — those links are
+	// rows on ANOTHER child's card too. Everything else stays silent: the event
+	// makes open companion forms drop or block a draft, which must not happen
+	// for a rename, nor for a departure approval that left every link intact.
+	if companionChanges.Changed() {
+		s.deferStudentCompanionsChanged(ctx, req.StudentID)
+	}
 	row, findErr := s.changeRequestRepo.FindByID(ctx, req.ID)
 	if findErr != nil {
 		return nil, fmt.Errorf("review: reload approved request: %w", findErr)
@@ -312,6 +324,30 @@ func (s *masterDataReviewService) deferStudentUpdated(ctx context.Context, stude
 		event := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{Source: &source})
 		if err := s.broadcaster.BroadcastToTenant(tenantID, event); err != nil {
 			s.logger.Warn("review: failed to broadcast student update",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int64("student_id", studentID),
+				slog.String("error", err.Error()),
+			)
+		}
+	})
+}
+
+// deferStudentCompanionsChanged announces, after commit, that the approved
+// change may have trimmed the child's Laufgemeinschaft — the signal every
+// mounted "läuft mit" view refetches on.
+func (s *masterDataReviewService) deferStudentCompanionsChanged(ctx context.Context, studentID int64) {
+	if s.broadcaster == nil {
+		return
+	}
+	tenantID := tenant.FromContext(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		if tenantID <= 0 {
+			return
+		}
+		source := "master_data_review"
+		event := realtime.NewEvent(realtime.EventStudentCompanionsChanged, "", realtime.EventData{Source: &source})
+		if err := s.broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+			s.logger.Warn("review: failed to broadcast student companions change",
 				slog.Int64("tenant_id", tenantID),
 				slog.Int64("student_id", studentID),
 				slog.String("error", err.Error()),

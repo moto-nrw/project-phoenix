@@ -16,6 +16,8 @@ const logger = createLogger({ component: "StudentData" });
  */
 export interface ExtendedStudent extends Student {
   bus: boolean;
+  /** Confirmation to widen a linked child's own departure plan on save. */
+  extend_companion_plans?: boolean;
   current_room?: string;
   location_since?: string;
   birthday?: string;

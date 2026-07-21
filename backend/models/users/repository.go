@@ -163,6 +163,22 @@ type StudentRepository interface {
 	// upload flow to close a lost-update race against concurrent
 	// consent withdrawals from another tab.
 	FindByIDForUpdate(ctx context.Context, id int64) (*Student, error)
+
+	// VerifyCompanionStrandingBatch decides the "läuft mit" stranding verdicts
+	// that the departure-plan writes of a coordinated multi-child edit deferred
+	// into the CompanionStrandingBatch on ctx, now that every plan change and
+	// edge removal of that edit is applied. Returns
+	// ErrCompanionWouldLoseDeparture when a linked child is genuinely left
+	// without a "mit wem" detail, and nil when no batch is open. Callers that
+	// opened a batch MUST call this before committing.
+	VerifyCompanionStrandingBatch(ctx context.Context) error
+
+	// FindByIDForUpdateNoWait is FindByIDForUpdate that fails immediately
+	// (PostgreSQL 55P03) instead of waiting when the row is already locked.
+	// Used only where waiting would invert the ascending-id order every
+	// companion writer follows and could therefore deadlock — see the
+	// lock protocol in api/students and StudentRepository.lockCompanionFarEnds.
+	FindByIDForUpdateNoWait(ctx context.Context, id int64) (*Student, error)
 }
 
 // StaffRepository defines operations for managing staff members
@@ -324,6 +340,41 @@ type StudentGuardianRepository interface {
 
 	// SetPrimary sets a guardian as the primary guardian for a student
 	SetPrimary(ctx context.Context, id int64, isPrimary bool) error
+}
+
+// StudentCompanionRepository defines operations for the child-to-child
+// departure links ("läuft mit" / Laufgemeinschaft, users.student_companions).
+//
+// An edge is stored once in normalized low/high order, so every read has to
+// consider both endpoint columns — that is why there is no generic
+// List(filters) usage here: a filter map cannot express the OR.
+type StudentCompanionRepository interface {
+	base.CRUDRepository[*StudentCompanion]
+
+	// ListForStudent returns every edge touching the student, all weekdays.
+	ListForStudent(ctx context.Context, studentID int64) ([]*StudentCompanion, error)
+
+	// ListLinksForStudent returns the edges folded per companion, with names.
+	ListLinksForStudent(ctx context.Context, studentID int64) ([]CompanionLink, error)
+
+	// ListLinksForStudents is the bulk form of ListLinksForStudent, for the
+	// offline lists that render the "mit wem" detail of a whole school.
+	ListLinksForStudents(ctx context.Context, studentIDs []int64) (map[int64][]CompanionLink, error)
+
+	// ReplaceForStudent makes the given edges the student's complete set.
+	ReplaceForStudent(ctx context.Context, studentID int64, edges []*StudentCompanion) error
+
+	// CompanionIDsForWeekday bulk-resolves companions for one weekday.
+	CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error)
+
+	// CompanionCountsExcluding returns, per student, the number of DISTINCT
+	// other children they are linked to, ignoring links to excludeID.
+	CompanionCountsExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]int, error)
+
+	// CompanionDaysCoveredExcluding returns, per student, the weekday keys on
+	// which they keep at least one edge to a child other than excludeID. The
+	// "mit wem" cover is per weekday, so removal checks need this per-day view.
+	CompanionDaysCoveredExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]map[string]bool, error)
 }
 
 // StudentRetentionSetting is the projection used by the GDPR visit-cleanup

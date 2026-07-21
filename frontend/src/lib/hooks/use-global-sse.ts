@@ -27,6 +27,10 @@ import { mutate } from "swr";
 import { useSession } from "next-auth/react";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
+import {
+  notifyStudentCompanionDisplayChanged,
+  notifyStudentCompanionsChanged,
+} from "~/lib/student-companion-api";
 import type { SSEEvent, SSEHookState } from "~/lib/sse-types";
 import { createLogger } from "~/lib/logger";
 
@@ -68,6 +72,9 @@ export function useGlobalSSE(): SSEHookState {
   const hasPendingDailyCheckoutDashboardEvent = useRef(false);
   const hasPendingArrivalScheduleEvent = useRef(false);
   const hasPendingStudentUpdateEvent = useRef(false);
+  // Kept apart from the student-update flag on purpose: only a write that can
+  // actually have changed the "läuft mit" links sets it.
+  const hasPendingCompanionEvent = useRef(false);
   const hasPendingTimetableEvent = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -165,6 +172,51 @@ export function useGlobalSSE(): SSEHookState {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "student_detail",
+        });
+      });
+
+      // A renamed or reassigned child changes what the OTHER children's
+      // Laufgemeinschaft entries show, without changing a single link — so no
+      // student_companions_changed follows, and the SWR invalidation above does
+      // not reach the links either (own table, fetched outside SWR, keyed on a
+      // student id this write never changes). Read-only cards would keep the
+      // old name indefinitely, and after a group reassignment even one the
+      // backend would now redact for this viewer. Announced on the separate
+      // display bus: forms react to the companion bus by discarding drafts, and
+      // any rename in the school must not cost a user their work.
+      notifyStudentCompanionDisplayChanged();
+    }
+
+    if (hasPendingCompanionEvent.current) {
+      // The Laufgemeinschaft ("läuft mit") lives in its own table and is
+      // fetched outside SWR, so invalidating student-detail-* does not bring
+      // it along — and the fetching card keys its effect on the student id,
+      // which a remote edit never changes. Announcing the change on the same
+      // bus a local save uses gives every mounted card one shared
+      // revalidation path, so a link added in another tab, browser or by
+      // another staff member stops being invisible until remount (#1694).
+      //
+      // Driven by the dedicated student_companions_changed event, NOT by
+      // student_updated: an editing form reacts to this announcement by
+      // discarding its draft or blocking the save, so firing it for every
+      // rename, photo upload or sick flag in the school would cost users
+      // their work for changes that never touched the links.
+      notifyStudentCompanionsChanged();
+
+      // The Kindersuche is the one companion view that does NOT fetch the links
+      // separately: its grouping rides along inside the student list response
+      // (companion_student_ids, only with include_companions=true), so the
+      // announcement above never reaches it. Deleting a linked child announces
+      // ONLY student_companions_changed — no student_updated, no checkin — so
+      // without this the open "Nach Laufgemeinschaft" view keeps listing the
+      // deleted child, and every grouping the delete changed, until something
+      // unrelated revalidates the list.
+      mutate(
+        (key) => typeof key === "string" && key.includes("search-students-"),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "student_companions",
         });
       });
     }
@@ -315,6 +367,7 @@ export function useGlobalSSE(): SSEHookState {
     hasPendingDailyCheckoutDashboardEvent.current = false;
     hasPendingArrivalScheduleEvent.current = false;
     hasPendingStudentUpdateEvent.current = false;
+    hasPendingCompanionEvent.current = false;
     hasPendingTimetableEvent.current = false;
   }, []);
 
@@ -365,6 +418,12 @@ export function useGlobalSSE(): SSEHookState {
 
         case "student_updated": {
           hasPendingStudentUpdateEvent.current = true;
+          scheduleFlush();
+          break;
+        }
+
+        case "student_companions_changed": {
+          hasPendingCompanionEvent.current = true;
           scheduleFlush();
           break;
         }

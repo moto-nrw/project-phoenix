@@ -1294,6 +1294,175 @@ describe("api.ts helper functions", () => {
       }
     });
 
+    // The "läuft mit" links are stored in their own table and are absent from
+    // this response, and the backend also trims links a shrunken departure plan
+    // no longer allows — so a departure-plan update has to tell every mounted
+    // companion view to refetch, or it renders the pre-save list (#1694).
+    it("announces a companion change after a departure plan update", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: { id: 1, first_name: "Updated" } }),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+      const { subscribeStudentCompanionsChanged } =
+        await import("./student-companion-api");
+
+      const listener = vi.fn();
+      const unsubscribe = subscribeStudentCompanionsChanged(listener);
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.updateStudent("1", {
+          first_name: "Updated",
+          departure_days: { mon: "accompanied" },
+        });
+        expect(listener).toHaveBeenCalledTimes(1);
+      } finally {
+        unsubscribe();
+        restore();
+      }
+    });
+
+    // The announcement is not a free refetch: an open Laufgemeinschaft form
+    // answers it by discarding its draft, or by blocking the save while the
+    // draft is dirty. A payload that cannot touch a link — a sick flag, a
+    // rename, a photo — must therefore stay silent, or an unrelated action in
+    // the same tab costs the user the edit they are in the middle of (#1694).
+    it("stays silent for an update that cannot change companions", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: { id: 1, first_name: "Updated" } }),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+      const { subscribeStudentCompanionsChanged } =
+        await import("./student-companion-api");
+
+      const listener = vi.fn();
+      const unsubscribe = subscribeStudentCompanionsChanged(listener);
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.updateStudent("1", { sick: true });
+        await studentService.updateStudent("1", { first_name: "Updated" });
+        expect(listener).not.toHaveBeenCalled();
+      } finally {
+        unsubscribe();
+        restore();
+      }
+    });
+
+    // An edited list travels as `companions` and replaces the stored one, so it
+    // is the one payload that certainly changed the links.
+    it("announces a companion change when a list is submitted", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: { id: 1, first_name: "Updated" } }),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+      const { subscribeStudentCompanionsChanged } =
+        await import("./student-companion-api");
+
+      const listener = vi.fn();
+      const unsubscribe = subscribeStudentCompanionsChanged(listener);
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.updateStudent("1", { companions: [] });
+        expect(listener).toHaveBeenCalledTimes(1);
+      } finally {
+        unsubscribe();
+        restore();
+      }
+    });
+
+    // The backend answers the question itself, and its answer beats the shape
+    // of the request: the forms resubmit the whole departure plan on every
+    // save, so a pure name or address edit looks exactly like a plan change
+    // from here. Announcing one costs every other open Laufgemeinschaft editor
+    // its draft — for a write the backend already decided changed nothing.
+    it("stays silent when the response reports no companion change", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: { id: 1, first_name: "Updated", companions_changed: false },
+          }),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+      const { subscribeStudentCompanionsChanged } =
+        await import("./student-companion-api");
+
+      const listener = vi.fn();
+      const unsubscribe = subscribeStudentCompanionsChanged(listener);
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.updateStudent("1", {
+          first_name: "Updated",
+          departure_days: { mon: "accompanied" },
+        });
+        expect(listener).not.toHaveBeenCalled();
+      } finally {
+        unsubscribe();
+        restore();
+      }
+    });
+
+    // The other direction: the backend trims links off weekdays a narrowed plan
+    // no longer allows, so a write can change them without the payload naming a
+    // single link. Its verdict is what the mounted views have to hear.
+    it("announces when the response reports a companion change", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: { id: 1, first_name: "Updated", companions_changed: true },
+          }),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+      const { subscribeStudentCompanionsChanged } =
+        await import("./student-companion-api");
+
+      const listener = vi.fn();
+      const unsubscribe = subscribeStudentCompanionsChanged(listener);
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.updateStudent("1", {
+          departure_days: { mon: "alone" },
+        });
+        expect(listener).toHaveBeenCalledTimes(1);
+      } finally {
+        unsubscribe();
+        restore();
+      }
+    });
+
     it("throws error on API failure", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
@@ -1322,6 +1491,331 @@ describe("api.ts helper functions", () => {
       } finally {
         restore();
       }
+    });
+
+    // The student PUT answers 409 for several unrelated reasons. Only the one
+    // carrying a conflict list is the companion question the caller can answer
+    // with extend_companion_plans; typing another 409 as that error would hand
+    // the user an empty, unanswerable confirmation instead of the real message.
+    it("types only a 409 carrying conflicts as the companion question", async () => {
+      const respondWith = async (body: string) => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 409,
+          text: () => Promise.resolve(body),
+        });
+        const { getSession } = await import("next-auth/react");
+        vi.mocked(getSession).mockResolvedValue({
+          user: { token: "test-token" },
+        } as never);
+        const { studentService } = await import("./api");
+        const restore = setupBrowserEnv();
+        try {
+          return await studentService
+            .updateStudent("1", {
+              first_name: "Test",
+              second_name: "Student",
+              school_class: "1a",
+              name: "Test Student",
+              current_location: "",
+            })
+            .then(() => null)
+            .catch((err: unknown) => err);
+        } finally {
+          restore();
+        }
+      };
+
+      const { CompanionPlanConflictError } = await import("./api");
+
+      const companionConflict = await respondWith(
+        JSON.stringify({
+          error:
+            "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+          conflicts: [{ student_id: 42, weekdays: ["mon"] }],
+        }),
+      );
+      expect(companionConflict).toBeInstanceOf(CompanionPlanConflictError);
+
+      // A different 409 (sick + excused) keeps its own contract.
+      const sickExcused = await respondWith(
+        JSON.stringify({
+          error: "a student cannot be both sick and excused at the same time",
+          code: "SICK_EXCUSED_CONFLICT",
+        }),
+      );
+      expect(sickExcused).not.toBeInstanceOf(CompanionPlanConflictError);
+      expect((sickExcused as Error).message).toContain(
+        "cannot be both sick and excused",
+      );
+    });
+
+    // The stranded-companion refusal is an instruction, not a failure: it names
+    // the child whose Heimweg has to be filled in before this link can go. It
+    // must survive the trip to the form intact, and only it — every other 400
+    // keeps the generic handling.
+    it("types only the coded 400 as the stranded-companion refusal", async () => {
+      const respondWith = async (body: string) => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 400,
+          text: () => Promise.resolve(body),
+        });
+        const { getSession } = await import("next-auth/react");
+        vi.mocked(getSession).mockResolvedValue({
+          user: { token: "test-token" },
+        } as never);
+        const { studentService } = await import("./api");
+        const restore = setupBrowserEnv();
+        try {
+          return await studentService
+            .updateStudent("1", {
+              first_name: "Test",
+              second_name: "Student",
+              school_class: "1a",
+              name: "Test Student",
+              current_location: "",
+            })
+            .then(() => null)
+            .catch((err: unknown) => err);
+        } finally {
+          restore();
+        }
+      };
+
+      const { CompanionDepartureRefusedError, isCompanionDepartureRefusal } =
+        await import("./api");
+
+      const stranded = await respondWith(
+        JSON.stringify({
+          status: "error",
+          error:
+            "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
+          code: "companion_would_lose_departure",
+        }),
+      );
+      expect(stranded).toBeInstanceOf(CompanionDepartureRefusedError);
+      expect(isCompanionDepartureRefusal(stranded)).toBe(true);
+      // The German instruction reaches the form verbatim, without the
+      // "API error 400:" prefix the generic branch would add.
+      expect((stranded as Error).message).toBe(
+        "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
+      );
+
+      const otherBadRequest = await respondWith(
+        JSON.stringify({ status: "error", error: "invalid weekday" }),
+      );
+      expect(otherBadRequest).not.toBeInstanceOf(
+        CompanionDepartureRefusedError,
+      );
+      expect(isCompanionDepartureRefusal(otherBadRequest)).toBe(false);
+    });
+
+    // The stale-list 409 is the third 409 on this endpoint and the only one
+    // whose retry must NOT re-send the same list: doing so would delete the
+    // change the refusal is protecting. It therefore needs its own type, and
+    // must not be mistaken for the answerable companion question.
+    it("types the stale-list 409 apart from the companion question", async () => {
+      const respondWith = async (body: string) => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status: 409,
+          text: () => Promise.resolve(body),
+        });
+        const { getSession } = await import("next-auth/react");
+        vi.mocked(getSession).mockResolvedValue({
+          user: { token: "test-token" },
+        } as never);
+        const { studentService } = await import("./api");
+        const restore = setupBrowserEnv();
+        try {
+          return await studentService
+            .updateStudent("1", {
+              first_name: "Test",
+              second_name: "Student",
+              school_class: "1a",
+              name: "Test Student",
+              current_location: "",
+            })
+            .then(() => null)
+            .catch((err: unknown) => err);
+        } finally {
+          restore();
+        }
+      };
+
+      const {
+        CompanionsChangedError,
+        CompanionPlanConflictError,
+        isCompanionsChanged,
+        companionsChangedMessage,
+      } = await import("./api");
+
+      const stale = await respondWith(
+        JSON.stringify({
+          status: "error",
+          error:
+            "Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert. Bitte neu laden und noch einmal speichern.",
+          code: "companions_changed",
+        }),
+      );
+      expect(stale).toBeInstanceOf(CompanionsChangedError);
+      expect(stale).not.toBeInstanceOf(CompanionPlanConflictError);
+      expect(isCompanionsChanged(stale)).toBe(true);
+      expect(companionsChangedMessage(stale)).toBe(
+        "Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert. Bitte neu laden und noch einmal speichern.",
+      );
+    });
+
+    // The body-fragment predicate the CRUD-service path uses must make the same
+    // distinction: a stale-list 409 offers nothing to confirm, so treating it as
+    // the question would ask the user to widen a child's plan for a conflict
+    // that was never reported.
+    it("does not read the stale-list body as the companion question", async () => {
+      const { isCompanionPlanConflictBody, isCompanionsChangedBody } =
+        await import("./api");
+
+      const body = JSON.stringify({
+        error:
+          "Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich geändert.",
+        code: "companions_changed",
+      });
+      expect(isCompanionsChangedBody(body)).toBe(true);
+      expect(isCompanionPlanConflictBody(body)).toBe(false);
+    });
+
+    // The student PUT proxy writes the privacy consent first, against a
+    // different backend transaction. A failure after that write is a partial
+    // success, and the form has to say so rather than report a blanket failure
+    // the user answers by abandoning the retry.
+    it("reads the partial-success marker off the failed save", async () => {
+      const {
+        isPrivacyConsentSaved,
+        withPrivacyConsentSavedNotice,
+        PRIVACY_CONSENT_SAVED_NOTICE,
+      } = await import("./api");
+
+      const marked = Object.assign(new Error("Fehler"), {
+        body: JSON.stringify({
+          error: "Fehler",
+          details: { privacy_consent_saved: true },
+        }),
+      });
+      const plain = Object.assign(new Error("Fehler"), {
+        body: JSON.stringify({ error: "Fehler" }),
+      });
+
+      expect(isPrivacyConsentSaved(marked)).toBe(true);
+      expect(isPrivacyConsentSaved(plain)).toBe(false);
+      expect(
+        withPrivacyConsentSavedNotice(marked, "Fehler beim Speichern."),
+      ).toBe(`${PRIVACY_CONSENT_SAVED_NOTICE} Fehler beim Speichern.`);
+      expect(
+        withPrivacyConsentSavedNotice(plain, "Fehler beim Speichern."),
+      ).toBe("Fehler beim Speichern.");
+    });
+
+    // The marker also has to survive the wrapping where the body is lost and
+    // only the message carries the JSON.
+    it("reads the marker out of the message when no body is attached", async () => {
+      const { isPrivacyConsentSaved } = await import("./api");
+
+      const fromMessage = new Error(
+        `API error (409): ${JSON.stringify({
+          error: "Konflikt",
+          details: { privacy_consent_saved: true },
+        })}`,
+      );
+      expect(isPrivacyConsentSaved(fromMessage)).toBe(true);
+      expect(isPrivacyConsentSaved(new Error("API error (500): boom"))).toBe(
+        false,
+      );
+    });
+
+    // The typed companion refusals reduce the response to a display message, so
+    // they have to carry the untouched body along — the marker lives in
+    // `details`, and the proxy stamps it onto exactly these refusals when the
+    // consent half of the same request already committed.
+    it("keeps the marker on the typed companion refusals", async () => {
+      const respondWith = async (status: number, body: string) => {
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: false,
+          status,
+          text: () => Promise.resolve(body),
+        });
+        const { getSession } = await import("next-auth/react");
+        vi.mocked(getSession).mockResolvedValue({
+          user: { token: "test-token" },
+        } as never);
+        const { studentService } = await import("./api");
+        const restore = setupBrowserEnv();
+        try {
+          return await studentService
+            .updateStudent("1", {
+              first_name: "Test",
+              second_name: "Student",
+              school_class: "1a",
+              name: "Test Student",
+              current_location: "",
+            })
+            .then(() => null)
+            .catch((err: unknown) => err);
+        } finally {
+          restore();
+        }
+      };
+
+      const {
+        isPrivacyConsentSaved,
+        CompanionPlanConflictError,
+        CompanionsChangedError,
+        CompanionDepartureRefusedError,
+      } = await import("./api");
+      const details = { privacy_consent_saved: true };
+
+      const conflict = await respondWith(
+        409,
+        JSON.stringify({
+          error: "Ein verknüpftes Kind läuft an diesem Tag nicht allein.",
+          conflicts: [{ student_id: 7, weekdays: ["mon"] }],
+          details,
+        }),
+      );
+      expect(conflict).toBeInstanceOf(CompanionPlanConflictError);
+      expect(isPrivacyConsentSaved(conflict)).toBe(true);
+
+      const stale = await respondWith(
+        409,
+        JSON.stringify({
+          error: "Die Laufgemeinschaft wurde zwischenzeitlich geändert.",
+          code: "companions_changed",
+          details,
+        }),
+      );
+      expect(stale).toBeInstanceOf(CompanionsChangedError);
+      expect(isPrivacyConsentSaved(stale)).toBe(true);
+
+      const stranded = await respondWith(
+        400,
+        JSON.stringify({
+          error: "Bitte zuerst den Heimweg dieses Kindes anpassen.",
+          code: "companion_would_lose_departure",
+          details,
+        }),
+      );
+      expect(stranded).toBeInstanceOf(CompanionDepartureRefusedError);
+      expect(isPrivacyConsentSaved(stranded)).toBe(true);
+
+      // …and stays absent when the consent write never ran.
+      const unmarked = await respondWith(
+        409,
+        JSON.stringify({
+          error: "Die Laufgemeinschaft wurde zwischenzeitlich geändert.",
+          code: "companions_changed",
+        }),
+      );
+      expect(unmarked).toBeInstanceOf(CompanionsChangedError);
+      expect(isPrivacyConsentSaved(unmarked)).toBe(false);
     });
   });
 

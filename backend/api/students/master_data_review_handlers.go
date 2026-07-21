@@ -111,6 +111,12 @@ func (rs *Resource) decideMasterDataChangeRequest(w http.ResponseWriter, r *http
 		case errors.Is(err, userService.ErrReviewInvalidTarget),
 			errors.Is(err, userService.ErrReviewInvalidValue):
 			renderError(w, r, common.ErrorInvalidRequest(err))
+		// Approving an allowed_departure_modes change rewrites the child's
+		// departure plan, so it can strand or collide with a "läuft mit" link
+		// exactly like the student PUT does. Both conditions are expected and
+		// actionable, not a server failure (#1694).
+		case companionPlanErrorRenderer(err) != nil:
+			renderError(w, r, companionPlanErrorRenderer(err))
 		default:
 			renderError(w, r, common.ErrorInternalServer(err))
 		}
