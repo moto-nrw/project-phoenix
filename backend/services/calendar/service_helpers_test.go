@@ -461,7 +461,7 @@ func TestOccurrenceExistsSparseCountBounded(t *testing.T) {
 		OccurrenceCount: &count,
 	}
 
-	assert.True(t, occurrenceExists(appt, rule, timezone.NewDate(2026, 8, 31)))  // 5th occurrence
+	assert.True(t, occurrenceExists(appt, rule, timezone.NewDate(2026, 8, 31)))   // 5th occurrence
 	assert.False(t, occurrenceExists(appt, rule, timezone.NewDate(2026, 10, 31))) // 6th — beyond count
 	assert.False(t, occurrenceExists(appt, rule, timezone.NewDate(2026, 2, 28)))  // not a rule date
 }
