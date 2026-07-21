@@ -1545,11 +1545,44 @@ export const nfcChapters: readonly GuideChapter[] = [
             image: "/help/screens/nfc-tablet-pin.webp",
             caption: "PIN-Eingabe: 4-stellige PIN über das Zahlenfeld.",
           },
-          {
-            image: "/help/screens/nfc-tablet-menue.webp",
-            caption: "Menü nach erfolgreicher Anmeldung.",
-          },
         ],
+      },
+    ],
+  },
+  {
+    id: "nfc-mitarbeiter-stempeln",
+    title: "Arbeitszeit am Tablet stempeln",
+    description:
+      "Mitarbeitende können mit ihrem persönlichen NFC-Armband ein- und ausstempeln sowie Pausen erfassen. Dafür ist keine Aktivität oder Gruppe nötig.",
+    icon: Clock3,
+    tone: "blue",
+    steps: [
+      {
+        id: "nfc-mitarbeiter-arbeitszeit",
+        title: "Ein-, ausstempeln und Pause erfassen",
+        summary:
+          "Über `Mitarbeiter-Stempeln` liest das Tablet den aktuellen Stand aus und bietet nur die Aktionen an, die gerade möglich sind.",
+        steps: [
+          "Im `Menü` auf `Mitarbeiter-Stempeln` tippen und `Armband scannen` wählen.",
+          "Das persönliche Armband an den NFC-Sensor halten. Kinderarmbänder und nicht zugewiesene Armbänder werden abgewiesen.",
+          "Beim Einstempeln `Vor Ort` oder `Homeoffice` wählen und auf `Einstempeln` tippen.",
+          "Im Zustand `Eingestempelt` entweder `Pause starten` oder `Ausstempeln` wählen.",
+          "Im Zustand `In Pause` die Pause mit `Pause beenden` fortsetzen oder direkt ausstempeln.",
+          "Verlangt der Dienstplan eine Begründung für die Abweichung, den Grund eingeben und den Stempelvorgang erneut bestätigen.",
+        ],
+        callout: {
+          title: "Persönliches Armband erforderlich",
+          body: "Die Zeiterfassung funktioniert nur mit einem aktiven NFC-Armband, das dem jeweiligen Mitarbeitenden zugewiesen ist. Die allgemeine Geräte-PIN identifiziert die Person nicht. Fehlt die Zuweisung, wenden Sie sich an Ihre OGS-Leitung.",
+          tone: "orange",
+        },
+        checklist: [
+          "Nach dem Einstempeln steht der Status auf `Eingestempelt`.",
+          "Eine laufende Pause wird als `In Pause` angezeigt.",
+          "Ab mehr als sechs Stunden Arbeitszeit erscheint der Hinweis zur erforderlichen Pause, solange sie noch nicht vollständig genommen wurde.",
+          "Die Einträge erscheinen parallel in der Zeiterfassung der Web-App mit der Quelle `NFC`.",
+        ],
+        screenshot:
+          "Tablet-Seite Mitarbeiter-Stempeln mit Name, aktuellem Zustand, Arbeitsort-Auswahl und den jeweils erlaubten Aktionen.",
       },
     ],
   },
@@ -1838,7 +1871,6 @@ export const nfcChapters: readonly GuideChapter[] = [
           tone: "gray",
         },
         screenshot: "Tablet-`Menü` mit `Aufsicht beenden` und `Abmelden`.",
-        image: "/help/screens/nfc-tablet-menue.webp",
       },
       {
         id: "nfc-team-anpassen",
