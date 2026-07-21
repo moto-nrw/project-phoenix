@@ -34,6 +34,7 @@ import {
   formatPeriodRange,
   mapPeriodsForDates,
   uniqueAssignedPeriods,
+  weekPatternForDate,
 } from "~/lib/calendar-period-helpers";
 import { getGermanWeekdayShort, toISODate } from "~/lib/timetable-helpers";
 
@@ -210,7 +211,24 @@ export function PeriodSwitcherDropdown({
                         {getGermanWeekdayShort(day)}
                       </span>
                       <span className="min-w-0 flex-1 truncate text-right text-gray-700">
-                        {a.period?.name ?? (
+                        {a.period ? (
+                          <>
+                            {a.period.name}
+                            {/* A/B-Rhythmus sichtbar machen (#1946) */}
+                            {(() => {
+                              const pattern = weekPatternForDate(
+                                a.period,
+                                a.date,
+                              );
+                              return pattern ? (
+                                <span className="text-gray-400">
+                                  {" "}
+                                  · Woche {pattern === 1 ? "A" : "B"}
+                                </span>
+                              ) : null;
+                            })()}
+                          </>
+                        ) : (
                           <span className={timetableWarningText}>
                             Kein aktiver Zeitraum
                           </span>
@@ -253,6 +271,7 @@ export function PeriodSwitcherDropdown({
                         </div>
                         <p className="text-[10px] text-gray-500 tabular-nums">
                           {formatPeriodRange(p)}
+                          {p.weekCycleLength > 1 && " · A/B-Wochen"}
                         </p>
                         {isSelected && (
                           <Check
@@ -294,9 +313,9 @@ export function PeriodSwitcherDropdown({
           >
             <Plus className="h-4 w-4" aria-hidden /> Neuen Zeitraum anlegen
           </Button>
-          {/* Verwaltungslink: /calendar-periods hat keinen Sidebar-Eintrag
-              mehr, die Seite ist über diesen Chip erreichbar
-              (Planung-Redesign, Synthese 1.1). */}
+          {/* Verwaltungslink: /calendar-periods ist auch als Unterpunkt im
+              Planung-Bereich der Sidebar erreichbar (#1946); der Chip bleibt
+              als direkter Weg aus dem Planungskontext. */}
           <Link
             href="/calendar-periods"
             onClick={() => setOpen(false)}

@@ -6,6 +6,8 @@ import { useSession } from "next-auth/react";
 
 import { Settings2 } from "lucide-react";
 
+import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
+import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
 import { DienstplanHalbjahrGrid } from "~/components/staff/dienstplan-halbjahr-grid";
 import { DienstplanResourceGrid } from "~/components/staff/dienstplan-resource-grid";
 import {
@@ -19,6 +21,8 @@ import { Button } from "~/components/ui/button";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
+import { calendarPeriodService } from "~/lib/calendar-period-api";
+import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useDienstplanData } from "~/lib/hooks/use-dienstplan-data";
@@ -102,9 +106,26 @@ function DienstplanContent() {
   const [modal, setModal] = useState<ModalState | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
   const [sickModal, setSickModal] = useState<StaffScheduleStaff | null>(null);
+  const [periodModalOpen, setPeriodModalOpen] = useState(false);
+  const [editingPeriod, setEditingPeriod] = useState<CalendarPeriod | null>(
+    null,
+  );
 
   // Montag der Woche, die `d` enthält.
   const weekAnchor = useMemo(() => startOfWeek(parseISODate(dayISO)), [dayISO]);
+
+  // Kalenderzeiträume für die Zeitraum-Anzeige in der Kontextzeile (#1946).
+  // Gleicher SWR-Key wie der Betreuungsplan, damit beide Ansichten denselben
+  // Cache teilen. Der Endpoint verlangt schedules:read; die Ansicht selbst
+  // ist admin-only (redirect unten), Admins erfüllen das immer.
+  const {
+    data: periods,
+    isLoading: periodsLoading,
+    mutate: mutatePeriods,
+  } = useSWRAuth(
+    sessionStatus === "authenticated" ? "database-calendar-periods-list" : null,
+    () => calendarPeriodService.list(),
+  );
 
   const weekDays = useMemo(() => {
     return Array.from({ length: 5 }, (_, i) => {
@@ -113,6 +134,17 @@ function DienstplanContent() {
       return toISODate(d);
     });
   }, [weekAnchor]);
+
+  // Mo–Fr als Date-Objekte für den PeriodSwitcherDropdown.
+  const weekDayDates = useMemo(
+    () =>
+      Array.from({ length: 5 }, (_, i) => {
+        const d = new Date(weekAnchor);
+        d.setDate(d.getDate() + i);
+        return d;
+      }),
+    [weekAnchor],
+  );
 
   const weekFrom = weekDays[0] ?? "";
   const weekTo = weekDays[4] ?? "";
@@ -356,7 +388,25 @@ function DienstplanContent() {
             Schichtarten verwalten
           </Button>
         }
-      />
+      >
+        {/* Zeitraum-Anzeige (#1946): gleicher Switcher wie im Betreuungsplan,
+            damit der aktive Kalenderzeitraum an einer einheitlichen Stelle
+            sichtbar, wechselbar und verwaltbar ist. */}
+        <PeriodSwitcherDropdown
+          periods={periods ?? []}
+          weekDays={weekDayDates}
+          isLoading={periodsLoading}
+          onCreate={() => {
+            setEditingPeriod(null);
+            setPeriodModalOpen(true);
+          }}
+          onEdit={(period) => {
+            setEditingPeriod(period);
+            setPeriodModalOpen(true);
+          }}
+          onSelect={(period) => updateUrlParams({ d: period.startDate })}
+        />
+      </PlanningContextBar>
 
       {content}
 
@@ -373,6 +423,21 @@ function DienstplanContent() {
           existingReplacements={modal.replacements}
           onClose={() => setModal(null)}
           onSaved={refreshAfterPlanMutation}
+        />
+      )}
+      {periodModalOpen && (
+        <CalendarPeriodModal
+          isOpen
+          initial={editingPeriod}
+          onClose={() => setPeriodModalOpen(false)}
+          onSaved={() => {
+            setPeriodModalOpen(false);
+            void mutatePeriods();
+          }}
+          onDeleted={() => {
+            setPeriodModalOpen(false);
+            void mutatePeriods();
+          }}
         />
       )}
       <ShiftTypeManageModal
