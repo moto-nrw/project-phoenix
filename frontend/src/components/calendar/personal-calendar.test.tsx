@@ -101,6 +101,42 @@ describe("PersonalCalendar", () => {
     expect(onRespond).toHaveBeenCalledWith("42", "declined");
   });
 
+  it("hides weekend days by default and reveals them via the Sa/So toggle", () => {
+    const weekendEvent: CalendarEvent = {
+      id: "appointment:2:2026-01-10",
+      source: "appointment",
+      appointment_id: "2",
+      title: "Wochenend-Termin",
+      start_date: "2026-01-10",
+      end_date: "2026-01-10",
+      start_time: "09:00",
+      end_time: "10:00",
+      all_day: false,
+      can_respond: false,
+      can_edit: false,
+    };
+    render(
+      <PersonalCalendar
+        title="Mein Kalender"
+        events={[appointment, weekendEvent]}
+        weekStart={new Date(2026, 0, 5)}
+        onWeekChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText("Wochenend-Termin")).not.toBeInTheDocument();
+
+    const toggle = screen.getByRole("button", { name: "Sa/So (1)" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(toggle);
+
+    expect(screen.getAllByText("Wochenend-Termin").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Sa/So" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
   it("supports week navigation and create action", () => {
     const onWeekChange = vi.fn();
     const onCreate = vi.fn();
