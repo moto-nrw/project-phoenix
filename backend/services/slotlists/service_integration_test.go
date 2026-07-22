@@ -1740,6 +1740,106 @@ func TestBuildList_SlotListDropsPlannedRowForUnbookedCareDay(t *testing.T) {
 	assert.Equal(t, 1, mensaOption.RowCount, "options planned count must exclude the unbooked child")
 }
 
+// TestBuildList_SlotListUnbookedButPresentIsUnplanned covers the #1565 review
+// P2: a child bulk-assigned to the slot but not booked into care on this weekday
+// who checks in anyway (attendance sync flips the roster row to present) is
+// unplanned presence ("Ungeplant anwesend"), never planned-and-present
+// ("Anwesend"). AttendanceRowCareDay reports unknown for a present row, so the
+// service must key on the raw not_scheduled care-day verdict — exactly as it does
+// for a signed-off (cancelled) child who attends anyway.
+func TestBuildList_SlotListUnbookedButPresentIsUnplanned(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-UpRoom-%d", suffix))
+	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-UpAct-%d", suffix))
+	staff := testpkg.CreateTestStaff(t, db, "SL-UpStaff", fmt.Sprintf("UP-%d", suffix))
+	listKind := activitiesModels.ListKindMensa
+	instance := &scheduleModels.ActivityInstance{
+		Date:            listDate,
+		ActivityGroupID: &activity.ID,
+		Title:           fmt.Sprintf("Mensa %d", suffix),
+		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 13, 0, 0, 0, time.UTC),
+		RoomID:          room.ID,
+		Status:          scheduleModels.InstanceStatusActive, // live: not_scheduled not stamped yet
+		ListKind:        &listKind,
+	}
+	instance.SetTenantID(1)
+	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
+	require.NoError(t, err)
+
+	booked := testpkg.CreateTestStudent(t, db, "SL-UpBooked", fmt.Sprintf("UB-%d", suffix), "5a")
+	unbooked := testpkg.CreateTestStudent(t, db, "SL-UpUnbooked", fmt.Sprintf("UU-%d", suffix), "5a")
+
+	// booked is scheduled on listDate's weekday (Wednesday, ISO 3); unbooked is
+	// only scheduled on Monday (ISO 1) → not_scheduled on Wednesday. Both have a
+	// care plan, so neither is "unknown" (which would stay expected).
+	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	var pickupIDs []int64
+	for _, row := range []*scheduleModels.StudentPickupSchedule{
+		{StudentID: booked.ID, Weekday: 3, PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
+		{StudentID: unbooked.ID, Weekday: 1, PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
+	} {
+		row.SetTenantID(1)
+		require.NoError(t, pickupRepo.Create(ctx, row))
+		pickupIDs = append(pickupIDs, row.ID)
+	}
+
+	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	bookedRow := &scheduleModels.InstanceStudent{
+		InstanceID: instance.ID,
+		StudentID:  booked.ID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+	}
+	bookedRow.SetTenantID(1)
+	require.NoError(t, isRepo.Create(ctx, bookedRow))
+	// The unbooked child checked in: attendance sync flipped the roster row to
+	// present (a timetable PATCH, no active-group visit required — see
+	// TestBuildList_TimetablePresentStatusCountsAsActual).
+	presentRow := &scheduleModels.InstanceStudent{
+		InstanceID: instance.ID,
+		StudentID:  unbooked.ID,
+		Status:     scheduleModels.AttendanceStatusPresent,
+	}
+	presentRow.SetTenantID(1)
+	require.NoError(t, isRepo.Create(ctx, presentRow))
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", bookedRow.ID, presentRow.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_schedules", pickupIDs...)
+		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID)
+		testpkg.CleanupActivityFixtures(t, db, booked.ID, staff.ID)
+		testpkg.CleanupActivityFixtures(t, db, unbooked.ID)
+		testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activity.ID, room.ID)
+	})
+
+	svc := newTestService(db)
+	result, err := svc.BuildList(ctx, slotlists.Params{
+		Date:   listDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+
+	unbookedRow := rowByStudent(result.Rows, unbooked.ID)
+	require.NotNil(t, unbookedRow, "an unbooked-but-present child stays on the reconciliation list")
+	assert.True(t, unbookedRow.Present, "the child physically attended")
+	assert.True(t, unbookedRow.Unplanned, "attendance on an unbooked day is unplanned presence")
+	assert.False(t, unbookedRow.Planned, "a child the plan never booked is not planned-and-present")
+	assert.Equal(t, "Ungeplant anwesend", unbookedRow.StatusLabel)
+
+	bookedResult := rowByStudent(result.Rows, booked.ID)
+	require.NotNil(t, bookedResult, "the booked child is still surfaced")
+	assert.Equal(t, "Fehlt", bookedResult.StatusLabel)
+
+	assert.Equal(t, 1, result.Counters.Unplanned, "only the unbooked walk-in counts as unplanned")
+	assert.Equal(t, 1, result.Counters.Present, "the walk-in is present")
+	assert.Equal(t, 1, result.Counters.Missing, "only the booked no-show counts as Fehlt")
+}
+
 // A broad sick/excused status day stamps every expected roster row of the day
 // as absent — including days the care plan never booked the child into care. On
 // such a not-scheduled day the row (status=absent, owned by the status day via

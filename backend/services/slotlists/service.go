@@ -955,18 +955,44 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 						Present:    true,
 					})
 				}
-			case verdict == scheduleSvc.CareDayNotScheduled && !present:
+			case row.ManualStatusAt == nil && careDay[row.StudentID] == scheduleSvc.CareDayNotScheduled:
 				// #1747/#1565 review: the care plan never booked this child into
-				// the OGS on this weekday. The row may still read Expected (the
-				// not_scheduled marker is only frozen when the block ends) or
-				// already carry an absent status a broad sick/excused status day
-				// stamped onto a day the child was never scheduled — either way it
-				// is not a genuine expectation and must not print as
-				// planned/"Fehlt"/"Abgemeldet". Drop it and leave the child unseen
-				// so a live visit can still surface them as unplanned below. A
-				// signed-off (cancelled) booked day is handled next and stays
-				// "Abgemeldet".
-				continue
+				// the OGS on this weekday. Key on the raw care-day verdict, not the
+				// status-gated `verdict` above, exactly as the cancellation branch
+				// below does: a real check-in flips the row to present and
+				// AttendanceRowCareDay then reports unknown (a real status tells its
+				// own story), so keying on `verdict` here would lose the non-booking
+				// and mislabel a bulk-assigned walk-in as "geplant & anwesend"
+				// instead of "ungeplant anwesend". The row may read Expected (the
+				// not_scheduled marker is only frozen when the block ends), already
+				// be present, or carry an absent status a broad sick/excused status
+				// day stamped onto a day the child was never scheduled. None of
+				// those is a genuine expectation, so none may print as
+				// planned/"Fehlt"/"Abgemeldet": drop it and leave the child unseen so
+				// a live visit still surfaces them as unplanned-present below (an
+				// absence on an unbooked day shows nowhere). A manual override
+				// (ManualStatusAt) still wins and is excluded here, and a signed-off
+				// (cancelled) booked day is handled next and stays "Abgemeldet". The
+				// frozen not_scheduled marker on a completed block, where the live
+				// verdict may since have diverged, is handled by the
+				// Expected/!verdict.Expected() case below.
+				//
+				// Emit the present-only row directly rather than deferring to the
+				// present loop: on the slot path `present` can come from a timetable
+				// PATCH (row status) with no active-group visit, and the present loop
+				// only re-surfaces visit-derived presence — deferring would drop such
+				// a child entirely instead of showing "ungeplant anwesend". This
+				// mirrors the IsUnplanned branch above.
+				seenPlanned[row.StudentID] = struct{}{}
+				if present {
+					entries = append(entries, mergedEntry{
+						StudentID:  row.StudentID,
+						InstanceID: inst.ID,
+						SlotLabel:  slotLabel,
+						RoomName:   roomName,
+						Present:    true,
+					})
+				}
 			case row.ManualStatusAt == nil && careDay[row.StudentID] == scheduleSvc.CareDayCancelled:
 				// #1747/#1565 review: a "Kommt heute nicht" cancelled the booked
 				// day. The cancellation is care-plan evidence that outlives the
@@ -1001,10 +1027,14 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 					})
 				}
 			case row.Status == scheduleModel.AttendanceStatusExpected && !verdict.Expected():
-				// #1747 non-booking (not_scheduled): the care plan did not place the
-				// child in the OGS on this date — the frozen not_scheduled marker or
-				// the live derivation from a whole-group/year assignment. Not a
-				// genuine expectation — skip, and leave the student unseen so a live
+				// #1747 non-booking safety net for a COMPLETED block: ending the slot
+				// froze the not_scheduled marker into the row, so AttendanceRowCareDay
+				// keeps returning not_scheduled from that frozen flag even if the live
+				// care plan has since changed (reading the current plan on a finished
+				// day would let a later edit relabel it). The live-derivation
+				// non-booking on an active block is already handled by the raw
+				// care-day case above; here the frozen verdict is authoritative. Not a
+				// genuine expectation: skip, and leave the student unseen so a live
 				// visit can still surface them as unplanned below.
 				continue
 			case row.NotScheduled:
