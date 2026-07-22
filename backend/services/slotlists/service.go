@@ -818,9 +818,10 @@ type mergedEntry struct {
 }
 
 // collectSlotEntries derives the cohort from materialized activity instances
-// (Plan) and their bridged active-group visits (Ist). A visit counts as present
-// when it overlaps the slot's Berlin-local time window, so historical
-// checked-out visits remain valid evidence for past lists. A cancelled slot
+// (Plan) and their bridged active-group visits (Ist). Every visit reachable
+// through the occurrence's 1:1 active-group bridge counts as present, including
+// historical checked-out visits and sessions run outside the planned window, so
+// past lists and late/early starts keep their attendance. A cancelled slot
 // that never started produces no rows (selectable context only), but one that
 // was cancelled *after* running keeps the visits recorded during its brief run
 // as present rows — its void plan is dropped so no planned no-show prints as
@@ -1190,9 +1191,18 @@ func (s *service) lookupRoomName(ctx context.Context, roomID int64, cache map[in
 	return room.Name, nil
 }
 
-// loadPresentStudents returns the set of students with a visit that overlaps
-// the instance's Berlin-local slot window. A slot that has not started has no
-// active group and therefore no presence evidence.
+// loadPresentStudents returns the set of students with a visit under the
+// instance's bridged active.group. The bridge is 1:1 (a UNIQUE partial index on
+// schedule.activity_instances.active_group_id) and the active.group is created
+// fresh when the occurrence is started, so every visit reachable through it is
+// this occurrence's own attendance — it is deliberately NOT time-filtered
+// against the planned window. Staff may Start an instance late, or start and
+// complete it early: InstanceService.Start permits the transition regardless of
+// the nominal StartTime/EndTime, which pushes those visits wholly outside the
+// scheduled window. Comparing them to the planned times would drop documented
+// attendance, omitting present children from Ist lists and printing attended
+// children as "Fehlt" in the Abgleich (#1565 review pass 2). A slot that has not
+// started has no active group and therefore no presence evidence.
 func (s *service) loadPresentStudents(ctx context.Context, inst *scheduleModel.ActivityInstance) (map[int64]bool, error) {
 	present := map[int64]bool{}
 	if inst.ActiveGroupID == nil {
@@ -1203,22 +1213,12 @@ func (s *service) loadPresentStudents(ctx context.Context, inst *scheduleModel.A
 		return nil, err
 	}
 	for _, visit := range visits {
-		if visitOverlapsInstance(visit, inst) {
-			present[visit.StudentID] = true
+		if visit == nil {
+			continue
 		}
+		present[visit.StudentID] = true
 	}
 	return present, nil
-}
-
-func visitOverlapsInstance(visit *activeModel.Visit, inst *scheduleModel.ActivityInstance) bool {
-	if visit == nil || inst == nil {
-		return false
-	}
-	start, end := instanceTimeRange(inst)
-	if !visit.EntryTime.Before(end) {
-		return false
-	}
-	return visit.ExitTime == nil || visit.ExitTime.After(start)
 }
 
 // beforeEffectiveArrival reports whether the service clock is still earlier than

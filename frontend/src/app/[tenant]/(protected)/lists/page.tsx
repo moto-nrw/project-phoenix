@@ -196,6 +196,10 @@ interface InitialListState {
   selectedSlotIds: string[] | null;
   selectedGroupIds: string[] | null;
   selectedClasses: string[] | null;
+  // True when an id filter param (gruppen/angebote) is present in the URL but
+  // contains no usable id — a corrupted or hand-edited link. The page refuses
+  // it instead of silently widening the list (see isCorruptIdParam).
+  filterLinkInvalid: boolean;
 }
 
 function statusColor(row: SlotListRow, source: SlotListSource): string {
@@ -324,6 +328,25 @@ function parseIdList(
   return ids.length > 0 ? ids : null;
 }
 
+// isCorruptIdParam reports whether an id filter param is present but resolves to
+// no usable id — e.g. a copied URL with `gruppen=-1` or `angebote=0`.
+// parseIdList returns null for BOTH "param absent" and "param present but every
+// token invalid", and null reads as "no restriction" everywhere downstream: for
+// a group filter that would silently widen a confidential single-group export to
+// the whole cohort (the backend treats an empty group set as no restriction),
+// and for a manual slot filter it would fall back to every active offering.
+// Detecting the corrupted-link case lets the page reject it rather than export a
+// broadened, named-student list (#1565 review pass 3). A partially-invalid param
+// (e.g. `gruppen=5,-1`) keeps its valid subset and is NOT treated as corrupt.
+function isCorruptIdParam(
+  value: string | null,
+  emptyToken: string | null = null,
+): boolean {
+  if (!value) return false; // absent → legitimately unrestricted
+  if (emptyToken && value === emptyToken) return false; // explicit empty selection
+  return parseIdList(value, emptyToken) === null; // present but nothing valid
+}
+
 // Class names are free-form backend text and may contain commas (e.g.
 // "1a, bilingual"), so they cannot share a comma-delimited param with other
 // classes — a single class would round-trip as two nonexistent filters, which
@@ -388,10 +411,17 @@ function parseInitialListState(
     selectedSlotIds: parseIdList(searchParams.get("angebote"), "keine"),
     selectedGroupIds: parseIdList(searchParams.get("gruppen")),
     selectedClasses: parseClassList(searchParams.getAll("klassen")),
+    filterLinkInvalid:
+      isCorruptIdParam(searchParams.get("gruppen")) ||
+      isCorruptIdParam(searchParams.get("angebote"), "keine"),
   };
 }
 
-function serializeListState(state: InitialListState): string {
+// filterLinkInvalid is a parse-time diagnostic only, never serialized back into
+// the URL, so serialize operates on the state minus that field.
+function serializeListState(
+  state: Omit<InitialListState, "filterLinkInvalid">,
+): string {
   const params = new URLSearchParams();
   params.set("datum", state.dateISO);
 
@@ -469,6 +499,13 @@ export default function SlotListsPage() {
   );
   const [selectedClasses, setSelectedClasses] = useState<string[] | null>(
     initialState.selectedClasses,
+  );
+  // A corrupted id filter in the URL (see isCorruptIdParam) blocks the preview
+  // and exports instead of running a silently-widened query. It self-clears on
+  // the next filter/date/source change: the bad param never round-trips back
+  // into the URL because the parsed selection is already null.
+  const [filterLinkInvalid, setFilterLinkInvalid] = useState<boolean>(
+    initialState.filterLinkInvalid,
   );
   const [listOptions, setListOptions] = useState<SlotListOptionsResult | null>(
     null,
@@ -627,6 +664,7 @@ export default function SlotListsPage() {
     setSelectedClasses((prev) =>
       sameStringList(prev, next.selectedClasses) ? prev : next.selectedClasses,
     );
+    setFilterLinkInvalid(next.filterLinkInvalid);
   }, [searchParams]);
 
   const pickupOptionByCohort = useMemo(() => {
@@ -782,6 +820,18 @@ export default function SlotListsPage() {
 
   useEffect(() => {
     if (authStatus !== "authenticated" || timetableDisabled) return;
+    // A corrupted id filter in the URL must not run a silently-widened query.
+    // Clear the result (which also disables the export buttons) and surface an
+    // invalid-link message instead of previewing/exporting every group or slot
+    // (#1565 review pass 3). Checked before the awaitingActiveSlots gate below.
+    if (filterLinkInvalid) {
+      setResult(null);
+      setError(
+        "Dieser Link enthält einen ungültigen Filter und wurde nicht angewendet. Bitte Filter zurücksetzen oder die Liste erneut öffnen.",
+      );
+      setIsLoading(false);
+      return;
+    }
     // Hold the preview (and, via the cleared result, print/download) until the
     // active slot set resolves — see awaitingActiveSlots. The effect re-fires
     // when activeInstanceIds lands, because it feeds `request`. Clearing the
@@ -837,6 +887,7 @@ export default function SlotListsPage() {
     timetableDisabled,
     awaitingActiveSlots,
     optionsError,
+    filterLinkInvalid,
   ]);
 
   // We deliberately do NOT reconcile stale group/class URL filters against the
@@ -900,6 +951,9 @@ export default function SlotListsPage() {
       // cancelled-but-started slots the UI excludes (#1565 review pass 1). The
       // buttons are already disabled in this window; this is defense in depth.
       if (awaitingActiveSlots) return;
+      // Never export a silently-widened list from a corrupted filter link. The
+      // buttons are disabled while no result exists; this is defense in depth.
+      if (filterLinkInvalid) return;
       setIsExporting(true);
       setError(null);
       try {
@@ -915,7 +969,7 @@ export default function SlotListsPage() {
         setIsExporting(false);
       }
     },
-    [request, awaitingActiveSlots],
+    [request, awaitingActiveSlots, filterLinkInvalid],
   );
 
   // Standard filter row, rendered via the shared DesktopFilters component.

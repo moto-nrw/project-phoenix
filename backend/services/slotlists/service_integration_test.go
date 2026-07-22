@@ -329,6 +329,94 @@ func TestBuildList_MensaReconciliation(t *testing.T) {
 	assert.True(t, walkInRow.Unplanned)
 }
 
+// TestBuildList_VisitOutsideNominalWindowCountsPresent proves that a visit
+// recorded by an occurrence run outside its planned StartTime/EndTime still
+// counts as attendance. InstanceService.Start permits starting an instance late
+// (or starting and completing it early) regardless of the nominal times and
+// stamps the bridged active.group with the real start instant; the bridge is
+// 1:1, so every visit under it is this occurrence's own attendance. A
+// nominal-time overlap filter would drop the visit here, omitting a present
+// child from Ist and printing an attended child as "Fehlt" in the Abgleich
+// (#1565 review pass 2). The instance window is 11:30–13:00 but the visit runs
+// 13:30–14:00 — wholly after the planned end, as for a late start.
+func TestBuildList_VisitOutsideNominalWindowCountsPresent(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-LateRoom-%d", suffix))
+	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-LateAct-%d", suffix))
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	listKind := activitiesModels.ListKindMensa
+
+	instance := &scheduleModels.ActivityInstance{
+		Date:            listDate,
+		ActivityGroupID: &activity.ID,
+		Title:           fmt.Sprintf("Mensa spät %d", suffix),
+		StartTime:       time.Date(1, 1, 1, 11, 30, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 13, 0, 0, 0, time.UTC),
+		RoomID:          room.ID,
+		Status:          scheduleModels.InstanceStatusActive,
+		ActiveGroupID:   &activeGroup.ID,
+		ListKind:        &listKind,
+	}
+	instance.SetTenantID(1)
+	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
+	require.NoError(t, err)
+
+	attended := testpkg.CreateTestStudent(t, db, "SL-LateAttended", fmt.Sprintf("LA-%d", suffix), "3a")
+	absent := testpkg.CreateTestStudent(t, db, "SL-LateAbsent", fmt.Sprintf("LB-%d", suffix), "3a")
+
+	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	var instanceStudentIDs []int64
+	for _, studentID := range []int64{attended.ID, absent.ID} {
+		row := &scheduleModels.InstanceStudent{
+			InstanceID: instance.ID,
+			StudentID:  studentID,
+			Status:     scheduleModels.AttendanceStatusExpected,
+		}
+		row.SetTenantID(1)
+		require.NoError(t, isRepo.Create(ctx, row))
+		instanceStudentIDs = append(instanceStudentIDs, row.ID)
+	}
+
+	// Entry 13:30, exit 14:00 — the whole visit falls AFTER the nominal
+	// 11:30–13:00 window, exactly what a late Start produces.
+	entry := atOn(listDate, 13, 30)
+	exit := atOn(listDate, 14, 0)
+	visit := testpkg.CreateTestVisit(t, db, attended.ID, activeGroup.ID, entry, &exit)
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", instanceStudentIDs...)
+		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID)
+		testpkg.CleanupActivityFixtures(t, db, attended.ID)
+		testpkg.CleanupActivityFixtures(t, db, absent.ID)
+		testpkg.CleanupTableRecords(t, db, "active.groups", activeGroup.ID)
+		testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activity.ID, room.ID)
+	})
+
+	svc := newTestService(db)
+	result, err := svc.BuildList(ctx, slotlists.Params{
+		Date:   listDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+
+	attendedRow := rowByStudent(result.Rows, attended.ID)
+	require.NotNil(t, attendedRow, "a child attending a late-started slot must stay on the list")
+	assert.True(t, attendedRow.Present,
+		"a visit recorded outside the planned window must still count as present")
+	assert.Equal(t, "Anwesend", attendedRow.StatusLabel)
+
+	absentRow := rowByStudent(result.Rows, absent.ID)
+	require.NotNil(t, absentRow)
+	assert.False(t, absentRow.Present)
+	assert.Equal(t, "Fehlt", absentRow.StatusLabel)
+}
+
 // TestBuildList_CancelledFromActiveRetainsAttendance proves that a slot
 // cancelled AFTER it ran keeps the visits recorded during its brief run as
 // present rows, while its now-void plan produces no "Fehlt". InstanceService.Cancel
