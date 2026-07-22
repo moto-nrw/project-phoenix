@@ -340,6 +340,51 @@ describe("TimeTrackingService", () => {
     });
   });
 
+  describe("getClosingDays", () => {
+    it("sends the date range and expands ranges day-wise", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "",
+        data: [
+          {
+            start_date: "2026-12-24",
+            end_date: "2026-12-26",
+            reason: "Weihnachtsschließung",
+          },
+        ],
+      });
+
+      const result = await timeTrackingService.getClosingDays(
+        "2026-12-01",
+        "2026-12-31",
+      );
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/time-tracking/closing-days?from=2026-12-01&to=2026-12-31",
+        expect.objectContaining({ method: "GET" }),
+      );
+      expect(result).toEqual(
+        new Map([
+          ["2026-12-24", "Weihnachtsschließung"],
+          ["2026-12-25", "Weihnachtsschließung"],
+          ["2026-12-26", "Weihnachtsschließung"],
+        ]),
+      );
+    });
+
+    it("returns an empty map when the backend returns null", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "",
+        data: null,
+      });
+
+      await expect(
+        timeTrackingService.getClosingDays("2026-12-01", "2026-12-31"),
+      ).resolves.toEqual(new Map());
+    });
+  });
+
   describe("updateSession", () => {
     it("sends PUT with updates and returns mapped session", async () => {
       global.fetch = mockFetchResponse({
