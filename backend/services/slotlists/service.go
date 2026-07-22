@@ -584,14 +584,28 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 			if _, ok := readable[row.StudentID]; !ok {
 				continue
 			}
-			verdict := scheduleSvc.AttendanceRowCareDay(completedByInstance[row.InstanceID], row, careDays[row.StudentID])
-			// Mirror collectSlotEntries: a genuine non-booking (not_scheduled) —
-			// whether the row still reads Expected or was already stamped absent by
-			// a broad status day on a day the child was never scheduled — is not a
-			// planned row and must not be counted. A signed-off cancellation IS
-			// retained there as a planned "Abgemeldet" row, so it must count here
-			// too, otherwise /options underreports the classified list versus
-			// preview/export (#1565 review).
+			completed := completedByInstance[row.InstanceID]
+			// Mirror collectSlotEntries exactly, including its RAW care-day
+			// handling on unfinished occurrences: a bulk-assigned child who is not
+			// booked for the weekday but checks in flips the row to present, so
+			// AttendanceRowCareDay reports unknown (a real status tells its own
+			// story). collectSlotEntries drops that row as present-only/unplanned
+			// via the raw `CareDayNotScheduled` branch, so keying the count on the
+			// status-gated verdict alone would claim a planned child the Plan
+			// preview and export omit (#1565 review). A manual override still wins,
+			// and a completed occurrence trusts its frozen marker (folded into
+			// AttendanceRowCareDay below), never the live plan.
+			if !completed && row.ManualStatusAt == nil &&
+				careDays[row.StudentID] == scheduleSvc.CareDayNotScheduled {
+				continue
+			}
+			verdict := scheduleSvc.AttendanceRowCareDay(completed, row, careDays[row.StudentID])
+			// A genuine non-booking (not_scheduled) — whether the row still reads
+			// Expected or was already stamped absent by a broad status day on a day
+			// the child was never scheduled — is not a planned row and must not be
+			// counted. A signed-off cancellation IS retained in collectSlotEntries
+			// as a planned "Abgemeldet" row, so it must count here too, otherwise
+			// /options underreports the classified list versus preview/export.
 			if verdict == scheduleSvc.CareDayNotScheduled {
 				continue
 			}
@@ -857,7 +871,14 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 		// Plan/Ist are unaffected (Plan still lists the expected children, Ist is
 		// legitimately empty), and a future *date* is refused outright in
 		// BuildList — this is the per-slot case on today.
-		if params.Source == SourceReconciliation {
+		//
+		// Gate this strictly on occurrences that have NOT actually started: a
+		// slot Start()ed manually before its nominal time already carries an
+		// ActiveGroupID and visits, so loadPresentStudents returns real presence
+		// and the Abgleich must show the children currently attending it. Only an
+		// occurrence with no active group has no attendance evidence to lose, so
+		// only that one is deferred (#1565 review).
+		if params.Source == SourceReconciliation && inst.ActiveGroupID == nil {
 			if start, _ := instanceTimeRange(inst); s.currentTime().Before(start) {
 				// Remember the deferral so the export "Enthalten" summary does not
 				// count a slot the merge produced no rows for (#1565 review).
@@ -955,7 +976,7 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 						Present:    true,
 					})
 				}
-			case row.ManualStatusAt == nil && careDay[row.StudentID] == scheduleSvc.CareDayNotScheduled:
+			case !completed && row.ManualStatusAt == nil && careDay[row.StudentID] == scheduleSvc.CareDayNotScheduled:
 				// #1747/#1565 review: the care plan never booked this child into
 				// the OGS on this weekday. Key on the raw care-day verdict, not the
 				// status-gated `verdict` above, exactly as the cancellation branch
@@ -972,10 +993,20 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 				// a live visit still surfaces them as unplanned-present below (an
 				// absence on an unbooked day shows nowhere). A manual override
 				// (ManualStatusAt) still wins and is excluded here, and a signed-off
-				// (cancelled) booked day is handled next and stays "Abgemeldet". The
-				// frozen not_scheduled marker on a completed block, where the live
-				// verdict may since have diverged, is handled by the
-				// Expected/!verdict.Expected() case below.
+				// (cancelled) booked day is handled next and stays "Abgemeldet".
+				//
+				// This RAW-verdict branch is confined to UNFINISHED occurrences
+				// (`!completed`): the live care-day derivation reads today's
+				// recurring arrival/pickup plan, which is not historized, so on a
+				// completed historical slot it may have drifted from what was true
+				// then. Ending the block already froze the authoritative verdict —
+				// not_scheduled onto the children it spared, real absences onto the
+				// booked no-shows — so a completed slot must trust that frozen state
+				// (handled by the Expected/!verdict.Expected() and default cases
+				// below), never the live plan. Without this gate a post-hoc care-plan
+				// edit could relabel a then-planned present child as unplanned, or
+				// make a then-planned absence vanish, making past Plan/Abgleich
+				// exports depend on today's schedule (#1565 review).
 				//
 				// Emit the present-only row directly rather than deferring to the
 				// present loop: on the slot path `present` can come from a timetable
