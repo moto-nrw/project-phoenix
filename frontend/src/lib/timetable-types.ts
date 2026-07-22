@@ -531,6 +531,7 @@ export type EditedChange =
   | "time"
   | "staff"
   | "students"
+  | "list_kind"
   | "deleted";
 
 /** One planned occurrence that was individually adjusted vs its template.
@@ -758,8 +759,16 @@ export interface CreateTemplateBody {
 
 export type UpdateTemplateBody = Omit<
   CreateTemplateBody,
-  "materialize_from" | "materialize_to"
->;
+  "materialize_from" | "materialize_to" | "list_kind"
+> & {
+  /**
+   * Listenart classification. A value sets it; explicit `null` clears it. On the
+   * split ("Diesen und folgende") endpoint, omitting the field keeps the existing
+   * classification while `null` clears it — so a cleared Listenart MUST send
+   * `null`, not `undefined`, to be honored (#1565).
+   */
+  list_kind?: TimetableListKind | null;
+};
 
 export interface CreateTemplateResult {
   templateId: string;

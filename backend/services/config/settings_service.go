@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -497,6 +499,22 @@ func (s *settingsService) validateSlotListCutoffPair(ctx context.Context, key st
 		// A non-string or empty value falls back to the registry default, which
 		// is a valid pair; format errors are already caught by validateValue.
 		return nil
+	}
+	// Serialize the read-validate-write of the cutoff pair against a concurrent
+	// write of the sibling cutoff (#1565 review). Without this, two requests that
+	// both start from a valid pair each read the OLD sibling, both pass this
+	// check, and then commit an inverted pair (e.g. short=15:30 alongside
+	// long=15:00) that 500s every pickup list, preview and export. The
+	// transaction-scoped advisory lock — held until the request tx commits after
+	// the upsert — forces the second writer to block, then read the first's
+	// committed value and reject. Best-effort: without an ambient transaction the
+	// xact lock is meaningless (the settings write path always has one, since the
+	// RLS-scoped repos require a tenant tx), so we skip it rather than fail.
+	if _, hasTx := modelBase.TxFromContext(ctx); hasTx {
+		lockKey := fmt.Sprintf("slot-list-cutoff:%d", tenant.FromContext(ctx))
+		if err := base.AcquireXactLock(ctx, s.db, lockKey); err != nil {
+			return fmt.Errorf("lock Ganztag cutoff pair: %w", err)
+		}
 	}
 	short, long := newVal, newVal
 	var err error

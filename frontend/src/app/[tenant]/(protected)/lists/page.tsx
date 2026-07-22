@@ -17,6 +17,7 @@ import {
   Utensils,
   type LucideIcon,
 } from "lucide-react";
+import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { BackButton } from "~/components/ui/back-button";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -25,6 +26,8 @@ import { Loading } from "~/components/ui/loading";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { DesktopFilters } from "~/components/ui/page-header/DesktopFilters";
 import type { FilterConfig } from "~/components/ui/page-header/types";
+import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
+import { getSettingValue } from "~/lib/settings-api";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
   berlinTodayISO,
@@ -410,6 +413,17 @@ export default function SlotListsPage() {
   const { status: authStatus } = useSession({ required: true });
   const searchParams = useSearchParams();
   const router = useTenantRouter();
+  // Route guard: Tageslisten are part of the timetable feature, so an explicit
+  // timetable.enabled=false hides the page just like the Betreuungsplan/Vertretung
+  // guards and the sidebar (#1565 review). getSettingValue returns undefined when
+  // the user cannot read settings, so the page renders normally by default.
+  const { data: settingsSchema, isLoading: settingsSchemaLoading } =
+    useSettingsSchema(authStatus === "authenticated", {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    });
+  const timetableDisabled =
+    getSettingValue(settingsSchema, "timetable.enabled") === false;
   const initialState = useMemo(
     () => parseInitialListState(searchParams),
     [searchParams],
@@ -623,7 +637,7 @@ export default function SlotListsPage() {
   );
 
   useEffect(() => {
-    if (authStatus !== "authenticated") return;
+    if (authStatus !== "authenticated" || timetableDisabled) return;
     let cancelled = false;
     // Drop the previous date's options immediately. They stay rendered and
     // selectable until this request resolves otherwise, and on a slow response
@@ -650,10 +664,10 @@ export default function SlotListsPage() {
     return () => {
       cancelled = true;
     };
-  }, [authStatus, dateISO]);
+  }, [authStatus, dateISO, timetableDisabled]);
 
   useEffect(() => {
-    if (authStatus !== "authenticated") return;
+    if (authStatus !== "authenticated" || timetableDisabled) return;
     let cancelled = false;
     setIsLoading(true);
     setError(null);
@@ -682,7 +696,7 @@ export default function SlotListsPage() {
     return () => {
       cancelled = true;
     };
-  }, [authStatus, request]);
+  }, [authStatus, request, timetableDisabled]);
 
   // Reconcile stale URL filters against the date's actual options. result.groups
   // / result.classes are the unfiltered option set for the cohort, so a
@@ -875,8 +889,19 @@ export default function SlotListsPage() {
     return cols;
   }, [isPickupBased, source]);
 
-  if (authStatus === "loading") {
+  if (authStatus === "loading" || settingsSchemaLoading) {
     return <Loading fullPage={false} />;
+  }
+
+  if (timetableDisabled) {
+    return (
+      <PlanningDisabledState
+        pageTitle="Tageslisten"
+        heading="Tageslisten sind deaktiviert"
+        description="Tageslisten gehören zum Betreuungsplan, der für diese Schule ausgeschaltet ist. Er kann in den Einstellungen unter „Betrieb“ wieder aktiviert werden."
+        testId="slot-lists-disabled-state"
+      />
+    );
   }
 
   const selectedOption = SELECTION_OPTIONS.find(

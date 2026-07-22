@@ -1065,9 +1065,13 @@ export function useEventForm({
     return {
       name: form.title.trim(),
       type: template.type,
-      // Preserve the series' Listenart (#1565) — an instance-scope edit never
-      // changes the series classification.
-      list_kind: template.listKind,
+      // Apply the Listenart the user chose in the form to the whole scope
+      // ("Alle Termine" / "Diesen und folgende") — it is one of the fields the
+      // occurrence form edits, like title and time. `|| null` sends an explicit
+      // clear so a cleared Listenart is honored on the split endpoint (which
+      // otherwise keeps the old value on an omitted field) and not silently
+      // reverted to the template's classification (#1565 review).
+      list_kind: form.listKind || null,
       weekdays: weekdays.length > 0 ? weekdays : [1],
       start_time: form.startTime,
       end_time: form.endTime,

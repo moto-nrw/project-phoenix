@@ -27,6 +27,12 @@ const (
 	EditedChangeTime        = "time"
 	EditedChangeStaff       = "staff"
 	EditedChangeStudents    = "students"
+	// EditedChangeListKind marks a per-occurrence Listenart override (#1565): the
+	// occurrence's list_kind diverges from what the template would materialize. A
+	// series re-plan copies list_kind from the template, so this single-occurrence
+	// classification is discarded exactly like a title or room edit — it must be
+	// reported so the lost-edits warning covers it.
+	EditedChangeListKind = "list_kind"
 	// EditedChangeDeleted marks a date whose occurrence was individually deleted
 	// (a cancelled exception). A same-template re-plan preserves it, but a
 	// following-series split rematerializes it under the successor template, so
@@ -167,6 +173,13 @@ func (s *materializationService) DetectEditedInWindow(
 				studentsByInstance[inst.ID],
 				expected,
 			)
+			// Listenart is a template-level field materialization copies verbatim
+			// onto every occurrence, so it is compared here (template vs occurrence)
+			// rather than per-slot inside diffOccurrence (#1565 review).
+			if !sameListKind(inst.ListKind, tmpl.ListKind) {
+				changes = append(changes, EditedChangeListKind)
+				sort.Strings(changes)
+			}
 			if len(changes) == 0 {
 				continue
 			}
@@ -392,6 +405,21 @@ func diffOccurrence(
 
 	sort.Strings(changes)
 	return changes
+}
+
+// sameListKind reports whether two optional list_kind values are equivalent,
+// treating nil and the empty string as the same "no classification" so an
+// occurrence that merely omits the field is not flagged against a template that
+// stores "".
+func sameListKind(a, b *string) bool {
+	av, bv := "", ""
+	if a != nil {
+		av = *a
+	}
+	if b != nil {
+		bv = *b
+	}
+	return av == bv
 }
 
 // sameClock compares two times on their wall-clock components only.

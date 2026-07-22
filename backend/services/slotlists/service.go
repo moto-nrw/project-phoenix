@@ -44,6 +44,15 @@ const timeLayout = "15:04"
 // — only pickup cohorts are refused. The handler maps this to HTTP 400.
 var ErrPickupCohortPastDate = errors.New("Ganztag-Listen sind nur für heute und künftige Tage verfügbar")
 
+// ErrReconciliationFutureDate is returned when an Abgleich (reconciliation) list
+// is requested for a strictly-future date. Reconciliation compares the plan
+// against documented presence, and a future day has no presence evidence yet, so
+// every planned child would fall through to "Fehlt" — a printable list claiming
+// the whole group is missing before the day has even started (#1565 review). Plan
+// and Ist lists stay available for future dates; only the merge is refused. The
+// handler maps this to HTTP 400.
+var ErrReconciliationFutureDate = errors.New("Ein Abgleich ist nur für heute und vergangene Tage möglich, nicht für künftige Tage")
+
 // Service builds slot lists for preview (JSON) and export (PDF/XLSX).
 type Service interface {
 	BuildList(ctx context.Context, params Params) (*Result, error)
@@ -389,6 +398,14 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 	// backwards. Slot-based lists stay available for any date (#1565 review).
 	if params.Target == TargetPickupCohort && params.Date.Before(timezone.TodayDate()) {
 		return nil, ErrPickupCohortPastDate
+	}
+	// A reconciliation on a strictly-future date has no presence evidence to merge
+	// against, so every planned child would be labelled "Fehlt". Refuse it rather
+	// than emit a list that reports the whole group missing before the day starts
+	// (#1565 review). Today is fine — evidence accrues through the day; Plan/Ist
+	// stay available for any date.
+	if params.Source == SourceReconciliation && params.Date.After(timezone.TodayDate()) {
+		return nil, ErrReconciliationFutureDate
 	}
 	access, err := s.resolveStudentReadAccess(ctx)
 	if err != nil {
@@ -860,12 +877,34 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 						Present:    true,
 					})
 				}
+			case row.Status == scheduleModel.AttendanceStatusExpected && verdict == scheduleSvc.CareDayCancelled:
+				// #1747/#1565 review: a same-day "Kommt heute nicht" cancelled the
+				// booked day. Unlike a genuine non-booking, the day WAS booked and the
+				// child signed off, so a no-show belongs on the list as "Abgemeldet"
+				// (the exact registered-absence shape the pickup path renders), never
+				// silently dropped like not_scheduled. If the child attended anyway,
+				// leave them unseen so the presence loop below surfaces them as
+				// unplanned-present — matching the prior behaviour for that case.
+				if !present {
+					seenPlanned[row.StudentID] = struct{}{}
+					cancelledSubstatus := string(scheduleSvc.CareDayCancelled)
+					entries = append(entries, mergedEntry{
+						StudentID:        row.StudentID,
+						InstanceID:       inst.ID,
+						SlotLabel:        slotLabel,
+						RoomName:         roomName,
+						Planned:          true,
+						Present:          false,
+						PlannedStatus:    scheduleModel.AttendanceStatusAbsent,
+						PlannedSubstatus: &cancelledSubstatus,
+					})
+				}
 			case row.Status == scheduleModel.AttendanceStatusExpected && !verdict.Expected():
-				// #1747 non-booking: the care plan did not place the child in the
-				// OGS on this date — either the frozen not_scheduled marker or the
-				// live derivation from a whole-group/year assignment. Not a
-				// genuine expectation — skip, and leave the student unseen so a
-				// live visit can still surface them as unplanned below.
+				// #1747 non-booking (not_scheduled): the care plan did not place the
+				// child in the OGS on this date — the frozen not_scheduled marker or
+				// the live derivation from a whole-group/year assignment. Not a
+				// genuine expectation — skip, and leave the student unseen so a live
+				// visit can still surface them as unplanned below.
 				continue
 			case row.NotScheduled:
 				// Unbooked day the system decided anyway (checked in, or an

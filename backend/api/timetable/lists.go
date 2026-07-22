@@ -161,7 +161,8 @@ func (rs *Resource) previewSlotList(w http.ResponseWriter, r *http.Request) {
 
 	result, err := rs.SlotListsService.BuildList(r.Context(), params)
 	if err != nil {
-		if errors.Is(err, slotlists.ErrPickupCohortPastDate) {
+		if errors.Is(err, slotlists.ErrPickupCohortPastDate) ||
+			errors.Is(err, slotlists.ErrReconciliationFutureDate) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
@@ -199,7 +200,8 @@ func (rs *Resource) exportSlotList(w http.ResponseWriter, r *http.Request) {
 
 	file, err := rs.SlotListsService.RenderList(r.Context(), params, format)
 	if err != nil {
-		if errors.Is(err, slotlists.ErrPickupCohortPastDate) {
+		if errors.Is(err, slotlists.ErrPickupCohortPastDate) ||
+			errors.Is(err, slotlists.ErrReconciliationFutureDate) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
