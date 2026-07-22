@@ -1592,16 +1592,15 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 				return nil, nil, nil, fmt.Errorf("%w: guardian target is not portal-visible", ErrInvalidRequest)
 			}
 		case calModels.TargetTypeAllSchoolParents:
-			// Every portal-active guardian of the school. Resolve in bulk so a
-			// school-wide appointment stays a couple of queries, not one per student.
-			students, err := s.cfg.StudentRepo.List(ctx, nil)
+			// Every portal-active guardian of the school's ACTIVE students. Resolve
+			// in bulk so a school-wide appointment stays a couple of queries, not one
+			// per student. Filter to active students at the DB so pending or inactive
+			// (e.g. former) families never receive school-wide appointments.
+			students, err := s.cfg.StudentRepo.List(ctx, map[string]any{"status": string(userModels.StudentStatusActive)})
 			if err != nil {
 				return nil, nil, nil, err
 			}
-			studentIDs := make([]int64, 0, len(students))
-			for _, student := range students {
-				studentIDs = append(studentIDs, student.ID)
-			}
+			studentIDs := activeStudentIDs(students)
 			added, err := addStudentsGuardians(studentIDs)
 			if err != nil {
 				return nil, nil, nil, err
@@ -1628,10 +1627,9 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			if err != nil {
 				return nil, nil, nil, err
 			}
-			studentIDs := make([]int64, 0, len(students))
-			for _, student := range students {
-				studentIDs = append(studentIDs, student.ID)
-			}
+			// Only active students' guardians — a former student still assigned to
+			// the group must not receive the group-wide appointment.
+			studentIDs := activeStudentIDs(students)
 			added, err := addStudentsGuardians(studentIDs)
 			if err != nil {
 				return nil, nil, nil, err
@@ -1647,10 +1645,9 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			if err != nil {
 				return nil, nil, nil, err
 			}
-			studentIDs := make([]int64, 0, len(students))
-			for _, student := range students {
-				studentIDs = append(studentIDs, student.ID)
-			}
+			// Only active students' guardians — a former student still tagged with
+			// the class must not receive the class-wide appointment.
+			studentIDs := activeStudentIDs(students)
 			added, err := addStudentsGuardians(studentIDs)
 			if err != nil {
 				return nil, nil, nil, err
@@ -1688,6 +1685,20 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 		}
 	}
 	return recipients, recipientStudents, targetRows, nil
+}
+
+// activeStudentIDs returns the IDs of the students that are currently active. A
+// bulk parent target (whole-school, a group, a class) must not fan out to the
+// guardians of pending or inactive (e.g. former) students, who would otherwise
+// receive appointment details and notifications for a school they left.
+func activeStudentIDs(students []*userModels.Student) []int64 {
+	ids := make([]int64, 0, len(students))
+	for _, student := range students {
+		if student.Status == userModels.StudentStatusActive {
+			ids = append(ids, student.ID)
+		}
+	}
+	return ids
 }
 
 func (s *service) guardianHasPortalVisibleStudent(ctx context.Context, guardianProfileID int64) (bool, error) {

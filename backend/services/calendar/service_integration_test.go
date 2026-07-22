@@ -919,6 +919,50 @@ func TestCalendarServiceIntegration_AllSchoolParentsTarget(t *testing.T) {
 	assert.Equal(t, "Schulfest", events[0].Title)
 }
 
+func TestCalendarServiceIntegration_AllSchoolParentsExcludesInactiveStudents(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "SchoolActive", "Organizer")
+	activeChain := testpkg.CreateTestParentGuardianChain(t, db)
+	formerChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, activeChain)
+		testpkg.CleanupParentGuardianChain(t, db, formerChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	// Mark the second family's child as a former (inactive) student.
+	_, err := db.NewUpdate().
+		Table("users.students").
+		Set("status = ?", string(userModels.StudentStatusInactive)).
+		Where("id = ?", formerChain.StudentID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Schulfest",
+		StartDate:    timezone.NewDate(2026, 6, 20),
+		EndDate:      timezone.NewDate(2026, 6, 20),
+		StartTime:    wallClock(10, 0),
+		EndTime:      wallClock(14, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeAllSchoolParents},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	// The active family's guardian is reached; the former family's is not.
+	assert.NotZero(t, findOptionalRecipientByGuardian(detail, activeChain.GuardianProfileID),
+		"an active student's guardian must receive the whole-school appointment")
+	assert.Zero(t, findOptionalRecipientByGuardian(detail, formerChain.GuardianProfileID),
+		"a former (inactive) student's guardian must NOT receive it")
+}
+
 func TestCalendarServiceIntegration_CancelSingleOccurrence(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
