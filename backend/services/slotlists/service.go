@@ -1216,7 +1216,8 @@ func (s *service) collectPickupEntries(ctx context.Context, params Params, resul
 			Present:    present,
 		}
 		if !present {
-			// A signed-off absence carries a non-empty substatus, the shape
+			// A signed-off absence carries absence evidence (sick / excused /
+			// class trip, or a cancelled care day below), the shape
 			// signedOffAbsence reads to render "Abgemeldet" instead of "Fehlt".
 			if status, ok := statusByStudent[student.ID]; ok {
 				statusCopy := status
@@ -1397,10 +1398,28 @@ func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, sour
 	return rows, nil
 }
 
+// signedOffAbsence reports whether an absent row carries explicit evidence
+// that the absence was registered — sick, excused, a field/class trip, or a
+// cancelled care day. A merely non-empty substatus is NOT proof: a `late`
+// context (a valid state that can linger after a status change) or `other`
+// says nothing about a genuine sign-off. Treating those as "Abgemeldet" would
+// move a genuinely missing child out of the Missing counter and suppress a
+// safety-relevant missing-child signal, so anything short of registered
+// absence evidence falls through to "Fehlt".
 func signedOffAbsence(entry mergedEntry) bool {
-	return entry.PlannedStatus == scheduleModel.AttendanceStatusAbsent &&
-		entry.PlannedSubstatus != nil &&
-		*entry.PlannedSubstatus != ""
+	if entry.PlannedStatus != scheduleModel.AttendanceStatusAbsent || entry.PlannedSubstatus == nil {
+		return false
+	}
+	switch *entry.PlannedSubstatus {
+	case scheduleModel.AttendanceSubstatusSick, // instance substatus / status day
+		scheduleModel.AttendanceSubstatusExcused,   // instance substatus / status day
+		scheduleModel.AttendanceSubstatusFieldTrip, // instance substatus
+		activeModel.StudentStatusDayClassTrip,      // status day
+		string(scheduleSvc.CareDayCancelled):       // cancelled care day
+		return true
+	default:
+		return false
+	}
 }
 
 func statusLabel(entry mergedEntry, source Source) string {
