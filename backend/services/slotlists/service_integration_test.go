@@ -655,7 +655,9 @@ func TestBuildList_RoomLookupErrorsFail(t *testing.T) {
 	f := buildMensaFixture(t)
 	ctx := testpkg.TenantContext(1)
 	roomErr := errors.New("room repository unavailable")
-	svc := newTestServiceWithCustomRoomRepo(f.db, failingRoomRepo{err: roomErr}, nil)
+	// Settings is a required dependency (NewService panics on nil); this slot
+	// list never reads the pickup cutoffs, so an empty stub is enough.
+	svc := newTestServiceWithCustomRoomRepo(f.db, failingRoomRepo{err: roomErr}, stubSlotListSettings{})
 
 	_, err := svc.BuildList(ctx, slotlists.Params{
 		Date:   listDate,

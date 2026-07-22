@@ -179,6 +179,7 @@ const URL_TO_SELECTION: Record<string, SelectionOption["id"]> = {
 
 interface QueryParamsLike {
   get(name: string): string | null;
+  getAll(name: string): string[];
 }
 
 interface InitialListState {
@@ -319,13 +320,15 @@ function parseIdList(
   return ids.length > 0 ? ids : null;
 }
 
-function parseStringList(value: string | null): string[] | null {
-  if (!value) return null;
-  const values = value
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
-  return values.length > 0 ? values : null;
+// Class names are free-form backend text and may contain commas (e.g.
+// "1a, bilingual"), so they cannot share a comma-delimited param with other
+// classes — a single class would round-trip as two nonexistent filters, which
+// the reconciliation effect would then prune away and broaden the list. They
+// travel as repeated `klassen` query params instead, one value each (#1565
+// review pass 2).
+function parseClassList(values: string[]): string[] | null {
+  const cleaned = values.map((part) => part.trim()).filter(Boolean);
+  return cleaned.length > 0 ? cleaned : null;
 }
 
 // Ordered content equality for the URL-synced selection arrays. The
@@ -380,7 +383,7 @@ function parseInitialListState(
     dateISO,
     selectedSlotIds: parseIdList(searchParams.get("angebote"), "keine"),
     selectedGroupIds: parseIdList(searchParams.get("gruppen")),
-    selectedClasses: parseStringList(searchParams.get("klassen")),
+    selectedClasses: parseClassList(searchParams.getAll("klassen")),
   };
 }
 
@@ -414,7 +417,11 @@ function serializeListState(state: InitialListState): string {
     params.set("gruppen", state.selectedGroupIds.join(","));
   }
   if (state.selectedClasses !== null) {
-    params.set("klassen", state.selectedClasses.join(","));
+    // One repeated param per class — class names are free text and may contain
+    // commas, so a comma-joined value could not round-trip (#1565 review pass 2).
+    for (const schoolClass of state.selectedClasses) {
+      params.append("klassen", schoolClass);
+    }
   }
 
   return params.toString();
@@ -829,20 +836,27 @@ export default function SlotListsPage() {
   ]);
 
   // Reconcile stale URL filters against the date's actual options. result.groups
-  // / result.classes are the unfiltered option set for the cohort, so a
-  // bookmarked group or class that no longer exists here can be pruned. Without
-  // this it stays in the request and empties the preview, and once the > 1
-  // guards below hide its control there is no way to clear it (#1565 review).
+  // / result.classes are derived from the preview rows, so they only list the
+  // groups/classes that actually have rows for this date + source — NOT the
+  // school's complete set. A bookmarked filter can therefore be absent here for
+  // two very different reasons: the group/class was deleted, or it is still valid
+  // but simply has no rows today. We cannot tell them apart from this data, so we
+  // only ever DROP selected entries that survive alongside at least one match,
+  // and never treat a wholesale miss as "clear the filter". Collapsing a
+  // zero-survivor selection to null (all groups) would silently broaden a saved
+  // single-group export into a school-wide one — the worse failure for a
+  // confidential child list — so we leave the explicit filter in place and let
+  // the preview render empty instead (#1565 review pass 2).
   useEffect(() => {
     if (!result) return;
     if (selectedGroupIds !== null) {
       const available = new Set(result.groups.map((g) => g.id));
       const pruned = selectedGroupIds.filter((id) => available.has(id));
-      if (pruned.length !== selectedGroupIds.length) {
-        const next =
-          pruned.length === 0 || pruned.length === result.groups.length
-            ? null
-            : pruned;
+      // Only reconcile when at least one selected group still matches. next ===
+      // null only when the survivors already cover every available group (an
+      // explicit "select all" that is equivalent to no filter — same rows).
+      if (pruned.length > 0 && pruned.length !== selectedGroupIds.length) {
+        const next = pruned.length === result.groups.length ? null : pruned;
         setSelectedGroupIds(next);
         replaceListUrl({ selectedGroupIds: next });
       }
@@ -850,11 +864,10 @@ export default function SlotListsPage() {
     if (selectedClasses !== null) {
       const available = new Set(result.classes);
       const pruned = selectedClasses.filter((c) => available.has(c));
-      if (pruned.length !== selectedClasses.length) {
-        const next =
-          pruned.length === 0 || pruned.length === result.classes.length
-            ? null
-            : pruned;
+      // Same guard as groups: a zero-survivor class filter is left untouched so a
+      // saved single-class list is never broadened to every class.
+      if (pruned.length > 0 && pruned.length !== selectedClasses.length) {
+        const next = pruned.length === result.classes.length ? null : pruned;
         setSelectedClasses(next);
         replaceListUrl({ selectedClasses: next });
       }

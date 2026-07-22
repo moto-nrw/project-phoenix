@@ -182,8 +182,16 @@ type service struct {
 	now func() time.Time
 }
 
-// NewService creates a slot list service.
+// NewService creates a slot list service. Settings is a required dependency:
+// the Ganztag pickup-cohort cutoffs are tenant configuration resolved from the
+// settings registry, so a service wired without it would silently serve
+// authoritative cohorts using hardcoded defaults unrelated to the registered
+// values (#1565 review pass 1). A nil Settings is a wiring bug, so fail fast at
+// construction rather than degrade at request time.
 func NewService(deps Dependencies) Service {
+	if deps.Settings == nil {
+		panic("slotlists.NewService: Settings dependency is required")
+	}
 	now := deps.Now
 	if now == nil {
 		now = time.Now
@@ -224,10 +232,11 @@ type pickupBucketConfig struct {
 }
 
 func (s *service) pickupBuckets(ctx context.Context) (pickupBucketConfig, error) {
+	// s.settings is guaranteed non-nil (required by NewService). In production
+	// ResolveString returns the registry default for these registered keys, so
+	// the local constants below only cover a settings reader that yields an empty
+	// value; they never substitute for a missing dependency (#1565 review pass 1).
 	cfg := pickupBucketConfig{ShortCutoff: defaultShortDayCutoff, LongCutoff: defaultLongDayCutoff}
-	if s.settings == nil {
-		return cfg, nil
-	}
 	short, err := s.settings.ResolveString(ctx, configModel.KeySlotListShortDayCutoff)
 	if err != nil {
 		return cfg, fmt.Errorf("resolve short-day pickup cutoff: %w", err)
