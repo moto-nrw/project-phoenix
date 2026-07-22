@@ -96,6 +96,13 @@ type StaffAbsenceService interface {
 	RequestVacation(ctx context.Context, staffID int64, req RequestVacationRequest) (*StaffAbsenceResponse, error)
 	ApproveAbsence(ctx context.Context, absenceID int64, actorAccountID int64, decidedByStaffID int64, note string) (*StaffAbsenceResponse, error)
 	DenyAbsence(ctx context.Context, absenceID int64, actorAccountID int64, decidedByStaffID int64, reason string) (*StaffAbsenceResponse, error)
+	// QuestionAbsence moves a requested absence into "question" (Rückfrage)
+	// with a mandatory note from the Leitung (#1419 4d). No decision is
+	// recorded yet — the actor is captured in the audit row.
+	QuestionAbsence(ctx context.Context, absenceID int64, actorAccountID int64, note string) (*StaffAbsenceResponse, error)
+	// ResubmitAbsence lets the MA amend their note and move a "question"
+	// absence back to "requested" for another decision round (#1419 4d).
+	ResubmitAbsence(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64, note string) (*StaffAbsenceResponse, error)
 	CancelAbsence(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64) error
 	GetVacationQuotaSummary(ctx context.Context, staffID int64, year int) (*VacationQuotaSummary, error)
 	UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error
@@ -658,6 +665,7 @@ func isEffectiveAbsenceStatus(status string) bool {
 func blocksAbsenceRange(status string) bool {
 	return status == activeModels.AbsenceStatusReported ||
 		status == activeModels.AbsenceStatusRequested ||
+		status == activeModels.AbsenceStatusQuestion ||
 		status == activeModels.AbsenceStatusApproved
 }
 
@@ -666,6 +674,7 @@ func isVacationWorkflowAbsence(absence *activeModels.StaffAbsence) bool {
 		return false
 	}
 	return absence.Status == activeModels.AbsenceStatusRequested ||
+		absence.Status == activeModels.AbsenceStatusQuestion ||
 		absence.Status == activeModels.AbsenceStatusApproved ||
 		absence.Status == activeModels.AbsenceStatusDeclined ||
 		absence.Status == activeModels.AbsenceStatusCanceled
@@ -796,7 +805,8 @@ func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int6
 	if err != nil {
 		return nil, fmt.Errorf("absence not found")
 	}
-	if absence.Status != activeModels.AbsenceStatusRequested {
+	if absence.Status != activeModels.AbsenceStatusRequested &&
+		absence.Status != activeModels.AbsenceStatusQuestion {
 		return nil, fmt.Errorf("only requested absences can be approved")
 	}
 	fromStatus := absence.Status
@@ -831,7 +841,8 @@ func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, 
 	if err != nil {
 		return nil, fmt.Errorf("absence not found")
 	}
-	if absence.Status != activeModels.AbsenceStatusRequested {
+	if absence.Status != activeModels.AbsenceStatusRequested &&
+		absence.Status != activeModels.AbsenceStatusQuestion {
 		return nil, fmt.Errorf("only requested absences can be declined")
 	}
 	fromStatus := absence.Status
@@ -847,6 +858,74 @@ func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, 
 	}
 	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, reason); err != nil {
 		return nil, fmt.Errorf("failed to audit absence decline: %w", err)
+	}
+	return toAbsenceResponse(absence), nil
+}
+
+func (s *staffAbsenceService) QuestionAbsence(ctx context.Context, absenceID int64, actorAccountID int64, note string) (*StaffAbsenceResponse, error) {
+	if note == "" {
+		return nil, fmt.Errorf("question note is required")
+	}
+	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
+	if err != nil {
+		return nil, fmt.Errorf("absence not found")
+	}
+	if err := s.lockStaffAbsenceWrites(ctx, absence.StaffID); err != nil {
+		return nil, err
+	}
+	absence, err = s.absenceRepo.FindByID(ctx, absenceID)
+	if err != nil {
+		return nil, fmt.Errorf("absence not found")
+	}
+	if absence.Status != activeModels.AbsenceStatusRequested {
+		return nil, fmt.Errorf("only requested absences can be questioned")
+	}
+	fromStatus := absence.Status
+	absence.Status = activeModels.AbsenceStatusQuestion
+	// The Leitung's question lives in decision_note; ApprovedBy/At stay nil
+	// because no decision has been made yet. History is in the audit rows.
+	absence.DecisionNote = note
+	absence.UpdatedAt = time.Now()
+
+	if err := s.absenceRepo.Update(ctx, absence); err != nil {
+		return nil, fmt.Errorf("failed to question absence: %w", err)
+	}
+	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, note); err != nil {
+		return nil, fmt.Errorf("failed to audit absence question: %w", err)
+	}
+	return toAbsenceResponse(absence), nil
+}
+
+func (s *staffAbsenceService) ResubmitAbsence(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64, note string) (*StaffAbsenceResponse, error) {
+	if note == "" {
+		return nil, fmt.Errorf("resubmit note is required")
+	}
+	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
+		return nil, err
+	}
+	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
+	if err != nil {
+		return nil, fmt.Errorf("absence not found")
+	}
+	if absence.StaffID != staffID {
+		return nil, fmt.Errorf("can only resubmit own absences")
+	}
+	if absence.Status != activeModels.AbsenceStatusQuestion {
+		return nil, fmt.Errorf("only absences with a question can be resubmitted")
+	}
+	fromStatus := absence.Status
+	now := time.Now()
+	absence.Status = activeModels.AbsenceStatusRequested
+	absence.Note = note
+	// Re-stamp so the request re-enters the inbox at its resubmit time.
+	absence.RequestedAt = now
+	absence.UpdatedAt = now
+
+	if err := s.absenceRepo.Update(ctx, absence); err != nil {
+		return nil, fmt.Errorf("failed to resubmit absence: %w", err)
+	}
+	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, note); err != nil {
+		return nil, fmt.Errorf("failed to audit absence resubmit: %w", err)
 	}
 	return toAbsenceResponse(absence), nil
 }
@@ -933,7 +1012,7 @@ func (s *staffAbsenceService) GetVacationQuotaSummary(ctx context.Context, staff
 		switch a.Status {
 		case activeModels.AbsenceStatusApproved, activeModels.AbsenceStatusReported:
 			taken += days
-		case activeModels.AbsenceStatusRequested:
+		case activeModels.AbsenceStatusRequested, activeModels.AbsenceStatusQuestion:
 			reserved += days
 		}
 	}
@@ -991,7 +1070,10 @@ func (s *staffAbsenceService) UpsertVacationQuota(ctx context.Context, staffID i
 }
 
 func (s *staffAbsenceService) ListPendingRequests(ctx context.Context) ([]*StaffAbsenceResponse, error) {
-	rows, err := s.absenceRepo.ListByStatus(ctx, activeModels.AbsenceStatusRequested)
+	rows, err := s.absenceRepo.ListByStatuses(ctx, []string{
+		activeModels.AbsenceStatusRequested,
+		activeModels.AbsenceStatusQuestion,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list pending requests: %w", err)
 	}

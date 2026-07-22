@@ -260,6 +260,14 @@ func (m *mockStaffAbsenceService) ApproveAbsence(_ context.Context, _ int64, _ i
 func (m *mockStaffAbsenceService) DenyAbsence(_ context.Context, _ int64, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {
 	return nil, nil
 }
+func (m *mockStaffAbsenceService) QuestionAbsence(_ context.Context, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {
+	return nil, nil
+}
+
+func (m *mockStaffAbsenceService) ResubmitAbsence(_ context.Context, _ int64, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {
+	return nil, nil
+}
+
 func (m *mockStaffAbsenceService) CancelAbsence(_ context.Context, _ int64, _ int64, _ int64) error {
 	return nil
 }

@@ -107,6 +107,10 @@ func (m *absStaffAbsenceRepoMock) ListByStatus(_ context.Context, _ string) ([]*
 	return nil, nil
 }
 
+func (m *absStaffAbsenceRepoMock) ListByStatuses(_ context.Context, _ []string) ([]*activeModels.StaffAbsence, error) {
+	return nil, nil
+}
+
 type absVacationQuotaRepoMock struct {
 	getByStaffAndYearFunc func(ctx context.Context, staffID int64, year int) (*activeModels.StaffVacationQuota, error)
 	upsertFunc            func(ctx context.Context, quota *activeModels.StaffVacationQuota) error

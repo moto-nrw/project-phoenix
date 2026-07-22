@@ -114,6 +114,7 @@ func (rs *Resource) Router() chi.Router {
 		// Vacation workflow (Tranche 4), MA-side
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/vacation/request", rs.requestVacation)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences/{id}/cancel", rs.cancelAbsence)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences/{id}/resubmit", rs.resubmitAbsence)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/vacation/quota", rs.getOwnVacationQuota)
 
 		// Presence map - for internal use by staff page
@@ -686,6 +687,39 @@ func (rs *Resource) cancelAbsence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.RespondNoContent(w, r)
+}
+
+// resubmitAbsence handles POST /api/time-tracking/absences/{id}/resubmit —
+// the MA answers a Rückfrage by amending their note and re-requesting (#1419).
+func (rs *Resource) resubmitAbsence(w http.ResponseWriter, r *http.Request) {
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	absenceID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid absence ID")
+	if !ok {
+		return
+	}
+	var req struct {
+		Note string `json:"note"`
+	}
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	tenantID := tenant.FromContext(r.Context())
+	var resp *activeSvc.StaffAbsenceResponse
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		resp, txErr = rs.StaffAbsenceService.ResubmitAbsence(ctx, staffID, int64(userClaims.ID), absenceID, req.Note)
+		return txErr
+	}); err != nil {
+		common.RenderError(w, r, classifyAbsenceError(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, resp, "Absence resubmitted")
 }
 
 // getOwnVacationQuota handles GET /api/time-tracking/vacation/quota?year=YYYY

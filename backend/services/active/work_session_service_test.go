@@ -480,6 +480,10 @@ func (m *wsMockStaffAbsenceRepository) ListByStaffAndStatuses(_ context.Context,
 	return nil, nil
 }
 
+func (m *wsMockStaffAbsenceRepository) ListByStatuses(_ context.Context, _ []string) ([]*activeModels.StaffAbsence, error) {
+	return nil, nil
+}
+
 func (m *wsMockStaffAbsenceRepository) ListByStatus(_ context.Context, _ string) ([]*activeModels.StaffAbsence, error) {
 	return nil, nil
 }
