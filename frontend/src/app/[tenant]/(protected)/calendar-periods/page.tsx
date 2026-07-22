@@ -1,6 +1,7 @@
 "use client";
 
 import { CalendarPeriodsEditor } from "~/components/planning/calendar-periods-editor";
+import { ClosingDaysEditor } from "~/components/planning/closing-days-editor";
 import { Loading } from "~/components/ui/loading";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
@@ -19,8 +20,14 @@ export default function CalendarPeriodsPage() {
   return (
     <div className="-mt-1.5 w-full">
       <DesktopOnlyNotice />
-      <div className="hidden lg:block">
+      <div className="hidden space-y-8 lg:block">
         <CalendarPeriodsEditor />
+        <section>
+          <h2 className="mb-3 text-base font-semibold text-gray-900">
+            Schließtage
+          </h2>
+          <ClosingDaysEditor />
+        </section>
       </div>
     </div>
   );

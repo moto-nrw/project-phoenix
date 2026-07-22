@@ -242,6 +242,7 @@ describe("StaffSessionTable Wochenendtage", () => {
     plannedShifts?: readonly StaffShift[];
     absences?: readonly StaffAbsenceRow[];
     holidays?: ReadonlyMap<string, string>;
+    closingDays?: ReadonlyMap<string, string>;
   };
 
   function WeekendTable(props: WeekendTableProps) {
@@ -257,6 +258,7 @@ describe("StaffSessionTable Wochenendtage", () => {
         accountStartDate="2026-01-08"
         dailyTargets={weekendTargets}
         holidays={props.holidays}
+        closingDays={props.closingDays}
         today={today}
         isAdminView
         accountStartDatePending={false}
@@ -292,6 +294,34 @@ describe("StaffSessionTable Wochenendtage", () => {
       "Ostersonntag",
     );
     expect(screen.queryByText("10.01.")).not.toBeInTheDocument();
+  });
+
+  // #1418 3b: Schließtage verhalten sich wie Feiertage (Soll 0, eigenes
+  // Badge), stehen aber bei Überschneidung hinter dem Feiertag zurück.
+  it("zeigt einen Schließtag am Wochenende mit Badge und Grund", () => {
+    renderWeekend({
+      closingDays: new Map([["2026-01-10", "Pädagogischer Tag"]]),
+    });
+
+    const row = screen.getByText("10.01.").closest("tr");
+    expect(row).not.toBeNull();
+    expect(within(row!).getByText("Schließtag")).toHaveAttribute(
+      "title",
+      "Pädagogischer Tag",
+    );
+    expect(screen.queryByText("11.01.")).not.toBeInTheDocument();
+  });
+
+  it("lässt den Feiertag gewinnen, wenn Feiertag und Schließtag zusammenfallen", () => {
+    renderWeekend({
+      holidays: new Map([["2026-01-11", "Ostersonntag"]]),
+      closingDays: new Map([["2026-01-11", "Ferienschließung"]]),
+    });
+
+    const row = screen.getByText("11.01.").closest("tr");
+    expect(row).not.toBeNull();
+    expect(within(row!).getByText("Feiertag")).toBeInTheDocument();
+    expect(within(row!).queryByText("Schließtag")).not.toBeInTheDocument();
   });
 
   it("zeigt einen Samstag mit Session als Zeile", () => {

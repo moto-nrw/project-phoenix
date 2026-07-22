@@ -19,6 +19,7 @@ import {
   getWeekNumber,
   getComplianceWarnings,
   calculateNetMinutes,
+  mapClosingDaysResponse,
   mapHistoryResponse,
   mapHolidaysResponse,
 } from "./time-tracking-helpers";
@@ -315,6 +316,59 @@ describe("mapHolidaysResponse", () => {
 
   it.each([null, undefined])("returns an empty map for %s", (data) => {
     expect(mapHolidaysResponse(data)).toEqual(new Map());
+  });
+});
+
+describe("mapClosingDaysResponse", () => {
+  it("expands ranges into per-day entries with the reason", () => {
+    const result = mapClosingDaysResponse([
+      {
+        start_date: "2026-12-24",
+        end_date: "2026-12-27",
+        reason: "Weihnachtswoche",
+      },
+      {
+        start_date: "2027-02-08",
+        end_date: "2027-02-08",
+        reason: "Rosenmontag",
+      },
+    ]);
+
+    expect(result).toEqual(
+      new Map([
+        ["2026-12-24", "Weihnachtswoche"],
+        ["2026-12-25", "Weihnachtswoche"],
+        ["2026-12-26", "Weihnachtswoche"],
+        ["2026-12-27", "Weihnachtswoche"],
+        ["2027-02-08", "Rosenmontag"],
+      ]),
+    );
+  });
+
+  it("keeps the first reason when ranges overlap", () => {
+    const result = mapClosingDaysResponse([
+      { start_date: "2026-07-20", end_date: "2026-07-24", reason: "Sommer A" },
+      { start_date: "2026-07-24", end_date: "2026-07-28", reason: "Sommer B" },
+    ]);
+
+    expect(result.get("2026-07-24")).toBe("Sommer A");
+    expect(result.get("2026-07-25")).toBe("Sommer B");
+  });
+
+  it("crosses the DST boundary without skipping or doubling days", () => {
+    const result = mapClosingDaysResponse([
+      { start_date: "2026-03-28", end_date: "2026-03-30", reason: "Umbau" },
+    ]);
+
+    expect([...result.keys()]).toEqual([
+      "2026-03-28",
+      "2026-03-29",
+      "2026-03-30",
+    ]);
+  });
+
+  it.each([null, undefined])("returns an empty map for %s", (data) => {
+    expect(mapClosingDaysResponse(data)).toEqual(new Map());
   });
 });
 

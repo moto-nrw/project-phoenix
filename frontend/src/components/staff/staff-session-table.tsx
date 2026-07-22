@@ -59,6 +59,7 @@ export function StaffSessionTable({
   dailyTargetsError,
   dailyTargetsPending,
   holidays,
+  closingDays,
   accountStartDate,
   accountStartDatePending,
   accountStartDateError,
@@ -99,6 +100,12 @@ export function StaffSessionTable({
   // Feiertagsarbeit-Warnung (§9 ArbZG). Das Soll dieser Tage kommt bereits
   // als 0 vom Server — die Map ist reine Anzeige, keine Rechengrundlage.
   readonly holidays?: ReadonlyMap<string, string>;
+  // OGS-Schließtage im sichtbaren Zeitraum, keyed YYYY-MM-DD → Grund
+  // (#1418 3b). Analog zu den Feiertagen: eigenes Status-Badge statt "Nicht
+  // erfasst", Soll kommt bereits als 0 vom Server, die Map ist reine
+  // Anzeige. Bei Überschneidung gewinnt der Feiertag (gesetzliche Grundlage
+  // vor Schulentscheidung).
+  readonly closingDays?: ReadonlyMap<string, string>;
   // `null` means no time-tracking config data is available; pending/error
   // distinguish whether that is temporary or a failed request. An empty
   // string means the loaded config has no explicit anchor. The distinction
@@ -234,6 +241,7 @@ export function StaffSessionTable({
           absencesByDate.has(key) ||
           (shiftsByDate.get(key)?.length ?? 0) > 0 ||
           holidays?.has(key) === true ||
+          closingDays?.has(key) === true ||
           displayed > 0 ||
           (unresolved && planned > 0);
         if (!hasContent) continue;
@@ -248,6 +256,7 @@ export function StaffSessionTable({
     absencesByDate,
     shiftsByDate,
     holidays,
+    closingDays,
     resolveDayTarget,
   ]);
 
@@ -326,6 +335,7 @@ export function StaffSessionTable({
               const session = sessionsByDate.get(key);
               const absence = absencesByDate.get(key);
               const holidayName = holidays?.get(key);
+              const closingReason = closingDays?.get(key);
               // Ein fehlgeschlagener ODER noch laufender Targets-Fetch darf
               // NICHT auf den aktuellen Plan zurückfallen (#1842): der Tag
               // bleibt ungelöst, damit die Tabelle keinen erfundenen
@@ -355,6 +365,7 @@ export function StaffSessionTable({
                 session,
                 absence,
                 holidayName,
+                closingReason,
                 target,
                 isFuture,
               );
@@ -650,6 +661,7 @@ type RowStatus =
   | { kind: "home-office" }
   | { kind: "absence"; absenceType: string }
   | { kind: "holiday"; name: string }
+  | { kind: "closing"; reason: string }
   | { kind: "missing" };
 
 // Renders the planned Dienstplan window(s) for one day: each active shift as
@@ -687,6 +699,7 @@ function computeRowStatus(
   session: StaffHistorySession | undefined,
   absence: StaffAbsenceRow | undefined,
   holidayName: string | undefined,
+  closingReason: string | undefined,
   target: number,
   isFuture: boolean,
 ): RowStatus | null {
@@ -702,6 +715,11 @@ function computeRowStatus(
   // Feiertagsarbeit hint.
   if (holidayName) {
     return { kind: "holiday", name: holidayName };
+  }
+  // Schließtag behaves like a holiday (Soll 0 for everyone, #1418 3b) but
+  // ranks below it: on overlap the gesetzliche Feiertag names the day.
+  if (closingReason) {
+    return { kind: "closing", reason: closingReason };
   }
   // Absence wins over "missing" so an admin sees Krank/Urlaub instead of a
   // misleading "Nicht erfasst" badge (the MA-side already does this).
@@ -756,6 +774,16 @@ function StatusBadge({ status }: { readonly status: RowStatus }) {
         className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
       >
         Feiertag
+      </span>
+    );
+  }
+  if (status.kind === "closing") {
+    return (
+      <span
+        title={status.reason}
+        className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"
+      >
+        Schließtag
       </span>
     );
   }

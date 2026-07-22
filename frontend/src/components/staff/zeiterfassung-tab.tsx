@@ -157,6 +157,14 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
     { keepPreviousData: true, revalidateOnFocus: false },
   );
 
+  // OGS-Schließtage im sichtbaren Zeitraum (#1418 3b), analog zu den
+  // Feiertagen tenant-global über denselben Endpunkt-Pfad.
+  const { data: tableClosingDays } = useSWRAuth(
+    `time-tracking-closing-days-${visibleFromKey}-${visibleToKey}`,
+    () => timeTrackingService.getClosingDays(visibleFromKey, visibleToKey),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
   // Monatskarte (#1842): server-computed month aggregate, only fetched in
   // month mode. Everything is live — the Übertrag recomputes automatically
   // when past months are corrected. Edits and backfills invalidate this key
@@ -301,6 +309,7 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
               dailyTargetsError={dailyTargetsError != null}
               dailyTargetsPending={dailyTargetsLoading}
               holidays={tableHolidays}
+              closingDays={tableClosingDays}
               accountStartDate={timeTrackingConfig?.accountStartDate ?? null}
               accountStartDatePending={timeTrackingConfigLoading}
               accountStartDateError={

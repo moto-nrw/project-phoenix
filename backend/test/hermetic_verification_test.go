@@ -173,6 +173,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"api/iot/config_test.go",                                 // Uses mock settings service for unit testing config endpoint
 		"enrich_pickup_times_test.go",                            // Uses mock PickupScheduleService for unit testing enrichment
 		"api/timetable/api_test.go",                              // Uses mock CalendarPeriodService for unit testing handlers
+		"api/timetable/closing_days_test.go",                     // Uses mock ClosingDayService for unit testing handlers; int64 literals are fake IDs, not DB rows
 		"api/timetable/instances_test.go",                        // Uses mock InstanceService + PersonService for unit testing handlers
 		"api/timetable/understaffed_test.go",                     // Uses mock InstanceService for unit testing the acknowledge-understaffed handler (no DB); int64 literals are fake instance IDs, not DB rows
 		"api/timetable/instance_students_unit_test.go",           // Uses fake repo for unit testing attendance PATCH handler

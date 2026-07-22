@@ -490,8 +490,10 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, api.Services.StaffShifts, api.Services.StaffAssignments, api.Services.WorkTimeMonth, db)
 	api.TimeTracking.HolidayService = api.Services.Holidays
+	api.TimeTracking.ClosingDayService = api.Services.ClosingDays
 	api.Timetable = timetableAPI.NewResource(timetableAPI.Dependencies{
 		CalendarPeriodService:  api.Services.CalendarPeriod,
+		ClosingDayService:      api.Services.ClosingDays,
 		MaterializationService: api.Services.Materialization,
 		InstanceService:        api.Services.Instance,
 		OperationsService:      api.Services.TimetableOperations,
