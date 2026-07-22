@@ -248,12 +248,17 @@ func (r *AppointmentRepository) BumpRevision(ctx context.Context, appointmentID 
 }
 
 // Cancel marks the appointment cancelled (cancelled_at=now) and bumps the
-// revision, in a single conditional statement (WHERE cancelled_at IS NULL) so a
-// concurrent content edit cannot race it. Unlike SoftDelete the appointment
-// stays visible in interactive calendars (rendered "Abgesagt"). It returns
-// whether THIS call performed the transition (rows affected == 1): under
-// concurrent cancellations only the first transitions, so only that caller
-// should fire the guardian cancellation notice.
+// revision, in a single conditional statement so a concurrent lifecycle change
+// cannot race it. The guard is `cancelled_at IS NULL AND deleted_at IS NULL`:
+//   - cancelled_at IS NULL makes concurrent cancels idempotent (only the first
+//     transitions);
+//   - deleted_at IS NULL stops a cancel from transitioning (and mailing) an
+//     appointment a concurrent delete already removed silently — a delete that
+//     lands between the caller's load and this update matches zero rows here.
+//
+// Unlike SoftDelete the appointment stays visible in interactive calendars
+// (rendered "Abgesagt"). It returns whether THIS call performed the transition
+// (rows affected == 1); only the transitioning caller fires the guardian notice.
 func (r *AppointmentRepository) Cancel(ctx context.Context, appointmentID int64) (bool, error) {
 	now := time.Now()
 	q := base.GetDB(ctx, r.DB).NewUpdate().
@@ -262,7 +267,8 @@ func (r *AppointmentRepository) Cancel(ctx context.Context, appointmentID int64)
 		Set(`revision = revision + 1`).
 		Set(`updated_at = ?`, now).
 		Where(`"appointment".id = ?`, appointmentID).
-		Where(`"appointment".cancelled_at IS NULL`)
+		Where(`"appointment".cancelled_at IS NULL`).
+		Where(`"appointment".deleted_at IS NULL`)
 	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
 		q = q.Where(where, val)
 	}

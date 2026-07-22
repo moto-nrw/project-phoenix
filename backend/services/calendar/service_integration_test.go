@@ -484,6 +484,53 @@ func TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition(t *tes
 	assert.False(t, second, "a second (concurrent) cancel does not re-transition, so it must not notify")
 }
 
+func TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	repos := repositories.NewFactory(db)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "DeleteRace", "Organizer")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	// send_email=true, so a successful cancellation WOULD notify guardians.
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Wird gelöscht",
+		StartDate:    timezone.NewDate(2026, 5, 1),
+		EndDate:      timezone.NewDate(2026, 5, 1),
+		StartTime:    wallClock(9, 0),
+		EndTime:      wallClock(10, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		SendEmail:    true,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	// Simulate a delete landing after a cancel request loaded the still-live
+	// appointment: soft-delete it directly.
+	require.NoError(t, repos.CalendarAppointment.SoftDelete(testpkg.TenantContext(1), detail.Appointment.ID))
+
+	// The cancel transition must now match zero rows (deleted_at guard) and report
+	// no transition, so CancelStaffAppointment skips the guardian notice.
+	transitioned, err := repos.CalendarAppointment.Cancel(testpkg.TenantContext(1), detail.Appointment.ID)
+	require.NoError(t, err)
+	assert.False(t, transitioned, "cancel must not transition an appointment a concurrent delete removed")
+
+	after, err := repos.CalendarAppointment.FindByID(testpkg.TenantContext(1), detail.Appointment.ID)
+	require.NoError(t, err)
+	require.NotNil(t, after)
+	assert.NotNil(t, after.DeletedAt, "the appointment stays deleted")
+	assert.Nil(t, after.CancelledAt, "and was not silently flipped to cancelled")
+}
+
 func TestCalendarServiceIntegration_AppointmentICS(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
