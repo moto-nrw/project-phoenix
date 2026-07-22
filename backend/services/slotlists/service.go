@@ -1015,8 +1015,18 @@ func (s *service) RenderList(ctx context.Context, params Params, format listexpo
 	}
 	columns = append(columns, listexport.Column{ID: listexport.ColumnPresenceStatus, Label: "Status"})
 
+	// The PDF renderer treats a Row with GroupTitle as a pure section marker
+	// and drops its Values (pdf_design.go paginate). Emit one marker row per
+	// section followed by plain value rows — the same shape the grouped
+	// student exports produce. Rows arrive sorted by GroupTitle (sortRows),
+	// so sections are contiguous.
 	docRows := make([]listexport.Row, 0, len(result.Rows))
+	currentGroup := ""
 	for _, row := range result.Rows {
+		if row.GroupTitle != "" && row.GroupTitle != currentGroup {
+			currentGroup = row.GroupTitle
+			docRows = append(docRows, listexport.Row{GroupTitle: row.GroupTitle})
+		}
 		values := map[listexport.ColumnID]string{
 			listexport.ColumnName:           row.Name,
 			listexport.ColumnSchoolClass:    row.SchoolClass,
@@ -1027,7 +1037,7 @@ func (s *service) RenderList(ctx context.Context, params Params, format listexpo
 		if pickupBased {
 			values[listexport.ColumnPlannedPickup] = row.PickupTime
 		}
-		docRows = append(docRows, listexport.Row{Values: values, GroupTitle: row.GroupTitle})
+		docRows = append(docRows, listexport.Row{Values: values})
 	}
 
 	doc := listexport.Document{

@@ -71,7 +71,13 @@ type splitTemplateRequest struct {
 	// Notes shadows updateTemplateRequest's `*string` for the same reason as
 	// RequiredStaff: the split must tell "inherit the source note" (omitted)
 	// from "clear the series note" (null).
-	Notes           nullableStr `json:"notes"`
+	Notes nullableStr `json:"notes"`
+	// ListKind shadows updateTemplateRequest's `*string` (#1565): omitted
+	// inherits the source template's Listenart, null/empty clears it. Without
+	// the tri-state a plain "this and following" edit would wipe the
+	// classification and the successor's instances would vanish from their
+	// automatic daily list.
+	ListKind        nullableStr `json:"list_kind"`
 	EffectiveDate   string      `json:"effective_date"`
 	MaterializeFrom *string     `json:"materialize_from,omitempty"` // YYYY-MM-DD
 	MaterializeTo   *string     `json:"materialize_to,omitempty"`   // YYYY-MM-DD
@@ -91,6 +97,16 @@ func (req *splitTemplateRequest) Bind(r *http.Request) error {
 	// split note. Enforce the same 2000-char limit here (#1837 follow-up).
 	if req.Notes.Set && req.Notes.Value != nil && len(*req.Notes.Value) > 2000 {
 		return errors.New("notes cannot exceed 2000 characters")
+	}
+	// req.ListKind (nullableStr) shadows the embedded field the same way, so
+	// the create/update normalization never sees the split value. Apply the
+	// identical trim + validity check here (#1565).
+	if req.ListKind.Set {
+		normalized, err := normalizeTemplateListKind(req.ListKind.Value)
+		if err != nil {
+			return err
+		}
+		req.ListKind.Value = normalized
 	}
 	return nil
 }
@@ -239,6 +255,8 @@ func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (scheduleSvc.T
 		// omitted -> inherit the source template's note.
 		Notes:             normalizeNotes(req.Notes.Value),
 		NotesProvided:     req.Notes.Set,
+		ListKind:          req.ListKind.Value,
+		ListKindProvided:  req.ListKind.Set,
 		WeekPattern:       req.WeekPattern,
 		CalendarPeriodID:  req.CalendarPeriodID,
 		EducationGroupID:  req.EducationGroupID,

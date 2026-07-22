@@ -26,7 +26,12 @@ import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { DesktopFilters } from "~/components/ui/page-header/DesktopFilters";
 import type { FilterConfig } from "~/components/ui/page-header/types";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
+import {
+  berlinTodayISO,
+  isValidISODate,
+  parseISODate,
+  toISODate,
+} from "~/lib/date-helpers";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
@@ -122,7 +127,6 @@ const SELECTION_OPTIONS: SelectionOption[] = [
 const SOURCES: SlotListSource[] = ["planned", "actual", "reconciliation"];
 const CANCELLED_SLOT_STATUS = "cancelled";
 const PREVIEW_PAGE_SIZE = 50;
-const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const SOURCE_TO_URL: Record<SlotListSource, string> = {
   planned: "plan",
@@ -266,9 +270,14 @@ function parseInitialListState(
   const rawGroupBy =
     URL_TO_GROUP_BY[searchParams.get("gruppieren") ?? ""] ?? "";
 
+  // isValidISODate (round-trip), not a bare shape check: "2026-02-31" would
+  // pass the regex, roll into March in the picker, and leave the backend
+  // rejecting the unchanged URL date. Default is the SCHOOL's calendar day
+  // (Berlin), because todayISO() would use the browser's timezone and open
+  // the wrong day's list around midnight.
   const rawDate = searchParams.get("datum");
   const dateISO =
-    rawDate && ISO_DATE_PATTERN.test(rawDate) ? rawDate : todayISO();
+    rawDate && isValidISODate(rawDate) ? rawDate : berlinTodayISO();
 
   return {
     target,
