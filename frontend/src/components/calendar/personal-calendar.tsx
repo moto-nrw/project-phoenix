@@ -2,14 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  Ban,
   CalendarDays,
+  CalendarPlus,
   Check,
   ChevronLeft,
   ChevronRight,
   Clock,
   Loader2,
   MapPin,
+  Pencil,
   Plus,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
@@ -49,6 +53,29 @@ interface PersonalCalendarProps {
     status: "accepted" | "declined",
   ) => void;
   readonly respondingRecipientId?: string | null;
+  // Organizer-only management actions. Passed by the staff calendar page and
+  // omitted by the parents portal, so parents never see edit/cancel/delete.
+  readonly onEdit?: (event: CalendarEvent) => void;
+  readonly onCancel?: (event: CalendarEvent) => void;
+  readonly onDelete?: (event: CalendarEvent) => void;
+  readonly busyAppointmentId?: string | null;
+  // Base path for the .ics download route, e.g. "/api/parent/calendar/appointments".
+  // When set, appointment cards show a "Zum Kalender hinzufügen" download link.
+  readonly icsHrefBase?: string;
+}
+
+interface CalendarEventActions {
+  readonly onShowOverview?: (appointmentId: string) => void;
+  readonly onRespond?: (
+    recipientId: string,
+    status: "accepted" | "declined",
+  ) => void;
+  readonly respondingRecipientId?: string | null;
+  readonly onEdit?: (event: CalendarEvent) => void;
+  readonly onCancel?: (event: CalendarEvent) => void;
+  readonly onDelete?: (event: CalendarEvent) => void;
+  readonly busyAppointmentId?: string | null;
+  readonly icsHrefBase?: string;
 }
 
 const sourceTone = {
@@ -192,6 +219,8 @@ interface TimedPlacement {
 interface TimedLayoutOptions {
   hasRespond: boolean;
   hasOverview: boolean;
+  hasManage: boolean;
+  hasIcs: boolean;
 }
 
 // Mindesthöhe eines Zeitraster-Blocks in Pixeln, abhängig vom Inhalt. Muss zum
@@ -201,19 +230,26 @@ function blockMinHeightPx(
   event: CalendarEvent,
   options: TimedLayoutOptions,
 ): number {
+  const cancelled = event.cancelled === true;
+  const isAppointment =
+    event.source === "appointment" && Boolean(event.appointment_id);
   const showRespond = Boolean(
-    event.can_respond && event.recipient_id && options.hasRespond,
+    !cancelled && event.can_respond && event.recipient_id && options.hasRespond,
   );
   const showOverview = Boolean(
     event.can_view_overview && event.appointment_id && options.hasOverview,
   );
+  const showIcs = Boolean(!cancelled && isAppointment && options.hasIcs);
+  const showManage = Boolean(isAppointment && event.can_edit && options.hasManage);
   return (
     56 +
     ((event.student_name ?? event.school_name) ? 16 : 0) +
     (event.location ? 18 : 0) +
     (event.description ? 36 : 0) +
     (showRespond ? 40 : 0) +
-    (showOverview ? 36 : 0)
+    (showOverview ? 36 : 0) +
+    (showIcs ? 36 : 0) +
+    (showManage ? 44 : 0)
   );
 }
 
@@ -387,7 +423,22 @@ export function PersonalCalendar({
   onShowOverview,
   onRespond,
   respondingRecipientId,
+  onEdit,
+  onCancel,
+  onDelete,
+  busyAppointmentId,
+  icsHrefBase,
 }: PersonalCalendarProps) {
+  const actions: CalendarEventActions = {
+    onShowOverview,
+    onRespond,
+    respondingRecipientId,
+    onEdit,
+    onCancel,
+    onDelete,
+    busyAppointmentId,
+    icsHrefBase,
+  };
   const referenceDate = rawReferenceDate ?? weekStart ?? new Date();
   const handleDateChange = onDateChange ?? onWeekChange ?? (() => undefined);
   const handleViewModeChange = onViewModeChange ?? (() => undefined);
@@ -522,9 +573,7 @@ export function PersonalCalendar({
             <CalendarTimeGrid
               days={[referenceDate]}
               events={events}
-              onShowOverview={onShowOverview}
-              onRespond={onRespond}
-              respondingRecipientId={respondingRecipientId}
+              actions={actions}
             />
           </div>
         ) : null}
@@ -534,9 +583,7 @@ export function PersonalCalendar({
             <CalendarTimeGrid
               days={visibleWeekDays}
               events={events}
-              onShowOverview={onShowOverview}
-              onRespond={onRespond}
-              respondingRecipientId={respondingRecipientId}
+              actions={actions}
             />
           </div>
         ) : null}
@@ -554,9 +601,7 @@ export function PersonalCalendar({
                   key={toISODate(day)}
                   day={day}
                   events={eventsForDay(events, day)}
-                  onShowOverview={onShowOverview}
-                  onRespond={onRespond}
-                  respondingRecipientId={respondingRecipientId}
+                  actions={actions}
                   compact
                   muted={!inMonth}
                   className="min-h-44 border-r border-b border-gray-200 last:border-r-0"
@@ -574,9 +619,7 @@ export function PersonalCalendar({
               <CalendarEventItem
                 key={event.id}
                 event={event}
-                onShowOverview={onShowOverview}
-                onRespond={onRespond}
-                respondingRecipientId={respondingRecipientId}
+                actions={actions}
               />
             ))
           )}
@@ -595,18 +638,14 @@ export function PersonalCalendar({
 function CalendarDayColumn({
   day,
   events,
-  onShowOverview,
-  onRespond,
-  respondingRecipientId,
+  actions,
   compact = false,
   muted = false,
   className = "",
 }: Readonly<{
   day: Date;
   events: readonly CalendarEvent[];
-  onShowOverview?: (appointmentId: string) => void;
-  onRespond?: (recipientId: string, status: "accepted" | "declined") => void;
-  respondingRecipientId?: string | null;
+  actions: CalendarEventActions;
   compact?: boolean;
   muted?: boolean;
   className?: string;
@@ -636,9 +675,7 @@ function CalendarDayColumn({
           <CalendarEventItem
             key={`${event.id}-${toISODate(day)}`}
             event={event}
-            onShowOverview={onShowOverview}
-            onRespond={onRespond}
-            respondingRecipientId={respondingRecipientId}
+            actions={actions}
           />
         ))}
       </div>
@@ -649,15 +686,11 @@ function CalendarDayColumn({
 function CalendarTimeGrid({
   days,
   events,
-  onShowOverview,
-  onRespond,
-  respondingRecipientId,
+  actions,
 }: Readonly<{
   days: readonly Date[];
   events: readonly CalendarEvent[];
-  onShowOverview?: (appointmentId: string) => void;
-  onRespond?: (recipientId: string, status: "accepted" | "declined") => void;
-  respondingRecipientId?: string | null;
+  actions: CalendarEventActions;
 }>) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const dayBuckets = days.map((day) => ({
@@ -665,8 +698,10 @@ function CalendarTimeGrid({
     events: eventsForDay(events, day),
   }));
   const layoutOptions: TimedLayoutOptions = {
-    hasRespond: Boolean(onRespond),
-    hasOverview: Boolean(onShowOverview),
+    hasRespond: Boolean(actions.onRespond),
+    hasOverview: Boolean(actions.onShowOverview),
+    hasManage: Boolean(actions.onEdit ?? actions.onCancel ?? actions.onDelete),
+    hasIcs: Boolean(actions.icsHrefBase),
   };
   const { startHour, endHour } = gridHours(
     dayBuckets.flatMap((bucket) => bucket.events),
@@ -731,9 +766,7 @@ function CalendarTimeGrid({
                   <CalendarEventItem
                     key={`${event.id}-${toISODate(day)}`}
                     event={event}
-                    onShowOverview={onShowOverview}
-                    onRespond={onRespond}
-                    respondingRecipientId={respondingRecipientId}
+                    actions={actions}
                   />
                 ))}
               </div>
@@ -765,9 +798,7 @@ function CalendarTimeGrid({
                 startHour={startHour}
                 gridStartMinutes={gridStartMinutes}
                 bodyHeight={bodyHeight}
-                onShowOverview={onShowOverview}
-                onRespond={onRespond}
-                respondingRecipientId={respondingRecipientId}
+                actions={actions}
               />
             ))}
           </div>
@@ -783,25 +814,26 @@ function TimeGridDayBody({
   startHour,
   gridStartMinutes,
   bodyHeight,
-  onShowOverview,
-  onRespond,
-  respondingRecipientId,
+  actions,
 }: Readonly<{
   events: readonly CalendarEvent[];
   hours: readonly number[];
   startHour: number;
   gridStartMinutes: number;
   bodyHeight: number;
-  onShowOverview?: (appointmentId: string) => void;
-  onRespond?: (recipientId: string, status: "accepted" | "declined") => void;
-  respondingRecipientId?: string | null;
+  actions: CalendarEventActions;
 }>) {
   const shiftBands = events.filter(
     (event) => event.source === "shift" && !isAllDayLike(event),
   );
   const timed = layoutTimedEvents(
     events.filter((event) => event.source !== "shift" && !isAllDayLike(event)),
-    { hasRespond: Boolean(onRespond), hasOverview: Boolean(onShowOverview) },
+    {
+      hasRespond: Boolean(actions.onRespond),
+      hasOverview: Boolean(actions.onShowOverview),
+      hasManage: Boolean(actions.onEdit ?? actions.onCancel ?? actions.onDelete),
+      hasIcs: Boolean(actions.icsHrefBase),
+    },
   );
   return (
     <div
@@ -856,9 +888,7 @@ function TimeGridDayBody({
           key={placement.event.id}
           placement={placement}
           gridStartMinutes={gridStartMinutes}
-          onShowOverview={onShowOverview}
-          onRespond={onRespond}
-          respondingRecipientId={respondingRecipientId}
+          actions={actions}
         />
       ))}
     </div>
@@ -868,24 +898,51 @@ function TimeGridDayBody({
 function TimeGridEventBlock({
   placement,
   gridStartMinutes,
-  onShowOverview,
-  onRespond,
-  respondingRecipientId,
+  actions,
 }: Readonly<{
   placement: TimedPlacement;
   gridStartMinutes: number;
-  onShowOverview?: (appointmentId: string) => void;
-  onRespond?: (recipientId: string, status: "accepted" | "declined") => void;
-  respondingRecipientId?: string | null;
+  actions: CalendarEventActions;
 }>) {
+  const {
+    onShowOverview,
+    onRespond,
+    respondingRecipientId,
+    onEdit,
+    onCancel,
+    onDelete,
+    busyAppointmentId,
+    icsHrefBase,
+  } = actions;
   const { event, startMinutes, endMinutes, column, columnCount } = placement;
   const tone = sourceTone[event.source];
   const recipientId = event.recipient_id;
+  const cancelled = event.cancelled === true;
   const responding =
     Boolean(recipientId) && respondingRecipientId === recipientId;
-  const showRespond = Boolean(event.can_respond && recipientId && onRespond);
+  // A cancelled appointment can no longer be answered — hide RSVP, matching
+  // CalendarEventItem.
+  const showRespond = Boolean(
+    !cancelled && event.can_respond && recipientId && onRespond,
+  );
   const showOverview = Boolean(
     event.can_view_overview && event.appointment_id && onShowOverview,
+  );
+  // Day/week timed blocks must offer the same management + export as the month
+  // and mobile CalendarEventItem, so organizers and parents never have to switch
+  // views to edit, cancel, delete, or download a timed appointment.
+  const canManage =
+    event.source === "appointment" &&
+    event.can_edit &&
+    Boolean(event.appointment_id) &&
+    Boolean(onEdit ?? onCancel ?? onDelete);
+  const managing =
+    Boolean(event.appointment_id) && busyAppointmentId === event.appointment_id;
+  const showIcs = Boolean(
+    !cancelled &&
+      event.source === "appointment" &&
+      event.appointment_id &&
+      icsHrefBase,
   );
   // endMinutes ist bereits das effektive Render-Ende aus layoutTimedEvents —
   // die Mindesthöhe steckt in der Platzierung, damit nichts überdeckt wird.
@@ -971,28 +1028,97 @@ function TimeGridEventBlock({
           </Button>
         </div>
       ) : null}
+      {showIcs ? (
+        <a
+          href={`${icsHrefBase}/${encodeURIComponent(event.appointment_id!)}/ics`}
+          download
+          className="mt-1 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-white/50 px-2.5 text-xs font-medium text-gray-700 transition-colors hover:bg-white"
+        >
+          <CalendarPlus className="h-4 w-4" aria-hidden />
+          Zum Kalender hinzufügen
+        </a>
+      ) : null}
+      {canManage ? (
+        <div className="mt-1 flex flex-wrap gap-1 border-t border-white/60 pt-1.5">
+          {onEdit && !cancelled ? (
+            <Button
+              type="button"
+              size="compact"
+              variant="ghost"
+              className="bg-white/50"
+              disabled={managing}
+              onClick={() => onEdit(event)}
+            >
+              <Pencil className="h-4 w-4" aria-hidden />
+              Bearbeiten
+            </Button>
+          ) : null}
+          {onCancel && !cancelled ? (
+            <Button
+              type="button"
+              size="compact"
+              variant="ghost"
+              className="bg-white/50 text-[#CC2626]"
+              disabled={managing}
+              onClick={() => onCancel(event)}
+            >
+              <Ban className="h-4 w-4" aria-hidden />
+              Absagen
+            </Button>
+          ) : null}
+          {onDelete ? (
+            <Button
+              type="button"
+              size="compact"
+              variant="ghost"
+              className="bg-white/50 text-[#CC2626]"
+              disabled={managing}
+              onClick={() => onDelete(event)}
+            >
+              <Trash2 className="h-4 w-4" aria-hidden />
+              Löschen
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
     </article>
   );
 }
 
 function CalendarEventItem({
   event,
-  onShowOverview,
-  onRespond,
-  respondingRecipientId,
+  actions,
 }: Readonly<{
   event: CalendarEvent;
-  onShowOverview?: (appointmentId: string) => void;
-  onRespond?: (recipientId: string, status: "accepted" | "declined") => void;
-  respondingRecipientId?: string | null;
+  actions: CalendarEventActions;
 }>) {
+  const {
+    onShowOverview,
+    onRespond,
+    respondingRecipientId,
+    onEdit,
+    onCancel,
+    onDelete,
+    busyAppointmentId,
+    icsHrefBase,
+  } = actions;
   const tone = sourceTone[event.source];
   const recipientId = event.recipient_id;
+  const cancelled = event.cancelled === true;
   const responding =
     Boolean(recipientId) && respondingRecipientId === recipientId;
+  const canManage =
+    event.source === "appointment" &&
+    event.can_edit &&
+    Boolean(event.appointment_id) &&
+    Boolean(onEdit ?? onCancel ?? onDelete);
+  const managing =
+    Boolean(event.appointment_id) && busyAppointmentId === event.appointment_id;
   return (
     <article
-      className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+      className={`rounded-lg border border-gray-200 bg-white p-3 shadow-sm ${
+        cancelled ? "opacity-70" : ""
+      }`}
       style={{ borderLeft: `4px solid ${tone.bar}`, backgroundColor: tone.bg }}
     >
       <div className="flex items-start justify-between gap-2">
@@ -1001,13 +1127,22 @@ function CalendarEventItem({
             <span className="rounded-md bg-white/80 px-1.5 py-0.5 text-[11px] font-semibold text-gray-700">
               {tone.label}
             </span>
-            {event.response_status ? (
+            {cancelled ? (
+              <span className="rounded-md bg-[#FF3130]/10 px-1.5 py-0.5 text-[11px] font-semibold text-[#CC2626]">
+                Abgesagt
+              </span>
+            ) : null}
+            {!cancelled && event.response_status ? (
               <span className="rounded-md bg-white/80 px-1.5 py-0.5 text-[11px] font-semibold text-gray-700">
                 {responseLabel[event.response_status] ?? event.response_status}
               </span>
             ) : null}
           </div>
-          <h2 className="mt-1 truncate text-sm font-semibold text-gray-950">
+          <h2
+            className={`mt-1 truncate text-sm font-semibold text-gray-950 ${
+              cancelled ? "line-through" : ""
+            }`}
+          >
             {event.title}
           </h2>
         </div>
@@ -1048,7 +1183,20 @@ function CalendarEventItem({
           Teilnehmer
         </Button>
       ) : null}
-      {event.can_respond && recipientId && onRespond ? (
+      {!cancelled &&
+      event.source === "appointment" &&
+      event.appointment_id &&
+      icsHrefBase ? (
+        <a
+          href={`${icsHrefBase}/${encodeURIComponent(event.appointment_id)}/ics`}
+          download
+          className="mt-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-white/50 px-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-white"
+        >
+          <CalendarPlus className="h-4 w-4" aria-hidden />
+          Zum Kalender hinzufügen
+        </a>
+      ) : null}
+      {!cancelled && event.can_respond && recipientId && onRespond ? (
         <div className="mt-3 grid gap-1.5">
           <Button
             type="button"
@@ -1072,6 +1220,49 @@ function CalendarEventItem({
             <X className="h-4 w-4" aria-hidden />
             Absagen
           </Button>
+        </div>
+      ) : null}
+      {canManage ? (
+        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/60 pt-2.5">
+          {onEdit && !cancelled ? (
+            <Button
+              type="button"
+              size="compact"
+              variant="ghost"
+              className="bg-white/50"
+              disabled={managing}
+              onClick={() => onEdit(event)}
+            >
+              <Pencil className="h-4 w-4" aria-hidden />
+              Bearbeiten
+            </Button>
+          ) : null}
+          {onCancel && !cancelled ? (
+            <Button
+              type="button"
+              size="compact"
+              variant="ghost"
+              className="bg-white/50 text-[#CC2626]"
+              disabled={managing}
+              onClick={() => onCancel(event)}
+            >
+              <Ban className="h-4 w-4" aria-hidden />
+              Absagen
+            </Button>
+          ) : null}
+          {onDelete ? (
+            <Button
+              type="button"
+              size="compact"
+              variant="ghost"
+              className="bg-white/50 text-[#CC2626]"
+              disabled={managing}
+              onClick={() => onDelete(event)}
+            >
+              <Trash2 className="h-4 w-4" aria-hidden />
+              Löschen
+            </Button>
+          ) : null}
         </div>
       ) : null}
     </article>

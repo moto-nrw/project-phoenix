@@ -18,13 +18,19 @@ import { useToast } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { toISODate } from "~/lib/date-helpers";
 import {
+  cancelStaffAppointment,
+  cancelStaffAppointmentOccurrence,
   createStaffAppointment,
+  deleteStaffAppointment,
   getCalendarRecipientOptions,
+  getStaffAppointmentDetail,
   getStaffAppointmentOverview,
   getStaffCalendar,
   respondStaffCalendar,
+  updateStaffAppointment,
   type CalendarAppointmentOverview,
   type CalendarDeliveryMode,
+  type CalendarEvent,
   type CalendarOverviewVisibility,
   type CalendarRecipientOptions,
   type CalendarResponse,
@@ -62,6 +68,7 @@ const targetTypeLabels: Record<CalendarTargetType, string> = {
   staff: "Mitarbeitende",
   guardian_profile: "Einzelne Eltern",
   all_staff: "Alle Mitarbeitenden",
+  all_school_parents: "Alle Eltern der Schule",
   parents_by_class: "Eltern nach Klasse",
   parents_by_group: "Eltern nach Gruppe",
   parents_by_student: "Eltern nach Kind",
@@ -112,6 +119,7 @@ function targetKey(
   value?: string,
 ): string {
   if (type === "all_staff") return "all_staff";
+  if (type === "all_school_parents") return "all_school_parents";
   return `${type}:${id ?? value ?? ""}`;
 }
 
@@ -119,7 +127,9 @@ function serializeTarget(target: DraftTarget): CalendarTarget {
   if (target.type === "parents_by_class") {
     return { type: target.type, value: target.value };
   }
-  if (target.type === "all_staff") return { type: target.type };
+  if (target.type === "all_staff" || target.type === "all_school_parents") {
+    return { type: target.type };
+  }
   return { type: target.type, id: target.id };
 }
 
@@ -130,6 +140,17 @@ function isCoveredByAggregate(
 ): boolean {
   if (choice.type === "staff") {
     return targets.some((target) => target.type === "all_staff");
+  }
+  // Any parent-scoped choice is already covered once the whole school is targeted.
+  if (
+    choice.type === "parents_by_class" ||
+    choice.type === "parents_by_group" ||
+    choice.type === "parents_by_student" ||
+    choice.type === "guardian_profile"
+  ) {
+    if (targets.some((target) => target.type === "all_school_parents")) {
+      return true;
+    }
   }
   if (choice.type === "parents_by_student") {
     const student = options.students.find((item) => item.id === choice.id);
@@ -176,6 +197,17 @@ function buildTargetGroups(
         id: staff.id,
         label: staff.name,
       })),
+    },
+    {
+      type: "all_school_parents",
+      label: targetTypeLabels.all_school_parents,
+      choices: [
+        {
+          key: "all_school_parents",
+          type: "all_school_parents",
+          label: "Alle Eltern der Schule",
+        },
+      ],
     },
     {
       type: "parents_by_class",
@@ -240,6 +272,14 @@ export default function StaffCalendarPage() {
   const [referenceDate, setReferenceDate] = useState(() => new Date());
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
   const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [busyAppointmentId, setBusyAppointmentId] = useState<string | null>(
+    null,
+  );
+  const [confirmAction, setConfirmAction] = useState<{
+    event: CalendarEvent;
+    mode: "cancel" | "delete";
+  } | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
@@ -252,6 +292,7 @@ export default function StaffCalendarPage() {
     useState<CalendarDeliveryMode>("rsvp_required");
   const [overviewVisibility, setOverviewVisibility] =
     useState<CalendarOverviewVisibility>("organizer");
+  const [sendEmail, setSendEmail] = useState(false);
   const [targetSearch, setTargetSearch] = useState("");
   const [targets, setTargets] = useState<DraftTarget[]>([]);
   const [overview, setOverview] = useState<CalendarAppointmentOverview | null>(
@@ -262,6 +303,12 @@ export default function StaffCalendarPage() {
   const [intervalCount, setIntervalCount] = useState(1);
   const [weeklyDays, setWeeklyDays] = useState<string[]>([]);
   const [endsOn, setEndsOn] = useState("");
+  // Recurrence fields the form has no dedicated control for yet (monthly
+  // by-day-of-month, count-based end). They are preserved verbatim across an
+  // edit so re-saving a series never silently drops them (which would change
+  // the schedule or make a bounded series unbounded).
+  const [monthDays, setMonthDays] = useState<number[]>([]);
+  const [occurrenceCount, setOccurrenceCount] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [respondingRecipientId, setRespondingRecipientId] = useState<
     string | null
@@ -332,9 +379,108 @@ export default function StaffCalendarPage() {
     setEndsOn("");
     setWeeklyDays([]);
     setIntervalCount(1);
+    setMonthDays([]);
+    setOccurrenceCount(null);
     setOverviewVisibility("organizer");
+    setDeliveryMode("rsvp_required");
+    setSendEmail(false);
+    setEditingId(null);
     setFormOpen(false);
   };
+
+  const handleCreate = () => {
+    resetForm();
+    setStartDate(toISODate(new Date()));
+    setEndDate(toISODate(new Date()));
+    setStartTime("09:00");
+    setEndTime("10:00");
+    setAllDay(false);
+    setFormOpen(true);
+  };
+
+  const handleEdit = async (event: CalendarEvent) => {
+    if (!event.appointment_id) return;
+    setBusyAppointmentId(event.appointment_id);
+    try {
+      // Editing is series-scoped (UpdateStaffAppointment rewrites the whole
+      // appointment), so prefill from the persisted appointment DETAIL — its
+      // base title/dates/etc. — NOT from the clicked occurrence. Otherwise
+      // opening a later occurrence and saving would re-anchor the series to that
+      // occurrence's date and drop earlier occurrences. Times don't shift per
+      // occurrence (only dates do), so the occurrence event's clean HH:MM values
+      // match the base and are safe to reuse.
+      const detail = await getStaffAppointmentDetail(event.appointment_id);
+      const base = detail.appointment;
+      setTitle(base.title);
+      setDescription(base.description ?? "");
+      setLocation(base.location ?? "");
+      setStartDate(base.start_date);
+      setEndDate(base.end_date);
+      setAllDay(base.all_day);
+      setStartTime(base.all_day ? "09:00" : event.start_time);
+      setEndTime(base.all_day ? "10:00" : event.end_time);
+      setOverviewVisibility(base.overview_visibility);
+      setSendEmail(false);
+      if (detail.recurrence) {
+        setFrequency(detail.recurrence.frequency);
+        setIntervalCount(detail.recurrence.interval_count);
+        setWeeklyDays(detail.recurrence.weekdays ?? []);
+        setEndsOn(detail.recurrence.ends_on ?? "");
+        // Preserve fields the form can't yet edit so re-saving doesn't drop them.
+        setMonthDays(detail.recurrence.month_days ?? []);
+        setOccurrenceCount(detail.recurrence.occurrence_count ?? null);
+      } else {
+        setFrequency("none");
+        setIntervalCount(1);
+        setWeeklyDays([]);
+        setEndsOn("");
+        setMonthDays([]);
+        setOccurrenceCount(null);
+      }
+      setEditingId(event.appointment_id);
+      setFormOpen(true);
+    } catch (err) {
+      toast.error(errorMessage(err, "Termin konnte nicht geladen werden."));
+    } finally {
+      setBusyAppointmentId(null);
+    }
+  };
+
+  const runScope = async (
+    event: CalendarEvent,
+    mode: "cancel" | "delete",
+    scope: "occurrence" | "series",
+  ) => {
+    if (!event.appointment_id) return;
+    const appointmentId = event.appointment_id;
+    setBusyAppointmentId(appointmentId);
+    try {
+      if (scope === "occurrence") {
+        await cancelStaffAppointmentOccurrence(
+          appointmentId,
+          event.occurrence_date ?? event.start_date,
+        );
+        toast.success("Dieser Termin wurde entfernt.");
+      } else if (mode === "cancel") {
+        await cancelStaffAppointment(appointmentId);
+        toast.success("Termin wurde abgesagt.");
+      } else {
+        await deleteStaffAppointment(appointmentId);
+        toast.success("Termin wurde gelöscht.");
+      }
+      await mutate();
+    } catch (err) {
+      toast.error(errorMessage(err, "Aktion konnte nicht ausgeführt werden."));
+    } finally {
+      setBusyAppointmentId(null);
+      setConfirmAction(null);
+    }
+  };
+
+  const handleCancel = (event: CalendarEvent) =>
+    setConfirmAction({ event, mode: "cancel" });
+  const handleDelete = (event: CalendarEvent) =>
+    setConfirmAction({ event, mode: "delete" });
 
   const handleShowOverview = async (appointmentId: string) => {
     // Clear any previous appointment's attendees so a failed/slow request
@@ -379,7 +525,7 @@ export default function StaffCalendarPage() {
       toast.warning("Bitte einen Titel eintragen.");
       return;
     }
-    if (targets.length === 0) {
+    if (!editingId && targets.length === 0) {
       toast.warning("Bitte mindestens ein Ziel auswählen.");
       return;
     }
@@ -396,30 +542,67 @@ export default function StaffCalendarPage() {
                   ? weeklyDays
                   : [weekdayName(startDate)]
                 : undefined,
+            // Preserve monthly day-of-month selection through an edit.
+            month_days:
+              frequency === "monthly" && monthDays.length > 0
+                ? monthDays
+                : undefined,
             ends_on: endsOn || undefined,
+            // ends_on and occurrence_count are mutually exclusive end modes
+            // (the backend rejects both), so only send the count when no
+            // end date is set — this keeps a count-bounded series bounded.
+            occurrence_count:
+              !endsOn && occurrenceCount ? occurrenceCount : undefined,
           };
 
     setSubmitting(true);
     try {
-      await createStaffAppointment({
-        title: title.trim(),
-        description: description.trim() || undefined,
-        location: location.trim() || undefined,
-        start_date: startDate,
-        end_date: endDate || startDate,
-        start_time: allDay ? "00:00" : startTime,
-        end_time: allDay ? "23:59" : endTime,
-        all_day: allDay,
-        delivery_mode: deliveryMode,
-        overview_visibility: overviewVisibility,
-        recurrence,
-        targets: targets.map(serializeTarget),
-      });
-      toast.success("Termin wurde erstellt.");
+      if (editingId) {
+        // Editing keeps the original audience + delivery mode (see the API
+        // note): those cannot change without discarding collected RSVPs.
+        await updateStaffAppointment(editingId, {
+          title: title.trim(),
+          description: description.trim() || undefined,
+          location: location.trim() || undefined,
+          start_date: startDate,
+          end_date: endDate || startDate,
+          start_time: allDay ? "00:00" : startTime,
+          end_time: allDay ? "23:59" : endTime,
+          all_day: allDay,
+          overview_visibility: overviewVisibility,
+          recurrence,
+          send_email: sendEmail,
+        });
+        toast.success("Termin wurde aktualisiert.");
+      } else {
+        await createStaffAppointment({
+          title: title.trim(),
+          description: description.trim() || undefined,
+          location: location.trim() || undefined,
+          start_date: startDate,
+          end_date: endDate || startDate,
+          start_time: allDay ? "00:00" : startTime,
+          end_time: allDay ? "23:59" : endTime,
+          all_day: allDay,
+          delivery_mode: deliveryMode,
+          overview_visibility: overviewVisibility,
+          recurrence,
+          targets: targets.map(serializeTarget),
+          send_email: sendEmail,
+        });
+        toast.success("Termin wurde erstellt.");
+      }
       resetForm();
       await mutate();
     } catch (err) {
-      toast.error(errorMessage(err, "Termin konnte nicht erstellt werden."));
+      toast.error(
+        errorMessage(
+          err,
+          editingId
+            ? "Termin konnte nicht aktualisiert werden."
+            : "Termin konnte nicht erstellt werden.",
+        ),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -446,25 +629,32 @@ export default function StaffCalendarPage() {
         }
         onDateChange={setReferenceDate}
         onViewModeChange={setViewMode}
-        onCreate={canManageCalendar ? () => setFormOpen(true) : undefined}
+        onCreate={canManageCalendar ? handleCreate : undefined}
         onShowOverview={handleShowOverview}
         onRespond={handleRespond}
         respondingRecipientId={respondingRecipientId}
+        onEdit={canManageCalendar ? handleEdit : undefined}
+        onCancel={canManageCalendar ? handleCancel : undefined}
+        onDelete={canManageCalendar ? handleDelete : undefined}
+        busyAppointmentId={busyAppointmentId}
+        icsHrefBase="/api/calendar/appointments"
       />
 
       <Modal
         isOpen={formOpen && canManageCalendar}
         onClose={() => {
-          if (!submitting) setFormOpen(false);
+          if (!submitting) resetForm();
         }}
-        title="Termin erstellen"
+        title={editingId ? "Termin bearbeiten" : "Termin erstellen"}
         widthClass="mx-4 w-[calc(100%-2rem)] max-w-5xl"
       >
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="flex items-center gap-2">
             <CalendarPlus className="h-5 w-5 text-gray-600" aria-hidden />
             <p className="text-sm text-gray-600">
-              Lege Zeitpunkt, Antwortregel und Empfängergruppen fest.
+              {editingId
+                ? "Passe Zeitpunkt und Details an. Empfänger und Antwortregel bleiben unverändert."
+                : "Lege Zeitpunkt, Antwortregel und Empfängergruppen fest."}
             </p>
           </div>
 
@@ -540,6 +730,25 @@ export default function StaffCalendarPage() {
             Ganztägig
           </label>
 
+          <label
+            htmlFor="calendar-send-email"
+            className="flex items-start gap-2 text-sm font-medium text-gray-700"
+          >
+            <Checkbox
+              id="calendar-send-email"
+              checked={sendEmail}
+              onChange={(event) => setSendEmail(event.target.checked)}
+              disabled={submitting}
+            />
+            <span>
+              Eltern per E-Mail benachrichtigen
+              <span className="mt-0.5 block text-xs font-normal text-gray-500">
+                Sendet eine E-Mail mit Titel und Termin an die eingeladenen
+                Eltern. Ohne Haken erscheint der Termin nur im Eltern-Portal.
+              </span>
+            </span>
+          </label>
+
           <label className="block">
             <span className="mb-2 block text-sm font-medium text-gray-700">
               Beschreibung
@@ -553,26 +762,28 @@ export default function StaffCalendarPage() {
           </label>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-gray-700">
-                Antwortregel
-              </span>
-              <select
-                className="block h-10 w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
-                value={deliveryMode}
-                onChange={(event) =>
-                  setDeliveryMode(event.target.value as CalendarDeliveryMode)
-                }
-                disabled={submitting}
-              >
-                <option value="rsvp_required">
-                  Antwort erforderlich: Zusage oder Absage
-                </option>
-                <option value="informational">
-                  Nur informieren: ohne Rückmeldung eintragen
-                </option>
-              </select>
-            </label>
+            {!editingId ? (
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-gray-700">
+                  Antwortregel
+                </span>
+                <select
+                  className="block h-10 w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+                  value={deliveryMode}
+                  onChange={(event) =>
+                    setDeliveryMode(event.target.value as CalendarDeliveryMode)
+                  }
+                  disabled={submitting}
+                >
+                  <option value="rsvp_required">
+                    Antwort erforderlich: Zusage oder Absage
+                  </option>
+                  <option value="informational">
+                    Nur informieren: ohne Rückmeldung eintragen
+                  </option>
+                </select>
+              </label>
+            ) : null}
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-gray-700">
                 Teilnehmerübersicht
@@ -592,82 +803,86 @@ export default function StaffCalendarPage() {
                 <option value="all">Alle Eingeladenen</option>
               </select>
             </label>
-            <Input
-              label="Ziele suchen"
-              name="calendar-target-search"
-              controlSize="compact"
-              value={targetSearch}
-              onChange={(event) => setTargetSearch(event.target.value)}
-              disabled={submitting}
-              placeholder="Name, Klasse oder Gruppe"
-            />
+            {!editingId ? (
+              <Input
+                label="Ziele suchen"
+                name="calendar-target-search"
+                controlSize="compact"
+                value={targetSearch}
+                onChange={(event) => setTargetSearch(event.target.value)}
+                disabled={submitting}
+                placeholder="Name, Klasse oder Gruppe"
+              />
+            ) : null}
           </div>
 
-          <div className="rounded-lg border border-gray-200 bg-white p-3">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-gray-900">
-                Empfänger auswählen
-              </h3>
-              <span className="text-xs text-gray-500">
-                {targets.length} Ziel{targets.length === 1 ? "" : "e"}{" "}
-                ausgewählt
-              </span>
-            </div>
-            <div className="grid gap-3 lg:grid-cols-2">
-              {targetGroups.map((group) => (
-                <section
-                  key={group.type}
-                  className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
-                >
-                  <h4 className="text-xs font-semibold tracking-wide text-gray-700 uppercase">
-                    {group.label}
-                  </h4>
-                  <div className="mt-2 max-h-48 space-y-1 overflow-y-auto pr-1">
-                    {group.choices.length === 0 ? (
-                      <p className="py-2 text-xs text-gray-500">
-                        Keine Treffer
-                      </p>
-                    ) : (
-                      group.choices.map((choice) => {
-                        const selected = selectedKeys.has(choice.key);
-                        const disabled =
-                          submitting || (!selected && choice.covered);
-                        const checkboxId = `calendar-target-${choice.key.replace(/[^a-z0-9_-]/gi, "-")}`;
-                        return (
-                          <label
-                            key={choice.key}
-                            htmlFor={checkboxId}
-                            className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm transition-colors ${
-                              selected
-                                ? "border-gray-900 bg-white text-gray-950"
-                                : choice.covered
-                                  ? "border-gray-200 bg-[#ECF7DA] text-gray-500"
-                                  : "border-transparent bg-white text-gray-700 hover:border-gray-200"
-                            } ${disabled ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}
-                          >
-                            <Checkbox
-                              id={checkboxId}
-                              checked={selected}
-                              disabled={disabled}
-                              onChange={() => toggleTarget(choice)}
-                            />
-                            <span className="min-w-0 flex-1 truncate">
-                              {choice.label}
-                            </span>
-                            {choice.covered && !selected ? (
-                              <span className="text-[11px] font-medium text-gray-500">
-                                bereits enthalten
+          {!editingId ? (
+            <div className="rounded-lg border border-gray-200 bg-white p-3">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Empfänger auswählen
+                </h3>
+                <span className="text-xs text-gray-500">
+                  {targets.length} Ziel{targets.length === 1 ? "" : "e"}{" "}
+                  ausgewählt
+                </span>
+              </div>
+              <div className="grid gap-3 lg:grid-cols-2">
+                {targetGroups.map((group) => (
+                  <section
+                    key={group.type}
+                    className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
+                  >
+                    <h4 className="text-xs font-semibold tracking-wide text-gray-700 uppercase">
+                      {group.label}
+                    </h4>
+                    <div className="mt-2 max-h-48 space-y-1 overflow-y-auto pr-1">
+                      {group.choices.length === 0 ? (
+                        <p className="py-2 text-xs text-gray-500">
+                          Keine Treffer
+                        </p>
+                      ) : (
+                        group.choices.map((choice) => {
+                          const selected = selectedKeys.has(choice.key);
+                          const disabled =
+                            submitting || (!selected && choice.covered);
+                          const checkboxId = `calendar-target-${choice.key.replace(/[^a-z0-9_-]/gi, "-")}`;
+                          return (
+                            <label
+                              key={choice.key}
+                              htmlFor={checkboxId}
+                              className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm transition-colors ${
+                                selected
+                                  ? "border-gray-900 bg-white text-gray-950"
+                                  : choice.covered
+                                    ? "border-gray-200 bg-[#ECF7DA] text-gray-500"
+                                    : "border-transparent bg-white text-gray-700 hover:border-gray-200"
+                              } ${disabled ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}
+                            >
+                              <Checkbox
+                                id={checkboxId}
+                                checked={selected}
+                                disabled={disabled}
+                                onChange={() => toggleTarget(choice)}
+                              />
+                              <span className="min-w-0 flex-1 truncate">
+                                {choice.label}
                               </span>
-                            ) : null}
-                          </label>
-                        );
-                      })
-                    )}
-                  </div>
-                </section>
-              ))}
+                              {choice.covered && !selected ? (
+                                <span className="text-[11px] font-medium text-gray-500">
+                                  bereits enthalten
+                                </span>
+                              ) : null}
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </section>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : null}
 
           {targets.length > 0 ? (
             <div className="flex flex-wrap gap-2">
@@ -764,7 +979,7 @@ export default function StaffCalendarPage() {
               type="button"
               variant="outline"
               size="md"
-              onClick={() => setFormOpen(false)}
+              onClick={resetForm}
               disabled={submitting}
             >
               Abbrechen
@@ -775,7 +990,7 @@ export default function StaffCalendarPage() {
               isLoading={submitting}
               loadingText="Speichert..."
             >
-              Termin speichern
+              {editingId ? "Änderungen speichern" : "Termin speichern"}
             </Button>
           </div>
         </form>
@@ -795,6 +1010,85 @@ export default function StaffCalendarPage() {
           </div>
         ) : overview ? (
           <CalendarOverviewList overview={overview} />
+        ) : null}
+      </Modal>
+
+      <Modal
+        isOpen={confirmAction !== null}
+        onClose={() => {
+          if (!busyAppointmentId) setConfirmAction(null);
+        }}
+        title={
+          confirmAction?.mode === "delete" ? "Termin löschen" : "Termin absagen"
+        }
+        widthClass="mx-4 w-[calc(100%-2rem)] max-w-md"
+      >
+        {confirmAction ? (
+          <div className="space-y-5">
+            <p className="text-sm text-gray-700">
+              {confirmAction.mode === "delete"
+                ? "Möchtest du diesen Termin wirklich löschen? Die Empfänger sehen ihn dann nicht mehr."
+                : "Möchtest du diesen Termin absagen? Die Empfänger sehen ihn als „Abgesagt“."}
+            </p>
+            {confirmAction.event.recurring ? (
+              <div className="grid gap-2">
+                <Button
+                  type="button"
+                  variant={
+                    confirmAction.mode === "delete" ? "danger" : "primary"
+                  }
+                  size="md"
+                  isLoading={Boolean(busyAppointmentId)}
+                  onClick={() =>
+                    runScope(confirmAction.event, confirmAction.mode, "series")
+                  }
+                >
+                  Ganze Reihe{" "}
+                  {confirmAction.mode === "delete" ? "löschen" : "absagen"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  disabled={Boolean(busyAppointmentId)}
+                  onClick={() =>
+                    runScope(
+                      confirmAction.event,
+                      confirmAction.mode,
+                      "occurrence",
+                    )
+                  }
+                >
+                  Nur diesen Termin entfernen
+                </Button>
+              </div>
+            ) : (
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  disabled={Boolean(busyAppointmentId)}
+                  onClick={() => setConfirmAction(null)}
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  type="button"
+                  variant={
+                    confirmAction.mode === "delete" ? "danger" : "primary"
+                  }
+                  size="md"
+                  isLoading={Boolean(busyAppointmentId)}
+                  onClick={() =>
+                    runScope(confirmAction.event, confirmAction.mode, "series")
+                  }
+                >
+                  {confirmAction.mode === "delete" ? "Löschen" : "Absagen"}
+                </Button>
+              </div>
+            )}
+          </div>
         ) : null}
       </Modal>
     </main>

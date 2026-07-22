@@ -833,7 +833,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Mein Kalender",
         icon: CalendarRange,
         summary:
-          "Zeigt persönliche Termine, Einladungen, eigene Dienstplan-Schichten und zugewiesene Betreuungsangebote. Mitarbeitende mit Verwaltungsrecht erstellen Termine für Team, Eltern oder ganze Gruppen.",
+          "Zeigt persönliche Termine, Einladungen, eigene Dienstplan-Schichten und zugewiesene Betreuungsangebote. Mitarbeitende mit Verwaltungsrecht erstellen, bearbeiten und sagen Termine für Team, Eltern oder ganze Gruppen ab und benachrichtigen Eltern optional per E-Mail.",
         steps: [
           "`Mein Kalender` öffnen.",
           "Oben zwischen `Tag`, `Woche` und `Monat` wechseln und mit den Pfeilen oder `Heute` zum passenden Zeitraum springen. Samstag und Sonntag sind standardmäßig ausgeblendet; über `Sa/So` blendest du sie ein — steht dort ein Zähler, liegen Einträge am Wochenende.",
@@ -845,7 +845,11 @@ export const appChapters: readonly GuideChapter[] = [
           "Unter `Teilnehmerübersicht` festlegen, wer die Liste der Eingeladenen und ihren Status sehen darf: nur du, Mitarbeitende mit Termin oder alle Eingeladenen.",
           "In `Empfänger auswählen` mehrere Zielgruppen kombinieren, zum Beispiel `Alle Mitarbeitenden`, einzelne Mitarbeitende, Eltern nach Klasse, Gruppe oder Kind sowie einzelne Eltern. Bereits durch eine Gruppe abgedeckte Personen werden markiert und nicht doppelt ausgewählt.",
           "Optional eine `Wiederholung` mit Intervall, Wochentagen und Enddatum setzen.",
+          "Mit `Eltern per E-Mail benachrichtigen` optional eine E-Mail mit Titel und Termin an die eingeladenen Eltern senden. Ohne Haken erscheint der Termin nur im Eltern-Portal.",
           "Mit `Termin speichern` anlegen. Termine mit Antwortregel zeigen im Kalender `Zusagen` und `Absagen`; über `Teilnehmer` öffnest du die Übersicht.",
+          "Einen bestehenden Termin über `Bearbeiten` anpassen. Änderungen gelten für die ganze Serie; ist erneut `Eltern per E-Mail benachrichtigen` gesetzt, geht eine Aktualisierungs-E-Mail heraus. Ein bereits abgesagter Termin lässt sich nicht mehr bearbeiten.",
+          "Mit `Absagen` bleibt der Termin sichtbar, aber als `Abgesagt` markiert; mit `Löschen` verschwindet er ganz. Bei einer Terminreihe fragt die App, ob die Aktion für `Nur diesen Termin entfernen` oder die `Ganze Reihe` gilt. Noch nicht versendete Benachrichtigungen werden dabei automatisch gestoppt.",
+          "Über `Zum Kalender hinzufügen` an einem Termin eine `.ics`-Datei herunterladen, um ihn in einen persönlichen Kalender (Handy, Outlook) zu übernehmen.",
         ],
         callout: {
           title: "Eltern nur mit Portalzugang einladen",
@@ -853,7 +857,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Mein Kalender mit Umschaltung Tag/Woche/Monat, Schaltfläche Neuer Termin, Termin-Dialog und Teilnehmerübersicht.",
+          "Mein Kalender mit Umschaltung Tag/Woche/Monat, Schaltfläche Neuer Termin, Termin-Dialog mit E-Mail-Benachrichtigung sowie Bearbeiten/Absagen/Löschen und Teilnehmerübersicht.",
       },
       {
         id: "dienstplan",

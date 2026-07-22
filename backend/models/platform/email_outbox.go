@@ -41,12 +41,20 @@ const (
 	// land in a follow-up.
 	EmailKindEnrollmentRolloverOptIn  = "enrollment_rollover_opt_in"
 	EmailKindEnrollmentRolloverOptOut = "enrollment_rollover_opt_out"
+
+	// Calendar appointment (Termine) notification kinds. Sent to guardian
+	// recipients of a parent-facing appointment.
+	EmailKindAppointmentPublished = "appointment_published"
+	EmailKindAppointmentUpdated   = "appointment_updated"
+	EmailKindAppointmentCancelled = "appointment_cancelled"
+	EmailKindAppointmentReminder  = "appointment_reminder"
 )
 
 // Pre-defined related_entity_type values.
 const (
 	EmailRelatedTypeGuardianInvitation = "guardian_invitation"
 	EmailRelatedTypeEnrollmentRequest  = "enrollment_request"
+	EmailRelatedTypeAppointment        = "calendar_appointment"
 )
 
 // EmailOutbox is a row in platform.email_outbox — the shared outbox the

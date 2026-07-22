@@ -14,6 +14,7 @@ import (
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -40,14 +41,28 @@ var (
 	ErrInvalidRequest = errors.New("invalid calendar request")
 	ErrForbidden      = errors.New("calendar access forbidden")
 	ErrNotFound       = errors.New("calendar item not found")
+	// ErrConflict signals that a concurrent lifecycle transition (cancel/delete)
+	// raced the current operation — e.g. an edit that began before the appointment
+	// was cancelled. Rendered as HTTP 409.
+	ErrConflict = errors.New("calendar item changed concurrently")
 )
 
 type Service interface {
 	ListMyStaffEvents(ctx context.Context, from, to timezone.Date) ([]Event, error)
 	ListMyParentEvents(ctx context.Context, accountID int64, from, to timezone.Date) ([]Event, error)
 	CreateStaffAppointment(ctx context.Context, req CreateAppointmentRequest) (*AppointmentDetail, error)
+	GetStaffAppointmentDetail(ctx context.Context, appointmentID int64) (*AppointmentDetail, error)
+	UpdateStaffAppointment(ctx context.Context, appointmentID int64, req UpdateAppointmentRequest) (*AppointmentDetail, error)
+	CancelStaffAppointment(ctx context.Context, appointmentID int64) (*AppointmentDetail, error)
+	DeleteStaffAppointment(ctx context.Context, appointmentID int64) error
+	CancelStaffAppointmentOccurrence(ctx context.Context, appointmentID int64, occurrenceDate timezone.Date) error
 	GetStaffAppointmentOverview(ctx context.Context, appointmentID int64) (*AppointmentOverview, error)
 	GetParentAppointmentOverview(ctx context.Context, accountID, appointmentID int64) (*AppointmentOverview, error)
+	StaffAppointmentICS(ctx context.Context, appointmentID int64) (filename, content string, err error)
+	ParentAppointmentICS(ctx context.Context, accountID, appointmentID int64) (filename, content string, err error)
+	ParentCalendarFeedURL(ctx context.Context, accountID int64) (httpsURL, webcalURL string, err error)
+	RotateParentCalendarFeed(ctx context.Context, accountID int64) (httpsURL, webcalURL string, err error)
+	ParentCalendarFeedByToken(ctx context.Context, token string) (filename, content string, err error)
 	RespondToStaffInvitation(ctx context.Context, recipientID int64, status string) error
 	RespondToParentInvitation(ctx context.Context, accountID, recipientID int64, status string) error
 	RecipientOptions(ctx context.Context, query string, limit int) (*RecipientOptions, error)
@@ -76,6 +91,14 @@ type Config struct {
 	CareDays    scheduleSvc.CareDayService
 	UserContext usercontext.UserContextService
 	DB          *bun.DB
+
+	// Notification dependencies (all optional — nil disables e-mail; the in-app
+	// calendar is unaffected).
+	Outbox      OutboxEnqueuer
+	SchoolRepo  platformModels.SchoolRepository
+	Settings    LogoResolver
+	AccountRepo FeedAccountRepo
+	ParentsURL  string
 }
 
 type service struct {
@@ -104,6 +127,8 @@ type Event struct {
 	StartTime        string  `json:"start_time"`
 	EndTime          string  `json:"end_time"`
 	AllDay           bool    `json:"all_day"`
+	Cancelled        bool    `json:"cancelled"`
+	Recurring        bool    `json:"recurring"`
 	DeliveryMode     *string `json:"delivery_mode,omitempty"`
 	ResponseStatus   *string `json:"response_status,omitempty"`
 	RecipientID      *string `json:"recipient_id,omitempty"`
@@ -133,6 +158,26 @@ type CreateAppointmentRequest struct {
 	OverviewVisibility string              `json:"overview_visibility"`
 	Recurrence         *RecurrenceRequest  `json:"recurrence,omitempty"`
 	Targets            []AppointmentTarget `json:"targets"`
+	SendEmail          bool                `json:"send_email"`
+}
+
+// UpdateAppointmentRequest carries the editable fields of an existing
+// appointment. Targeting (recipients) and delivery_mode are intentionally
+// immutable after creation: re-resolving the audience on every edit would wipe
+// the RSVP responses already collected. Changing the audience means cancelling
+// and re-creating the appointment.
+type UpdateAppointmentRequest struct {
+	Title              string             `json:"title"`
+	Description        *string            `json:"description,omitempty"`
+	Location           *string            `json:"location,omitempty"`
+	StartDate          timezone.Date      `json:"start_date"`
+	EndDate            timezone.Date      `json:"end_date"`
+	StartTime          time.Time          `json:"start_time"`
+	EndTime            time.Time          `json:"end_time"`
+	AllDay             bool               `json:"all_day"`
+	OverviewVisibility string             `json:"overview_visibility"`
+	Recurrence         *RecurrenceRequest `json:"recurrence,omitempty"`
+	SendEmail          bool               `json:"send_email"`
 }
 
 type AppointmentOverview struct {
@@ -308,6 +353,9 @@ func (s *service) CreateStaffAppointment(ctx context.Context, req CreateAppointm
 		AllDay:             req.AllDay,
 		DeliveryMode:       req.DeliveryMode,
 		OverviewVisibility: req.OverviewVisibility,
+		// Persist the notification opt-in so a later cancellation honours it: an
+		// appointment created without send_email never mails guardians.
+		NotifyGuardians: req.SendEmail,
 	}
 	if err := appointment.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
@@ -321,6 +369,9 @@ func (s *service) CreateStaffAppointment(ctx context.Context, req CreateAppointm
 		}
 		if recurrence.EndsOn != nil && recurrence.EndsOn.Before(appointment.StartDate) {
 			return nil, fmt.Errorf("%w: recurrence end must be on or after start date", ErrInvalidRequest)
+		}
+		if _, ok := firstRecurrenceOccurrence(appointment, recurrence); !ok {
+			return nil, fmt.Errorf("%w: recurrence produces no occurrences", ErrInvalidRequest)
 		}
 		recurrence.AppointmentID = 0
 	}
@@ -368,12 +419,346 @@ func (s *service) CreateStaffAppointment(ctx context.Context, req CreateAppointm
 		return nil, err
 	}
 
+	if req.SendEmail {
+		if err := s.notifyGuardians(ctx, appointment, platformModels.EmailKindAppointmentPublished); err != nil {
+			return nil, err
+		}
+	}
+
 	return &AppointmentDetail{
 		Appointment: appointment,
 		Recurrence:  recurrence,
 		Recipients:  recipients,
 		Targets:     targets,
 	}, nil
+}
+
+// loadOrganizedAppointment fetches an appointment and asserts the current staff
+// member is its organizer. Only the organizer may edit, cancel, or delete an
+// appointment. Returns ErrNotFound for missing rows and ErrForbidden when the
+// caller is not the organizer.
+func (s *service) loadOrganizedAppointment(ctx context.Context, appointmentID int64) (*calModels.Appointment, error) {
+	if appointmentID <= 0 {
+		return nil, fmt.Errorf("%w: appointment id is required", ErrInvalidRequest)
+	}
+	staff, err := s.cfg.UserContext.GetCurrentStaff(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: current staff required", ErrForbidden)
+	}
+	appointment, err := s.cfg.AppointmentRepo.FindByID(ctx, appointmentID)
+	if err != nil {
+		return nil, err
+	}
+	if appointment == nil {
+		return nil, ErrNotFound
+	}
+	// A soft-deleted appointment lives on only as a feed tombstone; it is gone from
+	// every interactive surface, so lifecycle operations (edit/cancel/delete/detail)
+	// treat it as not found.
+	if appointment.DeletedAt != nil {
+		return nil, ErrNotFound
+	}
+	if appointment.OrganizerStaffID != staff.ID {
+		return nil, fmt.Errorf("%w: only the organizer may modify this appointment", ErrForbidden)
+	}
+	return appointment, nil
+}
+
+// appointmentDetail reloads the full detail (recurrence, recipients, targets)
+// for an appointment. Used by the lifecycle operations so callers (and the
+// notification layer in Phase B) get the same shape as CreateStaffAppointment.
+func (s *service) appointmentDetail(ctx context.Context, appointment *calModels.Appointment) (*AppointmentDetail, error) {
+	recurrence, err := s.cfg.RecurrenceRepo.FindByAppointmentID(ctx, appointment.ID)
+	if err != nil {
+		return nil, err
+	}
+	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointment.ID)
+	if err != nil {
+		return nil, err
+	}
+	targets, err := s.cfg.TargetRepo.FindByAppointmentID(ctx, appointment.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &AppointmentDetail{
+		Appointment: appointment,
+		Recurrence:  recurrence,
+		Recipients:  recipients,
+		Targets:     targets,
+	}, nil
+}
+
+func (s *service) GetStaffAppointmentDetail(ctx context.Context, appointmentID int64) (*AppointmentDetail, error) {
+	appointment, err := s.loadOrganizedAppointment(ctx, appointmentID)
+	if err != nil {
+		return nil, err
+	}
+	return s.appointmentDetail(ctx, appointment)
+}
+
+func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int64, req UpdateAppointmentRequest) (*AppointmentDetail, error) {
+	appointment, err := s.loadOrganizedAppointment(ctx, appointmentID)
+	if err != nil {
+		return nil, err
+	}
+	// A cancelled appointment is terminal: there is no reactivation flow, so
+	// editing it (which would also fire a "Termin geändert" notice while the
+	// appointment stays cancelled) is rejected outright.
+	if appointment.CancelledAt != nil {
+		return nil, fmt.Errorf("%w: appointment is cancelled", ErrInvalidRequest)
+	}
+	if req.OverviewVisibility == "" {
+		req.OverviewVisibility = appointment.OverviewVisibility
+	}
+	if req.EndDate.IsZero() {
+		req.EndDate = req.StartDate
+	}
+
+	appointment.Title = req.Title
+	appointment.Description = req.Description
+	appointment.Location = req.Location
+	appointment.StartDate = req.StartDate
+	appointment.EndDate = req.EndDate
+	appointment.StartTime = timezone.WallClock(req.StartTime)
+	appointment.EndTime = timezone.WallClock(req.EndTime)
+	appointment.AllDay = req.AllDay
+	appointment.OverviewVisibility = req.OverviewVisibility
+	if err := appointment.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
+	}
+
+	recurrence := recurrenceRuleFromRequest(req.Recurrence)
+	if recurrence != nil {
+		recurrence.AppointmentID = appointment.ID
+		if err := recurrence.Validate(); err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
+		}
+		if recurrence.EndsOn != nil && recurrence.EndsOn.Before(appointment.StartDate) {
+			return nil, fmt.Errorf("%w: recurrence end must be on or after start date", ErrInvalidRequest)
+		}
+		if _, ok := firstRecurrenceOccurrence(appointment, recurrence); !ok {
+			return nil, fmt.Errorf("%w: recurrence produces no occurrences", ErrInvalidRequest)
+		}
+	}
+
+	if err := s.cfg.AppointmentRepo.Update(ctx, appointment); err != nil {
+		// A concurrent cancel/delete transitioned the appointment between load and
+		// write, so the conditional update matched nothing. Abort before touching
+		// recurrence/overrides or sending an "updated" notice; the tenant tx rolls
+		// back. Surface a conflict rather than a bogus success.
+		if errors.Is(err, calModels.ErrAppointmentLifecycleConflict) {
+			return nil, fmt.Errorf("%w: appointment was cancelled or deleted", ErrConflict)
+		}
+		return nil, err
+	}
+	// Replace the recurrence rule wholesale: the DB enforces one rule per
+	// appointment, so drop the old row and recreate if the edit still recurs.
+	if err := s.cfg.RecurrenceRepo.DeleteByAppointmentID(ctx, appointment.ID); err != nil {
+		return nil, err
+	}
+	if recurrence != nil {
+		if err := s.cfg.RecurrenceRepo.Create(ctx, recurrence); err != nil {
+			return nil, err
+		}
+	}
+	// Editing the series is a whole-series operation, so per-occurrence
+	// cancellations ("Nur diesen Termin") from the old cadence no longer apply.
+	// Drop them; otherwise a date reused by the new recurrence would be silently
+	// suppressed (and stale EXDATEs would leak into the subscription feed/ICS).
+	if err := s.cfg.OverrideRepo.DeleteByAppointmentID(ctx, appointment.ID); err != nil {
+		return nil, err
+	}
+
+	// Kill any not-yet-sent notice queued by a prior create/update so the worker
+	// can't deliver stale title/date/location (or a create notice the edit turned
+	// off), then optionally enqueue a fresh update notice — mirrors cancel/delete.
+	if err := s.cancelPendingNotifications(ctx, appointment.ID, "appointment updated"); err != nil {
+		return nil, err
+	}
+	if req.SendEmail {
+		if err := s.notifyGuardians(ctx, appointment, platformModels.EmailKindAppointmentUpdated); err != nil {
+			return nil, err
+		}
+	}
+
+	return s.appointmentDetail(ctx, appointment)
+}
+
+func (s *service) CancelStaffAppointment(ctx context.Context, appointmentID int64) (*AppointmentDetail, error) {
+	appointment, err := s.loadOrganizedAppointment(ctx, appointmentID)
+	if err != nil {
+		return nil, err
+	}
+	if appointment.CancelledAt == nil {
+		// Cancel via the dedicated conditional update (not Update): it only writes
+		// cancelled_at/revision, so it can't clobber a concurrent edit and — being
+		// WHERE cancelled_at IS NULL AND deleted_at IS NULL — matches nothing once a
+		// concurrent cancel or delete has won. `transitioned` is true only for the
+		// caller that actually flipped the row.
+		transitioned, err := s.cfg.AppointmentRepo.Cancel(ctx, appointment.ID)
+		if err != nil {
+			return nil, err
+		}
+		if !transitioned {
+			// A concurrent cancel or delete won between our load and this update, so
+			// the row did NOT transition. Do NOT mark the stale in-memory object
+			// cancelled (that would return a "cancelled" view of a possibly-deleted
+			// appointment). Reload for the true state: loadOrganizedAppointment
+			// surfaces a concurrent delete as not-found and returns the (already)
+			// cancelled detail for a concurrent cancel — idempotent, no double notice.
+			reloaded, err := s.loadOrganizedAppointment(ctx, appointmentID)
+			if err != nil {
+				return nil, err
+			}
+			return s.appointmentDetail(ctx, reloaded)
+		}
+		now := time.Now()
+		appointment.CancelledAt = &now
+		// Only the caller that performed the transition does the notification work,
+		// so two concurrent cancels can't send duplicate guardian e-mails. And even
+		// then, honour the persisted opt-in: an appointment created without
+		// send_email never mails guardians on cancellation.
+		if err := s.cancelPendingNotifications(ctx, appointment.ID, "appointment cancelled"); err != nil {
+			return nil, err
+		}
+		if appointment.NotifyGuardians {
+			if err := s.notifyGuardians(ctx, appointment, platformModels.EmailKindAppointmentCancelled); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return s.appointmentDetail(ctx, appointment)
+}
+
+func (s *service) DeleteStaffAppointment(ctx context.Context, appointmentID int64) error {
+	appointment, err := s.loadOrganizedAppointment(ctx, appointmentID)
+	if err != nil {
+		return err
+	}
+	// Deleting is silent (no notice); kill any queued e-mails first so the worker
+	// doesn't send a mail for a row we're about to remove or tombstone.
+	if err := s.cancelPendingNotifications(ctx, appointment.ID, "appointment deleted"); err != nil {
+		return err
+	}
+	// A subscribed external calendar (a parent's .ics subscription) only drops an
+	// appointment when it re-receives the SAME UID with STATUS:CANCELLED at a
+	// higher SEQUENCE. Hard-deleting a feed-visible appointment makes it vanish
+	// from the feed, which many clients keep rather than purge — the stale event
+	// then lingers in the parent's calendar forever. So a feed-visible appointment
+	// (one with guardian recipients) is SOFT-deleted: it disappears from every
+	// interactive staff/parent calendar (those queries filter deleted_at IS NULL),
+	// yet the subscription feed re-exports it as a durable STATUS:CANCELLED
+	// tombstone (retained by deletion time, independent of the date lookback) with
+	// a bumped SEQUENCE so even long-offline subscribers eventually purge it.
+	// Purely staff-internal appointments never reach a subscription feed, so they
+	// are removed outright.
+	feedVisible, err := s.appointmentHasGuardianRecipients(ctx, appointment.ID)
+	if err != nil {
+		return err
+	}
+	if feedVisible {
+		return s.cfg.AppointmentRepo.SoftDelete(ctx, appointment.ID)
+	}
+	// Child rows (recurrence, recipients, recipient-students, targets, occurrence
+	// overrides) are removed by ON DELETE CASCADE on the appointment FK.
+	return s.cfg.AppointmentRepo.Delete(ctx, appointment.ID)
+}
+
+// appointmentHasGuardianRecipients reports whether the appointment has any
+// materialized guardian-profile recipient — the marker that it can appear in a
+// parent's iCalendar subscription feed. Guardian-facing targets (a class, a
+// group, whole-school parents) are expanded into concrete guardian_profile
+// recipient rows at create/update time, so checking the recipients is sufficient.
+func (s *service) appointmentHasGuardianRecipients(ctx context.Context, appointmentID int64) (bool, error) {
+	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointmentID)
+	if err != nil {
+		return false, err
+	}
+	for _, recipient := range recipients {
+		if recipient.RecipientType == calModels.RecipientTypeGuardianProfile {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (s *service) CancelStaffAppointmentOccurrence(ctx context.Context, appointmentID int64, occurrenceDate timezone.Date) error {
+	appointment, err := s.loadOrganizedAppointment(ctx, appointmentID)
+	if err != nil {
+		return err
+	}
+	if occurrenceDate.IsZero() {
+		return fmt.Errorf("%w: occurrence date is required", ErrInvalidRequest)
+	}
+	// A single-occurrence cancellation only makes sense for a date the series
+	// actually generates. Without this guard, cancelling a non-recurring
+	// appointment (or a date not in the series) would persist a useless override
+	// while the appointment stayed fully visible.
+	recurrence, err := s.cfg.RecurrenceRepo.FindByAppointmentID(ctx, appointment.ID)
+	if err != nil {
+		return err
+	}
+	if recurrence == nil {
+		return fmt.Errorf("%w: appointment is not recurring", ErrInvalidRequest)
+	}
+	if !occurrenceExists(appointment, recurrence, occurrenceDate) {
+		return fmt.Errorf("%w: occurrence date is not part of the series", ErrInvalidRequest)
+	}
+	// Reuse an existing override for this date (e.g. from a prior single-occurrence
+	// edit) so cancelling stays idempotent and respects the (appointment, date)
+	// uniqueness constraint.
+	existing, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, []int64{appointment.ID}, []timezone.Date{occurrenceDate})
+	if err != nil {
+		return err
+	}
+	if len(existing) > 0 && existing[0].Cancelled {
+		// Already cancelled — idempotent no-op, no revision bump.
+		return nil
+	}
+	// Conflict-safe upsert: a concurrent request cancelling the same occurrence
+	// converges on cancelled=true instead of one hitting the unique constraint
+	// and returning a 500.
+	if err := s.cfg.OverrideRepo.CancelOccurrence(ctx, appointment.ID, occurrenceDate); err != nil {
+		return err
+	}
+	// A queued create/update notice announces the appointment's first occurrence;
+	// removing an occurrence (possibly that first one) could otherwise deliver a
+	// mail for a date parents will no longer see. Kill any pending notice, matching
+	// the cancel/delete/update stale-notification cleanup.
+	if err := s.cancelPendingNotifications(ctx, appointment.ID, "occurrence cancelled"); err != nil {
+		return err
+	}
+	// Bump the parent revision so the feed re-exports with a higher SEQUENCE and
+	// subscribers honour the new EXDATE.
+	return s.cfg.AppointmentRepo.BumpRevision(ctx, appointment.ID)
+}
+
+// occurrenceExists reports whether occurrenceDate is one of the dates the
+// recurrence generates. Membership is decided arithmetically via matchesRule
+// (O(1): frequency/interval/weekday/month-day and occurrenceDate >= StartDate)
+// plus the EndsOn bound, so cancelling a far-future date never walks every day
+// since the series start. Only a count-bounded rule needs expansion, and that is
+// bounded by the (small) occurrence count rather than the distance to the date.
+func occurrenceExists(appointment *calModels.Appointment, rule *calModels.RecurrenceRule, occurrenceDate timezone.Date) bool {
+	if !matchesRule(appointment.StartDate, occurrenceDate, rule) {
+		return false
+	}
+	if rule.EndsOn != nil && occurrenceDate.After(*rule.EndsOn) {
+		return false
+	}
+	if rule.OccurrenceCount == nil {
+		return true
+	}
+	// Count-bounded: the date matches the pattern and lies within EndsOn, so the
+	// only remaining question is whether it falls within the first N occurrences.
+	// expandOccurrences enumerates those by period (never day-by-day), so this
+	// stays cheap even for a far-future date on an old series.
+	for _, occ := range expandOccurrences(appointment, rule, appointment.StartDate, occurrenceDate) {
+		if occ == occurrenceDate {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *service) GetStaffAppointmentOverview(ctx context.Context, appointmentID int64) (*AppointmentOverview, error) {
@@ -388,7 +773,9 @@ func (s *service) GetStaffAppointmentOverview(ctx context.Context, appointmentID
 	if err != nil {
 		return nil, err
 	}
-	if appointment == nil {
+	// A soft-deleted appointment is gone from every interactive surface, so its
+	// overview is not reachable even with a retained appointment ID.
+	if appointment == nil || appointment.DeletedAt != nil {
 		return nil, ErrNotFound
 	}
 	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointment.ID)
@@ -427,7 +814,8 @@ func (s *service) GetParentAppointmentOverview(ctx context.Context, accountID, a
 			if err != nil {
 				return err
 			}
-			if appointment == nil {
+			// A soft-deleted appointment is not viewable by parents either.
+			if appointment == nil || appointment.DeletedAt != nil {
 				return nil
 			}
 			recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(txCtx, appointment.ID)
@@ -482,6 +870,18 @@ func (s *service) RespondToStaffInvitation(ctx context.Context, recipientID int6
 	if recipient.Status == calModels.ResponseStatusInfo {
 		return fmt.Errorf("%w: informational appointments cannot be answered", ErrInvalidRequest)
 	}
+	appointment, err := s.cfg.AppointmentRepo.FindByID(ctx, recipient.AppointmentID)
+	if err != nil {
+		return err
+	}
+	// A soft-deleted appointment can no longer be answered — it is gone from every
+	// interactive surface, so a retained recipient ID must not reach the RSVP.
+	if appointment == nil || appointment.DeletedAt != nil {
+		return ErrNotFound
+	}
+	if appointment.CancelledAt != nil {
+		return fmt.Errorf("%w: appointment is cancelled", ErrInvalidRequest)
+	}
 	return s.cfg.RecipientRepo.UpdateResponse(ctx, recipientID, status)
 }
 
@@ -528,6 +928,17 @@ func (s *service) RespondToParentInvitation(ctx context.Context, accountID, reci
 			}
 			if recipient.Status == calModels.ResponseStatusInfo {
 				return fmt.Errorf("%w: informational appointments cannot be answered", ErrInvalidRequest)
+			}
+			appointment, err := s.cfg.AppointmentRepo.FindByID(txCtx, recipient.AppointmentID)
+			if err != nil {
+				return err
+			}
+			// A soft-deleted appointment is unanswerable — treat as not found.
+			if appointment == nil || appointment.DeletedAt != nil {
+				return nil
+			}
+			if appointment.CancelledAt != nil {
+				return fmt.Errorf("%w: appointment is cancelled", ErrInvalidRequest)
 			}
 			if err := s.cfg.RecipientRepo.UpdateResponse(txCtx, recipientID, status); err != nil {
 				return err
@@ -730,6 +1141,7 @@ func (s *service) expandAppointmentEvents(ctx context.Context, appointments []*c
 				continue
 			}
 			event := appointmentEvent(appointment, occurrence, status, recipientID, staffID)
+			event.Recurring = true
 			applyOverride(&event, override)
 			events = append(events, event)
 		}
@@ -787,6 +1199,7 @@ func (s *service) expandGuardianAppointmentEvents(ctx context.Context, appointme
 			}
 			event := appointmentEvent(appointment, occurrence, status, recipientID, 0)
 			event.CanViewOverview = canParentViewOverview(appointment, recipientID != nil)
+			event.Recurring = true
 			applyOverride(&event, override)
 			events = append(events, event)
 		}
@@ -1077,6 +1490,60 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 		}
 		return added, nil
 	}
+	// addStudentsGuardians is the bulk equivalent for multi-student targets
+	// (whole-school / group / class). It resolves every student's guardian links
+	// AND their active-portal status in two queries total, seeding
+	// activeGuardianCache so the per-guardian add below never re-queries — a
+	// school-wide appointment would otherwise fan out into thousands of queries.
+	addStudentsGuardians := func(studentIDs []int64) (int, error) {
+		if len(studentIDs) == 0 {
+			return 0, nil
+		}
+		links, err := s.cfg.StudentGuardianRepo.FindByStudentIDs(ctx, studentIDs)
+		if err != nil {
+			return 0, err
+		}
+		pending := make([]int64, 0, len(links))
+		seenPending := map[int64]struct{}{}
+		for _, link := range links {
+			if !authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess) {
+				continue
+			}
+			if _, cached := activeGuardianCache[link.GuardianProfileID]; cached {
+				continue
+			}
+			if _, dup := seenPending[link.GuardianProfileID]; dup {
+				continue
+			}
+			seenPending[link.GuardianProfileID] = struct{}{}
+			pending = append(pending, link.GuardianProfileID)
+		}
+		if len(pending) > 0 {
+			active, err := s.cfg.GuardianProfileRepo.FindActivePortalProfilesByIDs(ctx, pending)
+			if err != nil {
+				return 0, err
+			}
+			for _, id := range pending {
+				_, ok := active[id]
+				activeGuardianCache[id] = ok
+			}
+		}
+		added := 0
+		for _, link := range links {
+			if !authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess) {
+				continue
+			}
+			studentID := link.StudentID
+			ok, err := addGuardian(link.GuardianProfileID, &studentID)
+			if err != nil {
+				return 0, err
+			}
+			if ok {
+				added++
+			}
+		}
+		return added, nil
+	}
 
 	for _, target := range targets {
 		targetRows = append(targetRows, &calModels.AppointmentTarget{
@@ -1136,6 +1603,23 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			if !visible {
 				return nil, nil, nil, fmt.Errorf("%w: guardian target is not portal-visible", ErrInvalidRequest)
 			}
+		case calModels.TargetTypeAllSchoolParents:
+			// Every portal-active guardian of the school's ACTIVE students. Resolve
+			// in bulk so a school-wide appointment stays a couple of queries, not one
+			// per student. Filter to active students at the DB so pending or inactive
+			// (e.g. former) families never receive school-wide appointments.
+			students, err := s.cfg.StudentRepo.List(ctx, map[string]any{"status": string(userModels.StudentStatusActive)})
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			studentIDs := activeStudentIDs(students)
+			added, err := addStudentsGuardians(studentIDs)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			if added == 0 {
+				return nil, nil, nil, fmt.Errorf("%w: no reachable guardians at this school", ErrInvalidRequest)
+			}
 		case calModels.TargetTypeParentsByStudent:
 			if target.ID == nil || *target.ID <= 0 {
 				return nil, nil, nil, fmt.Errorf("%w: student target requires id", ErrInvalidRequest)
@@ -1155,13 +1639,12 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			if err != nil {
 				return nil, nil, nil, err
 			}
-			added := 0
-			for _, student := range students {
-				count, err := addStudentGuardians(student.ID)
-				if err != nil {
-					return nil, nil, nil, err
-				}
-				added += count
+			// Only active students' guardians — a former student still assigned to
+			// the group must not receive the group-wide appointment.
+			studentIDs := activeStudentIDs(students)
+			added, err := addStudentsGuardians(studentIDs)
+			if err != nil {
+				return nil, nil, nil, err
 			}
 			if added == 0 {
 				return nil, nil, nil, fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
@@ -1174,13 +1657,12 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			if err != nil {
 				return nil, nil, nil, err
 			}
-			added := 0
-			for _, student := range students {
-				count, err := addStudentGuardians(student.ID)
-				if err != nil {
-					return nil, nil, nil, err
-				}
-				added += count
+			// Only active students' guardians — a former student still tagged with
+			// the class must not receive the class-wide appointment.
+			studentIDs := activeStudentIDs(students)
+			added, err := addStudentsGuardians(studentIDs)
+			if err != nil {
+				return nil, nil, nil, err
 			}
 			if added == 0 {
 				return nil, nil, nil, fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
@@ -1215,6 +1697,20 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 		}
 	}
 	return recipients, recipientStudents, targetRows, nil
+}
+
+// activeStudentIDs returns the IDs of the students that are currently active. A
+// bulk parent target (whole-school, a group, a class) must not fan out to the
+// guardians of pending or inactive (e.g. former) students, who would otherwise
+// receive appointment details and notifications for a school they left.
+func activeStudentIDs(students []*userModels.Student) []int64 {
+	ids := make([]int64, 0, len(students))
+	for _, student := range students {
+		if student.Status == userModels.StudentStatusActive {
+			ids = append(ids, student.ID)
+		}
+	}
+	return ids
 }
 
 func (s *service) guardianHasPortalVisibleStudent(ctx context.Context, guardianProfileID int64) (bool, error) {
@@ -1330,6 +1826,7 @@ func appointmentEvent(appointment *calModels.Appointment, occurrenceDate timezon
 		StartTime:        formatClock(appointment.StartTime),
 		EndTime:          formatClock(appointment.EndTime),
 		AllDay:           appointment.AllDay,
+		Cancelled:        appointment.CancelledAt != nil,
 		DeliveryMode:     &deliveryMode,
 		ResponseStatus:   responseStatus,
 		RecipientID:      recipientIDString,
@@ -1337,8 +1834,10 @@ func appointmentEvent(appointment *calModels.Appointment, occurrenceDate timezon
 		// Stay respondable for any real (non-informational) recipient, including
 		// already accepted/declined ones — the respond endpoints allow changing
 		// an existing RSVP, so users can correct an accidental answer. Only
-		// informational recipients (and non-recipients) cannot respond.
-		CanRespond:      recipientID != nil && responseStatus != nil && *responseStatus != calModels.ResponseStatusInfo,
+		// informational recipients (and non-recipients) cannot respond, and a
+		// cancelled appointment freezes RSVP entirely (matching the server-side
+		// rejection in RespondTo*Invitation).
+		CanRespond:      appointment.CancelledAt == nil && recipientID != nil && responseStatus != nil && *responseStatus != calModels.ResponseStatusInfo,
 		CanEdit:         appointment.OrganizerStaffID == staffID,
 		CanViewOverview: canStaffViewOverview(appointment, staffID, isStaffRecipient),
 	}
@@ -1517,23 +2016,378 @@ func expandOccurrences(appointment *calModels.Appointment, rule *calModels.Recur
 	if rule.IntervalCount <= 0 {
 		rule.IntervalCount = 1
 	}
-	count := 0
-	for d := appointment.StartDate; !d.After(to); d = d.AddDays(1) {
-		if rule.EndsOn != nil && d.After(*rule.EndsOn) {
-			break
-		}
-		if matchesRule(appointment.StartDate, d, rule) {
-			count++
-			if rule.OccurrenceCount != nil && count > *rule.OccurrenceCount {
-				break
-			}
-			endDate := d.AddDays(appointment.StartDate.DaysUntil(appointment.EndDate))
-			if dateRangesOverlap(d, endDate, from, to) {
+	span := appointment.StartDate.DaysUntil(appointment.EndDate)
+	if rule.OccurrenceCount != nil {
+		// Count-bounded: enumerate the first N occurrences by PERIOD (never a
+		// day-by-day walk of decades of history for a sparse monthly/yearly series),
+		// then keep those overlapping [from, to]. N is capped at
+		// MaxRecurrenceOccurrenceCount during validation.
+		for _, d := range boundedRecurrenceDates(appointment, rule, *rule.OccurrenceCount) {
+			if dateRangesOverlap(d, d.AddDays(span), from, to) {
 				occurrences = append(occurrences, d)
 			}
 		}
+		return occurrences
+	}
+	// Open-ended or EndsOn-bounded: only the window matters, so anchor the scan at
+	// the window (rewound by the appointment's own span to catch a multi-day
+	// occurrence that begins before `from`), never before the series start, and
+	// stop at `to` or EndsOn — whichever is earlier.
+	scanStart := from.AddDays(-span)
+	if scanStart.Before(appointment.StartDate) {
+		scanStart = appointment.StartDate
+	}
+	scanEnd := to
+	if rule.EndsOn != nil && rule.EndsOn.Before(scanEnd) {
+		scanEnd = *rule.EndsOn
+	}
+	for d := scanStart; !d.After(scanEnd); d = d.AddDays(1) {
+		if matchesRule(appointment.StartDate, d, rule) &&
+			dateRangesOverlap(d, d.AddDays(span), from, to) {
+			occurrences = append(occurrences, d)
+		}
 	}
 	return occurrences
+}
+
+// boundedRecurrenceDates returns up to `limit` occurrence start-dates the rule
+// generates on/after the appointment start, honouring EndsOn. It advances one
+// interval-PERIOD per step (never day-by-day), so a sparse count-bounded
+// monthly/yearly series with a large occurrence count is enumerated without
+// scanning decades of history on every feed poll. Dates come back in
+// chronological order — identical to the day-walk it replaces. Returns fewer
+// than `limit` when the rule is exhausted (EndsOn reached, or no further
+// reachable occurrence exists).
+func boundedRecurrenceDates(appointment *calModels.Appointment, rule *calModels.RecurrenceRule, limit int) []timezone.Date {
+	if rule == nil || limit <= 0 {
+		return nil
+	}
+	interval := rule.IntervalCount
+	if interval <= 0 {
+		interval = 1
+	}
+	start := appointment.StartDate
+	out := make([]timezone.Date, 0, limit)
+	past := func(d timezone.Date) bool {
+		return rule.EndsOn != nil && d.After(*rule.EndsOn)
+	}
+
+	switch rule.Frequency {
+	case calModels.RecurrenceFrequencyDaily:
+		for k := 0; len(out) < limit; k++ {
+			d := start.AddDays(k * interval)
+			if past(d) {
+				break
+			}
+			out = append(out, d)
+		}
+
+	case calModels.RecurrenceFrequencyWeekly:
+		offsets := weekdayOffsets(normalizeWeekdays(rule.Weekdays))
+		weekBase := weekStartMonday(start)
+		// startOffset is start's own Monday-based weekday offset, used when no
+		// explicit weekdays are given (the occurrence is the start weekday).
+		startOffset := (int(start.Weekday()) + 6) % 7
+		for w := 0; len(out) < limit; w += interval {
+			weekStart := weekBase.AddDays(w * 7)
+			if past(weekStart) {
+				break
+			}
+			if len(offsets) == 0 {
+				d := weekStart.AddDays(startOffset)
+				if !d.Before(start) && !past(d) {
+					out = append(out, d)
+				}
+				continue
+			}
+			for _, off := range offsets {
+				if len(out) >= limit {
+					break
+				}
+				d := weekStart.AddDays(off)
+				if d.Before(start) || past(d) {
+					continue
+				}
+				out = append(out, d)
+			}
+		}
+
+	case calModels.RecurrenceFrequencyMonthly:
+		days := monthlyCandidateDays(rule, start)
+		// The (month-of-year, leap-phase) pattern of reachable months repeats
+		// within this many steps, so this many consecutive empty months proves no
+		// further occurrence exists (mirrors firstMonthlyOccurrence's bound).
+		maxEmpty := 4*(12/gcdInt(interval, 12)) + 12
+		empty := 0
+		for k := 0; len(out) < limit; k++ {
+			year, month := addMonthsTo(start.Year, int(start.Month), k*interval)
+			if past(timezone.NewDate(year, time.Month(month), 1)) {
+				break
+			}
+			dim := daysInMonth(year, month)
+			produced := 0
+			for _, day := range days {
+				if len(out) >= limit {
+					break
+				}
+				if day < 1 || day > dim {
+					continue
+				}
+				d := timezone.NewDate(year, time.Month(month), day)
+				if d.Before(start) || past(d) {
+					continue
+				}
+				out = append(out, d)
+				produced++
+			}
+			if produced == 0 {
+				empty++
+				if empty > maxEmpty {
+					break
+				}
+			} else {
+				empty = 0
+			}
+		}
+
+	case calModels.RecurrenceFrequencyYearly:
+		// Only a Feb-29 rule is sparse (the day is absent in non-leap years); the
+		// Gregorian leap cycle is 400 years, so this many empty steps proves
+		// exhaustion regardless of interval.
+		const maxEmpty = 400
+		empty := 0
+		for k := 0; len(out) < limit; k++ {
+			year := start.Year + k*interval
+			if daysInMonth(year, int(start.Month)) < start.Day {
+				empty++
+				if empty > maxEmpty {
+					break
+				}
+				continue
+			}
+			d := timezone.NewDate(year, start.Month, start.Day)
+			if past(d) {
+				break
+			}
+			out = append(out, d)
+			empty = 0
+		}
+	}
+	return out
+}
+
+// monthlyCandidateDays returns the sorted day-of-month values a monthly rule can
+// land on: its explicit month_days, or the start day when none are given (which
+// is exactly what matchesRule compares against).
+func monthlyCandidateDays(rule *calModels.RecurrenceRule, start timezone.Date) []int {
+	if len(rule.MonthDays) == 0 {
+		return []int{start.Day}
+	}
+	// De-duplicate: a repeated month day would emit that occurrence twice and
+	// exhaust occurrence_count early.
+	seen := make(map[int]bool, len(rule.MonthDays))
+	days := make([]int, 0, len(rule.MonthDays))
+	for _, day := range rule.MonthDays {
+		if seen[day] {
+			continue
+		}
+		seen[day] = true
+		days = append(days, day)
+	}
+	sort.Ints(days)
+	return days
+}
+
+// weekdayMondayOffset maps a lowercase weekday name to its Monday-based offset
+// (Monday=0 … Sunday=6), matching weekStartMonday's anchoring.
+var weekdayMondayOffset = map[string]int{
+	"monday":    0,
+	"tuesday":   1,
+	"wednesday": 2,
+	"thursday":  3,
+	"friday":    4,
+	"saturday":  5,
+	"sunday":    6,
+}
+
+// weekdayOffsets converts normalized weekday names into sorted Monday-based
+// offsets, dropping any unrecognised name. Validation guarantees valid names, so
+// a non-empty weekly rule yields a non-empty, ascending result.
+func weekdayOffsets(weekdays []string) []int {
+	offsets := make([]int, 0, len(weekdays))
+	for _, weekday := range weekdays {
+		if off, ok := weekdayMondayOffset[weekday]; ok {
+			offsets = append(offsets, off)
+		}
+	}
+	sort.Ints(offsets)
+	return offsets
+}
+
+// hasOccurrenceInWindow reports whether the recurrence produces at least one
+// occurrence overlapping [from, to] WITHOUT walking every day since the series
+// start. For an open-ended or EndsOn-bounded series it scans only the window
+// (bounded by the window width plus the appointment's own multi-day span); for a
+// count-bounded series it expands the bounded first-N occurrences. Used by the
+// subscription feed, which is polled frequently for old series.
+func hasOccurrenceInWindow(appointment *calModels.Appointment, rule *calModels.RecurrenceRule, from, to timezone.Date) bool {
+	if rule == nil || to.Before(from) {
+		return false
+	}
+	if rule.IntervalCount <= 0 {
+		rule.IntervalCount = 1
+	}
+	if rule.OccurrenceCount != nil {
+		// Bounded by the count: expandOccurrences enumerates the first N occurrences
+		// by period (not day-by-day), and N is capped at MaxRecurrenceOccurrenceCount
+		// during validation, so the scan can never walk unbounded history on a feed
+		// poll even for a decades-old sparse monthly/yearly series.
+		return len(expandOccurrences(appointment, rule, from, to)) > 0
+	}
+	// Scan only the window. Start early enough to catch a multi-day occurrence
+	// that begins before `from` but reaches into it, but never before the series
+	// start; stop at `to` or EndsOn, whichever is earlier.
+	duration := appointment.StartDate.DaysUntil(appointment.EndDate)
+	start := from.AddDays(-duration)
+	if start.Before(appointment.StartDate) {
+		start = appointment.StartDate
+	}
+	end := to
+	if rule.EndsOn != nil && rule.EndsOn.Before(end) {
+		end = *rule.EndsOn
+	}
+	for d := start; !d.After(end); d = d.AddDays(1) {
+		if matchesRule(appointment.StartDate, d, rule) &&
+			dateRangesOverlap(d, d.AddDays(duration), from, to) {
+			return true
+		}
+	}
+	return false
+}
+
+// firstRecurrenceOccurrence returns the first calendar date on or after the
+// appointment's StartDate that satisfies the recurrence rule. ok=false means the
+// rule has NO valid occurrence: either it is mathematically impossible (e.g. a
+// monthly rule that only ever lands on February asking for day 31), or its first
+// occurrence falls after EndsOn. The occurrence is computed analytically per
+// frequency — no fixed scan horizon — so a valid but sparse rule (a large
+// interval whose first match is many years out) is never mis-rejected nor
+// mis-anchored to StartDate.
+//
+// For a weekly rule whose selected weekdays exclude StartDate's own weekday the
+// first occurrence is later than StartDate; the in-app expansion
+// (expandOccurrences) starts there, so ICS DTSTART must too.
+func firstRecurrenceOccurrence(appointment *calModels.Appointment, rule *calModels.RecurrenceRule) (timezone.Date, bool) {
+	if rule == nil {
+		return appointment.StartDate, false
+	}
+	interval := rule.IntervalCount
+	if interval <= 0 {
+		interval = 1
+	}
+	first, exists := firstMatchingOccurrence(appointment.StartDate, interval, rule)
+	if !exists {
+		return appointment.StartDate, false
+	}
+	if rule.EndsOn != nil && first.After(*rule.EndsOn) {
+		return first, false
+	}
+	return first, true
+}
+
+// firstMatchingOccurrence computes the first date on or after start that the rule
+// matches, ignoring EndsOn. exists=false only for a genuinely impossible rule
+// (monthly month_days that never fall in any reachable month). Daily, weekly
+// without weekdays, monthly without month_days, and yearly always match start.
+func firstMatchingOccurrence(start timezone.Date, interval int, rule *calModels.RecurrenceRule) (timezone.Date, bool) {
+	switch rule.Frequency {
+	case calModels.RecurrenceFrequencyDaily, calModels.RecurrenceFrequencyYearly:
+		return start, true
+	case calModels.RecurrenceFrequencyWeekly:
+		weekdays := normalizeWeekdays(rule.Weekdays)
+		if len(weekdays) == 0 {
+			return start, true
+		}
+		offsets := weekdayOffsets(weekdays)
+		if len(offsets) == 0 {
+			return start, false
+		}
+		// Compute the first occurrence directly instead of scanning ~interval*7
+		// days (which an arbitrarily large interval would blow up). The start's own
+		// calendar week is interval-week 0 (always valid): the first occurrence is
+		// its earliest selected weekday on/after start. If every selected weekday in
+		// that week precedes start, the first occurrence is the earliest selected
+		// weekday in the next valid week — interval calendar weeks later. This
+		// matches matchesRule's calendar-week anchoring exactly.
+		weekStart := weekStartMonday(start)
+		for _, off := range offsets {
+			d := weekStart.AddDays(off)
+			if !d.Before(start) {
+				return d, true
+			}
+		}
+		return weekStart.AddDays(interval*7 + offsets[0]), true
+	case calModels.RecurrenceFrequencyMonthly:
+		if len(rule.MonthDays) == 0 {
+			return start, true
+		}
+		return firstMonthlyOccurrence(start, interval, rule.MonthDays)
+	default:
+		return start, false
+	}
+}
+
+// firstMonthlyOccurrence finds the first reachable month (start.Month + k·interval)
+// that contains a requested month-day valid for that month and on/after start.
+// The (month-of-year, leap-phase) pattern of reachable months repeats within a
+// bounded number of steps, so scanning that many steps proves impossibility
+// without an unbounded loop.
+func firstMonthlyOccurrence(start timezone.Date, interval int, monthDays []int) (timezone.Date, bool) {
+	days := append([]int(nil), monthDays...)
+	sort.Ints(days)
+	// 12/gcd distinct months of the year are reached within 12/gcd steps; the ×4
+	// (+buffer) covers up to four leap cycles for a February-only day-29 rule.
+	maxSteps := 4*(12/gcdInt(interval, 12)) + 12
+	for k := 0; k <= maxSteps; k++ {
+		year, month := addMonthsTo(start.Year, int(start.Month), k*interval)
+		dim := daysInMonth(year, month)
+		for _, day := range days {
+			if day < 1 || day > dim {
+				continue
+			}
+			candidate := timezone.NewDate(year, time.Month(month), day)
+			if candidate.Before(start) {
+				continue
+			}
+			return candidate, true
+		}
+	}
+	return start, false
+}
+
+// addMonthsTo returns the year and 1-based month reached by adding delta months.
+func addMonthsTo(year, month, delta int) (int, int) {
+	total := year*12 + (month - 1) + delta
+	return total / 12, total%12 + 1
+}
+
+// daysInMonth returns the number of days in the given 1-based month, honouring
+// leap years (day 0 of the next month is the last day of this one).
+func daysInMonth(year, month int) int {
+	return time.Date(year, time.Month(month)+1, 0, 0, 0, 0, 0, time.UTC).Day()
+}
+
+func gcdInt(a, b int) int {
+	for b != 0 {
+		a, b = b, a%b
+	}
+	if a < 0 {
+		a = -a
+	}
+	if a == 0 {
+		return 1
+	}
+	return a
 }
 
 func occurrenceDatesForAppointments(appointments []*calModels.Appointment, recurrenceByAppointment map[int64]*calModels.RecurrenceRule, from, to timezone.Date) []timezone.Date {
@@ -1611,11 +2465,16 @@ func matchesRule(start, candidate timezone.Date, rule *calModels.RecurrenceRule)
 
 func normalizeWeekdays(days []string) []string {
 	out := make([]string, 0, len(days))
+	seen := make(map[string]bool, len(days))
 	for _, day := range days {
 		normalized := strings.ToLower(strings.TrimSpace(day))
-		if normalized != "" {
-			out = append(out, normalized)
+		// De-duplicate: a repeated weekday would make the count-bounded expansion
+		// emit that date twice and exhaust occurrence_count early.
+		if normalized == "" || seen[normalized] {
+			continue
 		}
+		seen[normalized] = true
+		out = append(out, normalized)
 	}
 	return out
 }

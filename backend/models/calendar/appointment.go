@@ -32,6 +32,7 @@ const (
 	TargetTypeStaff            = "staff"
 	TargetTypeGuardianProfile  = "guardian_profile"
 	TargetTypeAllStaff         = "all_staff"
+	TargetTypeAllSchoolParents = "all_school_parents"
 	TargetTypeParentsByClass   = "parents_by_class"
 	TargetTypeParentsByGroup   = "parents_by_group"
 	TargetTypeParentsByStudent = "parents_by_student"
@@ -40,6 +41,11 @@ const (
 	RecurrenceFrequencyWeekly  = "weekly"
 	RecurrenceFrequencyMonthly = "monthly"
 	RecurrenceFrequencyYearly  = "yearly"
+
+	// MaxRecurrenceOccurrenceCount caps a count-bounded recurrence so occurrence
+	// expansion stays bounded (a leap-year of daily occurrences is the most a
+	// realistic appointment needs; EndsOn covers longer ranges).
+	MaxRecurrenceOccurrenceCount = 366
 )
 
 // validRecurrenceWeekdays holds the lowercase day names produced by
@@ -73,7 +79,31 @@ type Appointment struct {
 	DeliveryMode       string        `bun:"delivery_mode,notnull" json:"delivery_mode"`
 	OverviewVisibility string        `bun:"overview_visibility,notnull,default:'organizer'" json:"overview_visibility"`
 	CancelledAt        *time.Time    `bun:"cancelled_at" json:"cancelled_at,omitempty"`
+	// DeletedAt marks a feed-visible appointment that the organizer deleted. It is
+	// distinct from CancelledAt (the "Absagen" action, which stays visible in
+	// interactive calendars): a deleted appointment is hidden from every
+	// interactive listing but exported to the subscription feed as a durable
+	// STATUS:CANCELLED tombstone so offline subscribers eventually purge it. Not a
+	// bun soft_delete tag — the feed must be able to SELECT deleted rows, so the
+	// deleted_at IS NULL / IS NOT NULL filtering is done explicitly per query.
+	DeletedAt *time.Time `bun:"deleted_at" json:"deleted_at,omitempty"`
+	// NotifyGuardians persists the create-time send_email opt-in so guardian
+	// e-mails (including the cancellation notice) honour the organizer's original
+	// preference: an appointment created with send_email=false never mails
+	// guardians, even when it is later cancelled. No bun `default:` — that would
+	// make bun omit the `false` zero value on INSERT and let the column default
+	// (TRUE) win, silently re-enabling mail for an opted-out appointment.
+	NotifyGuardians bool `bun:"notify_guardians,notnull" json:"notify_guardians"`
+	// Revision is a monotonically increasing change counter used as the
+	// iCalendar SEQUENCE, so subscribed clients recognise edits/cancellations as
+	// newer revisions instead of retaining stale events.
+	Revision int `bun:"revision,notnull,default:0" json:"revision"`
 }
+
+// ErrAppointmentLifecycleConflict is returned by the repository when a content
+// update matches zero rows because the appointment was cancelled or deleted by a
+// concurrent request between load and write. The service maps it to a conflict.
+var ErrAppointmentLifecycleConflict = errors.New("appointment changed by a concurrent lifecycle transition")
 
 func (a *Appointment) Validate() error {
 	if a.OrganizerStaffID <= 0 {
@@ -142,15 +172,45 @@ func (r *RecurrenceRule) Validate() error {
 	if r.OccurrenceCount != nil && *r.OccurrenceCount <= 0 {
 		return errors.New("occurrence_count must be positive")
 	}
-	for _, weekday := range r.Weekdays {
-		if !validRecurrenceWeekdays[strings.ToLower(strings.TrimSpace(weekday))] {
-			return errors.New("weekdays must be valid day names (monday–sunday)")
-		}
+	// Bound the count so occurrence expansion (feed overlap checks, single-
+	// occurrence validation) can never scan an unbounded number of periods.
+	if r.OccurrenceCount != nil && *r.OccurrenceCount > MaxRecurrenceOccurrenceCount {
+		return errors.New("occurrence_count exceeds the maximum of 366")
 	}
-	for _, day := range r.MonthDays {
-		if day < 1 || day > 31 {
-			return errors.New("month_days must be between 1 and 31")
+	// Normalise (lowercase) and de-duplicate weekdays: a duplicate would make the
+	// occurrence expansion emit the same date twice, exhausting occurrence_count
+	// early, and would export an invalid BYDAY=MO,MO in the RRULE.
+	if len(r.Weekdays) > 0 {
+		seen := make(map[string]bool, len(r.Weekdays))
+		deduped := make([]string, 0, len(r.Weekdays))
+		for _, weekday := range r.Weekdays {
+			normalized := strings.ToLower(strings.TrimSpace(weekday))
+			if !validRecurrenceWeekdays[normalized] {
+				return errors.New("weekdays must be valid day names (monday–sunday)")
+			}
+			if seen[normalized] {
+				continue
+			}
+			seen[normalized] = true
+			deduped = append(deduped, normalized)
 		}
+		r.Weekdays = deduped
+	}
+	// Same for month days — a duplicate day double-counts against occurrence_count.
+	if len(r.MonthDays) > 0 {
+		seen := make(map[int]bool, len(r.MonthDays))
+		deduped := make([]int, 0, len(r.MonthDays))
+		for _, day := range r.MonthDays {
+			if day < 1 || day > 31 {
+				return errors.New("month_days must be between 1 and 31")
+			}
+			if seen[day] {
+				continue
+			}
+			seen[day] = true
+			deduped = append(deduped, day)
+		}
+		r.MonthDays = deduped
 	}
 	return nil
 }

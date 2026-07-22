@@ -8,6 +8,7 @@ DELETE /api/activities/{id}/schedules/{scheduleId}
 DELETE /api/activities/{id}/students/{studentId}
 DELETE /api/activities/{id}/supervisors/{supervisorId}
 DELETE /api/admin/grade-transitions/{id}/
+DELETE /api/calendar/appointments/{appointmentId}
 DELETE /api/display/{id}/
 DELETE /api/enrollment/admin/requests/{id}/
 DELETE /api/enrollment/admin/requests/{id}/children/{childId}
@@ -132,6 +133,8 @@ GET /api/admin/grade-transitions/suggest
 GET /api/admin/grade-transitions/{id}/
 GET /api/admin/grade-transitions/{id}/history
 GET /api/admin/grade-transitions/{id}/preview
+GET /api/calendar/appointments/{appointmentId}
+GET /api/calendar/appointments/{appointmentId}/ics
 GET /api/calendar/appointments/{appointmentId}/overview
 GET /api/calendar/my
 GET /api/calendar/recipient-options
@@ -410,7 +413,9 @@ GET /operator/unregistered-tag-scans/
 GET /parent-sse/events
 GET /parent/enrollments/{tenantSlug}/profile
 GET /parent/me/calendar
+GET /parent/me/calendar/appointments/{appointmentId}/ics
 GET /parent/me/calendar/appointments/{appointmentId}/overview
+GET /parent/me/calendar/feed
 GET /parent/me/children
 GET /parent/me/children/{studentId}/care-exception
 GET /parent/me/children/{studentId}/care-schedule
@@ -431,6 +436,7 @@ GET /parent/me/messages/unread-count
 GET /parent/me/news
 GET /parent/me/news/unread-count
 GET /parent/me/profile
+GET /public/calendar/{token}
 GET /public/enrollment-form-legal-documents/{filename}
 GET /public/enrollment-legal-documents/{filename}
 GET /public/login-image/{filename}
@@ -471,6 +477,8 @@ POST /api/admin/grade-transitions/
 POST /api/admin/grade-transitions/{id}/apply
 POST /api/admin/grade-transitions/{id}/revert
 POST /api/calendar/appointments
+POST /api/calendar/appointments/{appointmentId}/cancel
+POST /api/calendar/appointments/{appointmentId}/occurrences/{occurrenceDate}/cancel
 POST /api/calendar/recipients/{recipientId}/response
 POST /api/display/
 POST /api/display/{id}/regenerate
@@ -680,6 +688,7 @@ POST /parent/auth/login
 POST /parent/auth/password-reset
 POST /parent/auth/password-reset/confirm
 POST /parent/enrollments/{tenantSlug}/submit
+POST /parent/me/calendar/feed/rotate
 POST /parent/me/calendar/recipients/{recipientId}/response
 POST /parent/me/children/{studentId}/care-exception
 POST /parent/me/children/{studentId}/care-schedule/requests
@@ -699,6 +708,7 @@ PUT /api/activities/{id}/schedules/{scheduleId}
 PUT /api/activities/{id}/students
 PUT /api/activities/{id}/supervisors/{supervisorId}
 PUT /api/admin/grade-transitions/{id}/
+PUT /api/calendar/appointments/{appointmentId}
 PUT /api/enrollment/admin/requests/{id}/children/{childId}/data-correction
 PUT /api/enrollment/admin/requests/{id}/children/{childId}/offerings
 PUT /api/enrollment/care-offerings/{id}/

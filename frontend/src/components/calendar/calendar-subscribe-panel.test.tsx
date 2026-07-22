@@ -1,0 +1,114 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { mockToastSuccess, mockToastError, mockGetFeed, mockRotateFeed } =
+  vi.hoisted(() => ({
+    mockToastSuccess: vi.fn(),
+    mockToastError: vi.fn(),
+    mockGetFeed: vi.fn(),
+    mockRotateFeed: vi.fn(),
+  }));
+
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
+}));
+
+vi.mock("~/lib/personal-calendar-api", async () => {
+  const actual = await vi.importActual<
+    typeof import("~/lib/personal-calendar-api")
+  >("~/lib/personal-calendar-api");
+  return {
+    ...actual,
+    getParentCalendarFeed: mockGetFeed,
+    rotateParentCalendarFeed: mockRotateFeed,
+  };
+});
+
+import { CalendarSubscribePanel } from "./calendar-subscribe-panel";
+
+describe("CalendarSubscribePanel", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("loads and shows the subscription URLs on demand", async () => {
+    mockGetFeed.mockResolvedValue({
+      url: "https://parents.test/api/calendar-feed/abc",
+      webcal_url: "webcal://parents.test/api/calendar-feed/abc",
+    });
+
+    render(<CalendarSubscribePanel />);
+
+    // The URL is not fetched until the parent asks for it.
+    expect(mockGetFeed).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+
+    await waitFor(() => expect(mockGetFeed).toHaveBeenCalledOnce());
+
+    // The subscribe (webcal) link and the copyable https link both render.
+    const subscribeLink = await screen.findByRole("link", {
+      name: /Im Kalender abonnieren/,
+    });
+    expect(subscribeLink).toHaveAttribute(
+      "href",
+      "webcal://parents.test/api/calendar-feed/abc",
+    );
+    expect(
+      screen.getByDisplayValue("https://parents.test/api/calendar-feed/abc"),
+    ).toBeInTheDocument();
+  });
+
+  it("prompts to regenerate when the link is not re-displayable", async () => {
+    // The backend only stores the token hash, so an already-generated feed
+    // returns empty URLs (show-once). The panel offers a regenerate instead.
+    mockGetFeed.mockResolvedValue({ url: "", webcal_url: "" });
+    mockRotateFeed.mockResolvedValue({
+      url: "https://parents.test/api/calendar-feed/fresh",
+      webcal_url: "webcal://parents.test/api/calendar-feed/fresh",
+    });
+
+    render(<CalendarSubscribePanel />);
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+    await waitFor(() => expect(mockGetFeed).toHaveBeenCalledOnce());
+
+    // No URL is shown; the parent gets a regenerate button instead.
+    expect(
+      screen.queryByRole("link", { name: /Im Kalender abonnieren/ }),
+    ).toBeNull();
+    const regenerate = await screen.findByRole("button", {
+      name: /Neuen Abo-Link erzeugen/,
+    });
+
+    fireEvent.click(regenerate);
+    await waitFor(() => expect(mockRotateFeed).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(
+        screen.getByDisplayValue("https://parents.test/api/calendar-feed/fresh"),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("rotates the link when requested", async () => {
+    mockGetFeed.mockResolvedValue({
+      url: "https://parents.test/api/calendar-feed/old",
+      webcal_url: "webcal://parents.test/api/calendar-feed/old",
+    });
+    mockRotateFeed.mockResolvedValue({
+      url: "https://parents.test/api/calendar-feed/new",
+      webcal_url: "webcal://parents.test/api/calendar-feed/new",
+    });
+
+    render(<CalendarSubscribePanel />);
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+    await screen.findByRole("link", { name: /Im Kalender abonnieren/ });
+
+    fireEvent.click(screen.getByRole("button", { name: /Link neu generieren/ }));
+    await waitFor(() => expect(mockRotateFeed).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(
+        screen.getByDisplayValue("https://parents.test/api/calendar-feed/new"),
+      ).toBeInTheDocument(),
+    );
+    expect(mockToastSuccess).toHaveBeenCalled();
+  });
+});

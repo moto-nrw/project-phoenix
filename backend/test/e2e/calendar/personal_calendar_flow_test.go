@@ -84,6 +84,8 @@ type calendarListE2EResponse struct {
 			StartDate      string `json:"start_date"`
 			ResponseStatus string `json:"response_status"`
 			CanRespond     bool   `json:"can_respond"`
+			Cancelled      bool   `json:"cancelled"`
+			CanEdit        bool   `json:"can_edit"`
 		} `json:"events"`
 	} `json:"data"`
 }
@@ -145,4 +147,121 @@ func TestPersonalCalendarHTTPFlow_StaffInvitationRSVP(t *testing.T) {
 	require.NoError(t, json.Unmarshal(listRR.Body.Bytes(), &listed))
 	require.Len(t, listed.Data.Events, 1)
 	assert.Equal(t, "accepted", listed.Data.Events[0].ResponseStatus)
+}
+
+// TestPersonalCalendarHTTPFlow_EditCancelDeleteAndICS drives the full lifecycle
+// (create → edit → .ics export → cancel → delete) through the real router.
+func TestPersonalCalendarHTTPFlow_EditCancelDeleteAndICS(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	_, router := setupCalendarE2ERouter(t, db)
+
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "LifecycleOrg")
+	invitee, inviteeAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "LifecycleInv")
+	t.Cleanup(func() {
+		testpkg.CleanupStaffFixtures(t, db, invitee.ID, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, inviteeAccount.ID, organizerAccount.ID)
+	})
+	manageToken := calendarToken(t, organizerAccount.ID, permissions.CalendarManage, permissions.CalendarOwn)
+	ownToken := calendarToken(t, inviteeAccount.ID, permissions.CalendarOwn)
+
+	createRR := doJSON(t, router, http.MethodPost, "/calendar/appointments", manageToken, map[string]any{
+		"title":         "Original",
+		"start_date":    "2026-05-04",
+		"end_date":      "2026-05-04",
+		"start_time":    "09:00",
+		"end_time":      "10:00",
+		"delivery_mode": "rsvp_required",
+		"targets":       []map[string]any{{"type": "staff", "id": invitee.ID}},
+	})
+	require.Equal(t, http.StatusCreated, createRR.Code, createRR.Body.String())
+	var created createAppointmentE2EResponse
+	require.NoError(t, json.Unmarshal(createRR.Body.Bytes(), &created))
+	apptID := created.Data.Appointment.ID
+	require.Greater(t, apptID, int64(0))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "calendar.appointments", apptID) })
+	path := "/calendar/appointments/" + strconv.FormatInt(apptID, 10)
+	listPath := "/calendar/my?from=2026-05-01&to=2026-05-10"
+
+	// Edit details (audience stays fixed).
+	updRR := doJSON(t, router, http.MethodPut, path, manageToken, map[string]any{
+		"title":      "Updated title",
+		"location":   "Room 2",
+		"start_date": "2026-05-05",
+		"end_date":   "2026-05-05",
+		"start_time": "11:00",
+		"end_time":   "12:00",
+	})
+	require.Equal(t, http.StatusOK, updRR.Code, updRR.Body.String())
+
+	var listed calendarListE2EResponse
+	listRR := doJSON(t, router, http.MethodGet, listPath, ownToken, nil)
+	require.NoError(t, json.Unmarshal(listRR.Body.Bytes(), &listed))
+	require.Len(t, listed.Data.Events, 1)
+	assert.Equal(t, "Updated title", listed.Data.Events[0].Title)
+	assert.Equal(t, "2026-05-05", listed.Data.Events[0].StartDate)
+	assert.False(t, listed.Data.Events[0].Cancelled)
+
+	// .ics download.
+	icsReq := httptest.NewRequest(http.MethodGet, path+"/ics", nil)
+	icsReq.Header.Set("Authorization", "Bearer "+ownToken)
+	icsRR := httptest.NewRecorder()
+	router.ServeHTTP(icsRR, icsReq)
+	require.Equal(t, http.StatusOK, icsRR.Code, icsRR.Body.String())
+	assert.Contains(t, icsRR.Header().Get("Content-Type"), "text/calendar")
+	assert.Contains(t, icsRR.Header().Get("Content-Disposition"), ".ics")
+	assert.Contains(t, icsRR.Body.String(), "BEGIN:VEVENT")
+	assert.Contains(t, icsRR.Body.String(), "SUMMARY:Updated title")
+
+	// Cancel — stays visible, flagged cancelled.
+	cancelRR := doJSON(t, router, http.MethodPost, path+"/cancel", manageToken, nil)
+	require.Equal(t, http.StatusOK, cancelRR.Code, cancelRR.Body.String())
+	listRR = doJSON(t, router, http.MethodGet, listPath, ownToken, nil)
+	require.NoError(t, json.Unmarshal(listRR.Body.Bytes(), &listed))
+	require.Len(t, listed.Data.Events, 1)
+	assert.True(t, listed.Data.Events[0].Cancelled)
+
+	// Delete — gone for everyone.
+	delRR := doJSON(t, router, http.MethodDelete, path, manageToken, nil)
+	require.Equal(t, http.StatusOK, delRR.Code, delRR.Body.String())
+	listRR = doJSON(t, router, http.MethodGet, listPath, ownToken, nil)
+	require.NoError(t, json.Unmarshal(listRR.Body.Bytes(), &listed))
+	assert.Empty(t, listed.Data.Events)
+}
+
+// TestPersonalCalendarHTTPFlow_ForbiddenEdit confirms a non-organizer cannot
+// edit or delete someone else's appointment through the HTTP layer.
+func TestPersonalCalendarHTTPFlow_ForbiddenEdit(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	_, router := setupCalendarE2ERouter(t, db)
+
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "OwnerOrg")
+	other, otherAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "OtherMgr")
+	t.Cleanup(func() {
+		testpkg.CleanupStaffFixtures(t, db, other.ID, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, otherAccount.ID, organizerAccount.ID)
+	})
+	ownerToken := calendarToken(t, organizerAccount.ID, permissions.CalendarManage, permissions.CalendarOwn)
+	otherToken := calendarToken(t, otherAccount.ID, permissions.CalendarManage, permissions.CalendarOwn)
+
+	createRR := doJSON(t, router, http.MethodPost, "/calendar/appointments", ownerToken, map[string]any{
+		"title":         "Owner only",
+		"start_date":    "2026-05-04",
+		"end_date":      "2026-05-04",
+		"start_time":    "09:00",
+		"end_time":      "10:00",
+		"delivery_mode": "informational",
+		"targets":       []map[string]any{{"type": "staff", "id": other.ID}},
+	})
+	require.Equal(t, http.StatusCreated, createRR.Code, createRR.Body.String())
+	var created createAppointmentE2EResponse
+	require.NoError(t, json.Unmarshal(createRR.Body.Bytes(), &created))
+	apptID := created.Data.Appointment.ID
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "calendar.appointments", apptID) })
+	path := "/calendar/appointments/" + strconv.FormatInt(apptID, 10)
+
+	// A different manager (an invitee here) may not delete it.
+	delRR := doJSON(t, router, http.MethodDelete, path, otherToken, nil)
+	assert.Equal(t, http.StatusForbidden, delRR.Code, delRR.Body.String())
 }

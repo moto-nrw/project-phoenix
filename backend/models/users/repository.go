@@ -302,6 +302,10 @@ type StudentGuardianRepository interface {
 	// FindByStudentID retrieves relationships by student ID
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentGuardian, error)
 
+	// FindByStudentIDs retrieves relationships for many students in one query,
+	// avoiding an N+1 when resolving whole-school / group / class parent targets.
+	FindByStudentIDs(ctx context.Context, studentIDs []int64) ([]*StudentGuardian, error)
+
 	// FindByGuardianProfileID retrieves relationships by guardian profile ID
 	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*StudentGuardian, error)
 

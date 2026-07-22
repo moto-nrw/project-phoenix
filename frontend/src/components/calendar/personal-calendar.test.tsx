@@ -202,6 +202,102 @@ describe("PersonalCalendar", () => {
     expect(onCreate).toHaveBeenCalledOnce();
   });
 
+  it("marks cancelled events, hides RSVP, and offers .ics download", () => {
+    const onRespond = vi.fn();
+    const cancelled: CalendarEvent = {
+      ...appointment,
+      cancelled: true,
+    };
+    render(
+      <PersonalCalendar
+        title="Mein Kalender"
+        events={[cancelled]}
+        weekStart={new Date(2026, 0, 5)}
+        onWeekChange={vi.fn()}
+        onRespond={onRespond}
+        icsHrefBase="/api/parent/calendar/appointments"
+      />,
+    );
+
+    expect(screen.getAllByText("Abgesagt").length).toBeGreaterThan(0);
+    // RSVP actions are hidden once cancelled.
+    expect(screen.queryByRole("button", { name: "Zusagen" })).toBeNull();
+    // Cancelled events are not exportable.
+    expect(
+      screen.queryByRole("link", { name: "Zum Kalender hinzufügen" }),
+    ).toBeNull();
+  });
+
+  it("renders an add-to-calendar link for active appointments", () => {
+    render(
+      <PersonalCalendar
+        title="Familienkalender"
+        events={[appointment]}
+        weekStart={new Date(2026, 0, 5)}
+        onWeekChange={vi.fn()}
+        icsHrefBase="/api/parent/calendar/appointments"
+      />,
+    );
+
+    const links = screen.getAllByRole("link", {
+      name: "Zum Kalender hinzufügen",
+    });
+    expect(links.length).toBeGreaterThan(0);
+    expect(links[0]).toHaveAttribute(
+      "href",
+      "/api/parent/calendar/appointments/1/ics",
+    );
+  });
+
+  it("shows organizer manage actions and wires them", () => {
+    const onEdit = vi.fn();
+    const onCancel = vi.fn();
+    const onDelete = vi.fn();
+    const editable: CalendarEvent = { ...appointment, can_edit: true };
+    render(
+      <PersonalCalendar
+        title="Mein Kalender"
+        events={[editable]}
+        weekStart={new Date(2026, 0, 5)}
+        onWeekChange={vi.fn()}
+        onEdit={onEdit}
+        onCancel={onCancel}
+        onDelete={onDelete}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Bearbeiten" })[0]!);
+    expect(onEdit).toHaveBeenCalledWith(editable);
+    fireEvent.click(screen.getAllByRole("button", { name: "Löschen" })[0]!);
+    expect(onDelete).toHaveBeenCalledWith(editable);
+  });
+
+  it("hides the edit action for cancelled appointments", () => {
+    const cancelled: CalendarEvent = {
+      ...appointment,
+      can_edit: true,
+      cancelled: true,
+    };
+    render(
+      <PersonalCalendar
+        title="Mein Kalender"
+        events={[cancelled]}
+        weekStart={new Date(2026, 0, 5)}
+        onWeekChange={vi.fn()}
+        onEdit={vi.fn()}
+        onCancel={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    // The backend rejects edits to cancelled appointments, so the button is gone;
+    // Löschen stays available.
+    expect(screen.queryByRole("button", { name: "Bearbeiten" })).toBeNull();
+    expect(
+      screen.getAllByRole("button", { name: "Löschen" }).length,
+    ).toBeGreaterThan(0);
+  });
+
   it("shows empty and error states", () => {
     render(
       <PersonalCalendar
