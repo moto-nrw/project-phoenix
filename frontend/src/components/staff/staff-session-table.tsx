@@ -209,8 +209,9 @@ export function StaffSessionTable({
   // harter Wochenend-Filter versteckte Ferienbetreuung, Elternabende und
   // Wochenend-Schichten komplett, während Monatskarte und KPI-Karten sie
   // serverseitig weiter mitzählen — die Summe der sichtbaren Zeilen ergab
-  // dann nicht mehr das ausgewiesene Ist. Leere Wochenenden bleiben raus,
-  // damit die Tabelle nicht aufgebläht wird.
+  // dann nicht mehr das ausgewiesene Ist. Feiertage zählen ebenfalls als
+  // Inhalt, damit z. B. Oster- und Pfingstsonntag ihr Badge zeigen. Wirklich
+  // leere Wochenenden bleiben raus, damit die Tabelle nicht aufgebläht wird.
   const days = useMemo(() => {
     const result: Date[] = [];
     const start = new Date(from);
@@ -232,6 +233,7 @@ export function StaffSessionTable({
           sessionsByDate.has(key) ||
           absencesByDate.has(key) ||
           (shiftsByDate.get(key)?.length ?? 0) > 0 ||
+          holidays?.has(key) === true ||
           displayed > 0 ||
           (unresolved && planned > 0);
         if (!hasContent) continue;
@@ -245,6 +247,7 @@ export function StaffSessionTable({
     sessionsByDate,
     absencesByDate,
     shiftsByDate,
+    holidays,
     resolveDayTarget,
   ]);
 
