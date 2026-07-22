@@ -34,7 +34,12 @@ func (r *deviationEventRepository) ListByRange(ctx context.Context, from, to tim
 		Model(&rows).
 		ModelTableExpr(deviationEventTableExpr).
 		Where(`"deviation_event".occurrence_date >= ?`, from).
-		Where(`"deviation_event".occurrence_date <= ?`, to)
+		Where(`"deviation_event".occurrence_date <= ?`, to).
+		// Slot-anchored events only: shift-anchored rows (#1884 Dienstplan
+		// moves) belong to the Dienstplan, not the Betreuungsplan history this
+		// read serves. No shift-history read surface exists yet; add a filter
+		// parameter here when one does.
+		Where(`"deviation_event".staff_shift_id IS NULL`)
 	// Defense-in-depth on top of RLS, same as the generic TenantScoped path.
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		q = q.Where(`"deviation_event".tenant_id = ?`, tenantID)

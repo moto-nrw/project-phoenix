@@ -1073,7 +1073,28 @@ function staffName(name?: string, id?: string): string | null {
   return name ?? (id ? "Unbekannte Person" : null);
 }
 
+/**
+ * Personal-Move (#1884): "wer, von wo nach wo" aus dem Ereignis-Payload.
+ * old_value fehlt bei einer Pool-Zuweisung (kein Quellblock).
+ */
+function staffMovedDescription(ev: DeviationHistoryEvent): string {
+  const subject = staffName(ev.subjectStaffName, ev.subjectStaffId);
+  const from = isRecord(ev.oldValue) ? ev.oldValue.from_title : undefined;
+  const to = isRecord(ev.newValue) ? ev.newValue.to_title : undefined;
+  if (subject && typeof from === "string" && typeof to === "string") {
+    return `${subject} wurde von „${from}“ nach „${to}“ verschoben.`;
+  }
+  if (subject && typeof to === "string") {
+    return `${subject} wurde „${to}“ aus dem Personalpool zugewiesen.`;
+  }
+  if (subject) {
+    return `${subject} wurde auf diesen Block verschoben.`;
+  }
+  return "Eine Person wurde zwischen Blöcken verschoben.";
+}
+
 function eventDescription(ev: DeviationHistoryEvent): string {
+  if (ev.eventType === "staff_moved") return staffMovedDescription(ev);
   const describe = EVENT_DESCRIPTIONS[ev.eventType];
   if (!describe) return deviationEventLabel(ev.eventType);
   return describe(

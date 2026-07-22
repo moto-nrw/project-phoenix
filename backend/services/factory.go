@@ -574,6 +574,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "staff_shift"),
 	)
 	staffShiftService.SetSeriesExceptionRepo(repos.StaffShiftSeriesException)
+	// #1884: shift moves append a shift_moved Änderungsprotokoll entry.
+	staffShiftService.SetDeviationEventRepo(repos.DeviationEvent)
 
 	// Recurring shift series (Dienstplan-Serien, #1889)
 	staffShiftSeriesService := schedule.NewStaffShiftSeriesService(

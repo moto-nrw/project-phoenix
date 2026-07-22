@@ -154,6 +154,11 @@ type InstanceService interface {
 	// (Phase B). See deviation_apply.go. Returns a DeviationError carrying the
 	// exact HTTP mapping on a validation/conflict failure.
 	ApplyDeviations(ctx context.Context, instanceID int64, in ApplyDeviationsInput) (*ApplyDeviationsResult, error)
+	// MoveStaffBetweenBlocks moves (or pool-assigns) one staff member onto the
+	// target block atomically in one save (#1884): removal from the source and
+	// assignment to the target share the day lock and the tenant tx, and leave
+	// a single staff_moved Änderungsprotokoll entry. See instance_move_staff.go.
+	MoveStaffBetweenBlocks(ctx context.Context, targetID int64, in MoveStaffInput) (*MoveStaffResult, error)
 	// AcknowledgeUnderstaffed applies the standalone "deliberately unstaffed"
 	// acknowledgement: it gates past blocks, serializes against same-day staffing
 	// saves, then delegates to SetUnderstaffedAck. The note must arrive already

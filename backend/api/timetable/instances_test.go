@@ -1042,6 +1042,15 @@ func (m *mockInstanceService) ApplyDeviations(ctx context.Context, id int64, in 
 	return &scheduleSvc.ApplyDeviationsResult{}, nil
 }
 
+// MoveStaffBetweenBlocks delegates to a real InstanceService when wired
+// (interface completeness for #1884; the mock-only path is unused today).
+func (m *mockInstanceService) MoveStaffBetweenBlocks(ctx context.Context, targetID int64, in scheduleSvc.MoveStaffInput) (*scheduleSvc.MoveStaffResult, error) {
+	if m.real != nil {
+		return m.real.MoveStaffBetweenBlocks(ctx, targetID, in)
+	}
+	return &scheduleSvc.MoveStaffResult{}, nil
+}
+
 // AcknowledgeUnderstaffed records the forwarded args for the mock-only handler
 // tests, or delegates to a real service (the DB-backed past-block guard test).
 func (m *mockInstanceService) AcknowledgeUnderstaffed(ctx context.Context, id int64, ack bool, note *string, actor *int64) (*scheduleModel.ActivityInstance, error) {

@@ -382,6 +382,9 @@ func (s *autoStartInstanceStarter) ApplyDeviations(context.Context, int64, Apply
 func (s *autoStartInstanceStarter) AcknowledgeUnderstaffed(context.Context, int64, bool, *string, *int64) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
+func (s *autoStartInstanceStarter) MoveStaffBetweenBlocks(context.Context, int64, MoveStaffInput) (*MoveStaffResult, error) {
+	return nil, nil
+}
 
 // Stubs for the issue #585 cleanup refactor interface additions — unused by
 // the auto-start tests.

@@ -300,6 +300,8 @@ type DeviationEventType =
   | "deviation_dropped_by_edit"
   | "sick_reported"
   | "sick_cleared"
+  | "staff_moved"
+  | "shift_moved"
   | (string & {});
 
 /** Ein Eintrag im Änderungsprotokoll (#1886), aufgelöst für die Anzeige. */
@@ -691,6 +693,106 @@ export interface BackendApplyDeviationsResponse {
   understaffed_ack: boolean;
   affected_instances: BackendSubstituteAffectedInstance[];
   warnings: BackendSubstituteTimeConflict[];
+}
+
+/**
+ * #1884 Personalpool: every staff member categorized against one block's
+ * time window. Categories are mutually exclusive; `assignedElsewhere`
+ * entries carry the overlapping blocks they could be moved away from.
+ */
+export type StaffPoolCategory =
+  | "assigned_here"
+  | "absent"
+  | "assigned_elsewhere"
+  | "on_shift_free"
+  | "not_on_shift";
+
+export interface StaffPoolAssignment {
+  instanceId: string;
+  title: string;
+  startTime: string;
+  endTime: string;
+  isSubstitute: boolean;
+}
+
+export interface StaffPoolEntry {
+  staffId: string;
+  displayName: string;
+  category: StaffPoolCategory;
+  onShift: boolean;
+  coversWindow: boolean;
+  shiftWindows: string[];
+  absenceReason?: string;
+  assignments: StaffPoolAssignment[];
+}
+
+export interface StaffPoolResponse {
+  instanceId: string;
+  title: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  dienstplanInUse: boolean;
+  entries: StaffPoolEntry[];
+}
+
+export interface BackendStaffPoolResponse {
+  instance_id: number;
+  title: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  dienstplan_in_use: boolean;
+  entries: Array<{
+    staff_id: number;
+    display_name: string;
+    category: StaffPoolCategory;
+    on_shift: boolean;
+    covers_window: boolean;
+    shift_windows: string[] | null;
+    absence_reason?: string | null;
+    assignments: Array<{
+      instance_id: number;
+      title: string;
+      start_time: string;
+      end_time: string;
+      is_substitute: boolean;
+    }> | null;
+  }> | null;
+}
+
+/**
+ * #1884: atomic staff move onto a target block. Without `sourceInstanceId`
+ * a free on-shift person is assigned instead of moved.
+ */
+export interface MoveStaffInput {
+  staffId: string;
+  sourceInstanceId?: string;
+}
+
+export interface MoveStaffResponse {
+  targetInstanceId: string;
+  sourceInstanceId?: string;
+  action: "moved" | "assigned" | "already_applied";
+  timeConflicts: SubstituteTimeConflict[];
+  coverageWarnings: ShiftCoverageWarningItem[];
+}
+
+export interface BackendMoveStaffResponse {
+  target_instance_id: number;
+  source_instance_id?: number | null;
+  action: "moved" | "assigned" | "already_applied";
+  time_conflicts: BackendSubstituteTimeConflict[] | null;
+  coverage_warnings: Array<{
+    staff_id: number;
+    staff_name: string;
+    date: string;
+    start_time: string;
+    end_time: string;
+    uncovered_start_time: string;
+    uncovered_end_time: string;
+    message: string;
+  }> | null;
 }
 
 /**

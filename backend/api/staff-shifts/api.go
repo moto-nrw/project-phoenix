@@ -285,6 +285,18 @@ func (rs *Resource) buildShift(req ShiftRequest) (*scheduleModels.StaffShift, er
 	}, nil
 }
 
+// actorAccountID reads the acting account id straight from the JWT claims for
+// the Änderungsprotokoll (#1884). Nil when claims are missing so the audit row
+// stores NULL instead of a fabricated id.
+func actorAccountID(ctx context.Context) *int64 {
+	claims := jwt.ClaimsFromCtx(ctx)
+	if claims.ID == 0 {
+		return nil
+	}
+	id := int64(claims.ID)
+	return &id
+}
+
 // editorStaffID resolves the acting admin's staff record from the JWT claims.
 func (rs *Resource) editorStaffID(ctx context.Context) (int64, error) {
 	claims := jwt.ClaimsFromCtx(ctx)
@@ -481,15 +493,16 @@ func (rs *Resource) move(w http.ResponseWriter, r *http.Request) {
 	}
 
 	saved, err := rs.Service.MoveShift(r.Context(), scheduleSvc.MoveShiftInput{
-		ShiftID:       id,
-		SourceStaffID: req.SourceStaffID,
-		TargetStaffID: req.TargetStaffID,
-		Date:          date,
-		StartTime:     start,
-		EndTime:       end,
-		BreakMinutes:  req.BreakMinutes,
-		ShiftTypeID:   req.ShiftTypeID.Value,
-		ActorStaffID:  editorID,
+		ShiftID:        id,
+		SourceStaffID:  req.SourceStaffID,
+		TargetStaffID:  req.TargetStaffID,
+		Date:           date,
+		StartTime:      start,
+		EndTime:        end,
+		BreakMinutes:   req.BreakMinutes,
+		ShiftTypeID:    req.ShiftTypeID.Value,
+		ActorStaffID:   editorID,
+		ActorAccountID: actorAccountID(r.Context()),
 	})
 	if err != nil {
 		// A series exception may already have been written before a later

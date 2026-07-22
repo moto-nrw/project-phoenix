@@ -12,6 +12,7 @@ import (
 func TestDeviationEventValidate(t *testing.T) {
 	groupID := int64(11)
 	instanceID := int64(12)
+	shiftID := int64(13)
 	date := timezone.NewDate(2026, 5, 4)
 
 	tests := []struct {
@@ -21,8 +22,12 @@ func TestDeviationEventValidate(t *testing.T) {
 	}{
 		{name: "valid template-backed event", event: DeviationEvent{ActivityGroupID: &groupID, OccurrenceDate: date, EventType: DeviationEventAbsence}},
 		{name: "valid spontaneous event", event: DeviationEvent{InstanceID: &instanceID, OccurrenceDate: date, EventType: DeviationEventCancellation}},
-		{name: "requires anchor", event: DeviationEvent{OccurrenceDate: date, EventType: DeviationEventAbsence}, want: "activity_group_id or instance_id is required"},
-		{name: "rejects zero anchor", event: DeviationEvent{ActivityGroupID: new(int64), OccurrenceDate: date, EventType: DeviationEventAbsence}, want: "activity_group_id or instance_id is required"},
+		// #1884: a Dienstplan shift move anchors via staff_shift_id — neither
+		// activity slot pointer exists for a shift.
+		{name: "valid shift-anchored event", event: DeviationEvent{StaffShiftID: &shiftID, OccurrenceDate: date, EventType: DeviationEventShiftMoved}},
+		{name: "requires anchor", event: DeviationEvent{OccurrenceDate: date, EventType: DeviationEventAbsence}, want: "activity_group_id, instance_id or staff_shift_id is required"},
+		{name: "rejects zero anchor", event: DeviationEvent{ActivityGroupID: new(int64), OccurrenceDate: date, EventType: DeviationEventAbsence}, want: "activity_group_id, instance_id or staff_shift_id is required"},
+		{name: "rejects zero shift anchor", event: DeviationEvent{StaffShiftID: new(int64), OccurrenceDate: date, EventType: DeviationEventShiftMoved}, want: "activity_group_id, instance_id or staff_shift_id is required"},
 		{name: "requires occurrence date", event: DeviationEvent{InstanceID: &instanceID, EventType: DeviationEventAbsence}, want: "occurrence_date is required"},
 		{name: "requires event type", event: DeviationEvent{InstanceID: &instanceID, OccurrenceDate: date}, want: "event_type is required"},
 	}

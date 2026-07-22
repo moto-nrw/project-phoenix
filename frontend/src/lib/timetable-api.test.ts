@@ -1042,3 +1042,93 @@ describe("timetableService", () => {
     );
   });
 });
+
+describe("staff pool + move (#1884)", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    mockGetSession.mockResolvedValue({
+      user: { token: "jwt" },
+      expires: "2099-01-01",
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("loads and maps the staff pool", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        status: "success",
+        data: {
+          instance_id: 42,
+          title: "Mensa",
+          date: "2026-05-04",
+          start_time: "12:30",
+          end_time: "13:30",
+          dienstplan_in_use: true,
+          entries: [],
+        },
+      }),
+    );
+
+    const pool = await timetableService.getStaffPool("42");
+    expect(pool.instanceId).toBe("42");
+    expect(pool.dienstplanInUse).toBe(true);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/timetable/instances/42/staff-pool",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("posts a move with numeric ids and maps the result", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        status: "success",
+        data: {
+          target_instance_id: 42,
+          source_instance_id: 41,
+          action: "moved",
+          time_conflicts: [],
+          coverage_warnings: [],
+        },
+      }),
+    );
+
+    const result = await timetableService.moveStaff("42", {
+      staffId: "7",
+      sourceInstanceId: "41",
+    });
+    expect(result.action).toBe("moved");
+    expect(result.sourceInstanceId).toBe("41");
+    const [url, init] = fetchMock.mock.calls.at(-1) as [string, RequestInit];
+    expect(url).toBe("/api/timetable/instances/42/move-staff");
+    expect(JSON.parse(String(init.body))).toEqual({
+      staff_id: 7,
+      source_instance_id: 41,
+    });
+  });
+
+  it("omits source_instance_id for a pool assign", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        status: "success",
+        data: {
+          target_instance_id: 42,
+          action: "assigned",
+          time_conflicts: null,
+          coverage_warnings: null,
+        },
+      }),
+    );
+
+    const result = await timetableService.moveStaff("42", { staffId: "9" });
+    expect(result.action).toBe("assigned");
+    const [, init] = fetchMock.mock.calls.at(-1) as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({ staff_id: 9 });
+  });
+});

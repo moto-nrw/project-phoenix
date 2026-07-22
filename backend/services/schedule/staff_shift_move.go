@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
@@ -25,6 +26,9 @@ type MoveShiftInput struct {
 	BreakMinutes  int
 	ShiftTypeID   *int64
 	ActorStaffID  int64
+	// ActorAccountID stamps the shift_moved Änderungsprotokoll entry (#1884);
+	// nil records an actor-less event.
+	ActorAccountID *int64
 }
 
 // MoveShift applies a move as one row update inside the caller's tenant
@@ -142,6 +146,9 @@ func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput)
 	if err := s.repo.Update(ctx, &moved); err != nil {
 		return nil, err
 	}
+	if err := s.logShiftMovedEvent(ctx, existing, &moved, input.ActorAccountID); err != nil {
+		return nil, err
+	}
 	s.getLogger().Info("staff shift moved",
 		"shift_id", moved.ID,
 		"source_staff_id", existing.StaffID,
@@ -149,6 +156,50 @@ func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput)
 		"date", moved.Date.String(),
 	)
 	return &moved, nil
+}
+
+// logShiftMovedEvent appends the shift_moved Änderungsprotokoll row (#1884)
+// inside the caller's tenant tx. The event anchors via StaffShiftID (a shift
+// is not an activity slot); occurrence_date/start_time snapshot the NEW slot.
+// Fail closed when the repo is wired: an audit failure aborts the move. The
+// repo is optional only for unit tests constructed without audit wiring —
+// production (services/factory.go) always sets it.
+func (s *staffShiftService) logShiftMovedEvent(ctx context.Context, existing, moved *scheduleModels.StaffShift, actorAccountID *int64) error {
+	if s.deviationEventRepo == nil {
+		return nil
+	}
+	event := &auditModels.DeviationEvent{
+		OccurrenceDate: moved.Date,
+		StartTime:      timezone.WallClock(moved.StartTime),
+		StaffShiftID:   &moved.ID,
+		SubjectStaffID: &existing.StaffID,
+		EventType:      auditModels.DeviationEventShiftMoved,
+		ActorAccountID: normalizeActor(actorAccountID),
+	}
+	if moved.StaffID != existing.StaffID {
+		event.RelatedStaffID = &moved.StaffID
+	}
+	var err error
+	if event.OldValue, err = marshalDeviationValue(shiftMoveSlot(existing)); err != nil {
+		return fmt.Errorf("log shift move: marshal old value: %w", err)
+	}
+	if event.NewValue, err = marshalDeviationValue(shiftMoveSlot(moved)); err != nil {
+		return fmt.Errorf("log shift move: marshal new value: %w", err)
+	}
+	if err := s.deviationEventRepo.Create(ctx, event); err != nil {
+		return fmt.Errorf("log shift move event: %w", err)
+	}
+	return nil
+}
+
+// shiftMoveSlot snapshots the audit-relevant slot of one shift state.
+func shiftMoveSlot(shift *scheduleModels.StaffShift) map[string]any {
+	return map[string]any{
+		"staff_id":   shift.StaffID,
+		"date":       shift.Date.String(),
+		"start_time": timezone.WallClock(shift.StartTime).Format("15:04"),
+		"end_time":   timezone.WallClock(shift.EndTime).Format("15:04"),
+	}
 }
 
 func staffShiftMoveChanged(existing, moved *scheduleModels.StaffShift) bool {

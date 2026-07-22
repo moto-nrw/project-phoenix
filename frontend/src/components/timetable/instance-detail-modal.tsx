@@ -26,6 +26,7 @@ import {
   TriangleAlert,
   UserCheck,
   UserCog,
+  UserPlus,
   Users,
   X,
 } from "lucide-react";
@@ -40,7 +41,7 @@ import {
   useAttendanceWebEnabled,
   useShowTimetableCounts,
 } from "~/lib/tenant-context";
-import { parseISODate } from "~/lib/date-helpers";
+import { parseISODate, todayISO } from "~/lib/date-helpers";
 import {
   getActivityTypeBadge,
   getGermanWeekdayLong,
@@ -124,6 +125,11 @@ interface InstanceDetailModalProps {
    * (?block=…) bleibt bestehen, das Modal erscheint danach wieder.
    */
   suspended?: boolean;
+  /**
+   * Öffnet den Personalpool (#1884) für diesen Block. Nur sichtbar für
+   * geplante/laufende Blöcke ab heute — vergangene Blöcke sind Historie.
+   */
+  onOpenPool?: (instance: EnrichedInstance) => void;
 }
 
 const EMPTY_STAFF_NAMES = new Map<string, string>();
@@ -298,9 +304,11 @@ function ActivityTypeBadge({
 function AssignedStaffSection({
   instance,
   staffNames,
+  onOpenPool,
 }: Readonly<{
   instance: EnrichedInstance;
   staffNames: Map<string, string>;
+  onOpenPool?: (instance: EnrichedInstance) => void;
 }>) {
   return (
     <Section title="Personal">
@@ -321,6 +329,20 @@ function AssignedStaffSection({
             />
           ))}
         </div>
+      )}
+      {onOpenPool && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="compact"
+          onClick={() => onOpenPool(instance)}
+          className="border border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <UserPlus className="h-3.5 w-3.5" />
+            Person hinzuziehen
+          </span>
+        </Button>
       )}
     </Section>
   );
@@ -407,6 +429,7 @@ export function InstanceDetailModal({
   onAttendancePatch,
   editDeferred = true,
   suspended = false,
+  onOpenPool,
 }: InstanceDetailModalProps) {
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const showTimetableCounts = useShowTimetableCounts();
@@ -424,6 +447,12 @@ export function InstanceDetailModal({
     null,
   );
   const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
+  // Personalpool (#1884) nur für bearbeitbare Blöcke ab heute — vergangene
+  // Blöcke sind Historie (gleiche Regel wie das Backend erzwingt).
+  const poolAvailable =
+    instance !== null &&
+    (instance.status === "planned" || instance.status === "active") &&
+    instance.date >= todayISO();
   const students = useMemo(() => studentsForInstance(instance), [instance]);
   // Same split the header counts use (#1747): an assignment row still reads
   // "expected" when the care plan does not place the child here today, so it
@@ -790,7 +819,11 @@ export function InstanceDetailModal({
             )}
           </Section>
 
-          <AssignedStaffSection instance={instance} staffNames={staffNames} />
+          <AssignedStaffSection
+            instance={instance}
+            staffNames={staffNames}
+            onOpenPool={poolAvailable ? onOpenPool : undefined}
+          />
 
           <InstanceStudentsSection
             groupedStudents={groupedStudents}
