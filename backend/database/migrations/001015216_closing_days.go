@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	closingDaysVersion     = "1.15.211"
+	closingDaysVersion     = "1.15.216"
 	closingDaysDescription = "Create schedule.closing_days - tenant-specific OGS closure periods with Soll=0 semantics"
 )
 
@@ -44,7 +44,7 @@ func init() {
 // ranges are harmless because Soll computation collapses them into one date
 // set, and avoiding btree_gist keeps the migration dependency-free.
 func closingDaysUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.211: Creating schedule.closing_days...")
+	fmt.Println("Migration 1.15.216: Creating schedule.closing_days...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -97,7 +97,7 @@ func closingDaysUp(ctx context.Context, db *bun.DB) error {
 }
 
 func closingDaysDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.211: Dropping schedule.closing_days...")
+	fmt.Println("Rolling back migration 1.15.216: Dropping schedule.closing_days...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
