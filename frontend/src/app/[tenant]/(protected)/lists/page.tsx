@@ -511,9 +511,21 @@ export default function SlotListsPage() {
       // otherwise leak the visits recorded during its brief run into Ist and
       // Abgleich under the omitted path — is excluded, matching what /options
       // counts and what the card reports as assigned slots (#1565 review).
+      // A bookmarked explicit selection is intersected with the active set
+      // before it reaches the backend: a since-cancelled or deleted slot ID
+      // from a saved URL would otherwise be honored as an explicit request and
+      // leak its retained cancelled-slot attendance — including in the single
+      // render before the pruning effect rewrites state (#1565 review pass 1).
+      // An all-stale selection intersects to [] ("none"), never omitted/"all".
       ...(target === "slots"
         ? isManualSlotSelection && selectedSlotIds !== null
-          ? { instance_ids: selectedSlotIds }
+          ? activeInstanceIds !== null
+            ? {
+                instance_ids: selectedSlotIds.filter((id) =>
+                  activeInstanceIds.includes(id),
+                ),
+              }
+            : {}
           : activeInstanceIds !== null
             ? { instance_ids: activeInstanceIds }
             : {}
@@ -543,13 +555,12 @@ export default function SlotListsPage() {
   // slots", pulling in a cancelled-but-started slot whose brief-run attendance we
   // deliberately exclude. Firing the preview then would render, and enable
   // print/download on, rows the UI marks as cancelled-excluded (#1565 review
-  // pass 1). Hold the preview until the active set lands. An explicit manual
-  // subset (parsed from the URL) is authoritative on its own and never waits;
-  // pickup lists do not use instance_ids at all.
-  const awaitingActiveSlots =
-    target === "slots" &&
-    activeInstanceIds === null &&
-    !(isManualSlotSelection && selectedSlotIds !== null);
+  // pass 1). Hold the preview until the active set lands — including for an
+  // explicit bookmarked selection: a saved slot ID cannot be validated (nor a
+  // since-cancelled one intersected out of the request) until /options resolves,
+  // so a manual subset must wait too rather than fire a preview off unvalidated
+  // IDs (#1565 review pass 1). Pickup lists do not use instance_ids at all.
+  const awaitingActiveSlots = target === "slots" && activeInstanceIds === null;
 
   const replaceListUrl = useCallback(
     (next: Partial<InitialListState>) => {
@@ -867,8 +878,13 @@ export default function SlotListsPage() {
     const available = new Set(selectableSlotIds);
     const pruned = selectedSlotIds.filter((id) => available.has(id));
     if (pruned.length === selectedSlotIds.length) return;
+    // null means "all active slots" everywhere downstream, so only collapse to
+    // it when the survivors ARE the whole active set. When every selected slot
+    // is stale (pruned empty), keep an explicit empty selection ([] → "keine")
+    // instead — collapsing to null would silently broaden a saved single-
+    // offering list to every offering on the date (#1565 review pass 1).
     const next =
-      pruned.length === 0 || pruned.length === selectableSlotIds.length
+      pruned.length > 0 && pruned.length === selectableSlotIds.length
         ? null
         : pruned;
     setSelectedSlotIds(next);
