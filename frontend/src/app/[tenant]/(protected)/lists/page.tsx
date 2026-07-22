@@ -202,6 +202,84 @@ function statusColor(row: SlotListRow, source: SlotListSource): string {
   return LOCATION_COLORS.OTHER_ROOM;
 }
 
+// CounterChips surfaces result.counters so users can verify the summary the
+// help guide points them to (geplant / anwesend / fehlt / abgemeldet /
+// ungeplant) without counting table rows. The backend zeroes the counters
+// that are meaningless for the source (plan and Ist carry only their own
+// number; the merge counters exist only in the Abgleich).
+function CounterChips({
+  counters,
+  source,
+}: Readonly<{
+  counters: SlotListResult["counters"];
+  source: SlotListSource;
+}>) {
+  const chips: Array<{ label: string; value: number; color: string }> =
+    source === "planned"
+      ? [
+          {
+            label: "Geplant",
+            value: counters.planned,
+            color: LOCATION_COLORS.OTHER_ROOM,
+          },
+        ]
+      : source === "actual"
+        ? [
+            {
+              label: "Anwesend",
+              value: counters.present,
+              color: LOCATION_COLORS.GROUP_ROOM,
+            },
+          ]
+        : [
+            {
+              label: "Geplant",
+              value: counters.planned,
+              color: LOCATION_COLORS.OTHER_ROOM,
+            },
+            {
+              label: "Anwesend",
+              value: counters.present,
+              color: LOCATION_COLORS.GROUP_ROOM,
+            },
+            {
+              label: "Fehlt",
+              value: counters.missing,
+              color: LOCATION_COLORS.HOME,
+            },
+            {
+              label: "Abgemeldet",
+              value: counters.excused,
+              color: LOCATION_COLORS.EXCUSED,
+            },
+            {
+              label: "Ungeplant",
+              value: counters.unplanned,
+              color: LOCATION_COLORS.SCHOOLYARD,
+            },
+          ];
+  return (
+    <div className="flex flex-wrap items-center gap-2" aria-label="Zähler">
+      {chips.map((chip) => (
+        <span
+          key={chip.label}
+          className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600"
+        >
+          <span
+            aria-hidden
+            className="inline-block h-1.5 w-1.5 rounded-full"
+            style={{ backgroundColor: chip.color }}
+          />
+          {chip.label}
+          <span className="font-semibold text-gray-900 tabular-nums">
+            {chip.value}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function StatusBadge({
   row,
   source,
@@ -1008,10 +1086,13 @@ export default function SlotListsPage() {
       >
         <div className="space-y-3 border-b border-gray-100 pb-4">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-            <div className="min-w-0">
+            <div className="min-w-0 space-y-3">
               {/* Standard filters that narrow the list (offering / group / class) */}
               {filterConfigs.length > 0 ? (
                 <DesktopFilters filters={filterConfigs} />
+              ) : null}
+              {result && !isLoading ? (
+                <CounterChips counters={result.counters} source={source} />
               ) : null}
             </div>
             <div className="flex flex-wrap gap-2 lg:justify-end">

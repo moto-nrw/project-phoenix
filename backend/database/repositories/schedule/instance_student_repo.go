@@ -82,6 +82,33 @@ func (r *InstanceStudentRepository) FindByInstanceID(ctx context.Context, instan
 	return rows, nil
 }
 
+// FindByInstanceIDs returns every attendance row for any of the given
+// instance IDs in one query (all statuses). Tenant-scoped; empty input
+// returns an empty slice without hitting the DB. Bulk sibling of
+// FindByInstanceID for callers that would otherwise loop per instance
+// (#1565 list options).
+func (r *InstanceStudentRepository) FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*schedule.InstanceStudent, error) {
+	if len(instanceIDs) == 0 {
+		return []*schedule.InstanceStudent{}, nil
+	}
+	var rows []*schedule.InstanceStudent
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(modelTblInstanceStudent).
+		Where(`"instance_student".instance_id IN (?)`, bun.List(instanceIDs)).
+		OrderExpr(`"instance_student".instance_id ASC, "instance_student".student_id ASC`)
+
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by instance ids",
+			Err: err,
+		}
+	}
+	return rows, nil
+}
+
 // FindExpectedByInstanceIDs returns every instance_students row with
 // status='expected' for any of the given instance IDs. Tenant-scoped.
 // Empty input returns an empty slice without hitting the DB, matching the

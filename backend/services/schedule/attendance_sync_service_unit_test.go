@@ -204,6 +204,10 @@ func (f *fakeInstanceStudentRepo) FindByInstanceID(context.Context, int64) ([]*s
 	panic("unused")
 }
 
+func (f *fakeInstanceStudentRepo) FindByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStudent, error) {
+	panic("unused")
+}
+
 func (f *fakeInstanceStudentRepo) FindExpectedByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStudent, error) {
 	panic("unused")
 }

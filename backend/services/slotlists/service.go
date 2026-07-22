@@ -21,6 +21,7 @@ import (
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/usercontext"
 )
 
 // confidentialityNote matches the wording of the other printed exports.
@@ -46,6 +47,7 @@ type instanceReader interface {
 
 type instanceStudentReader interface {
 	FindByInstanceID(ctx context.Context, instanceID int64) ([]*scheduleModel.InstanceStudent, error)
+	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModel.InstanceStudent, error)
 }
 
 type visitReader interface {
@@ -54,6 +56,13 @@ type visitReader interface {
 
 type attendanceReader interface {
 	FindForDate(ctx context.Context, date timezone.Date) ([]*activeModel.Attendance, error)
+}
+
+// statusDayReader loads the broad day statuses (sick / excused / class trip)
+// that sign a child off for a whole date (#1565 review: a registered absence
+// must show as "Abgemeldet" on pickup lists, not as unexplained "Fehlt").
+type statusDayReader interface {
+	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*activeModel.StudentStatusDay, error)
 }
 
 type studentReader interface {
@@ -88,6 +97,7 @@ type Dependencies struct {
 	InstanceStudentRepo instanceStudentReader
 	VisitRepo           visitReader
 	AttendanceRepo      attendanceReader
+	StatusDayRepo       statusDayReader
 	StudentRepo         studentReader
 	PersonRepo          personReader
 	EducationGroupRepo  educationGroupReader
@@ -104,6 +114,7 @@ type service struct {
 	instanceStudentRepo instanceStudentReader
 	visitRepo           visitReader
 	attendanceRepo      attendanceReader
+	statusDayRepo       statusDayReader
 	studentRepo         studentReader
 	personRepo          personReader
 	educationGroupRepo  educationGroupReader
@@ -122,6 +133,7 @@ func NewService(deps Dependencies) Service {
 		instanceStudentRepo: deps.InstanceStudentRepo,
 		visitRepo:           deps.VisitRepo,
 		attendanceRepo:      deps.AttendanceRepo,
+		statusDayRepo:       deps.StatusDayRepo,
 		studentRepo:         deps.StudentRepo,
 		personRepo:          deps.PersonRepo,
 		educationGroupRepo:  deps.EducationGroupRepo,
@@ -189,17 +201,28 @@ func (a studentReadAccess) canReadGroup(groupID *int64) bool {
 	return ok
 }
 
-func (s *service) resolveStudentReadAccess(ctx context.Context) studentReadAccess {
+// resolveStudentReadAccess derives which children the caller may see by name.
+// Only the two legitimate restrictive conditions collapse to an empty access
+// set (an account without a staff profile, a supervisor without groups);
+// operational failures (repository/DB errors) propagate so the request fails
+// loudly instead of returning a legitimate-looking empty list.
+func (s *service) resolveStudentReadAccess(ctx context.Context) (studentReadAccess, error) {
 	if authorize.HasPermission("admin:*", jwt.PermissionsFromCtx(ctx)) {
-		return studentReadAccess{unrestricted: true}
+		return studentReadAccess{unrestricted: true}, nil
 	}
 	if s.userContext == nil {
-		return studentReadAccess{groupIDs: map[int64]struct{}{}}
+		return studentReadAccess{groupIDs: map[int64]struct{}{}}, nil
 	}
 
 	staff, err := s.userContext.GetCurrentStaff(ctx)
-	if err != nil || staff == nil {
-		return studentReadAccess{groupIDs: map[int64]struct{}{}}
+	if err != nil {
+		if errors.Is(err, usercontext.ErrUserNotLinkedToStaff) {
+			return studentReadAccess{groupIDs: map[int64]struct{}{}}, nil
+		}
+		return studentReadAccess{}, fmt.Errorf("resolve current staff: %w", err)
+	}
+	if staff == nil {
+		return studentReadAccess{groupIDs: map[int64]struct{}{}}, nil
 	}
 
 	scope := s.resolveStringSettingOrDefault(
@@ -208,18 +231,18 @@ func (s *service) resolveStudentReadAccess(ctx context.Context) studentReadAcces
 		configModel.StudentDataScopeGroupSupervisorsOnly,
 	)
 	if scope == configModel.StudentDataScopeAllStaff {
-		return studentReadAccess{unrestricted: true}
+		return studentReadAccess{unrestricted: true}, nil
 	}
 
 	educationGroups, err := s.userContext.GetMyGroups(ctx)
 	if err != nil {
-		return studentReadAccess{groupIDs: map[int64]struct{}{}}
+		return studentReadAccess{}, fmt.Errorf("resolve supervised groups: %w", err)
 	}
 	groupIDs := make(map[int64]struct{}, len(educationGroups))
 	for _, group := range educationGroups {
 		groupIDs[group.ID] = struct{}{}
 	}
-	return studentReadAccess{groupIDs: groupIDs}
+	return studentReadAccess{groupIDs: groupIDs}, nil
 }
 
 func (s *service) resolveStringSettingOrDefault(ctx context.Context, key, fallback string) string {
@@ -309,8 +332,8 @@ func (s *service) provenance(params Params, listLabel string) string {
 
 func (s *service) BuildList(ctx context.Context, params Params) (*Result, error) {
 	if s.instanceRepo == nil || s.instanceStudentRepo == nil || s.visitRepo == nil ||
-		s.attendanceRepo == nil || s.studentRepo == nil || s.personRepo == nil ||
-		s.educationGroupRepo == nil || s.roomRepo == nil ||
+		s.attendanceRepo == nil || s.statusDayRepo == nil || s.studentRepo == nil ||
+		s.personRepo == nil || s.educationGroupRepo == nil || s.roomRepo == nil ||
 		s.pickupService == nil || s.listExport == nil {
 		return nil, fmt.Errorf("slot list service is not configured")
 	}
@@ -332,7 +355,10 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 	if !params.GroupBy.ValidFor(params.Target) {
 		return nil, fmt.Errorf("grouping %q is not valid for target %q", params.GroupBy, params.Target)
 	}
-	access := s.resolveStudentReadAccess(ctx)
+	access, err := s.resolveStudentReadAccess(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	listLabel, err := s.listLabel(ctx, params)
 	if err != nil {
@@ -389,54 +415,117 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 }
 
 func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*OptionsResult, error) {
-	slotResult, err := s.BuildList(ctx, Params{
-		Date:   date,
-		Target: TargetSlots,
-		Source: SourcePlanned,
-	})
+	// One pass over the day's instances instead of re-running the full list
+	// builder once per list kind: on a normal school day the old shape issued
+	// hundreds of per-slot roster/visit queries inside the tenant transaction
+	// before the frontend's preview request repeated the same work.
+	instances, err := s.instanceRepo.FindByTenantAndDate(ctx, date)
 	if err != nil {
 		return nil, err
 	}
-	cohorts := make([]PickupCohortOption, 0, 2)
-	for _, cohort := range []PickupCohort{PickupCohortShortDay, PickupCohortLongDay} {
-		result, err := s.BuildList(ctx, Params{
-			Date:         date,
-			Target:       TargetPickupCohort,
-			PickupCohort: cohort,
-			Source:       SourcePlanned,
+	slots := make([]Slot, 0, len(instances))
+	kindInstanceIDs := map[ListKind][]int64{}
+	for _, inst := range instances {
+		slots = append(slots, Slot{
+			InstanceID: inst.ID,
+			Title:      inst.Title,
+			TimeRange:  fmt.Sprintf("%s\u2013%s", inst.StartTime.Format(timeLayout), inst.EndTime.Format(timeLayout)),
+			Status:     inst.Status,
 		})
+		if inst.Status == scheduleModel.InstanceStatusCancelled || inst.ListKind == nil {
+			continue
+		}
+		kind := ListKind(*inst.ListKind)
+		if kind != ListKindNone && kind.Valid() {
+			kindInstanceIDs[kind] = append(kindInstanceIDs[kind], inst.ID)
+		}
+	}
+
+	// One bulk roster load over every classified instance for the per-kind
+	// planned row counts. Mirrors collectSlotEntries' planned semantics:
+	// walk-in rows (is_unplanned, #1913) and non-booking markers
+	// (not_scheduled, #1747) are not planned children.
+	classifiedIDs := make([]int64, 0)
+	for _, ids := range kindInstanceIDs {
+		classifiedIDs = append(classifiedIDs, ids...)
+	}
+	plannedByInstance := map[int64]int{}
+	if len(classifiedIDs) > 0 {
+		rosterRows, err := s.instanceStudentRepo.FindByInstanceIDs(ctx, classifiedIDs)
 		if err != nil {
 			return nil, err
 		}
-		rowCount := len(result.Rows)
-		cohorts = append(cohorts, PickupCohortOption{
-			Cohort:    cohort,
-			Label:     result.ListLabel,
-			Available: rowCount > 0,
-			RowCount:  rowCount,
-		})
+		for _, row := range rosterRows {
+			if row.IsUnplanned || row.NotScheduled {
+				continue
+			}
+			plannedByInstance[row.InstanceID]++
+		}
 	}
 	listKinds := make([]ListKindOption, 0, len(AllListKinds))
 	for _, kind := range AllListKinds {
-		result, err := s.BuildList(ctx, Params{
-			Date:     date,
-			Target:   TargetSlots,
-			ListKind: kind,
-			Source:   SourcePlanned,
-		})
-		if err != nil {
-			return nil, err
+		ids := kindInstanceIDs[kind]
+		rowCount := 0
+		for _, id := range ids {
+			rowCount += plannedByInstance[id]
 		}
-		slotCount := selectableSlotCount(result.Slots)
 		listKinds = append(listKinds, ListKindOption{
 			Kind:      kind,
 			Label:     kind.Label(),
-			Available: slotCount > 0,
-			SlotCount: slotCount,
-			RowCount:  len(result.Rows),
+			Available: len(ids) > 0,
+			SlotCount: len(ids),
+			RowCount:  rowCount,
 		})
 	}
-	return &OptionsResult{Date: date.String(), Slots: slotResult.Slots, PickupCohorts: cohorts, ListKinds: listKinds}, nil
+
+	// One pickup sweep for both Ganztag cohorts. The counts are raw cohort
+	// sizes (no name enrichment happens here, so no read-access filter is
+	// needed for a pure availability hint).
+	buckets, err := s.pickupBuckets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	students, err := s.studentRepo.List(ctx, map[string]interface{}{})
+	if err != nil {
+		return nil, err
+	}
+	studentIDs := make([]int64, 0, len(students))
+	for _, student := range students {
+		studentIDs = append(studentIDs, student.ID)
+	}
+	pickupTimes := map[int64]*scheduleSvc.EffectivePickupTime{}
+	if len(studentIDs) > 0 {
+		pickupTimes, err = s.pickupService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, date)
+		if err != nil {
+			return nil, err
+		}
+	}
+	cohortCounts := map[PickupCohort]int{}
+	for _, pickup := range pickupTimes {
+		if pickup == nil || pickup.PickupTime == nil {
+			continue
+		}
+		hhmm := pickup.PickupTime.Format(timeLayout)
+		for _, cohort := range []PickupCohort{PickupCohortShortDay, PickupCohortLongDay} {
+			if pickupMatchesCohort(cohort, hhmm, buckets) {
+				cohortCounts[cohort]++
+			}
+		}
+	}
+	cohortLabels := map[PickupCohort]string{
+		PickupCohortShortDay: "Ganztag bis " + buckets.ShortCutoff,
+		PickupCohortLongDay:  "Ganztag bis " + buckets.LongCutoff,
+	}
+	cohorts := make([]PickupCohortOption, 0, 2)
+	for _, cohort := range []PickupCohort{PickupCohortShortDay, PickupCohortLongDay} {
+		cohorts = append(cohorts, PickupCohortOption{
+			Cohort:    cohort,
+			Label:     cohortLabels[cohort],
+			Available: cohortCounts[cohort] > 0,
+			RowCount:  cohortCounts[cohort],
+		})
+	}
+	return &OptionsResult{Date: date.String(), Slots: slots, PickupCohorts: cohorts, ListKinds: listKinds}, nil
 }
 
 // applyGrouping stamps each row's GroupTitle from the chosen dimension. With
@@ -771,11 +860,28 @@ func (s *service) collectPickupEntries(ctx context.Context, params Params, resul
 		presentSet[row.StudentID] = struct{}{}
 	}
 
+	// Broad day statuses (sick / excused / class trip) are the registered
+	// sign-offs for pickup cohorts — there is no instance_students row to
+	// carry them. Without this evidence a sick child with a recurring pickup
+	// time would show as unexplained "Fehlt" in the Abgleich and could
+	// trigger an unnecessary missing-child response.
+	statusDays, err := s.statusDayRepo.FindActiveByStudentIDsAndDate(ctx, studentIDs, params.Date)
+	if err != nil {
+		return nil, fmt.Errorf("load student status days: %w", err)
+	}
+	statusByStudent := make(map[int64]string, len(statusDays))
+	for _, day := range statusDays {
+		statusByStudent[day.StudentID] = day.Status
+	}
+
 	slotLabel := result.ListLabel
 	entries := []mergedEntry{}
 	cohort := map[int64]struct{}{}
 	for _, student := range students {
 		pickup := pickupTimes[student.ID]
+		// No effective pickup time (no weekly entry, or an exception cleared
+		// it) means the child is not in care on this date — like a
+		// not_scheduled slot row, they belong to no cohort and are skipped.
 		if pickup == nil || pickup.PickupTime == nil {
 			continue
 		}
@@ -785,13 +891,21 @@ func (s *service) collectPickupEntries(ctx context.Context, params Params, resul
 		}
 		cohort[student.ID] = struct{}{}
 		_, present := presentSet[student.ID]
-		entries = append(entries, mergedEntry{
+		entry := mergedEntry{
 			StudentID:  student.ID,
 			SlotLabel:  slotLabel,
 			PickupTime: hhmm,
 			Planned:    true,
 			Present:    present,
-		})
+		}
+		if status, ok := statusByStudent[student.ID]; ok && !present {
+			// Same shape signedOffAbsence reads on slot rows: an absence
+			// with a non-empty substatus counts as "Abgemeldet".
+			statusCopy := status
+			entry.PlannedStatus = scheduleModel.AttendanceStatusAbsent
+			entry.PlannedSubstatus = &statusCopy
+		}
+		entries = append(entries, entry)
 	}
 
 	// Children who attended on this date but whose effective pickup time puts

@@ -138,6 +138,7 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 		InstanceStudentRepo: scheduleRepo.NewInstanceStudentRepository(db),
 		VisitRepo:           activeRepo.NewVisitRepository(db),
 		AttendanceRepo:      activeRepo.NewAttendanceRepository(db),
+		StatusDayRepo:       activeRepo.NewStudentStatusDayRepository(db),
 		StudentRepo:         usersRepo.NewStudentRepository(db),
 		PersonRepo:          usersRepo.NewPersonRepository(db),
 		EducationGroupRepo:  educationRepo.NewGroupRepository(db),
@@ -946,4 +947,61 @@ func TestRenderList_PDFSmoke(t *testing.T) {
 	assert.Equal(t, "application/pdf", file.ContentType)
 	assert.NotEmpty(t, file.Data)
 	assert.Contains(t, file.Filename, "tagesliste-abgleich-freie-angebotsauswahl")
+}
+
+// A registered sick/excused/class-trip day (active.student_status_days) must
+// show as "Abgemeldet" in the Ganztag reconciliation, not as unexplained
+// "Fehlt" — a pickup cohort has no instance_students row to carry the
+// sign-off, so the day status is the only absence evidence (#1565 review).
+func TestBuildList_PickupReconciliationMarksStatusDayAsExcused(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+	weekday := int(listDate.Weekday())
+
+	sick := testpkg.CreateTestStudent(t, db, "SL-Sick", fmt.Sprintf("K-%d", suffix), "2b")
+	missing := testpkg.CreateTestStudent(t, db, "SL-Missing", fmt.Sprintf("M-%d", suffix), "2b")
+	staff := testpkg.CreateTestStaff(t, db, "SL-Staff", fmt.Sprintf("SD-%d", suffix))
+
+	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	var pickupIDs []int64
+	for _, row := range []*scheduleModels.StudentPickupSchedule{
+		{StudentID: sick.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
+		{StudentID: missing.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
+	} {
+		row.SetTenantID(1)
+		require.NoError(t, pickupRepo.Create(ctx, row))
+		pickupIDs = append(pickupIDs, row.ID)
+	}
+	statusDay := testpkg.CreateTestStudentStatusDay(t, db, sick.ID, listDate, activeModels.StudentStatusDaySick)
+	t.Cleanup(func() {
+		testpkg.CleanupStudentStatusDays(t, db, statusDay.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_schedules", pickupIDs...)
+		testpkg.CleanupActivityFixtures(t, db, sick.ID, staff.ID)
+		testpkg.CleanupActivityFixtures(t, db, missing.ID)
+	})
+
+	svc := newTestService(db)
+	result, err := svc.BuildList(ctx, slotlists.Params{
+		Date:         listDate,
+		Target:       slotlists.TargetPickupCohort,
+		PickupCohort: slotlists.PickupCohortLongDay,
+		Source:       slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+
+	sickRow := rowByStudent(result.Rows, sick.ID)
+	require.NotNil(t, sickRow, "signed-off child stays in the cohort")
+	assert.True(t, sickRow.Excused, "status day counts as a registered sign-off")
+	assert.Equal(t, "Abgemeldet (entschuldigt)", sickRow.StatusLabel)
+
+	missingRow := rowByStudent(result.Rows, missing.ID)
+	require.NotNil(t, missingRow)
+	assert.False(t, missingRow.Excused)
+	assert.Equal(t, "Fehlt", missingRow.StatusLabel)
+
+	assert.Equal(t, 1, result.Counters.Excused, "excused counter reflects the status day")
+	assert.Equal(t, 1, result.Counters.Missing, "unexplained absence stays a missing child")
 }

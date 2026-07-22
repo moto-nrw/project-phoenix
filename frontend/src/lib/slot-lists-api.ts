@@ -174,30 +174,44 @@ export async function exportSlotList(
   format: SlotListFormat,
   mode: SlotListExportMode,
 ): Promise<void> {
-  const response = await fetch("/api/timetable/lists/export", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...request, format }),
-  });
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response));
+  // The print tab must open synchronously while the click's transient user
+  // activation is still valid: after `await fetch` popup blockers (Safari,
+  // strict settings) return null from window.open and Drucken always fails.
+  // Open a placeholder now and navigate it to the blob once the PDF exists.
+  const printTarget = mode === "print" ? globalThis.open("", "_blank") : null;
+  if (mode === "print" && !printTarget) {
+    throw new Error("Der Druckdialog konnte nicht geöffnet werden.");
   }
 
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  if (mode === "print") {
-    openForPrint(url);
-    return;
-  }
+  try {
+    const response = await fetch("/api/timetable/lists/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...request, format }),
+    });
+    if (!response.ok) {
+      throw new Error(await readErrorMessage(response));
+    }
 
-  const link = document.createElement("a");
-  link.href = url;
-  link.download =
-    filenameFromDisposition(response) ?? fallbackFilename(request, format);
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    if (printTarget) {
+      openForPrint(printTarget, url);
+      return;
+    }
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download =
+      filenameFromDisposition(response) ?? fallbackFilename(request, format);
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    printTarget?.close();
+    throw error;
+  }
 }
 
 function fallbackFilename(
@@ -221,12 +235,10 @@ function fallbackFilename(
   return `tagesliste-${source}-${target}-${request.date}.${format}`;
 }
 
-function openForPrint(url: string) {
-  const target = globalThis.open(url, "_blank");
-  if (!target) {
-    URL.revokeObjectURL(url);
-    throw new Error("Der Druckdialog konnte nicht geöffnet werden.");
-  }
+function openForPrint(target: Window, url: string) {
+  target.location.href = url;
+  // The PDF viewer document fires no reliable load event cross-browser, so
+  // printing keeps the pragmatic delay the other print exports use.
   globalThis.setTimeout(() => {
     target.focus();
     target.print();
