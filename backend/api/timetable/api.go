@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/slotlists"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -104,6 +105,7 @@ type Dependencies struct {
 	CareDayService         scheduleSvc.CareDayService
 	UserContextService     usercontextSvc.UserContextService
 	SettingsService        configSvc.SettingsService
+	SlotListsService       slotlists.Service
 	Broadcaster            realtime.Broadcaster
 	Logger                 *slog.Logger
 	DB                     *bun.DB
@@ -230,6 +232,19 @@ func (rs *Resource) Router() chi.Router {
 			permissions.TimeTrackingManage,
 			permissions.UsersRead,
 		), withTx).Post("/shift-coverage", rs.checkShiftCoverage)
+
+		// Issue #1565: lists from planned care slots (Plan / Ist / Abgleich).
+		// Read-only, but they expose named children + presence, so they require
+		// student-data read on top of schedule read (GDPR) — same bar as the
+		// emergency snapshot export (UsersRead).
+		r.Route("/lists", func(r chi.Router) {
+			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
+				Post("/options", rs.listSlotListOptions)
+			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
+				Post("/preview", rs.previewSlotList)
+			r.With(authorize.RequiresAllPermissions(permissions.SchedulesRead, permissions.UsersRead), withTx).
+				Post("/export", rs.exportSlotList)
+		})
 
 		r.Route("/operations", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).

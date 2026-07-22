@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -47,7 +48,10 @@ type ActivityInstance struct {
 	RequiredStaff *int   `bun:"required_staff" json:"required_staff,omitempty"`
 	Status        string `bun:"status,notnull,default:'planned'" json:"status"`
 	ActiveGroupID *int64 `bun:"active_group_id" json:"active_group_id,omitempty"`
-	IsSpontaneous bool   `bun:"is_spontaneous,notnull,default:false" json:"is_spontaneous"`
+	// ListKind classifies the instance for printable daily lists (issue #1565).
+	// Copied from the template at materialization time; NULL means no list kind.
+	ListKind      *string `bun:"list_kind" json:"list_kind,omitempty"`
+	IsSpontaneous bool    `bun:"is_spontaneous,notnull,default:false" json:"is_spontaneous"`
 	// UnderstaffedAck records that an admin deliberately accepts this block
 	// running with zero staff (Vertretungsplan, issue #1840). When true the gap
 	// detector reports the block as an acknowledged shortfall instead of an open
@@ -92,6 +96,9 @@ func (i *ActivityInstance) Validate() error {
 	}
 	if i.RequiredStaff != nil && *i.RequiredStaff < 0 {
 		return errors.New("required_staff cannot be negative")
+	}
+	if i.ListKind != nil && !activitiesModel.IsValidListKind(*i.ListKind) {
+		return errors.New("invalid list kind")
 	}
 	return nil
 }

@@ -442,6 +442,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
       raw.activity_group_id !== undefined && raw.activity_group_id !== null
         ? String(raw.activity_group_id)
         : undefined,
+    listKind: raw.list_kind,
     activityType: raw.activity_type,
     roomId: String(raw.room_id),
     roomName: raw.room_name,
@@ -758,6 +759,7 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
       id: String(template.id),
       name: template.name,
       type: template.type,
+      listKind: template.list_kind,
       categoryId: String(template.category_id),
       categoryName: template.category_name,
       roomId:

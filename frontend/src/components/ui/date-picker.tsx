@@ -64,6 +64,8 @@ type DatePickerProps =
       // Latest selectable day (inclusive). Days after it are disabled — used to
       // cap selection at a planning horizon while keeping that day choosable.
       readonly maxDate?: Date;
+      /** Hide the inline clear ("X") control. Use when the value is required. */
+      readonly hideClearButton?: boolean;
     }
   | {
       readonly mode: "multiple";
@@ -213,7 +215,7 @@ export function DatePicker({
           {displayValue ?? placeholder}
         </span>
         <div className="flex items-center gap-1">
-          {displayValue && (
+          {displayValue && !(!isMultiple && props.hideClearButton) && (
             <span
               role="button"
               tabIndex={0}

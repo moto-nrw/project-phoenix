@@ -903,6 +903,31 @@ export const appChapters: readonly GuideChapter[] = [
         ],
       },
       {
+        id: "listen-aus-betreuungsslots",
+        title: "Tageslisten",
+        icon: ClipboardList,
+        summary:
+          "Erzeugt druckbare Tageslisten aus Angeboten, Ganztag und dokumentierter Anwesenheit.",
+        steps: [
+          "`Tageslisten` in der Seitenleiste öffnen.",
+          "Als Quelle `Freie Angebotsauswahl`, eine Listenart wie `Mensa` oder `Lernzeit` oder eine Ganztagsliste wie `Ganztag bis 14:30` wählen.",
+          "Datum prüfen (vorausgewählt ist heute).",
+          "Unter `Freie Angebotsauswahl` ein oder mehrere Angebote des Tages auswählen. Ohne Einschränkung nutzt Phoenix alle aktiven Angebote des gewählten Datums. Bei einer Listenart nimmt Phoenix automatisch die Termine, denen diese Listenart im Stundenplan zugeordnet wurde.",
+          "Datenbasis wählen: `Plan` (laut Tagesplanung), `Ist` (dokumentierte Anwesenheit am Datum) oder `Abgleich` (geplant, anwesend, fehlend, abgemeldet und ungeplant in einer Liste). `Abgemeldet` ist ein berechtigtes Fehlen und wird vom unklaren `Fehlt` getrennt gezählt.",
+          "Bei Bedarf über die Filter weiter eingrenzen: `Gruppe` oder `Klasse`.",
+          "Optional über `Gruppieren` die Liste in Abschnitte unterteilen, z. B. nach `Klasse`, `Angebot`, `Raum` oder `Abholzeit`. Die Abschnitte erscheinen auch im PDF und XLSX.",
+          "Vorschau, Zähler und die Angaben zu Datum, Datenbasis, enthaltenen Angeboten und Gruppierung prüfen. Die Auswahl steht auch in der URL und kann später erneut geöffnet werden.",
+          "Danach `Drucken`, `PDF herunterladen` oder `XLSX` wählen.",
+        ],
+        callout: {
+          title: "Woher kommen die Daten?",
+          body: "Tageslisten entstehen aus den ausgewählten Angeboten des Datums oder aus der am Termin hinterlegten Listenart. Abgesagte Angebote werden angezeigt, aber nicht in Tageslisten aufgenommen. Ganztagslisten entstehen aus den hinterlegten Abholzeiten und den unter Einstellungen -> Betrieb -> Stundenplan gepflegten Grenzen. Die Seite zeigt die Datenherkunft jeweils an. Die Notfallliste bleibt davon unabhängig.",
+          tone: "blue",
+        },
+        screenshot:
+          "Tageslisten-Seite mit Quellen-Auswahl, Listenarten, Datum, Datenbasis Plan/Ist/Abgleich, enthaltenen Angeboten, Gruppierung, Gruppen-/Klassen-Filter und Vorschau-Tabelle.",
+      },
+      {
         id: "zeiterfassung",
         title: "Zeiterfassung",
         icon: Clock3,

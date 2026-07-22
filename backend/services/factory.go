@@ -49,6 +49,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/slotlists"
 	"github.com/moto-nrw/project-phoenix/services/suggestions"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -109,6 +110,7 @@ type Factory struct {
 	StaffImport              *importService.ImportService[importModels.StaffImportRow]   // Staff (Mitarbeiter) import service
 	ListExport               *listexport.RendererService
 	Emergency                *emergency.Service
+	SlotLists                slotlists.Service
 	Reminders                reminders.Service
 	RealtimeHub              *realtime.Hub     // SSE event hub (shared by services and API)
 	Tracker                  analytics.Tracker // Product analytics (PostHog; no-op without POSTHOG_API_KEY)
@@ -1475,6 +1477,21 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ActiveService:       activeService,
 		ListExport:          listExportService,
 	})
+	slotListsService := slotlists.NewService(slotlists.Dependencies{
+		InstanceRepo:        repos.ActivityInstance,
+		InstanceStudentRepo: repos.InstanceStudent,
+		VisitRepo:           repos.ActiveVisit,
+		AttendanceRepo:      repos.Attendance,
+		StudentRepo:         repos.Student,
+		PersonRepo:          repos.Person,
+		EducationGroupRepo:  repos.Group,
+		RoomRepo:            repos.Room,
+		PickupService:       pickupScheduleService,
+		ListExport:          listExportService,
+		Settings:            settingsService,
+		UserContext:         userContextService,
+		Logger:              logger.With("service", "slot_lists"),
+	})
 
 	remindersService := reminders.NewService(reminders.Dependencies{
 		Settings:    settingsService,
@@ -1542,6 +1559,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StaffImport:              staffImportService,   // Staff (Mitarbeiter) import service
 		ListExport:               listExportService,
 		Emergency:                emergencyService,
+		SlotLists:                slotListsService,
 		Reminders:                remindersService,
 		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
 		Tracker:                  tracker,     // Product analytics (PostHog)

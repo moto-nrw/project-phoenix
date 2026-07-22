@@ -18,6 +18,7 @@ type updateInstanceRequest struct {
 	Notes           *string `json:"notes,omitempty"`
 	RoomID          int64   `json:"room_id"`
 	ActivityGroupID *int64  `json:"activity_group_id,omitempty"`
+	ListKind        *string `json:"list_kind,omitempty"`
 	StaffIDs        []int64 `json:"staff_ids,omitempty"`
 	StudentIDs      []int64 `json:"student_ids,omitempty"`
 	// RequiredStaff is the optional per-occurrence Personalbedarf pin (#1839);
@@ -79,6 +80,11 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("end_time must be after start_time")))
 		return
 	}
+	listKind, err := normalizeInstanceListKind(req.ListKind)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 
 	inst, err := rs.InstanceService.UpdatePlanned(r.Context(), id, scheduleSvc.UpdateInstanceInput{
 		Date:            date,
@@ -89,6 +95,7 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		Notes:           req.Notes,
 		RoomID:          req.RoomID,
 		ActivityGroupID: req.ActivityGroupID,
+		ListKind:        listKind,
 		StaffIDs:        req.StaffIDs,
 		StudentIDs:      req.StudentIDs,
 		RequiredStaff:   normalizeRequiredStaff(req.RequiredStaff),

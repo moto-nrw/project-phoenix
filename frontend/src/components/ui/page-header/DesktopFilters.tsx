@@ -125,13 +125,20 @@ function DropdownFilter({
     ? undefined
     : filter.options.find((opt) => opt.value === filter.value);
 
+  // "Filtered" = a real restriction is active. For multi-select that means a
+  // strict subset is chosen (all-selected or none = no restriction); for
+  // single-select it means anything other than the first/default option.
+  const isFiltered = isMulti
+    ? selectedValues.length > 0 && selectedValues.length < filter.options.length
+    : filter.value !== filter.options[0]?.value;
+
   return (
     <div className="relative" ref={dropdownRef}>
       <button
         ref={buttonRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex h-10 items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-medium whitespace-nowrap shadow-sm transition-all ${filter.value === filter.options[0]?.value ? "" : "ring-2 ring-blue-500 ring-offset-1"} ${isOpen ? "bg-gray-50" : "hover:bg-gray-50"} `}
+        className={`flex h-10 items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-medium whitespace-nowrap shadow-sm transition-all ${isFiltered ? "ring-2 ring-blue-500 ring-offset-1" : ""} ${isOpen ? "bg-gray-50" : "hover:bg-gray-50"} `}
       >
         {showIcons && selectedOption?.icon && (
           <svg
