@@ -19,8 +19,8 @@ func TestRedactFeedToken(t *testing.T) {
 		"nothing sensitive here":            "nothing sensitive here",
 	}
 	for in, want := range cases {
-		if got := redactFeedToken(in); got != want {
-			t.Errorf("redactFeedToken(%q) = %q, want %q", in, got, want)
+		if got := RedactFeedToken(in); got != want {
+			t.Errorf("RedactFeedToken(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

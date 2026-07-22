@@ -673,6 +673,105 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 	assert.Empty(t, eventDates(afterParent, calModels.EventSourceAppointment))
 }
 
+func TestCalendarServiceIntegration_EditDoesNotReactivateCancellation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	repos := repositories.NewFactory(db)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reactivate", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Reactivate", "Teacher")
+	t.Cleanup(func() {
+		testpkg.CleanupStaffFixtures(t, db, invitedStaff.ID, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
+	})
+
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Original",
+		StartDate:    timezone.NewDate(2026, 3, 2),
+		EndDate:      timezone.NewDate(2026, 3, 2),
+		StartTime:    wallClock(9, 0),
+		EndTime:      wallClock(10, 0),
+		DeliveryMode: calModels.DeliveryModeRSVPRequired,
+		Targets:      []calendarSvc.AppointmentTarget{{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID}},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+	// The snapshot returned by create carries CancelledAt == nil — it stands in for
+	// a content edit loaded BEFORE the cancellation below.
+	require.Nil(t, detail.Appointment.CancelledAt)
+
+	// Cancel it (persists cancelled_at via the dedicated conditional update).
+	_, err = service.CancelStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	require.NoError(t, err)
+
+	// Now flush the stale edit. The content Update must NOT write cancelled_at back
+	// to NULL and silently reactivate the appointment.
+	stale := *detail.Appointment
+	stale.Title = "Edited concurrently"
+	require.NoError(t, repos.CalendarAppointment.Update(testpkg.TenantContext(1), &stale))
+
+	after, err := repos.CalendarAppointment.FindByID(testpkg.TenantContext(1), detail.Appointment.ID)
+	require.NoError(t, err)
+	require.NotNil(t, after)
+	assert.NotNil(t, after.CancelledAt, "cancellation must survive a concurrent content edit")
+	assert.Equal(t, "Edited concurrently", after.Title, "the edit's own content change still applies")
+}
+
+func TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	cfg := calendarTestConfig(db)
+	repos := repositories.NewFactory(db)
+	cfg.AccountRepo = repos.Account
+	cfg.ParentsURL = "https://parents.test"
+	service := calendarSvc.NewService(cfg)
+
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "OldCancel", "Organizer")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	// A guardian-facing appointment whose date is already far beyond the feed's
+	// 30-day lookback, so the live feed query never returns it.
+	pastDate := timezone.TodayDate().AddDays(-60)
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Vergangener Termin",
+		StartDate:    pastDate,
+		EndDate:      pastDate,
+		StartTime:    wallClock(15, 0),
+		EndTime:      wallClock(16, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Targets:      []calendarSvc.AppointmentTarget{{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID}},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	httpsURL, _, err := service.ParentCalendarFeedURL(testpkg.TenantContext(1), parentChain.AccountID)
+	require.NoError(t, err)
+	token := strings.TrimPrefix(httpsURL, "https://parents.test/api/calendar-feed/")
+
+	// Before cancellation: outside the lookback, so absent from the feed.
+	_, content, err := service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	require.NoError(t, err)
+	assert.NotContains(t, content, "SUMMARY:Vergangener Termin")
+
+	// Cancel it. Even though its date aged out of the lookback, the feed must
+	// re-export it as a durable STATUS:CANCELLED tombstone (retained by cancel
+	// time), so a subscriber who was offline still receives the cancellation.
+	_, err = service.CancelStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	require.NoError(t, err)
+
+	_, afterCancel, err := service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	require.NoError(t, err)
+	assert.Contains(t, afterCancel, "SUMMARY:Vergangener Termin")
+	assert.Contains(t, afterCancel, "STATUS:CANCELLED")
+}
+
 func TestCalendarServiceIntegration_AllSchoolParentsTarget(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })

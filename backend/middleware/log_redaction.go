@@ -32,7 +32,7 @@ func (h *feedTokenRedactor) Enabled(ctx context.Context, level slog.Level) bool 
 }
 
 func (h *feedTokenRedactor) Handle(ctx context.Context, rec slog.Record) error {
-	out := slog.NewRecord(rec.Time, rec.Level, redactFeedToken(rec.Message), rec.PC)
+	out := slog.NewRecord(rec.Time, rec.Level, RedactFeedToken(rec.Message), rec.PC)
 	rec.Attrs(func(a slog.Attr) bool {
 		out.AddAttrs(redactFeedTokenAttr(a))
 		return true
@@ -55,7 +55,7 @@ func (h *feedTokenRedactor) WithGroup(name string) slog.Handler {
 func redactFeedTokenAttr(a slog.Attr) slog.Attr {
 	switch a.Value.Kind() {
 	case slog.KindString:
-		return slog.String(a.Key, redactFeedToken(a.Value.String()))
+		return slog.String(a.Key, RedactFeedToken(a.Value.String()))
 	case slog.KindGroup:
 		group := a.Value.Group()
 		redacted := make([]slog.Attr, len(group))
@@ -68,9 +68,9 @@ func redactFeedTokenAttr(a slog.Attr) slog.Attr {
 	}
 }
 
-// redactFeedToken replaces the token segment of any "/public/calendar/<token>"
+// RedactFeedToken replaces the token segment of any "/public/calendar/<token>"
 // occurrence in s with "[REDACTED]", preserving any trailing path or query.
-func redactFeedToken(s string) string {
+func RedactFeedToken(s string) string {
 	idx := strings.Index(s, feedCalendarPathMarker)
 	if idx < 0 {
 		return s

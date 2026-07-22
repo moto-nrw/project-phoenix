@@ -158,9 +158,10 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 			for _, override := range cancelledOverrides {
 				overridesByID[override.AppointmentID] = append(overridesByID[override.AppointmentID], override)
 			}
-			// Bound every exported recurrence to the advertised window so a
-			// subscriber can't expand years of history or future occurrences.
-			window := &feedWindow{From: from, To: to}
+			// Emit each live appointment with its REAL (unclamped) recurrence — the
+			// window only decides inclusion, never the RRULE horizon (see
+			// appointmentICSEvent for why a moving UNTIL would freeze subscribers).
+			emittedIDs := make(map[int64]struct{}, len(appointments))
 			for _, appointment := range appointments {
 				recurrence := recurrenceByID[appointment.ID]
 				// A count-bounded recurring series (ends_on IS NULL, occurrence_count
@@ -173,20 +174,26 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 				if recurrence != nil && !hasOccurrenceInWindow(appointment, recurrence, from, to) {
 					continue
 				}
-				events = append(events, appointmentICSEvent(appointment, recurrence, overridesByID[appointment.ID], window))
+				events = append(events, appointmentICSEvent(appointment, recurrence, overridesByID[appointment.ID]))
+				emittedIDs[appointment.ID] = struct{}{}
 			}
 
-			// Deleted appointments are re-exported as durable STATUS:CANCELLED
-			// tombstones (retained by deletion time, independent of the date
-			// lookback) so even long-offline subscribers eventually purge them. The
-			// tombstone cancels by UID, so it carries the full (unwindowed) VEVENT.
-			deletedSince := timezone.TodayDate().AddDays(-feedTombstoneDays).BerlinMidnight()
-			tombstones, err := s.cfg.AppointmentRepo.ListDeletedTombstonesForGuardianProfiles(txCtx, guardianProfileIDs, studentIDs, deletedSince)
+			// Cancelled or deleted appointments are re-exported as durable
+			// STATUS:CANCELLED tombstones (retained by cancellation/deletion time,
+			// independent of the date lookback) so even a long-offline subscriber
+			// still receives the cancellation and purges the stale event. Skip any
+			// already emitted above (a recently-cancelled appointment still inside
+			// the date window) to avoid a duplicate UID in the feed.
+			tombstoneCutoff := timezone.TodayDate().AddDays(-feedTombstoneDays).BerlinMidnight()
+			tombstones, err := s.cfg.AppointmentRepo.ListCancellationTombstonesForGuardianProfiles(txCtx, guardianProfileIDs, studentIDs, tombstoneCutoff)
 			if err != nil {
 				return err
 			}
 			tombstoneIDs := make([]int64, 0, len(tombstones))
 			for _, appointment := range tombstones {
+				if _, done := emittedIDs[appointment.ID]; done {
+					continue
+				}
 				tombstoneIDs = append(tombstoneIDs, appointment.ID)
 			}
 			tombstoneRecurrences, err := s.cfg.RecurrenceRepo.FindByAppointmentIDs(txCtx, tombstoneIDs)
@@ -198,7 +205,10 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 				tombstoneRecurrenceByID[recurrence.AppointmentID] = recurrence
 			}
 			for _, appointment := range tombstones {
-				events = append(events, appointmentICSEvent(appointment, tombstoneRecurrenceByID[appointment.ID], nil, nil))
+				if _, done := emittedIDs[appointment.ID]; done {
+					continue
+				}
+				events = append(events, appointmentICSEvent(appointment, tombstoneRecurrenceByID[appointment.ID], nil))
 			}
 			return nil
 		}); err != nil {

@@ -107,13 +107,13 @@ func (r *AppointmentRepository) ListVisibleForGuardianProfiles(ctx context.Conte
 	return rows, nil
 }
 
-// ListDeletedTombstonesForGuardianProfiles mirrors the guardian visibility join
-// of ListVisibleForGuardianProfiles but returns only soft-deleted rows on/after
-// deletedSince, with NO event-date window — the subscription feed re-exports
-// these as STATUS:CANCELLED so offline subscribers eventually drop them, and
-// their retention is governed by the deletion time rather than the appointment's
-// dates (which may already be in the past).
-func (r *AppointmentRepository) ListDeletedTombstonesForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, deletedSince time.Time) ([]*calModels.Appointment, error) {
+// ListCancellationTombstonesForGuardianProfiles mirrors the guardian visibility
+// join of ListVisibleForGuardianProfiles but returns cancelled OR soft-deleted
+// rows whose cancellation/deletion happened on/after `since`, with NO event-date
+// window — the subscription feed re-exports these as STATUS:CANCELLED so a
+// long-offline subscriber still receives the cancellation and purges the event,
+// even when the appointment's own date has aged out of the lookback window.
+func (r *AppointmentRepository) ListCancellationTombstonesForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, since time.Time) ([]*calModels.Appointment, error) {
 	if len(guardianProfileIDs) == 0 || len(studentIDs) == 0 {
 		return []*calModels.Appointment{}, nil
 	}
@@ -122,8 +122,10 @@ func (r *AppointmentRepository) ListDeletedTombstonesForGuardianProfiles(ctx con
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
 		ModelTableExpr(tableExprAppointmentsAsAppointment).
-		Where(`"appointment".deleted_at IS NOT NULL`).
-		Where(`"appointment".deleted_at >= ?`, deletedSince).
+		Where(`(
+			("appointment".deleted_at IS NOT NULL AND "appointment".deleted_at >= ?)
+			OR ("appointment".cancelled_at IS NOT NULL AND "appointment".cancelled_at >= ?)
+		)`, since, since).
 		Where(`EXISTS (
 			SELECT 1
 			FROM calendar.appointment_recipients ar
@@ -146,7 +148,7 @@ func (r *AppointmentRepository) ListDeletedTombstonesForGuardianProfiles(ctx con
 	}
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, fmt.Errorf("list deleted guardian calendar tombstones: %w", err)
+		return nil, fmt.Errorf("list cancellation guardian calendar tombstones: %w", err)
 	}
 	return rows, nil
 }
@@ -192,11 +194,15 @@ func (r *AppointmentRepository) Update(ctx context.Context, appointment *calMode
 		Set(`all_day = ?`, appointment.AllDay).
 		Set(`delivery_mode = ?`, appointment.DeliveryMode).
 		Set(`overview_visibility = ?`, appointment.OverviewVisibility).
-		Set(`cancelled_at = ?`, appointment.CancelledAt).
 		Set(`updated_at = ?`, appointment.UpdatedAt).
 		// Every persisted edit bumps the revision so the iCalendar SEQUENCE
 		// advances and subscribers treat the event as a newer version.
 		Set(`revision = revision + 1`).
+		// Deliberately NOT setting cancelled_at/deleted_at: those lifecycle columns
+		// are owned by Cancel()/SoftDelete(). A content edit carries whatever
+		// cancelled_at the caller loaded, so writing it here would let an edit that
+		// started before a concurrent cancellation silently reactivate the
+		// appointment (overwrite cancelled_at back to NULL).
 		Where(`"appointment".id = ?`, appointment.ID)
 
 	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
@@ -225,6 +231,28 @@ func (r *AppointmentRepository) BumpRevision(ctx context.Context, appointmentID 
 	}
 	if _, err := q.Exec(ctx); err != nil {
 		return fmt.Errorf("bump appointment revision: %w", err)
+	}
+	return nil
+}
+
+// Cancel marks the appointment cancelled (cancelled_at=now) and bumps the
+// revision, in a single conditional statement (WHERE cancelled_at IS NULL) so a
+// concurrent content edit cannot race it. Unlike SoftDelete the appointment
+// stays visible in interactive calendars (rendered "Abgesagt").
+func (r *AppointmentRepository) Cancel(ctx context.Context, appointmentID int64) error {
+	now := time.Now()
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		TableExpr(tableExprAppointmentsAsAppointment).
+		Set(`cancelled_at = ?`, now).
+		Set(`revision = revision + 1`).
+		Set(`updated_at = ?`, now).
+		Where(`"appointment".id = ?`, appointmentID).
+		Where(`"appointment".cancelled_at IS NULL`)
+	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
+		q = q.Where(where, val)
+	}
+	if _, err := q.Exec(ctx); err != nil {
+		return fmt.Errorf("cancel appointment: %w", err)
 	}
 	return nil
 }

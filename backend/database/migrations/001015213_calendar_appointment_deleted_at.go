@@ -28,15 +28,22 @@ func init() {
 			`).Exec(ctx); err != nil {
 				return fmt.Errorf("failed adding appointment deleted_at: %w", err)
 			}
-			// Partial index so the feed's durable-tombstone scan (deleted_at IS NOT
-			// NULL AND deleted_at >= cutoff) stays cheap without weighing on the
-			// hot path of live (deleted_at IS NULL) appointments.
+			// Partial indexes so the feed's durable-tombstone scan (cancelled_at /
+			// deleted_at NOT NULL AND >= cutoff) stays cheap without weighing on the
+			// hot path of live (both NULL) appointments.
 			if _, err := db.NewRaw(`
 				CREATE INDEX IF NOT EXISTS idx_calendar_appointments_deleted_at
 					ON calendar.appointments (deleted_at)
 					WHERE deleted_at IS NOT NULL;
 			`).Exec(ctx); err != nil {
 				return fmt.Errorf("failed indexing appointment deleted_at: %w", err)
+			}
+			if _, err := db.NewRaw(`
+				CREATE INDEX IF NOT EXISTS idx_calendar_appointments_cancelled_at
+					ON calendar.appointments (cancelled_at)
+					WHERE cancelled_at IS NOT NULL;
+			`).Exec(ctx); err != nil {
+				return fmt.Errorf("failed indexing appointment cancelled_at: %w", err)
 			}
 			return nil
 		},
@@ -46,6 +53,11 @@ func init() {
 				DROP INDEX IF EXISTS calendar.idx_calendar_appointments_deleted_at;
 			`).Exec(ctx); err != nil {
 				return fmt.Errorf("failed dropping appointment deleted_at index: %w", err)
+			}
+			if _, err := db.NewRaw(`
+				DROP INDEX IF EXISTS calendar.idx_calendar_appointments_cancelled_at;
+			`).Exec(ctx); err != nil {
+				return fmt.Errorf("failed dropping appointment cancelled_at index: %w", err)
 			}
 			if _, err := db.NewRaw(`
 				ALTER TABLE calendar.appointments DROP COLUMN IF EXISTS deleted_at;

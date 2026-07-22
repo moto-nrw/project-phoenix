@@ -523,14 +523,16 @@ func TestAppointmentICSEventUIDIncludesTenant(t *testing.T) {
 		StartDate:   timezone.NewDate(2026, 1, 5),
 		EndDate:     timezone.NewDate(2026, 1, 5),
 	}
-	event := appointmentICSEvent(appt, nil, nil, nil)
+	event := appointmentICSEvent(appt, nil, nil)
 	assert.Equal(t, "appointment-42-5@moto-app.de", event.UID)
 }
 
-func TestAppointmentICSEventWindowBoundsRecurrence(t *testing.T) {
-	// An old, open-ended weekly series. Without a window the export carries the
-	// original DTSTART and an unbounded RRULE (clients would expand years of
-	// history and future). With the feed window it must be clamped to the window.
+func TestAppointmentICSEventExportsUnclampedRecurrence(t *testing.T) {
+	// A subscription feed is stateless and re-rendered on every poll, so the
+	// exported RRULE must carry the series' REAL horizon (open-ended here), never
+	// a moving "today + N" UNTIL: advancing that window without bumping SEQUENCE
+	// would leave clients frozen on the first horizon they saw, dropping later
+	// occurrences. DTSTART is still anchored to the first real occurrence.
 	oldMonday := timezone.NewDate(2020, 1, 6)
 	appt := &calModels.Appointment{
 		Model:       base.Model{ID: 9},
@@ -547,24 +549,24 @@ func TestAppointmentICSEventWindowBoundsRecurrence(t *testing.T) {
 		Weekdays:      []string{"monday"},
 	}
 
-	// No window (single-appointment download): original anchor, unbounded RRULE.
-	full := appointmentICSEvent(appt, rule, nil, nil)
-	require.NotNil(t, full.Recurrence)
-	assert.Equal(t, oldMonday, full.StartDate)
-	assert.Nil(t, full.Recurrence.Until)
+	event := appointmentICSEvent(appt, rule, nil)
+	require.NotNil(t, event.Recurrence)
+	assert.Equal(t, oldMonday, event.StartDate)
+	assert.Nil(t, event.Recurrence.Until, "open-ended series must export no UNTIL")
+	assert.Nil(t, event.Recurrence.Count)
 
-	// Feed window: DTSTART clamps to the first in-window Monday and the RRULE is
-	// capped with UNTIL at the last in-window Monday; COUNT is not used.
-	from := timezone.NewDate(2026, 7, 6) // a Monday
-	to := timezone.NewDate(2026, 8, 3)   // a Monday
-	windowed := appointmentICSEvent(appt, rule, nil, &feedWindow{From: from, To: to})
-	require.NotNil(t, windowed.Recurrence)
-	assert.Equal(t, timezone.NewDate(2026, 7, 6), windowed.StartDate)
-	require.NotNil(t, windowed.Recurrence.Until)
-	assert.Equal(t, timezone.NewDate(2026, 8, 3), *windowed.Recurrence.Until)
-	assert.Nil(t, windowed.Recurrence.Count)
-	assert.False(t, windowed.StartDate.Before(from), "DTSTART must not predate the window")
-	assert.False(t, windowed.Recurrence.Until.After(to), "UNTIL must not exceed the window")
+	// A real EndsOn is preserved verbatim (a stable horizon, safe to export).
+	endsOn := timezone.NewDate(2026, 3, 30)
+	bounded := &calModels.RecurrenceRule{
+		Frequency:     calModels.RecurrenceFrequencyWeekly,
+		IntervalCount: 1,
+		Weekdays:      []string{"monday"},
+		EndsOn:        &endsOn,
+	}
+	boundedEvent := appointmentICSEvent(appt, bounded, nil)
+	require.NotNil(t, boundedEvent.Recurrence)
+	require.NotNil(t, boundedEvent.Recurrence.Until)
+	assert.Equal(t, endsOn, *boundedEvent.Recurrence.Until)
 }
 
 func TestCalendarGroupingAndDisplayHelpers(t *testing.T) {

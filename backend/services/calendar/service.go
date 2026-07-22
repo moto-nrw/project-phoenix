@@ -576,11 +576,14 @@ func (s *service) CancelStaffAppointment(ctx context.Context, appointmentID int6
 		return nil, err
 	}
 	if appointment.CancelledAt == nil {
-		now := time.Now()
-		appointment.CancelledAt = &now
-		if err := s.cfg.AppointmentRepo.Update(ctx, appointment); err != nil {
+		// Cancel via the dedicated conditional update (not Update): it only writes
+		// cancelled_at/revision, so it can't clobber a concurrent edit and — being
+		// WHERE cancelled_at IS NULL — is idempotent under a concurrent cancel.
+		if err := s.cfg.AppointmentRepo.Cancel(ctx, appointment.ID); err != nil {
 			return nil, err
 		}
+		now := time.Now()
+		appointment.CancelledAt = &now
 		// Kill any queued reminders/notices for this appointment, then send a
 		// single cancellation notice.
 		if err := s.cancelPendingNotifications(ctx, appointment.ID, "appointment cancelled"); err != nil {
