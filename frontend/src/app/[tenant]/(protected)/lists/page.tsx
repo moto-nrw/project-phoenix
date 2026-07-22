@@ -625,6 +625,13 @@ export default function SlotListsPage() {
   useEffect(() => {
     if (authStatus !== "authenticated") return;
     let cancelled = false;
+    // Drop the previous date's options immediately. They stay rendered and
+    // selectable until this request resolves otherwise, and on a slow response
+    // toggling a stale slot would write its (globally unique) ID into the new
+    // date's URL/request — producing an empty preview with no checkbox selected
+    // once the new options arrive. selectableSlotIds empties with them, so the
+    // slot controls disable until the correct set loads.
+    setListOptions(null);
     setIsOptionsLoading(true);
     fetchSlotListOptions(dateISO)
       .then((options) => {
@@ -676,6 +683,39 @@ export default function SlotListsPage() {
       cancelled = true;
     };
   }, [authStatus, request]);
+
+  // Reconcile stale URL filters against the date's actual options. result.groups
+  // / result.classes are the unfiltered option set for the cohort, so a
+  // bookmarked group or class that no longer exists here can be pruned. Without
+  // this it stays in the request and empties the preview, and once the > 1
+  // guards below hide its control there is no way to clear it (#1565 review).
+  useEffect(() => {
+    if (!result) return;
+    if (selectedGroupIds !== null) {
+      const available = new Set(result.groups.map((g) => g.id));
+      const pruned = selectedGroupIds.filter((id) => available.has(id));
+      if (pruned.length !== selectedGroupIds.length) {
+        const next =
+          pruned.length === 0 || pruned.length === result.groups.length
+            ? null
+            : pruned;
+        setSelectedGroupIds(next);
+        replaceListUrl({ selectedGroupIds: next });
+      }
+    }
+    if (selectedClasses !== null) {
+      const available = new Set(result.classes);
+      const pruned = selectedClasses.filter((c) => available.has(c));
+      if (pruned.length !== selectedClasses.length) {
+        const next =
+          pruned.length === 0 || pruned.length === result.classes.length
+            ? null
+            : pruned;
+        setSelectedClasses(next);
+        replaceListUrl({ selectedClasses: next });
+      }
+    }
+  }, [result, selectedGroupIds, selectedClasses, replaceListUrl]);
 
   const handleExport = useCallback(
     async (format: SlotListFormat, mode: "download" | "print") => {
@@ -1185,7 +1225,9 @@ export default function SlotListsPage() {
             <DataTable
               columns={columns}
               rows={result?.rows ?? []}
-              getRowKey={(r) => `${r.slot}-${r.student_id}`}
+              getRowKey={(r) =>
+                `${r.instance_id ?? ""}-${r.slot}-${r.student_id}`
+              }
               isLoading={isLoading}
               pageSize={PREVIEW_PAGE_SIZE}
               emptyState={

@@ -256,11 +256,14 @@ func (s *service) resolveStudentReadAccess(ctx context.Context) (studentReadAcce
 		return studentReadAccess{groupIDs: map[int64]struct{}{}}, nil
 	}
 
-	scope := s.resolveStringSettingOrDefault(
+	scope, err := s.resolveStringSetting(
 		ctx,
 		configModel.KeyStudentDataScope,
 		configModel.StudentDataScopeGroupSupervisorsOnly,
 	)
+	if err != nil {
+		return studentReadAccess{}, err
+	}
 	if scope == configModel.StudentDataScopeAllStaff {
 		return studentReadAccess{unrestricted: true}, nil
 	}
@@ -276,37 +279,31 @@ func (s *service) resolveStudentReadAccess(ctx context.Context) (studentReadAcce
 	return studentReadAccess{groupIDs: groupIDs}, nil
 }
 
-func (s *service) resolveStringSettingOrDefault(ctx context.Context, key, fallback string) string {
+// resolveStringSetting returns the tenant override for key, or fallback when no
+// override exists (or the override is empty). A settings lookup FAILURE is not a
+// fallback: it propagates so the caller fails loudly. For the GDPR read scope a
+// silent fallback to the narrower group_supervisors_only would emit a
+// preview/export that omits every unsupervised child while looking like a valid,
+// authoritative daily list (#1565 review).
+func (s *service) resolveStringSetting(ctx context.Context, key, fallback string) (string, error) {
 	if s.settings == nil {
-		return fallback
+		return fallback, nil
 	}
 	has, err := s.settings.HasTenantOverride(ctx, key)
 	if err != nil {
-		if s.logger != nil {
-			s.logger.Warn("settings override check failed, using fallback",
-				slog.String("key", key),
-				slog.String("error", err.Error()),
-			)
-		}
-		return fallback
+		return "", fmt.Errorf("check tenant override for %s: %w", key, err)
 	}
 	if !has {
-		return fallback
+		return fallback, nil
 	}
 	val, err := s.settings.ResolveString(ctx, key)
 	if err != nil {
-		if s.logger != nil {
-			s.logger.Warn("settings resolve failed, using fallback",
-				slog.String("key", key),
-				slog.String("error", err.Error()),
-			)
-		}
-		return fallback
+		return "", fmt.Errorf("resolve setting %s: %w", key, err)
 	}
 	if val == "" {
-		return fallback
+		return fallback, nil
 	}
-	return val
+	return val, nil
 }
 
 func normalizeHHMM(value string) (string, error) {
@@ -501,11 +498,29 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 		}
 	}
 
+	// The date's care-day verdict, resolved once for every eligible child and
+	// reused by the roster counts and the pickup cohorts below. An assignment
+	// alone does not book a child into care on a given weekday (#1747): the
+	// not_scheduled marker is only frozen onto the row when the block ends, so a
+	// whole-group/year assignment would otherwise inflate the planned counts on
+	// the days its members are not scheduled for.
+	careDays := map[int64]scheduleSvc.CareDayStatus{}
+	if len(studentIDs) > 0 {
+		careDays, err = s.careDayService.ResolveForDate(ctx, studentIDs, date)
+		if err != nil {
+			return nil, fmt.Errorf("resolve care days: %w", err)
+		}
+	}
+	completedByInstance := make(map[int64]bool, len(instances))
+	for _, inst := range instances {
+		completedByInstance[inst.ID] = inst.Status == scheduleModel.InstanceStatusCompleted
+	}
+
 	// One bulk roster load over every classified instance for the per-kind
 	// planned row counts. Mirrors collectSlotEntries' planned semantics:
-	// walk-in rows (is_unplanned, #1913) and non-booking markers
-	// (not_scheduled, #1747) are not planned children; only readable children
-	// count.
+	// walk-in rows (is_unplanned, #1913) and non-booking rows — the frozen
+	// not_scheduled marker or the live care-day verdict (#1747) — are not
+	// planned children; only readable children count.
 	classifiedIDs := make([]int64, 0)
 	for _, ids := range kindInstanceIDs {
 		classifiedIDs = append(classifiedIDs, ids...)
@@ -521,6 +536,10 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 				continue
 			}
 			if _, ok := readable[row.StudentID]; !ok {
+				continue
+			}
+			verdict := scheduleSvc.AttendanceRowCareDay(completedByInstance[row.InstanceID], row, careDays[row.StudentID])
+			if row.Status == scheduleModel.AttendanceStatusExpected && !verdict.Expected() {
 				continue
 			}
 			plannedByInstance[row.InstanceID]++
@@ -559,12 +578,9 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 		}
 		// Same cancelled-care fallback as collectPickupEntries: a cleared
 		// same-day exception drops the effective time, but a cancelled verdict
-		// keeps the child visible via the regular weekly bucket. Without this,
-		// the card reported zero while the preview showed the signed-off child.
-		careDays, err := s.careDayService.ResolveForDate(ctx, studentIDs, date)
-		if err != nil {
-			return nil, fmt.Errorf("resolve care days: %w", err)
-		}
+		// (resolved once above into careDays) keeps the child visible via the
+		// regular weekly bucket. Without this, the card reported zero while the
+		// preview showed the signed-off child.
 		regularRows, err := s.pickupScheduleRepo.FindByStudentIDsAndWeekday(ctx, studentIDs, int(date.Weekday()))
 		if err != nil {
 			return nil, fmt.Errorf("load regular pickup schedules: %w", err)
@@ -739,13 +755,19 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 		selected = int64StructSet(params.InstanceIDs)
 	}
 
+	// First pass: publish every matching slot as selectable context, and collect
+	// the instances whose rosters we will actually read (selected, not cancelled).
+	type slotContext struct {
+		inst      *scheduleModel.ActivityInstance
+		slotLabel string
+		roomName  string
+	}
 	roomCache := map[int64]string{}
-	entries := []mergedEntry{}
+	process := make([]slotContext, 0, len(instances))
 	for _, inst := range instances {
 		if !instanceMatchesListKind(inst, params.ListKind) {
 			continue
 		}
-		slotLabel := fmt.Sprintf("%s (%s–%s)", inst.Title, inst.StartTime.Format(timeLayout), inst.EndTime.Format(timeLayout))
 		roomName, err := s.lookupRoomName(ctx, inst.RoomID, roomCache)
 		if err != nil {
 			return nil, err
@@ -764,19 +786,64 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 				continue
 			}
 		}
+		slotLabel := fmt.Sprintf("%s (%s–%s)", inst.Title, inst.StartTime.Format(timeLayout), inst.EndTime.Format(timeLayout))
+		process = append(process, slotContext{inst: inst, slotLabel: slotLabel, roomName: roomName})
+	}
 
-		planned, err := s.instanceStudentRepo.FindByInstanceID(ctx, inst.ID)
+	// Bulk-load the rosters of every instance we will process, then resolve the
+	// date's care-day verdict once for all planned children. An assignment alone
+	// does not book a child into care on a given weekday (#1747): a whole-group
+	// or whole-year assignment lists members on the days they are not scheduled
+	// for, and the not_scheduled marker is only frozen onto the row when the
+	// block ends. Without the live verdict such a child reaches the default
+	// branch below, counts as planned, and shows as "Fehlt" in the Abgleich
+	// though they were never booked.
+	rosterByInstance := make(map[int64][]*scheduleModel.InstanceStudent, len(process))
+	careDay := map[int64]scheduleSvc.CareDayStatus{}
+	if len(process) > 0 {
+		instanceIDs := make([]int64, 0, len(process))
+		for _, p := range process {
+			instanceIDs = append(instanceIDs, p.inst.ID)
+		}
+		rosterRows, err := s.instanceStudentRepo.FindByInstanceIDs(ctx, instanceIDs)
 		if err != nil {
 			return nil, err
 		}
+		studentIDSet := map[int64]struct{}{}
+		for _, row := range rosterRows {
+			rosterByInstance[row.InstanceID] = append(rosterByInstance[row.InstanceID], row)
+			studentIDSet[row.StudentID] = struct{}{}
+		}
+		studentIDs := make([]int64, 0, len(studentIDSet))
+		for id := range studentIDSet {
+			studentIDs = append(studentIDs, id)
+		}
+		careDay, err = s.careDayService.ResolveForDate(ctx, studentIDs, params.Date)
+		if err != nil {
+			return nil, fmt.Errorf("resolve care days: %w", err)
+		}
+	}
+
+	entries := []mergedEntry{}
+	for _, p := range process {
+		inst := p.inst
+		slotLabel := p.slotLabel
+		roomName := p.roomName
+		planned := rosterByInstance[inst.ID]
 		presentSet, err := s.loadPresentStudents(ctx, inst)
 		if err != nil {
 			return nil, err
 		}
+		completed := inst.Status == scheduleModel.InstanceStatusCompleted
 
 		seenPlanned := make(map[int64]struct{}, len(planned))
 		for _, row := range planned {
 			present := presentSet[row.StudentID] || row.Status == scheduleModel.AttendanceStatusPresent
+			// The canonical care-day verdict decides whether an assignment row
+			// is a genuine expectation on this date; it folds the frozen
+			// not_scheduled marker and the live care-plan derivation into the
+			// single answer every reader (planner, roster, cards) shares (#1747).
+			verdict := scheduleSvc.AttendanceRowCareDay(completed, row, careDay[row.StudentID])
 			switch {
 			case row.IsUnplanned:
 				// #1913: the row was created by an observed walk-in visit,
@@ -793,11 +860,12 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 						Present:    true,
 					})
 				}
-			case row.NotScheduled && row.Status == scheduleModel.AttendanceStatusExpected:
-				// #1747 non-booking marker: the care plan did not place the
-				// child in the OGS on this date. Not a genuine expectation —
-				// skip, and leave the student unseen so a live visit can
-				// still surface them as unplanned below.
+			case row.Status == scheduleModel.AttendanceStatusExpected && !verdict.Expected():
+				// #1747 non-booking: the care plan did not place the child in the
+				// OGS on this date — either the frozen not_scheduled marker or the
+				// live derivation from a whole-group/year assignment. Not a
+				// genuine expectation — skip, and leave the student unseen so a
+				// live visit can still surface them as unplanned below.
 				continue
 			case row.NotScheduled:
 				// Unbooked day the system decided anyway (checked in, or an

@@ -1390,3 +1390,99 @@ func TestBuildList_SlotListDropsPlannedRowForEndedEnrollment(t *testing.T) {
 	assert.Equal(t, "Fehlt", enrolledRow.StatusLabel)
 	assert.Equal(t, 1, result.Counters.Missing, "only the enrolled child counts as Fehlt")
 }
+
+// TestBuildList_SlotListDropsPlannedRowForUnbookedCareDay covers the #1565
+// review P1: a whole-group/year assignment lists every member as Expected on
+// every occurrence, but the care plan only books some of them on this weekday.
+// On a live (not-yet-ended) instance the not_scheduled marker is not written
+// yet, so the raw flag cannot tell the two apart — the service must resolve the
+// live care-day verdict and drop the unbooked child instead of reporting it as
+// planned and, in the Abgleich, as "Fehlt".
+func TestBuildList_SlotListDropsPlannedRowForUnbookedCareDay(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-UnbookedRoom-%d", suffix))
+	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-UnbookedAct-%d", suffix))
+	staff := testpkg.CreateTestStaff(t, db, "SL-UnbookedStaff", fmt.Sprintf("US-%d", suffix))
+	listKind := activitiesModels.ListKindMensa
+	instance := &scheduleModels.ActivityInstance{
+		Date:            listDate,
+		ActivityGroupID: &activity.ID,
+		Title:           fmt.Sprintf("Mensa %d", suffix),
+		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 13, 0, 0, 0, time.UTC),
+		RoomID:          room.ID,
+		Status:          scheduleModels.InstanceStatusActive, // live: not_scheduled not stamped yet
+		ListKind:        &listKind,
+	}
+	instance.SetTenantID(1)
+	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
+	require.NoError(t, err)
+
+	booked := testpkg.CreateTestStudent(t, db, "SL-Booked", fmt.Sprintf("BK-%d", suffix), "5a")
+	unbooked := testpkg.CreateTestStudent(t, db, "SL-Unbooked", fmt.Sprintf("UB-%d", suffix), "5a")
+
+	// Both children have a care plan, so neither is "unknown" (which would stay
+	// expected). booked is scheduled on listDate's weekday (Wednesday, ISO 3);
+	// unbooked is only scheduled on Monday (ISO 1) → not_scheduled on Wednesday.
+	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	var pickupIDs []int64
+	for _, row := range []*scheduleModels.StudentPickupSchedule{
+		{StudentID: booked.ID, Weekday: 3, PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
+		{StudentID: unbooked.ID, Weekday: 1, PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
+	} {
+		row.SetTenantID(1)
+		require.NoError(t, pickupRepo.Create(ctx, row))
+		pickupIDs = append(pickupIDs, row.ID)
+	}
+
+	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	var isIDs []int64
+	for _, id := range []int64{booked.ID, unbooked.ID} {
+		row := &scheduleModels.InstanceStudent{
+			InstanceID: instance.ID,
+			StudentID:  id,
+			Status:     scheduleModels.AttendanceStatusExpected,
+		}
+		row.SetTenantID(1)
+		require.NoError(t, isRepo.Create(ctx, row))
+		isIDs = append(isIDs, row.ID)
+	}
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_schedules", pickupIDs...)
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", isIDs...)
+		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID)
+		testpkg.CleanupActivityFixtures(t, db, booked.ID, staff.ID)
+		testpkg.CleanupActivityFixtures(t, db, unbooked.ID)
+		testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activity.ID, room.ID)
+	})
+
+	svc := newTestService(db)
+	result, err := svc.BuildList(ctx, slotlists.Params{
+		Date:   listDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+	assert.Nil(t, rowByStudent(result.Rows, unbooked.ID), "a child not booked into care on this weekday must not show as planned or Fehlt")
+	bookedRow := rowByStudent(result.Rows, booked.ID)
+	require.NotNil(t, bookedRow, "the booked child is still surfaced")
+	assert.Equal(t, "Fehlt", bookedRow.StatusLabel)
+	assert.Equal(t, 1, result.Counters.Missing, "only the booked child counts as Fehlt")
+	assert.Equal(t, 1, result.Counters.Planned, "only the booked child counts as planned")
+
+	// ListOptions' per-kind planned row count must exclude the unbooked child too.
+	options, err := svc.ListOptions(ctx, listDate)
+	require.NoError(t, err)
+	var mensaOption *slotlists.ListKindOption
+	for i := range options.ListKinds {
+		if options.ListKinds[i].Kind == slotlists.ListKindMensa {
+			mensaOption = &options.ListKinds[i]
+		}
+	}
+	require.NotNil(t, mensaOption, "the Mensa list kind is available")
+	assert.Equal(t, 1, mensaOption.RowCount, "options planned count must exclude the unbooked child")
+}
