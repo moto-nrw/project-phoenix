@@ -80,6 +80,37 @@ func TestEligibleOn_ImmediateActivation(t *testing.T) {
 	}
 }
 
+// TestEligibleOn_HistoricalDateBeforeEnrollment covers the #1565-review fix that
+// immediate activation only overrides the enrolled_from lower bound from today
+// onward: an active child must NOT be treated as retroactively enrolled for a
+// past date before their enrollment began, or a stale/manual slot roster (and
+// the /options counts) would show them as planned/missing before enrollment.
+func TestEligibleOn_HistoricalDateBeforeEnrollment(t *testing.T) {
+	today := timezone.TodayDate()
+	enrolledFrom := today.AddDays(-30) // enrollment started 30 days ago
+	beforeEnrollment := today.AddDays(-60)
+	withinWindow := today.AddDays(-10)
+
+	activeChild := func(from timezone.Date) *userModel.Student {
+		return &userModel.Student{
+			Status:       userModel.StudentStatusActive,
+			EnrolledFrom: ptrDate(from),
+		}
+	}
+
+	if eligibleOn(activeChild(enrolledFrom), beforeEnrollment) {
+		t.Fatal("active child must NOT be eligible for a past date before enrolled_from")
+	}
+	if !eligibleOn(activeChild(enrolledFrom), withinWindow) {
+		t.Fatal("active child must be eligible within the enrollment window")
+	}
+	// Immediate activation is unchanged: a future enrolled_from must still let the
+	// current day count.
+	if !eligibleOn(activeChild(today.AddDays(30)), today) {
+		t.Fatal("immediately-activated child must be eligible today despite a future enrolled_from")
+	}
+}
+
 // TestSummarySlotCount_CancelledSlots covers the #1565-review fix that a slot
 // cancelled AFTER it ran (and so retaining present rows) counts as a contained
 // Termin, while a cancelled slot that never ran is still skipped. Deferred slots

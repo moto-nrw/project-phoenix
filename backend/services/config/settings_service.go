@@ -269,10 +269,9 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 	// being persisted (#1565 review: an inverted Ganztag cutoff pair passed
 	// FieldTime validation and then 500'd every pickup list, options and export).
 	if err := s.validateCrossField(ctx, key, value); err != nil {
-		return &SettingsError{
-			Op:  "set_value",
-			Err: &InvalidValueError{Key: key, Reason: err.Error()},
-		}
+		// validateCrossField returns *InvalidValueError only for a genuinely
+		// invalid pair (→ 400); lock/lookup failures stay operational (→ 500).
+		return &SettingsError{Op: "set_value", Err: err}
 	}
 
 	// Read current value for audit
@@ -346,10 +345,8 @@ func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy 
 	// reset can never persist an unusable configuration that then 500s every
 	// pickup list (#1565 review).
 	if err := s.validateCrossField(ctx, key, def.Default); err != nil {
-		return &SettingsError{
-			Op:  "reset_value",
-			Err: &InvalidValueError{Key: key, Reason: err.Error()},
-		}
+		// See SetValue: only an inverted pair is a 400; operational failures 500.
+		return &SettingsError{Op: "reset_value", Err: err}
 	}
 
 	// Read current value for audit
@@ -535,7 +532,14 @@ func (s *settingsService) validateSlotListCutoffPair(ctx context.Context, key st
 		return nil
 	}
 	if !longT.After(shortT) {
-		return fmt.Errorf("der lange Ganztag (%s) muss nach dem kurzen Ganztag (%s) liegen", long, short)
+		// Only the inverted pair is a client validation error (→ 400). The lock
+		// and sibling-resolve failures above are operational and stay plain
+		// errors so they surface as a 500, not as "your time is invalid"
+		// (#1565 review).
+		return &InvalidValueError{
+			Key:    key,
+			Reason: fmt.Sprintf("der lange Ganztag (%s) muss nach dem kurzen Ganztag (%s) liegen", long, short),
+		}
 	}
 	return nil
 }

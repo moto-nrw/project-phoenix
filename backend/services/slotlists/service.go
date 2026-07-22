@@ -1149,11 +1149,13 @@ func instanceTimeRange(inst *scheduleModel.ActivityInstance) (time.Time, time.Ti
 // Immediate activation (enrollment.default_activation_mode = "immediate") is the
 // deliberate exception: the enrollment decision service creates an already
 // 'active' student while keeping enrolled_from at the phase's future
-// ServiceStartDate, so the child appears in lists/attendance from today. Once a
-// student is active enrolled_from is no longer read (it stays only as the
-// official start date), so an active status overrides the enrolled_from lower
-// bound here — without this, an immediately-activated child would vanish from
-// pickup cohorts and lose its planned slot rows until the phase starts.
+// ServiceStartDate, so the child appears in lists/attendance from today. An
+// active status therefore overrides the enrolled_from lower bound — but only
+// from today onward: the override lets the child appear for the current and
+// future dates before the phase officially starts, it must NOT make the child
+// retroactively enrolled for every past date before enrolled_from. Otherwise a
+// stale or manually created slot roster (or the /options counts) would show the
+// child as planned/missing before their enrollment ever began (#1565 review).
 // enrolled_until still drives deactivation for every status.
 //
 // When neither bound is recorded (legacy rows, manual create) the interval
@@ -1164,8 +1166,12 @@ func eligibleOn(student *userModel.Student, date timezone.Date) bool {
 		return false
 	}
 	active := student.Status == userModel.StudentStatusActive
-	if !active && student.EnrolledFrom != nil && date.Before(*student.EnrolledFrom) {
-		return false
+	if student.EnrolledFrom != nil && date.Before(*student.EnrolledFrom) {
+		// Before the recorded start date, an active child is only eligible from
+		// today onward (immediate activation); past dates keep the lower bound.
+		if !active || date.Before(timezone.TodayDate()) {
+			return false
+		}
 	}
 	if student.EnrolledUntil != nil && date.After(*student.EnrolledUntil) {
 		return false

@@ -471,6 +471,24 @@ export default function SlotListsPage() {
   const isPickupBased = target === "pickup_cohort";
   const isManualSlotSelection = target === "slots" && listKind === "";
 
+  // The authoritative active (non-cancelled) instance set for the date, taken
+  // from the options endpoint ONLY — never the preview result. The default "all
+  // active" state (selectedSlotIds === null) sends these explicitly so a
+  // cancelled-but-started slot — which keeps its ActiveGroupID and is otherwise
+  // processed when instance_ids is omitted ("all") — is excluded from Ist and
+  // Abgleich, matching what the UI shows as unselected. null while options load
+  // (omit → backend "all") avoids a circular dependency with the preview result
+  // that selectableSlotIds falls back to (#1565 review).
+  const activeInstanceIds = useMemo<string[] | null>(
+    () =>
+      listOptions
+        ? listOptions.slots
+            .filter((slot) => slot.status !== CANCELLED_SLOT_STATUS)
+            .map((slot) => slot.instance_id)
+        : null,
+    [listOptions],
+  );
+
   const request = useMemo(
     () => ({
       date: dateISO,
@@ -479,8 +497,14 @@ export default function SlotListsPage() {
       ...(!isPickupBased && listKind ? { list_kind: listKind } : {}),
       source,
       ...(groupBy ? { group_by: groupBy } : {}),
-      ...(isManualSlotSelection && selectedSlotIds !== null
-        ? { instance_ids: selectedSlotIds }
+      // Explicit user subset wins; otherwise send the active set so "all active"
+      // never collapses to the backend's omitted-means-all path (#1565 review).
+      ...(isManualSlotSelection
+        ? selectedSlotIds !== null
+          ? { instance_ids: selectedSlotIds }
+          : activeInstanceIds !== null
+            ? { instance_ids: activeInstanceIds }
+            : {}
         : {}),
       ...(selectedGroupIds ? { group_ids: selectedGroupIds } : {}),
       ...(selectedClasses ? { classes: selectedClasses } : {}),
@@ -495,6 +519,7 @@ export default function SlotListsPage() {
       source,
       groupBy,
       selectedSlotIds,
+      activeInstanceIds,
       selectedGroupIds,
       selectedClasses,
     ],
