@@ -262,6 +262,13 @@ describe("StaffPoolSlideOver", () => {
           startTime: "13:00",
           endTime: "14:00",
         },
+        {
+          instanceId: "45",
+          title: "Hausaufgaben",
+          date: FUTURE_DATE,
+          startTime: "12:45",
+          endTime: "13:15",
+        },
       ],
       coverageWarnings: [
         {
@@ -288,9 +295,15 @@ describe("StaffPoolSlideOver", () => {
         "Keine Schicht deckt 13:00–13:30 ab",
       ),
     );
+    // Zeitkonflikte werden zu EINEM Toast zusammengefasst — zwei Konflikte
+    // ergeben also genau zwei Warn-Toasts (Abdeckung + Konflikte).
     expect(mockToastWarning).toHaveBeenCalledWith(
-      expect.stringContaining("zeitgleich auf „AG“"),
+      expect.stringContaining("zeitgleich auf „AG“ (13:00 – 14:00)"),
     );
+    expect(mockToastWarning).toHaveBeenCalledWith(
+      expect.stringContaining("„Hausaufgaben“ (12:45 – 13:15)"),
+    );
+    expect(mockToastWarning).toHaveBeenCalledTimes(2);
   });
 
   it("shows a German error toast when the move fails", async () => {
@@ -303,5 +316,36 @@ describe("StaffPoolSlideOver", () => {
     fireEvent.click(screen.getByRole("button", { name: "Verschieben" }));
 
     await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+  });
+
+  it("setzt den Auf-/Zuklapp-Zustand beim Blockwechsel zurück", () => {
+    mockPool({});
+    const { rerender } = render(
+      <StaffPoolSlideOver
+        open
+        instance={makeInstance()}
+        canManage
+        onClose={vi.fn()}
+        onMoved={vi.fn()}
+      />,
+    );
+
+    const section = () =>
+      screen.getByRole("button", { name: /Kein Dienst im Zeitfenster/ });
+    expect(section()).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(section());
+    expect(section()).toHaveAttribute("aria-expanded", "true");
+
+    // Anderer Block: die Sektionen remounten, nichts sickert durch.
+    rerender(
+      <StaffPoolSlideOver
+        open
+        instance={makeInstance({ id: "43", title: "Schulhof" })}
+        canManage
+        onClose={vi.fn()}
+        onMoved={vi.fn()}
+      />,
+    );
+    expect(section()).toHaveAttribute("aria-expanded", "false");
   });
 });

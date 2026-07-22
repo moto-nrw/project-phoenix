@@ -45,7 +45,8 @@ type MoveStaffResponse struct {
 	Action           string `json:"action"`
 	// TimeConflicts lists the person's remaining same-day overlaps with the
 	// target window; CoverageWarnings the Dienstplan gaps for it (#1873).
-	// Both advisory — the save has already committed.
+	// Both advisory — the writes have already landed in the request's tenant
+	// tx and are never rolled back because of a warning.
 	TimeConflicts    []scheduleSvc.SubstituteTimeConflict `json:"time_conflicts"`
 	CoverageWarnings []scheduleSvc.ShiftCoverageWarning   `json:"coverage_warnings"`
 }
@@ -95,7 +96,9 @@ func (rs *Resource) moveStaff(w http.ResponseWriter, r *http.Request) {
 
 // moveStaffResponseOf shapes the service result and attaches the advisory
 // shift-coverage probe for the moved person on the target window. Best effort:
-// a probe failure logs and ships an empty list — the save already committed.
+// a probe failure logs and ships an empty list — the writes have already
+// landed in the tenant tx (which commits when the middleware unwinds), and a
+// failed probe must never turn the applied move into a 5xx rollback.
 func moveStaffResponseOf(rs *Resource, ctx context.Context, result *scheduleSvc.MoveStaffResult, staffID int64) MoveStaffResponse {
 	resp := MoveStaffResponse{
 		TargetInstanceID: result.Target.ID,

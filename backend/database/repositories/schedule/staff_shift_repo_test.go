@@ -142,16 +142,23 @@ func TestStaffShiftRepository_CoverageReadsExactStaffDatesAndUsedWeeks(t *testin
 	monday := timezone.NewDate(2026, time.July, 6)
 	saturday := monday.AddDays(5)
 	nextMonday := monday.AddDays(7)
+	thirdMonday := monday.AddDays(14)
+	// The third week holds ONLY a cancelled shift: it must not count as a used
+	// week — every consumer ignores cancelled shifts in its per-staff data, so
+	// reporting the week as planned would suppress the missing-Dienstplan hint.
+	cancelledOnly := newShift(staffA.ID, thirdMonday, 8, 12, staffA.ID)
+	cancelledOnly.Cancelled = true
 	rows := []*scheduleModels.StaffShift{
 		newShift(staffA.ID, monday, 8, 12, staffA.ID),
 		newShift(staffA.ID, saturday, 8, 12, staffA.ID),
 		newShift(staffA.ID, nextMonday, 8, 12, staffA.ID),
 		newShift(staffB.ID, monday, 8, 12, staffA.ID),
+		cancelledOnly,
 	}
 	for _, shift := range rows {
 		require.NoError(t, repo.Create(ctx, shift))
 	}
-	defer cleanupShifts(t, repo, ctx, rows[0].ID, rows[1].ID, rows[2].ID, rows[3].ID)
+	defer cleanupShifts(t, repo, ctx, rows[0].ID, rows[1].ID, rows[2].ID, rows[3].ID, rows[4].ID)
 
 	shifts, err := repo.FindByStaffIDsAndDates(ctx, []int64{staffA.ID}, []timezone.Date{monday, nextMonday})
 	require.NoError(t, err)
@@ -159,9 +166,10 @@ func TestStaffShiftRepository_CoverageReadsExactStaffDatesAndUsedWeeks(t *testin
 	assert.Equal(t, monday, shifts[0].Date)
 	assert.Equal(t, nextMonday, shifts[1].Date)
 
-	weeks, err := repo.FindUsedCalendarWeeks(ctx, monday, nextMonday.AddDays(6))
+	weeks, err := repo.FindUsedCalendarWeeks(ctx, monday, thirdMonday.AddDays(6))
 	require.NoError(t, err)
-	assert.Equal(t, []timezone.Date{monday, nextMonday}, weeks)
+	assert.Equal(t, []timezone.Date{monday, nextMonday}, weeks,
+		"the cancelled-only week must not report as used")
 }
 
 func TestStaffShiftRepository_DeleteUpcomingByStaffID(t *testing.T) {

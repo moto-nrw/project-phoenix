@@ -52,3 +52,12 @@ func TestDeviationEventEntityAccessors(t *testing.T) {
 	assert.Equal(t, now, event.GetCreatedAt())
 	assert.Equal(t, now, event.GetUpdatedAt())
 }
+
+// TestShiftScopedDeviationEventTypesNonEmpty guards the slot-history filter:
+// ListByRange renders the list as `event_type NOT IN (?)` — an empty list
+// would produce `NOT IN ()`, which is invalid SQL and breaks the
+// Betreuungsplan history query at runtime. Whoever removes the last entry
+// must also remove the exclusion filter in the repository.
+func TestShiftScopedDeviationEventTypesNonEmpty(t *testing.T) {
+	assert.NotEmpty(t, ShiftScopedDeviationEventTypes)
+}

@@ -16,7 +16,7 @@
  * (gleiches Problemfeld wie PR #1962).
  */
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import {
   ArrowLeftRight,
   CalendarOff,
@@ -171,7 +171,10 @@ export function StaffPoolSlideOver({
               </p>
             )}
             {pool && (
-              <>
+              // Der Key remountet die Sektionen pro Block: der Auf-/Zuklapp-
+              // Zustand einer PoolSection darf nicht vom vorher geöffneten
+              // Block in den nächsten durchsickern.
+              <Fragment key={instanceId ?? "none"}>
                 <PoolSection
                   title="Auf anderen Blöcken"
                   icon={<ArrowLeftRight className="h-3.5 w-3.5" />}
@@ -243,7 +246,7 @@ export function StaffPoolSlideOver({
                   entries={grouped.notOnShift}
                   collapsedByDefault
                 />
-              </>
+              </Fragment>
             )}
           </div>
         </SlideOverContent>
@@ -339,13 +342,21 @@ function announceMoveResult(
       ? `${name} wurde verschoben.`
       : `${name} wurde zugewiesen.`,
   );
-  for (const warning of result.coverageWarnings) {
-    toast.warning(warning.message);
-  }
-  for (const conflict of result.timeConflicts) {
+  // Je Hinweisart EIN Toast (max. drei pro Move), sonst stapeln sich bei
+  // mehreren Überlappungen die Meldungen übereinander.
+  if (result.coverageWarnings.length > 0) {
     toast.warning(
-      `${name} ist zeitgleich auf „${conflict.title}“ (${conflict.startTime} – ${conflict.endTime}) eingeplant.`,
+      result.coverageWarnings.map((warning) => warning.message).join(" · "),
     );
+  }
+  if (result.timeConflicts.length > 0) {
+    const slots = result.timeConflicts
+      .map(
+        (conflict) =>
+          `„${conflict.title}“ (${conflict.startTime} – ${conflict.endTime})`,
+      )
+      .join(", ");
+    toast.warning(`${name} ist zeitgleich auf ${slots} eingeplant.`);
   }
 }
 

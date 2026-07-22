@@ -248,6 +248,23 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 		assert.Equal(t, "staff_already_on_target", de.Code)
 	})
 
+	t.Run("absent on target", func(t *testing.T) {
+		// Same state as the pool-assign path: the target row carries the
+		// absence, so the conflict code must match (staff_absent_on_target,
+		// not staff_already_on_target).
+		row := createMoveStaffRow(t, s, s.target.ID, s.staffID, func(row *scheduleModels.InstanceStaff) {
+			row.IsAbsent = true
+		})
+		defer testpkg.CleanupTableRecords(t, s.db, "schedule.instance_staff", row.ID)
+		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, scheduleSvc.MoveStaffInput{
+			StaffID:          s.staffID,
+			SourceInstanceID: &s.source.ID,
+		})
+		de := requireDeviationErr(t, err)
+		assert.Equal(t, http.StatusConflict, de.Status)
+		assert.Equal(t, "staff_absent_on_target", de.Code)
+	})
+
 	t.Run("absent on source", func(t *testing.T) {
 		absent := createMoveStaffRow(t, s, s.source.ID, s.otherID, func(row *scheduleModels.InstanceStaff) {
 			row.IsAbsent = true

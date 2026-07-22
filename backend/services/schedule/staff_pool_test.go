@@ -173,6 +173,27 @@ func TestGetStaffPoolForInstance_CancelledShiftIgnored(t *testing.T) {
 	assert.False(t, entry.OnShift)
 }
 
+// TestGetStaffPoolForInstance_CancelledOnlyWeekMeansDienstplanNotInUse: a week
+// whose shifts are ALL cancelled offers nobody a usable shift, so it must
+// report dienstplan_in_use=false and show the missing-Dienstplan hint instead
+// of misleading not_on_shift categories.
+func TestGetStaffPoolForInstance_CancelledOnlyWeekMeansDienstplanNotInUse(t *testing.T) {
+	s := makeMoveSetup(t)
+	defer s.cleanup(t)
+	createPoolShift(t, s, s.staffID, "08:00", "16:00", true)
+	createPoolShift(t, s, s.otherID, "08:00", "12:00", true)
+
+	repoFactory := repositories.NewFactory(s.db)
+	serviceFactory, err := services.NewFactory(repoFactory, s.db, slog.Default())
+	require.NoError(t, err)
+	pool, err := serviceFactory.TimetableData.GetStaffPoolForInstance(s.ctx, s.target.ID)
+	require.NoError(t, err)
+
+	assert.False(t, pool.DienstplanInUse, "cancelled shifts do not mark the week as planned")
+	entry := poolEntryOf(t, pool, s.staffID)
+	assert.Equal(t, scheduleSvc.StaffPoolNotOnShift, entry.Category)
+}
+
 func TestGetStaffPoolForInstance_TerminalBlockAbsenceRemainsDayWide(t *testing.T) {
 	for _, status := range []string{
 		scheduleModels.InstanceStatusCompleted,

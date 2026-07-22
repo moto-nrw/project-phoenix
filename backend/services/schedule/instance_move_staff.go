@@ -184,7 +184,11 @@ func (s *instanceService) planStaffMove(ctx context.Context, targetID int64, loc
 	}
 
 	if onTarget != nil {
-		if onSource == nil && !onTarget.IsAbsent {
+		if onTarget.IsAbsent {
+			// Same state, same code as the pool-assign path above.
+			return nil, devErrConflict("staff_absent_on_target", "die Person ist auf dem Zielblock abwesend markiert")
+		}
+		if onSource == nil {
 			// A successful move retried: already on target, gone from source. This
 			// deliberately cannot distinguish a genuine retry from a client that
 			// supplied the wrong historical source after the person reached target.
