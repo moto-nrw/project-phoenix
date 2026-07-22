@@ -558,6 +558,11 @@ export default function SlotListsPage() {
           ? "Alle aktiven Angebote ausgewählt"
           : `${selectedSlotIds.length} von ${selectableSlotIds.length} ausgewählt`;
 
+  // Ganztag pickup cohorts cannot be reconstructed for a past date (the backend
+  // refuses with ErrPickupCohortPastDate); slot lists stay available. Compared
+  // against the school's Berlin day, matching the date-picker default above.
+  const isPastDate = dateISO < berlinTodayISO();
+
   // A new list type or date means a different cohort → drop all filters.
   const resetFilters = useCallback(() => {
     setSelectedSlotIds(null);
@@ -655,7 +660,14 @@ export default function SlotListsPage() {
           error: err instanceof Error ? err.message : String(err),
         });
         setResult(null);
-        setError("Die Vorschau konnte nicht geladen werden.");
+        // Surface the backend's explanation (e.g. the past-date Ganztag refusal
+        // ErrPickupCohortPastDate) instead of a generic failure — the API client
+        // already resolves it to a German sentence.
+        setError(
+          err instanceof Error && err.message
+            ? err.message
+            : "Die Vorschau konnte nicht geladen werden.",
+        );
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -876,36 +888,49 @@ export default function SlotListsPage() {
               : option.target === "slots"
                 ? slotCount > 0
                 : (availability?.available ?? true);
-            const detail = option.listKind
-              ? kindAvailability
-                ? kindAvailability.slot_count > 0
-                  ? `${kindAvailability.slot_count} Termin${kindAvailability.slot_count === 1 ? "" : "e"} zugeordnet`
-                  : "Keine Termine zugeordnet"
-                : isOptionsLoading
-                  ? "Prüfe Datum…"
-                  : option.description
-              : option.target === "slots"
-                ? isOptionsLoading
-                  ? "Prüfe Datum…"
-                  : slotCount > 0
-                    ? cancelledSlotCount > 0
-                      ? `${selectableSlotIds.length} aktiv, ${cancelledSlotCount} abgesagt`
-                      : `${slotCount} Angebot${slotCount === 1 ? "" : "e"} geplant`
-                    : "Keine Angebote geplant"
-                : availability
-                  ? availability.row_count > 0
-                    ? `${availability.row_count} Kinder mit passender Abholzeit`
-                    : "Keine Kinder mit passender Abholzeit"
+            // A Ganztag pickup cohort on a past date always fails at the backend
+            // (ErrPickupCohortPastDate); disable the choice rather than expose an
+            // action that only errors. Slot lists remain available for any date.
+            const disabledForPastDate =
+              option.target === "pickup_cohort" && isPastDate;
+            const detail = disabledForPastDate
+              ? "Nur für heute und künftige Tage"
+              : option.listKind
+                ? kindAvailability
+                  ? kindAvailability.slot_count > 0
+                    ? `${kindAvailability.slot_count} Termin${kindAvailability.slot_count === 1 ? "" : "e"} zugeordnet`
+                    : "Keine Termine zugeordnet"
                   : isOptionsLoading
                     ? "Prüfe Datum…"
-                    : option.description;
+                    : option.description
+                : option.target === "slots"
+                  ? isOptionsLoading
+                    ? "Prüfe Datum…"
+                    : slotCount > 0
+                      ? cancelledSlotCount > 0
+                        ? `${selectableSlotIds.length} aktiv, ${cancelledSlotCount} abgesagt`
+                        : `${slotCount} Angebot${slotCount === 1 ? "" : "e"} geplant`
+                      : "Keine Angebote geplant"
+                  : availability
+                    ? availability.row_count > 0
+                      ? `${availability.row_count} Kinder mit passender Abholzeit`
+                      : "Keine Kinder mit passender Abholzeit"
+                    : isOptionsLoading
+                      ? "Prüfe Datum…"
+                      : option.description;
             return (
               <button
                 key={option.id}
                 type="button"
                 onClick={() => pickSelection(option)}
+                disabled={disabledForPastDate}
                 aria-pressed={selected}
-                className={`flex h-full items-center gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                title={
+                  disabledForPastDate
+                    ? "Ganztag-Listen sind nur für heute und künftige Tage verfügbar"
+                    : undefined
+                }
+                className={`flex h-full items-center gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
                   option.id === "slots" ? "col-span-2 lg:col-span-3" : ""
                 } ${
                   selected
@@ -1149,7 +1174,9 @@ export default function SlotListsPage() {
                   <DataTable
                     columns={columns}
                     rows={section.rows}
-                    getRowKey={(r) => `${r.slot}-${r.student_id}`}
+                    getRowKey={(r) =>
+                      `${r.instance_id ?? ""}-${r.slot}-${r.student_id}`
+                    }
                   />
                 </div>
               ))}

@@ -935,6 +935,16 @@ func instanceTimeRange(inst *scheduleModel.ActivityInstance) (time.Time, time.Ti
 // before a future list date would otherwise still be counted, and a pending
 // child whose enrollment has already started would be missed (#1565 review).
 //
+// Immediate activation (enrollment.default_activation_mode = "immediate") is the
+// deliberate exception: the enrollment decision service creates an already
+// 'active' student while keeping enrolled_from at the phase's future
+// ServiceStartDate, so the child appears in lists/attendance from today. Once a
+// student is active enrolled_from is no longer read (it stays only as the
+// official start date), so an active status overrides the enrolled_from lower
+// bound here — without this, an immediately-activated child would vanish from
+// pickup cohorts and lose its planned slot rows until the phase starts.
+// enrolled_until still drives deactivation for every status.
+//
 // When neither bound is recorded (legacy rows, manual create) the interval
 // carries no information, so the current lifecycle status is the only signal
 // and an inactive student is treated as no longer enrolled.
@@ -942,7 +952,8 @@ func eligibleOn(student *userModel.Student, date timezone.Date) bool {
 	if student == nil {
 		return false
 	}
-	if student.EnrolledFrom != nil && date.Before(*student.EnrolledFrom) {
+	active := student.Status == userModel.StudentStatusActive
+	if !active && student.EnrolledFrom != nil && date.Before(*student.EnrolledFrom) {
 		return false
 	}
 	if student.EnrolledUntil != nil && date.After(*student.EnrolledUntil) {
@@ -1426,15 +1437,34 @@ func includedSummary(params Params, result *Result) string {
 	if params.Target == TargetPickupCohort {
 		return result.ListLabel
 	}
+	count := summarySlotCount(params, result)
 	if params.ListKind != ListKindNone {
-		count := selectableSlotCount(result.Slots)
 		return fmt.Sprintf("%s (%d %s)", result.ListLabel, count, plural(count, "Termin", "Termine"))
 	}
-	count := selectableSlotCount(result.Slots)
-	if params.InstanceIDsSet {
-		count = len(params.InstanceIDs)
-	}
 	return fmt.Sprintf("%d %s", count, plural(count, "Angebot", "Angebote"))
+}
+
+// summarySlotCount is the number of slots the export actually contains. When an
+// explicit instance selection is present (InstanceIDsSet, even for a classified
+// list_kind) the count is restricted to the selected, non-cancelled slots — so a
+// filtered export reports its real subset instead of claiming the whole cohort
+// (#1565 review). result.Slots is always the full set of matching slots, so the
+// selection has to be re-applied here.
+func summarySlotCount(params Params, result *Result) int {
+	if !params.InstanceIDsSet && len(params.InstanceIDs) == 0 {
+		return selectableSlotCount(result.Slots)
+	}
+	selected := int64Set(params.InstanceIDs)
+	count := 0
+	for _, slot := range result.Slots {
+		if slot.Status == string(scheduleModel.InstanceStatusCancelled) {
+			continue
+		}
+		if selected[slot.InstanceID] {
+			count++
+		}
+	}
+	return count
 }
 
 func subtitle(result *Result) string {

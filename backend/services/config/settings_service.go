@@ -337,6 +337,19 @@ func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy 
 		return &SettingsError{Op: "reset_value", Err: fmt.Errorf("no tenant context")}
 	}
 
+	// Resetting restores the registry default, which can invert a cross-field
+	// invariant even though SetValue guards it (e.g. resetting the long Ganztag
+	// cutoff to its 16:00 default while a 18:00 short-cutoff override stays put).
+	// Validate the effective pair with the default in place before deleting, so a
+	// reset can never persist an unusable configuration that then 500s every
+	// pickup list (#1565 review).
+	if err := s.validateCrossField(ctx, key, def.Default); err != nil {
+		return &SettingsError{
+			Op:  "reset_value",
+			Err: &InvalidValueError{Key: key, Reason: err.Error()},
+		}
+	}
+
 	// Read current value for audit
 	existing, err := s.valueRepo.FindByTenantAndKey(ctx, tenantID, key)
 	if err != nil {

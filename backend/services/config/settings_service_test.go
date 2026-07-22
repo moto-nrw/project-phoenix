@@ -2058,3 +2058,54 @@ func TestSetValue_SlotListCutoffPair_CrossFieldValidation(t *testing.T) {
 		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, "18:00", nil, nil))
 	})
 }
+
+// TestResetValue_SlotListCutoffPair_CrossFieldValidation covers the #1565-review
+// fix: resetting a Ganztag cutoff restores its registry default, which can
+// invert the effective pair even though SetValue guards it. The reset must be
+// validated the same way, or it 500s every pickup list until repaired.
+func TestResetValue_SlotListCutoffPair_CrossFieldValidation(t *testing.T) {
+	registerCutoffs := func() {
+		registerTestSetting(config.KeySlotListShortDayCutoff, config.FieldTime, "14:30")
+		registerTestSetting(config.KeySlotListLongDayCutoff, config.FieldTime, "16:00")
+	}
+
+	t.Run("reset that inverts the effective pair is rejected", func(t *testing.T) {
+		setupTest(t)
+		registerCutoffs()
+		repo := newMockValueRepo()
+		svc := createService(repo, &mockAuditRepo{})
+
+		// Valid overrides: short 18:00, long 19:00.
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, "19:00", nil, nil))
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, "18:00", nil, nil))
+
+		// Resetting the long cutoff would restore its 16:00 default, leaving the
+		// short cutoff at 18:00 — an inverted pair. It must be refused, and the
+		// override must survive.
+		err := svc.ResetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, nil, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "muss nach dem kurzen Ganztag")
+
+		long, err := svc.ResolveString(tenantCtx(1), config.KeySlotListLongDayCutoff)
+		require.NoError(t, err)
+		assert.Equal(t, "19:00", long, "rejected reset must not delete the override")
+	})
+
+	t.Run("reset that keeps a valid pair is accepted", func(t *testing.T) {
+		setupTest(t)
+		registerCutoffs()
+		repo := newMockValueRepo()
+		svc := createService(repo, &mockAuditRepo{})
+
+		// Valid overrides: short 18:00, long 19:00. Resetting the short cutoff
+		// restores 14:30, which is still before the long 19:00 → allowed.
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, "19:00", nil, nil))
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, "18:00", nil, nil))
+
+		require.NoError(t, svc.ResetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, nil, nil))
+
+		short, err := svc.ResolveString(tenantCtx(1), config.KeySlotListShortDayCutoff)
+		require.NoError(t, err)
+		assert.Equal(t, "14:30", short, "accepted reset falls back to the registry default")
+	})
+}
