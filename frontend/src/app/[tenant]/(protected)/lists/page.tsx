@@ -577,6 +577,14 @@ export default function SlotListsPage() {
   // against the school's Berlin day, matching the date-picker default above.
   const isPastDate = dateISO < berlinTodayISO();
 
+  // Constrain the date picker to the range the active mode allows, so the user
+  // can never pick a date the backend rejects with a 400 (#1565 review):
+  // Ganztag needs today or later, an Abgleich needs today or earlier. With both
+  // active the picker collapses to today, the only valid pickup reconciliation.
+  const berlinToday = parseISODate(berlinTodayISO());
+  const pickerMinDate = target === "pickup_cohort" ? berlinToday : undefined;
+  const pickerMaxDate = source === "reconciliation" ? berlinToday : undefined;
+
   // A new list type or date means a different cohort → drop all filters.
   const resetFilters = useCallback(() => {
     setSelectedSlotIds(null);
@@ -1126,6 +1134,8 @@ export default function SlotListsPage() {
               onChange={pickDate}
               placeholder="Datum"
               hideClearButton
+              minDate={pickerMinDate}
+              maxDate={pickerMaxDate}
             />
           </div>
           <div className="flex items-center gap-2">

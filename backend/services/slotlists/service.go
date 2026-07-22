@@ -556,7 +556,14 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 				continue
 			}
 			verdict := scheduleSvc.AttendanceRowCareDay(completedByInstance[row.InstanceID], row, careDays[row.StudentID])
-			if row.Status == scheduleModel.AttendanceStatusExpected && !verdict.Expected() {
+			// Mirror collectSlotEntries: a genuine non-booking (not_scheduled) —
+			// whether the row still reads Expected or was already stamped absent by
+			// a broad status day on a day the child was never scheduled — is not a
+			// planned row and must not be counted. A signed-off cancellation IS
+			// retained there as a planned "Abgemeldet" row, so it must count here
+			// too, otherwise /options underreports the classified list versus
+			// preview/export (#1565 review).
+			if verdict == scheduleSvc.CareDayNotScheduled {
 				continue
 			}
 			plannedByInstance[row.InstanceID]++
@@ -705,7 +712,10 @@ func filterRows(rows []Row, params Params) []Row {
 
 	out := make([]Row, 0, len(rows))
 	for _, row := range rows {
-		if len(instanceSet) > 0 && !instanceSet[row.InstanceID] {
+		// InstanceIDs are a slot-list filter only; they are ignored for pickup
+		// cohorts (whose rows carry InstanceID 0), where a non-empty selection
+		// would otherwise drop every row (#1565 review).
+		if params.Target == TargetSlots && len(instanceSet) > 0 && !instanceSet[row.InstanceID] {
 			continue
 		}
 		if len(groupSet) > 0 && (row.GroupID == nil || !groupSet[*row.GroupID]) {
@@ -877,6 +887,18 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 						Present:    true,
 					})
 				}
+			case verdict == scheduleSvc.CareDayNotScheduled && !present:
+				// #1747/#1565 review: the care plan never booked this child into
+				// the OGS on this weekday. The row may still read Expected (the
+				// not_scheduled marker is only frozen when the block ends) or
+				// already carry an absent status a broad sick/excused status day
+				// stamped onto a day the child was never scheduled — either way it
+				// is not a genuine expectation and must not print as
+				// planned/"Fehlt"/"Abgemeldet". Drop it and leave the child unseen
+				// so a live visit can still surface them as unplanned below. A
+				// signed-off (cancelled) booked day is handled next and stays
+				// "Abgemeldet".
+				continue
 			case row.Status == scheduleModel.AttendanceStatusExpected && verdict == scheduleSvc.CareDayCancelled:
 				// #1747/#1565 review: a same-day "Kommt heute nicht" cancelled the
 				// booked day. Unlike a genuine non-booking, the day WAS booked and the
