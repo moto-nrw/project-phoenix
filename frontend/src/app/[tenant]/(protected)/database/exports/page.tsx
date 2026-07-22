@@ -256,7 +256,7 @@ export default function DatabaseExportsPage() {
             >
               <ExportDescription>
                 Listen aus geplanten Angeboten wie Mensa, Lernzeit, AG oder
-                Ganztag: Plan, Ist und Abgleich für ein Datum — mit Vorschau,
+                Ganztag: Plan, Ist und Abgleich für ein Datum, mit Vorschau,
                 Zählern und PDF-/XLSX-Export.
               </ExportDescription>
               <ExportLink href="/lists">Zu den Tageslisten</ExportLink>
