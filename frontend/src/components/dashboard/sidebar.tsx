@@ -22,6 +22,7 @@ import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
+import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
@@ -451,6 +452,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   // Get unread suggestions count for badge (teacher mode)
   const { unreadCount: suggestionsUnreadCount } = useSuggestionsUnread();
+  // Pending staff absence requests badge (Mitarbeiter; vacation:approve, #1419)
+  const { unreadCount: staffAbsencesPendingCount } = useStaffAbsencesPending();
   // Get unread suggestions count for badge (operator mode)
   const { unreadCount: operatorUnreadCount } = useOperatorSuggestionsUnread();
   // Unread parent-OGS messages badge (staff/teacher mode)
@@ -787,6 +790,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
             {item.label}
             {item.href === "/suggestions" && (
               <UnreadBadge count={suggestionsUnreadCount} className="ml-2" />
+            )}
+            {item.href === "/staff" && (
+              <UnreadBadge count={staffAbsencesPendingCount} className="ml-2" />
             )}
           </span>
         </Link>

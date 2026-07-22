@@ -950,9 +950,11 @@ func (s *staffAbsenceService) CancelAbsence(ctx context.Context, staffID int64, 
 	if absence.StaffID != staffID {
 		return fmt.Errorf("can only cancel own absences")
 	}
-	// MA can cancel requested or approved future vacation. Past approved
-	// absences become historical record and are not cancelable from the UI.
+	// MA can cancel requested/questioned or approved future vacation. Past
+	// approved absences become historical record and are not cancelable from
+	// the UI.
 	if absence.Status != activeModels.AbsenceStatusRequested &&
+		absence.Status != activeModels.AbsenceStatusQuestion &&
 		absence.Status != activeModels.AbsenceStatusApproved {
 		return fmt.Errorf("only pending or approved absences can be canceled")
 	}

@@ -388,6 +388,17 @@ class TimeTrackingService {
     );
   }
 
+  // Answer to a Rückfrage (#1419): amend the own note and move the absence
+  // back to "requested" for another decision round.
+  async resubmitAbsence(id: string, note: string): Promise<void> {
+    await this.request(
+      `/absences/${id}/resubmit`,
+      "POST",
+      "Antrag konnte nicht erneut eingereicht werden",
+      { note },
+    );
+  }
+
   async getVacationQuota(year?: number): Promise<VacationQuotaSummary> {
     const params = year ? `?year=${year}` : "";
     const result = await this.request<VacationQuotaSummary>(

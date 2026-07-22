@@ -825,6 +825,37 @@ class StaffAbsenceService {
     }
   }
 
+  // Tenant-wide open requests (status requested + question) for the /staff
+  // inbox (#1419). Response rows carry only staff_id — callers join names
+  // against the already-fetched staff list client-side.
+  async listPending(): Promise<StaffAbsenceRow[]> {
+    const response = await sessionFetch(`/api/staff/absences/pending`);
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch pending absences: ${response.statusText}`,
+      );
+    }
+    const json = (await response.json()) as { data: StaffAbsenceRow[] | null };
+    return json.data ?? [];
+  }
+
+  // Rückfrage: moves a requested absence into status "question" with a
+  // mandatory note from the Leitung (#1419).
+  async question(absenceId: number, decisionNote: string): Promise<void> {
+    const response = await sessionFetch(
+      `/api/staff/absences/${absenceId}/question`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision_note: decisionNote }),
+      },
+    );
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(text || "Rückfrage fehlgeschlagen");
+    }
+  }
+
   async deny(absenceId: number, decisionNote: string): Promise<void> {
     const response = await sessionFetch(
       `/api/staff/absences/${absenceId}/deny`,
