@@ -364,27 +364,27 @@ func normalizeHHMM(value string) (string, error) {
 	return parsed.Format(timeLayout), nil
 }
 
-func (s *service) listLabel(ctx context.Context, params Params) (string, error) {
+// listLabel derives the human list title from the already-resolved pickup
+// cutoffs. It takes the snapshot rather than resolving its own so the label and
+// the row collection observe the identical cutoffs within one build (#1565
+// review pass 2); buckets is the zero value for slot lists, which never read it.
+func (s *service) listLabel(params Params, buckets pickupBucketConfig) string {
 	if params.Target == TargetSlots {
 		if params.ListKind != ListKindNone {
-			return params.ListKind.Label(), nil
+			return params.ListKind.Label()
 		}
 		if len(params.InstanceIDs) == 1 {
-			return "Ausgewähltes Angebot", nil
+			return "Ausgewähltes Angebot"
 		}
-		return "Freie Angebotsauswahl", nil
-	}
-	cfg, err := s.pickupBuckets(ctx)
-	if err != nil {
-		return "", err
+		return "Freie Angebotsauswahl"
 	}
 	switch params.PickupCohort {
 	case PickupCohortShortDay:
-		return "Ganztag bis " + cfg.ShortCutoff, nil
+		return "Ganztag bis " + buckets.ShortCutoff
 	case PickupCohortLongDay:
-		return "Ganztag bis " + cfg.LongCutoff, nil
+		return "Ganztag bis " + buckets.LongCutoff
 	default:
-		return params.Target.Label(), nil
+		return params.Target.Label()
 	}
 }
 
@@ -455,10 +455,22 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 		return nil, err
 	}
 
-	listLabel, err := s.listLabel(ctx, params)
-	if err != nil {
-		return nil, err
+	// Resolve the pickup-cohort cutoffs ONCE per build and reuse the snapshot for
+	// both the list label/provenance and the row collection. Resolving them twice
+	// (label, then collectPickupEntries) would let an administrator's mid-build
+	// cutoff change land between the two reads under READ COMMITTED, so the header
+	// could name a different threshold than the rows were bucketed by (#1565 review
+	// pass 2). Only pickup lists need the cutoffs; a slot list neither reads them
+	// nor should fail on an invalid pickup config.
+	var pickupCfg pickupBucketConfig
+	if params.Target == TargetPickupCohort {
+		pickupCfg, err = s.pickupBuckets(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
+
+	listLabel := s.listLabel(params, pickupCfg)
 
 	result := &Result{
 		Date:         params.Date.String(),
@@ -475,7 +487,7 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 
 	var entries []mergedEntry
 	if params.Target == TargetPickupCohort {
-		entries, err = s.collectPickupEntries(ctx, params, result)
+		entries, err = s.collectPickupEntries(ctx, params, pickupCfg, result)
 	} else {
 		entries, err = s.collectSlotEntries(ctx, params, result)
 	}
@@ -852,6 +864,11 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 	}
 	roomCache := map[int64]string{}
 	process := make([]slotContext, 0, len(instances))
+	// deferredInstances flags reconciliation occurrences reached before their
+	// scheduled start with no active group yet. They still enter `process` (their
+	// roster may hold manually-recorded presence), but the merge suppresses their
+	// void plan so no not-yet-arrived child prints as "Fehlt" (#1565 review pass 2).
+	var deferredInstances map[int64]struct{}
 	for _, inst := range instances {
 		if !instanceMatchesListKind(inst, params.ListKind) {
 			continue
@@ -866,44 +883,43 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 			TimeRange:  fmt.Sprintf("%s–%s", inst.StartTime.Format(timeLayout), inst.EndTime.Format(timeLayout)),
 			Status:     inst.Status,
 		})
-		// A cancelled slot that never ran (no active group ever attached) has no
-		// attendance to preserve — skip it; it stays selectable context in
-		// result.Slots above. But InstanceService.Cancel on an already-active
-		// instance ends the active group while deliberately keeping ActiveGroupID
-		// and the visits recorded during the brief run. Dropping such a slot too
-		// would erase documented attendance from Ist and Abgleich, so let it
-		// through; the process loop below suppresses its (now void) roster so only
-		// the present children surface, never a planned no-show as "Fehlt".
-		if inst.Status == scheduleModel.InstanceStatusCancelled && inst.ActiveGroupID == nil {
-			continue
-		}
-		// A reconciliation before the slot's scheduled start has no presence
-		// evidence yet: the occurrence has no active group, so it contributes no
-		// visits and every planned child would merge to Present=false
-		// and render as "Fehlt" — a safety-relevant false missing-child list
-		// before the activity has begun (#1565 review). Exclude the occurrence
-		// from the merge; it stays selectable context in result.Slots above.
-		// Plan/Ist are unaffected (Plan still lists the expected children, Ist is
-		// legitimately empty), and a future *date* is refused outright in
-		// BuildList — this is the per-slot case on today.
+		cancelled := inst.Status == scheduleModel.InstanceStatusCancelled
+		// A cancelled or not-yet-started occurrence carries a void plan, but it may
+		// still hold documented attendance: InstanceService.Cancel keeps the visits
+		// recorded during a brief run, and a timetable PATCH can mark a child
+		// present (status=present) with no active group at all — before the slot
+		// starts, or on a cancelled slot that never ran. Both cases are resolved in
+		// the merge below (it suppresses the void plan yet retains the present
+		// rows), so route these occurrences into `process` instead of dropping them
+		// here, which would erase that attendance from Ist and Abgleich (#1565
+		// review pass 1 P2 / pass 2 P1). They stay selectable context in
+		// result.Slots (appended above) regardless.
 		//
-		// Gate this strictly on occurrences that have NOT actually started: a
-		// slot Start()ed manually before its nominal time already carries an
-		// ActiveGroupID and visits, so the bulk presence load returns real
-		// presence and the Abgleich must show the children currently attending
-		// it. Only an
-		// occurrence with no active group has no attendance evidence to lose, so
-		// only that one is deferred (#1565 review).
-		if params.Source == SourceReconciliation && inst.ActiveGroupID == nil {
-			if start, _ := instanceTimeRange(inst); s.currentTime().Before(start) {
-				// Remember the deferral so the export "Enthalten" summary does not
-				// count a slot the merge produced no rows for (#1565 review).
-				if result.deferredSlots == nil {
-					result.deferredSlots = map[int64]struct{}{}
-				}
-				result.deferredSlots[inst.ID] = struct{}{}
-				continue
+		// A reconciliation reaching an occurrence before its scheduled start, with
+		// no active group yet, has no live presence to merge against, so every
+		// planned child would collapse to Present=false and render as "Fehlt" — a
+		// safety-relevant false missing-child list before the activity begins. Flag
+		// it deferred so the merge suppresses those planned no-shows (while still
+		// surfacing any manually-present child) and the export summary does not
+		// count a slot that produced no rows. Gate strictly on occurrences that have
+		// NOT actually started: a slot Start()ed manually before its nominal time
+		// already carries an ActiveGroupID and real visits, so it stays on the
+		// normal path. Cancelled occurrences are handled by their own void-plan
+		// branch, not deferred here. This only ever fires for reconciliation on
+		// today — a future date is refused outright in BuildList; Plan/Ist are
+		// unaffected.
+		deferred := !cancelled &&
+			params.Source == SourceReconciliation && inst.ActiveGroupID == nil
+		if deferred {
+			if start, _ := instanceTimeRange(inst); !s.currentTime().Before(start) {
+				deferred = false
 			}
+		}
+		if deferred {
+			if deferredInstances == nil {
+				deferredInstances = map[int64]struct{}{}
+			}
+			deferredInstances[inst.ID] = struct{}{}
 		}
 		if selected != nil {
 			if _, ok := selected[inst.ID]; !ok {
@@ -995,13 +1011,13 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 		roomName := p.roomName
 		planned := rosterByInstance[inst.ID]
 		cancelled := inst.Status == scheduleModel.InstanceStatusCancelled
-		if cancelled {
-			// The slot ran briefly, then was called off: its plan is void, so no
-			// roster row is a genuine expectation and none may print as "Fehlt".
-			// Suppress the roster and let only the present-loop below retain the
-			// visit evidence recorded during the run as unplanned-present rows.
-			planned = nil
-		}
+		_, deferred := deferredInstances[inst.ID]
+		// A void plan: the occurrence was called off (cancelled), or a
+		// reconciliation reached it before its scheduled start with no active group
+		// yet (deferred). In neither case is a roster row a genuine expectation, so
+		// none may print as "Fehlt". The retention pass below keeps only the
+		// manually-present rows before the switch runs.
+		voidPlan := cancelled || deferred
 		// Presence was bulk-loaded above; a slot with no active group (never
 		// started) simply has no entry and yields a nil map (safe to index).
 		var presentSet map[int64]bool
@@ -1011,6 +1027,32 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 		completed := inst.Status == scheduleModel.InstanceStatusCompleted
 
 		seenPlanned := make(map[int64]struct{}, len(planned))
+		retainedPresent := false
+		if voidPlan {
+			// A timetable PATCH records presence as status=present on the roster row
+			// without ever attaching an active group, so such a child is absent from
+			// the visit-derived presentSet below. Retain exactly those rows as
+			// unplanned-present evidence and suppress the rest of the void plan (by
+			// nilling `planned` so the switch below processes nothing), so a
+			// called-off or not-yet-started slot never prints a planned no-show as
+			// "Fehlt" yet still surfaces documented attendance in Ist and Abgleich
+			// (#1565 review pass 1 P2 / pass 2 P1).
+			for _, row := range planned {
+				if row.Status != scheduleModel.AttendanceStatusPresent {
+					continue
+				}
+				seenPlanned[row.StudentID] = struct{}{}
+				retainedPresent = true
+				entries = append(entries, mergedEntry{
+					StudentID:  row.StudentID,
+					InstanceID: inst.ID,
+					SlotLabel:  slotLabel,
+					RoomName:   roomName,
+					Present:    true,
+				})
+			}
+			planned = nil
+		}
 		for _, row := range planned {
 			present := presentSet[row.StudentID] || row.Status == scheduleModel.AttendanceStatusPresent
 			// The canonical care-day verdict decides whether an assignment row
@@ -1177,16 +1219,7 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 			if _, ok := seenPlanned[studentID]; ok {
 				continue
 			}
-			if cancelled {
-				// The export "Enthalten" summary skips cancelled slots by default;
-				// record the ones that actually retained a present row so the header
-				// counts them as contained Termine and does not undercount (the same
-				// row/header consistency the deferred-slot handling guards).
-				if result.retainedCancelledSlots == nil {
-					result.retainedCancelledSlots = map[int64]struct{}{}
-				}
-				result.retainedCancelledSlots[inst.ID] = struct{}{}
-			}
+			retainedPresent = true
 			entries = append(entries, mergedEntry{
 				StudentID:  studentID,
 				InstanceID: inst.ID,
@@ -1194,6 +1227,28 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 				RoomName:   roomName,
 				Present:    true,
 			})
+		}
+
+		// Export "Enthalten" accounting for void-plan slots. A cancelled slot that
+		// retained any present child — from a manual roster mark above or a visit
+		// here — counts as a contained Termin so the header does not undercount; a
+		// deferred (not-yet-started) slot that retained none is recorded so the
+		// summary does not count a slot the merge produced no rows for. A deferred
+		// slot that DID retain a present child is deliberately left unrecorded here:
+		// it contributed rows and must count normally. cancelled and deferred are
+		// mutually exclusive (the first loop never defers a cancelled slot) (#1565
+		// review).
+		switch {
+		case cancelled && retainedPresent:
+			if result.retainedCancelledSlots == nil {
+				result.retainedCancelledSlots = map[int64]struct{}{}
+			}
+			result.retainedCancelledSlots[inst.ID] = struct{}{}
+		case deferred && !retainedPresent:
+			if result.deferredSlots == nil {
+				result.deferredSlots = map[int64]struct{}{}
+			}
+			result.deferredSlots[inst.ID] = struct{}{}
 		}
 	}
 	return entries, nil
@@ -1350,11 +1405,10 @@ func cohortPickupTime(cancelled bool, effective *scheduleSvc.EffectivePickupTime
 // collectPickupEntries derives the cohort from effective pickup times
 // (weekly schedule + exceptions) and presence from attendance records on the
 // selected date. Closed attendance rows still count for historical lists.
-func (s *service) collectPickupEntries(ctx context.Context, params Params, result *Result) ([]mergedEntry, error) {
-	buckets, err := s.pickupBuckets(ctx)
-	if err != nil {
-		return nil, err
-	}
+func (s *service) collectPickupEntries(ctx context.Context, params Params, buckets pickupBucketConfig, result *Result) ([]mergedEntry, error) {
+	// buckets is the single per-build cutoff snapshot resolved in BuildList, shared
+	// with listLabel so the header and the rows agree on the threshold (#1565
+	// review pass 2).
 	students, err := s.listEligibleStudents(ctx, params.Date)
 	if err != nil {
 		return nil, err

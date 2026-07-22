@@ -356,8 +356,13 @@ function isCorruptIdParam(
   value: string | null,
   emptyToken: string | null = null,
 ): boolean {
-  if (!value) return false; // absent → legitimately unrestricted
+  if (value === null) return false; // absent → legitimately unrestricted
   if (emptyToken && value === emptyToken) return false; // explicit empty selection
+  // A present-but-empty value (`gruppen=`, `angebote=`) is NOT an absent param:
+  // parseIdList collapses it to null ("no restriction"), which for a confidential
+  // group/slot filter would silently broaden the named-student list to the whole
+  // cohort. Distinguish "" from null and treat it as a corrupt link (#1565 review
+  // pass 4).
   return parseIdList(value, emptyToken) === null; // present but nothing valid
 }
 
@@ -370,6 +375,17 @@ function isCorruptIdParam(
 function parseClassList(values: string[]): string[] | null {
   const cleaned = values.map((part) => part.trim()).filter(Boolean);
   return cleaned.length > 0 ? cleaned : null;
+}
+
+// isCorruptClassParam mirrors isCorruptIdParam for the repeated `klassen` params:
+// a present-but-blank value (`klassen=`) cleans to nothing, so parseClassList
+// collapses it to null ("no restriction") and a confidential class restriction
+// would silently broaden to every class. A partially-blank set
+// (`klassen=1a&klassen=`) keeps its valid subset and is NOT corrupt (#1565 review
+// pass 4).
+function isCorruptClassParam(values: string[]): boolean {
+  if (values.length === 0) return false; // absent → legitimately unrestricted
+  return parseClassList(values) === null; // present but nothing valid
 }
 
 // Ordered content equality for the URL-synced selection arrays. The
@@ -427,7 +443,8 @@ function parseInitialListState(
     selectedClasses: parseClassList(searchParams.getAll("klassen")),
     filterLinkInvalid:
       isCorruptIdParam(searchParams.get("gruppen")) ||
-      isCorruptIdParam(searchParams.get("angebote"), "keine"),
+      isCorruptIdParam(searchParams.get("angebote"), "keine") ||
+      isCorruptClassParam(searchParams.getAll("klassen")),
   };
 }
 
