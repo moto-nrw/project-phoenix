@@ -530,6 +530,21 @@ export default function SlotListsPage() {
       selectedClasses,
     ],
   );
+
+  // For slot lists the active (non-cancelled) instance set is authoritative and
+  // comes from /options, never the preview. Until it loads, activeInstanceIds is
+  // null and the request omits instance_ids — which the backend reads as "all
+  // slots", pulling in a cancelled-but-started slot whose brief-run attendance we
+  // deliberately exclude. Firing the preview then would render, and enable
+  // print/download on, rows the UI marks as cancelled-excluded (#1565 review
+  // pass 1). Hold the preview until the active set lands. An explicit manual
+  // subset (parsed from the URL) is authoritative on its own and never waits;
+  // pickup lists do not use instance_ids at all.
+  const awaitingActiveSlots =
+    target === "slots" &&
+    activeInstanceIds === null &&
+    !(isManualSlotSelection && selectedSlotIds !== null);
+
   const replaceListUrl = useCallback(
     (next: Partial<InitialListState>) => {
       const query = serializeListState({
@@ -731,6 +746,17 @@ export default function SlotListsPage() {
 
   useEffect(() => {
     if (authStatus !== "authenticated" || timetableDisabled) return;
+    // Hold the preview (and, via the cleared result, print/download) until the
+    // active slot set resolves — see awaitingActiveSlots. The effect re-fires
+    // when activeInstanceIds lands, because it feeds `request`. Clearing the
+    // result also drops the previous date's rows, which would otherwise stay
+    // exportable during the options-loading window after a date change.
+    if (awaitingActiveSlots) {
+      setResult(null);
+      setError(null);
+      setIsLoading(true);
+      return;
+    }
     let cancelled = false;
     setIsLoading(true);
     setError(null);
@@ -759,7 +785,7 @@ export default function SlotListsPage() {
     return () => {
       cancelled = true;
     };
-  }, [authStatus, request, timetableDisabled]);
+  }, [authStatus, request, timetableDisabled, awaitingActiveSlots]);
 
   // Reconcile stale URL filters against the date's actual options. result.groups
   // / result.classes are the unfiltered option set for the cohort, so a
@@ -827,6 +853,11 @@ export default function SlotListsPage() {
 
   const handleExport = useCallback(
     async (format: SlotListFormat, mode: "download" | "print") => {
+      // Never export while the authoritative active slot set is still loading —
+      // the request would omit instance_ids and the backend would include the
+      // cancelled-but-started slots the UI excludes (#1565 review pass 1). The
+      // buttons are already disabled in this window; this is defense in depth.
+      if (awaitingActiveSlots) return;
       setIsExporting(true);
       setError(null);
       try {
@@ -842,7 +873,7 @@ export default function SlotListsPage() {
         setIsExporting(false);
       }
     },
-    [request],
+    [request, awaitingActiveSlots],
   );
 
   // Standard filter row, rendered via the shared DesktopFilters component.

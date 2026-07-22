@@ -120,6 +120,10 @@ type pickupTimeReader interface {
 	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*scheduleSvc.EffectivePickupTime, error)
 }
 
+type arrivalTimeReader interface {
+	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*scheduleSvc.EffectiveArrivalTime, error)
+}
+
 type settingsReader interface {
 	HasTenantOverride(ctx context.Context, key string) (bool, error)
 	ResolveString(ctx context.Context, key string) (string, error)
@@ -139,6 +143,7 @@ type Dependencies struct {
 	EducationGroupRepo  educationGroupReader
 	RoomRepo            roomReader
 	PickupService       pickupTimeReader
+	ArrivalService      arrivalTimeReader
 	ListExport          *listexport.RendererService
 	Settings            settingsReader
 	UserContext         authorize.StudentReadUserContext
@@ -161,6 +166,7 @@ type service struct {
 	educationGroupRepo  educationGroupReader
 	roomRepo            roomReader
 	pickupService       pickupTimeReader
+	arrivalService      arrivalTimeReader
 	listExport          *listexport.RendererService
 	settings            settingsReader
 	userContext         authorize.StudentReadUserContext
@@ -190,6 +196,7 @@ func NewService(deps Dependencies) Service {
 		educationGroupRepo:  deps.EducationGroupRepo,
 		roomRepo:            deps.RoomRepo,
 		pickupService:       deps.PickupService,
+		arrivalService:      deps.ArrivalService,
 		listExport:          deps.ListExport,
 		settings:            deps.Settings,
 		userContext:         deps.UserContext,
@@ -392,7 +399,7 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 		s.attendanceRepo == nil || s.statusDayRepo == nil || s.careDayService == nil ||
 		s.pickupScheduleRepo == nil || s.studentRepo == nil ||
 		s.personRepo == nil || s.educationGroupRepo == nil || s.roomRepo == nil ||
-		s.pickupService == nil || s.listExport == nil {
+		s.pickupService == nil || s.arrivalService == nil || s.listExport == nil {
 		return nil, fmt.Errorf("slot list service is not configured")
 	}
 	if !params.Target.Valid() {
@@ -1124,6 +1131,26 @@ func visitOverlapsInstance(visit *activeModel.Visit, inst *scheduleModel.Activit
 	return visit.ExitTime == nil || visit.ExitTime.After(start)
 }
 
+// beforeEffectiveArrival reports whether the service clock is still earlier than
+// the child's effective arrival instant on the date. The arrival value is a
+// wall-clock time, so it is anchored to the calendar day in Berlin exactly as
+// instanceTimeRange anchors a slot's start — never trusted as a raw instant. A
+// nil arrival time (no schedule for this weekday, or a weekend) yields false:
+// with no expected arrival to defer against, the normal merge applies and a
+// genuine no-show still surfaces.
+func (s *service) beforeEffectiveArrival(date timezone.Date, arrival *scheduleSvc.EffectiveArrivalTime) bool {
+	if arrival == nil || arrival.ArrivalTime == nil {
+		return false
+	}
+	at := *arrival.ArrivalTime
+	start := time.Date(
+		date.Year, date.Month, date.Day,
+		at.Hour(), at.Minute(), at.Second(), at.Nanosecond(),
+		timezone.Berlin,
+	)
+	return s.currentTime().Before(start)
+}
+
 func instanceTimeRange(inst *scheduleModel.ActivityInstance) (time.Time, time.Time) {
 	start := time.Date(
 		inst.Date.Year, inst.Date.Month, inst.Date.Day,
@@ -1242,6 +1269,21 @@ func (s *service) collectPickupEntries(ctx context.Context, params Params, resul
 		}
 	}
 
+	// A reconciliation on today has only accrued the presence evidence up to
+	// "now": a child whose effective arrival time is still in the future has not
+	// been expected yet, so an empty attendance row is not a no-show. Load the
+	// arrival times to defer those children below rather than print them as
+	// "Fehlt" — the pickup analogue of collectSlotEntries excluding a
+	// not-yet-started slot from the merge (#1565 review pass 1). Only needed for
+	// the Abgleich (Plan lists the expected children, Ist only the present ones).
+	arrivalTimes := map[int64]*scheduleSvc.EffectiveArrivalTime{}
+	if params.Source == SourceReconciliation && len(studentIDs) > 0 {
+		arrivalTimes, err = s.arrivalService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, params.Date)
+		if err != nil {
+			return nil, fmt.Errorf("load effective arrival times: %w", err)
+		}
+	}
+
 	attendanceRows, err := s.attendanceRepo.FindForDate(ctx, params.Date)
 	if err != nil {
 		return nil, err
@@ -1296,6 +1338,21 @@ func (s *service) collectPickupEntries(ctx context.Context, params Params, resul
 		}
 		cohort[student.ID] = struct{}{}
 		_, present := presentSet[student.ID]
+		_, hasStatusDay := statusByStudent[student.ID]
+		// Defer a not-yet-arrived child on today's Abgleich: with no check-in yet
+		// and their effective arrival time still ahead, an empty attendance row is
+		// not a no-show, so emitting a planned row here would false-report the
+		// child as "Fehlt" and inflate the missing counter before they were ever
+		// expected (#1565 review pass 1). Registered absences (a cancelled care day
+		// or a sick/excused/trip status day) are sign-offs valid all day and still
+		// render "Abgemeldet", so only the would-be-"Fehlt" case defers. The child
+		// stays in `cohort` (already recorded above) so the unplanned sweep does not
+		// re-add them. Past dates are refused upstream; future dates too — so this
+		// only ever fires on today.
+		if params.Source == SourceReconciliation && !present && !cancelled && !hasStatusDay &&
+			s.beforeEffectiveArrival(params.Date, arrivalTimes[student.ID]) {
+			continue
+		}
 		if cancelled && present {
 			// The care day was signed off ("Kommt heute nicht") but the child
 			// attended anyway. That is an unplanned presence, not a

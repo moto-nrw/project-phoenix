@@ -1490,6 +1490,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EducationGroupRepo:  repos.Group,
 		RoomRepo:            repos.Room,
 		PickupService:       pickupScheduleService,
+		ArrivalService:      arrivalScheduleService,
 		ListExport:          listExportService,
 		Settings:            settingsService,
 		UserContext:         userContextService,

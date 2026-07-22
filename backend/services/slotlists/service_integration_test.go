@@ -185,6 +185,15 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 			scheduleRepo.NewStudentPickupNoteRepository(db),
 			db,
 		),
+		ArrivalService: scheduleSvc.NewArrivalScheduleService(
+			scheduleRepo.NewStudentArrivalScheduleRepository(db),
+			scheduleRepo.NewStudentArrivalExceptionRepository(db),
+			scheduleRepo.NewStudentArrivalNoteRepository(db),
+			usersRepo.NewStudentRepository(db),
+			usersRepo.NewPersonRepository(db),
+			db,
+			nil,
+		),
 		ListExport:  listexport.NewService(),
 		Settings:    settings,
 		UserContext: userCtx,
@@ -1171,6 +1180,88 @@ func TestBuildList_PickupReconciliationMarksStatusDayAsExcused(t *testing.T) {
 
 	assert.Equal(t, 1, result.Counters.Excused, "excused counter reflects the status day")
 	assert.Equal(t, 1, result.Counters.Missing, "unexplained absence stays a missing child")
+}
+
+// A Ganztag Abgleich generated mid-morning must not report a child who has not
+// yet reached their scheduled arrival time as "Fehlt": with no check-in and the
+// arrival still ahead, the empty attendance row is not a no-show. This mirrors
+// collectSlotEntries excluding a not-yet-started slot. A child whose arrival is
+// already past on the same list stays a genuine missing child (#1565 review
+// pass 1).
+func TestBuildList_PickupReconciliationDefersNotYetArrivedChild(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+	weekday := int(pickupDate.Weekday())
+
+	// pickupNow is pinned to 12:00 Berlin (see newTestServiceWithCustomAccess).
+	notYetArrived := testpkg.CreateTestStudent(t, db, "SL-Later", fmt.Sprintf("A-%d", suffix), "2b")
+	alreadyDue := testpkg.CreateTestStudent(t, db, "SL-Due", fmt.Sprintf("B-%d", suffix), "2b")
+	staff := testpkg.CreateTestStaff(t, db, "SL-Staff", fmt.Sprintf("AR-%d", suffix))
+
+	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	var pickupIDs []int64
+	for _, row := range []*scheduleModels.StudentPickupSchedule{
+		{StudentID: notYetArrived.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
+		{StudentID: alreadyDue.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
+	} {
+		row.SetTenantID(1)
+		require.NoError(t, pickupRepo.Create(ctx, row))
+		pickupIDs = append(pickupIDs, row.ID)
+	}
+
+	var arrivalIDs []int64
+	for _, row := range []*scheduleModels.StudentArrivalSchedule{
+		// 14:00 arrival is still ahead of the 12:00 clock → deferred.
+		{StudentID: notYetArrived.ID, Weekday: weekday, ExpectedArrival: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
+		// 11:00 arrival is already past → a genuine no-show.
+		{StudentID: alreadyDue.ID, Weekday: weekday, ExpectedArrival: time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
+	} {
+		row.SetTenantID(1)
+		_, err := db.NewInsert().Model(row).ModelTableExpr(`schedule.student_arrival_schedules`).Exec(ctx)
+		require.NoError(t, err)
+		arrivalIDs = append(arrivalIDs, row.ID)
+	}
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.student_arrival_schedules", arrivalIDs...)
+		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_schedules", pickupIDs...)
+		testpkg.CleanupActivityFixtures(t, db, notYetArrived.ID, staff.ID)
+		testpkg.CleanupActivityFixtures(t, db, alreadyDue.ID)
+	})
+
+	svc := newTestService(db)
+	result, err := svc.BuildList(ctx, slotlists.Params{
+		Date:         pickupDate,
+		Target:       slotlists.TargetPickupCohort,
+		PickupCohort: slotlists.PickupCohortLongDay,
+		Source:       slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+
+	assert.Nil(t, rowByStudent(result.Rows, notYetArrived.ID),
+		"a child not yet expected must not print before their arrival time")
+
+	dueRow := rowByStudent(result.Rows, alreadyDue.ID)
+	require.NotNil(t, dueRow, "a child past their arrival time is a genuine no-show")
+	assert.Equal(t, "Fehlt", dueRow.StatusLabel)
+
+	assert.Equal(t, 1, result.Counters.Missing,
+		"only the already-due child counts as missing")
+
+	// The Plan view lists both children — it is the schedule, not attendance —
+	// so the deferral is scoped to the Abgleich alone.
+	plan, err := svc.BuildList(ctx, slotlists.Params{
+		Date:         pickupDate,
+		Target:       slotlists.TargetPickupCohort,
+		PickupCohort: slotlists.PickupCohortLongDay,
+		Source:       slotlists.SourcePlanned,
+	})
+	require.NoError(t, err)
+	assert.NotNil(t, rowByStudent(plan.Rows, notYetArrived.ID),
+		"the not-yet-arrived child is still planned")
+	assert.NotNil(t, rowByStudent(plan.Rows, alreadyDue.ID))
 }
 
 // A cancelled care day ("Kommt heute nicht") is a registered absence carried
