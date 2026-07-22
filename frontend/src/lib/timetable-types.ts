@@ -700,7 +700,7 @@ export interface BackendApplyDeviationsResponse {
  * time window. Categories are mutually exclusive; `assignedElsewhere`
  * entries carry the overlapping blocks they could be moved away from.
  */
-export type StaffPoolCategory =
+type StaffPoolCategory =
   | "assigned_here"
   | "absent"
   | "assigned_elsewhere"
