@@ -864,7 +864,9 @@ func exportTitle(req studentExportRequest) string {
 	case listexport.PresetClassRoster:
 		return "Klassenliste"
 	case listexport.PresetDailyPlanning:
-		return "Tagesliste"
+		// "Tagesplanung", nicht "Tagesliste": der Name kollidierte mit den
+		// slot-basierten Tageslisten aus dem Betreuungsplan (#1565).
+		return "Tagesplanung"
 	case listexport.PresetAttendanceSnapshot:
 		return "Anwesenheitsliste"
 	case listexport.PresetPickupList:

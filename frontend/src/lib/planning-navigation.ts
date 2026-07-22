@@ -1,5 +1,9 @@
 export type PlanningPageHref =
-  "/betreuungsplan" | "/dienstplan" | "/vertretung" | "/calendar-periods";
+  | "/betreuungsplan"
+  | "/dienstplan"
+  | "/vertretung"
+  | "/lists"
+  | "/calendar-periods";
 
 export interface PlanningSubPage {
   readonly href: PlanningPageHref;
@@ -32,6 +36,17 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     label: "Vertretung",
     legacyPrefixes: ["/vertretungsplan"],
     showInMobileNav: true,
+  },
+  {
+    // Tageslisten (#1565): druckbare Listen aus den Betreuungsplan-Slots
+    // (Plan/Ist/Abgleich). Desktop-only im Akkordeon; mobil über den
+    // Betreuungsplan-Eintrag erreichbar, die Seite selbst hat einen
+    // Zurück-Button.
+    href: "/lists",
+    label: "Tageslisten",
+    legacyPrefixes: [],
+    showInMobileNav: false,
+    mobileParentHref: "/betreuungsplan",
   },
   {
     href: "/calendar-periods",

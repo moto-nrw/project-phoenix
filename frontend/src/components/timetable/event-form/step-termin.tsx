@@ -29,7 +29,7 @@ const TYPE_OPTIONS: Array<{
 ];
 
 // Listenart (#1565): optional classification driving the printable
-// Tageslisten (Datenverwaltung → Exporte → Tageslisten).
+// Tageslisten (Planung → Tageslisten).
 const LIST_KIND_OPTIONS: Array<{
   value: TimetableListKind;
   label: string;
@@ -175,7 +175,7 @@ export function StepTermin({
               ))}
             </select>
             <p className="mt-1 text-[11px] leading-4 text-gray-500">
-              Ordnet den Termin einer druckbaren Tagesliste zu (Exporte →
+              Ordnet den Termin einer druckbaren Tagesliste zu (Planung →
               Tageslisten).
             </p>
           </Field>

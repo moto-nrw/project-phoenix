@@ -248,23 +248,20 @@ export default function DatabaseExportsPage() {
           )}
         </ExportSection>
 
-        {canUseSlotLists && (
-          <ExportSection title="Betreuungsplan">
+        <ExportSection title="Auf anderen Seiten">
+          {canUseSlotLists && (
             <InfoCard
               title="Tageslisten"
               icon={<CalendarClock className="h-5 w-5" />}
             >
               <ExportDescription>
                 Listen aus geplanten Angeboten wie Mensa, Lernzeit, AG oder
-                Ganztag: Plan, Ist und Abgleich für ein Datum, mit Vorschau,
-                Zählern und PDF-/XLSX-Export.
+                Ganztag: Plan, Ist und Abgleich für ein Datum. Der Einstieg
+                liegt im Bereich Planung.
               </ExportDescription>
               <ExportLink href="/lists">Zu den Tageslisten</ExportLink>
             </InfoCard>
-          </ExportSection>
-        )}
-
-        <ExportSection title="Auf anderen Seiten">
+          )}
           {/* /admin/enrollments redirects non-admins to /dashboard (useRequireAdmin),
               so only offer the link to admins rather than send others to a dead end. */}
           {isAdmin(session) && (
