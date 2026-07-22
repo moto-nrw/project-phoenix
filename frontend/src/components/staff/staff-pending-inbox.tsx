@@ -35,7 +35,7 @@ const logger = createLogger({ component: "StaffPendingInbox" });
 // SWR key for the tenant-wide open-request list. Deliberately shares the
 // "staff-pending-absences-" prefix with the per-staff detail-tab badge so the
 // existing includes()-mutate in abwesenheiten-tab.tsx invalidates both.
-export const STAFF_PENDING_ABSENCES_KEY = "staff-pending-absences-all";
+const STAFF_PENDING_ABSENCES_KEY = "staff-pending-absences-all";
 
 // Fetches the tenant-wide open absence requests for the /staff inbox (#1419).
 // Gated on vacation:approve (matching the backend endpoint) so non-approvers
