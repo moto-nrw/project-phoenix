@@ -497,10 +497,16 @@ export default function SlotListsPage() {
       ...(!isPickupBased && listKind ? { list_kind: listKind } : {}),
       source,
       ...(groupBy ? { group_by: groupBy } : {}),
-      // Explicit user subset wins; otherwise send the active set so "all active"
-      // never collapses to the backend's omitted-means-all path (#1565 review).
-      ...(isManualSlotSelection
-        ? selectedSlotIds !== null
+      // Explicit user subset wins (free selection only); otherwise send the
+      // active set so "all active" never collapses to the backend's
+      // omitted-means-all path. This applies to classified lists too: the
+      // backend intersects list_kind with instance_ids, so a slot that was
+      // started and then cancelled — which keeps its ActiveGroupID and would
+      // otherwise leak the visits recorded during its brief run into Ist and
+      // Abgleich under the omitted path — is excluded, matching what /options
+      // counts and what the card reports as assigned slots (#1565 review).
+      ...(target === "slots"
+        ? isManualSlotSelection && selectedSlotIds !== null
           ? { instance_ids: selectedSlotIds }
           : activeInstanceIds !== null
             ? { instance_ids: activeInstanceIds }
