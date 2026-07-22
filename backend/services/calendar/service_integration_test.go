@@ -432,6 +432,58 @@ func TestCalendarServiceIntegration_GuardianNotifications(t *testing.T) {
 	assert.Equal(t, platformModels.EmailKindAppointmentCancelled, outbox.enqueued[1].Kind)
 }
 
+func TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	outbox := &recordingOutbox{}
+	service := setupCalendarServiceWithOutbox(t, db, outbox)
+	repos := repositories.NewFactory(db)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "OptOut", "Organizer")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	newSilentAppointment := func(title string, day int) *calendarSvc.AppointmentDetail {
+		detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+			Title:        title,
+			StartDate:    timezone.NewDate(2026, 4, day),
+			EndDate:      timezone.NewDate(2026, 4, day),
+			StartTime:    wallClock(9, 0),
+			EndTime:      wallClock(10, 0),
+			DeliveryMode: calModels.DeliveryModeInformational,
+			// No send_email: the guardian opted out of mail for this appointment.
+			Targets: []calendarSvc.AppointmentTarget{
+				{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+			},
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+		return detail
+	}
+
+	// Cancelling a send_email=false appointment must not mail guardians.
+	silent := newSilentAppointment("Stiller Termin", 1)
+	require.Empty(t, outbox.enqueued)
+	_, err := service.CancelStaffAppointment(calendarContext(organizerAccount.ID), silent.Appointment.ID)
+	require.NoError(t, err)
+	assert.Empty(t, outbox.enqueued, "a send_email=false appointment must stay silent on cancellation")
+
+	// The repo Cancel reports the transition exactly once — the mechanism that lets
+	// concurrent callers gate notifications so no duplicate cancellation e-mail is
+	// sent.
+	fresh := newSilentAppointment("Zweiter", 2)
+	first, err := repos.CalendarAppointment.Cancel(testpkg.TenantContext(1), fresh.Appointment.ID)
+	require.NoError(t, err)
+	assert.True(t, first, "first cancel performs the transition")
+	second, err := repos.CalendarAppointment.Cancel(testpkg.TenantContext(1), fresh.Appointment.ID)
+	require.NoError(t, err)
+	assert.False(t, second, "a second (concurrent) cancel does not re-transition, so it must not notify")
+}
+
 func TestCalendarServiceIntegration_AppointmentICS(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
@@ -673,7 +725,7 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 	assert.Empty(t, eventDates(afterParent, calModels.EventSourceAppointment))
 }
 
-func TestCalendarServiceIntegration_EditDoesNotReactivateCancellation(t *testing.T) {
+func TestCalendarServiceIntegration_EditRacingCancellationConflicts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
@@ -705,17 +757,20 @@ func TestCalendarServiceIntegration_EditDoesNotReactivateCancellation(t *testing
 	_, err = service.CancelStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID)
 	require.NoError(t, err)
 
-	// Now flush the stale edit. The content Update must NOT write cancelled_at back
-	// to NULL and silently reactivate the appointment.
+	// Flushing the stale edit must NOT touch the terminal row: the conditional
+	// Update matches zero rows and reports a lifecycle conflict, so the edit
+	// neither reactivates the appointment nor overwrites its content.
 	stale := *detail.Appointment
 	stale.Title = "Edited concurrently"
-	require.NoError(t, repos.CalendarAppointment.Update(testpkg.TenantContext(1), &stale))
+	err = repos.CalendarAppointment.Update(testpkg.TenantContext(1), &stale)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, calModels.ErrAppointmentLifecycleConflict)
 
 	after, err := repos.CalendarAppointment.FindByID(testpkg.TenantContext(1), detail.Appointment.ID)
 	require.NoError(t, err)
 	require.NotNil(t, after)
-	assert.NotNil(t, after.CancelledAt, "cancellation must survive a concurrent content edit")
-	assert.Equal(t, "Edited concurrently", after.Title, "the edit's own content change still applies")
+	assert.NotNil(t, after.CancelledAt, "the cancellation stands")
+	assert.Equal(t, "Original", after.Title, "the racing edit did not apply")
 }
 
 func TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow(t *testing.T) {

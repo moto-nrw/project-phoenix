@@ -41,6 +41,10 @@ var (
 	ErrInvalidRequest = errors.New("invalid calendar request")
 	ErrForbidden      = errors.New("calendar access forbidden")
 	ErrNotFound       = errors.New("calendar item not found")
+	// ErrConflict signals that a concurrent lifecycle transition (cancel/delete)
+	// raced the current operation — e.g. an edit that began before the appointment
+	// was cancelled. Rendered as HTTP 409.
+	ErrConflict = errors.New("calendar item changed concurrently")
 )
 
 type Service interface {
@@ -349,6 +353,9 @@ func (s *service) CreateStaffAppointment(ctx context.Context, req CreateAppointm
 		AllDay:             req.AllDay,
 		DeliveryMode:       req.DeliveryMode,
 		OverviewVisibility: req.OverviewVisibility,
+		// Persist the notification opt-in so a later cancellation honours it: an
+		// appointment created without send_email never mails guardians.
+		NotifyGuardians: req.SendEmail,
 	}
 	if err := appointment.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
@@ -535,6 +542,13 @@ func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int6
 	}
 
 	if err := s.cfg.AppointmentRepo.Update(ctx, appointment); err != nil {
+		// A concurrent cancel/delete transitioned the appointment between load and
+		// write, so the conditional update matched nothing. Abort before touching
+		// recurrence/overrides or sending an "updated" notice; the tenant tx rolls
+		// back. Surface a conflict rather than a bogus success.
+		if errors.Is(err, calModels.ErrAppointmentLifecycleConflict) {
+			return nil, fmt.Errorf("%w: appointment was cancelled or deleted", ErrConflict)
+		}
 		return nil, err
 	}
 	// Replace the recurrence rule wholesale: the DB enforces one rule per
@@ -579,18 +593,26 @@ func (s *service) CancelStaffAppointment(ctx context.Context, appointmentID int6
 		// Cancel via the dedicated conditional update (not Update): it only writes
 		// cancelled_at/revision, so it can't clobber a concurrent edit and — being
 		// WHERE cancelled_at IS NULL — is idempotent under a concurrent cancel.
-		if err := s.cfg.AppointmentRepo.Cancel(ctx, appointment.ID); err != nil {
+		// `transitioned` is true only for the caller that actually flipped the row.
+		transitioned, err := s.cfg.AppointmentRepo.Cancel(ctx, appointment.ID)
+		if err != nil {
 			return nil, err
 		}
 		now := time.Now()
 		appointment.CancelledAt = &now
-		// Kill any queued reminders/notices for this appointment, then send a
-		// single cancellation notice.
-		if err := s.cancelPendingNotifications(ctx, appointment.ID, "appointment cancelled"); err != nil {
-			return nil, err
-		}
-		if err := s.notifyGuardians(ctx, appointment, platformModels.EmailKindAppointmentCancelled); err != nil {
-			return nil, err
+		// Only the caller that performed the transition does the notification work,
+		// so two concurrent cancels can't send duplicate guardian e-mails. And even
+		// then, honour the persisted opt-in: an appointment created without
+		// send_email never mails guardians on cancellation.
+		if transitioned {
+			if err := s.cancelPendingNotifications(ctx, appointment.ID, "appointment cancelled"); err != nil {
+				return nil, err
+			}
+			if appointment.NotifyGuardians {
+				if err := s.notifyGuardians(ctx, appointment, platformModels.EmailKindAppointmentCancelled); err != nil {
+					return nil, err
+				}
+			}
 		}
 	}
 	return s.appointmentDetail(ctx, appointment)

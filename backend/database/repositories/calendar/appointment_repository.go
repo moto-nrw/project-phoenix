@@ -198,12 +198,17 @@ func (r *AppointmentRepository) Update(ctx context.Context, appointment *calMode
 		// Every persisted edit bumps the revision so the iCalendar SEQUENCE
 		// advances and subscribers treat the event as a newer version.
 		Set(`revision = revision + 1`).
-		// Deliberately NOT setting cancelled_at/deleted_at: those lifecycle columns
-		// are owned by Cancel()/SoftDelete(). A content edit carries whatever
-		// cancelled_at the caller loaded, so writing it here would let an edit that
-		// started before a concurrent cancellation silently reactivate the
-		// appointment (overwrite cancelled_at back to NULL).
-		Where(`"appointment".id = ?`, appointment.ID)
+		// Deliberately NOT setting cancelled_at/deleted_at/notify_guardians: those
+		// columns are owned by Cancel()/SoftDelete()/create. A content edit carries
+		// whatever the caller loaded, so writing them here would let an edit that
+		// started before a concurrent cancellation reactivate the appointment.
+		Where(`"appointment".id = ?`, appointment.ID).
+		// Guard the edit against a concurrent lifecycle transition: an edit that
+		// began before a cancel/delete must not update a terminal appointment,
+		// replace its recurrence, or fire an "updated" notice. A cancelled/deleted
+		// row matches zero rows and is reported as a conflict.
+		Where(`"appointment".cancelled_at IS NULL`).
+		Where(`"appointment".deleted_at IS NULL`)
 
 	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
 		q = q.Where(where, val)
@@ -213,7 +218,14 @@ func (r *AppointmentRepository) Update(ctx context.Context, appointment *calMode
 	if err != nil {
 		return fmt.Errorf("update appointment: %w", err)
 	}
-	return base.AssertRowsAffected(result, 1, "update Appointment")
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("update appointment: rows affected: %w", err)
+	}
+	if affected == 0 {
+		return calModels.ErrAppointmentLifecycleConflict
+	}
+	return nil
 }
 
 // BumpRevision advances the appointment's revision (and updated_at) without
@@ -238,8 +250,11 @@ func (r *AppointmentRepository) BumpRevision(ctx context.Context, appointmentID 
 // Cancel marks the appointment cancelled (cancelled_at=now) and bumps the
 // revision, in a single conditional statement (WHERE cancelled_at IS NULL) so a
 // concurrent content edit cannot race it. Unlike SoftDelete the appointment
-// stays visible in interactive calendars (rendered "Abgesagt").
-func (r *AppointmentRepository) Cancel(ctx context.Context, appointmentID int64) error {
+// stays visible in interactive calendars (rendered "Abgesagt"). It returns
+// whether THIS call performed the transition (rows affected == 1): under
+// concurrent cancellations only the first transitions, so only that caller
+// should fire the guardian cancellation notice.
+func (r *AppointmentRepository) Cancel(ctx context.Context, appointmentID int64) (bool, error) {
 	now := time.Now()
 	q := base.GetDB(ctx, r.DB).NewUpdate().
 		TableExpr(tableExprAppointmentsAsAppointment).
@@ -251,10 +266,15 @@ func (r *AppointmentRepository) Cancel(ctx context.Context, appointmentID int64)
 	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
 		q = q.Where(where, val)
 	}
-	if _, err := q.Exec(ctx); err != nil {
-		return fmt.Errorf("cancel appointment: %w", err)
+	result, err := q.Exec(ctx)
+	if err != nil {
+		return false, fmt.Errorf("cancel appointment: %w", err)
 	}
-	return nil
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("cancel appointment: rows affected: %w", err)
+	}
+	return affected > 0, nil
 }
 
 // SoftDelete marks the appointment deleted (deleted_at=now) and bumps the

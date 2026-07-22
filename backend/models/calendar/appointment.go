@@ -87,11 +87,23 @@ type Appointment struct {
 	// bun soft_delete tag — the feed must be able to SELECT deleted rows, so the
 	// deleted_at IS NULL / IS NOT NULL filtering is done explicitly per query.
 	DeletedAt *time.Time `bun:"deleted_at" json:"deleted_at,omitempty"`
+	// NotifyGuardians persists the create-time send_email opt-in so guardian
+	// e-mails (including the cancellation notice) honour the organizer's original
+	// preference: an appointment created with send_email=false never mails
+	// guardians, even when it is later cancelled. No bun `default:` — that would
+	// make bun omit the `false` zero value on INSERT and let the column default
+	// (TRUE) win, silently re-enabling mail for an opted-out appointment.
+	NotifyGuardians bool `bun:"notify_guardians,notnull" json:"notify_guardians"`
 	// Revision is a monotonically increasing change counter used as the
 	// iCalendar SEQUENCE, so subscribed clients recognise edits/cancellations as
 	// newer revisions instead of retaining stale events.
 	Revision int `bun:"revision,notnull,default:0" json:"revision"`
 }
+
+// ErrAppointmentLifecycleConflict is returned by the repository when a content
+// update matches zero rows because the appointment was cancelled or deleted by a
+// concurrent request between load and write. The service maps it to a conflict.
+var ErrAppointmentLifecycleConflict = errors.New("appointment changed by a concurrent lifecycle transition")
 
 func (a *Appointment) Validate() error {
 	if a.OrganizerStaffID <= 0 {

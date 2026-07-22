@@ -17,8 +17,11 @@ type AppointmentRepository interface {
 	Delete(ctx context.Context, id any) error
 	// Cancel marks the appointment cancelled_at=now and bumps the revision with a
 	// conditional (cancelled_at IS NULL) update, so a concurrent content edit
-	// cannot silently reactivate it. The appointment stays visible interactively.
-	Cancel(ctx context.Context, appointmentID int64) error
+	// cannot silently reactivate it. It reports whether THIS call performed the
+	// transition (true) or found it already cancelled (false) — only the
+	// transitioning caller should send the cancellation notice. Stays visible
+	// interactively.
+	Cancel(ctx context.Context, appointmentID int64) (bool, error)
 	// SoftDelete marks the appointment deleted_at=now and bumps the revision. Used
 	// for feed-visible appointments so they vanish from interactive calendars but
 	// remain exportable as a durable STATUS:CANCELLED tombstone.
