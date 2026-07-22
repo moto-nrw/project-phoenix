@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
@@ -65,6 +66,10 @@ type StaffShiftService interface {
 	// see the implementation comment. Same optional-injection pattern as
 	// WorkSessionService.SetStaffShiftRepo.
 	SetSeriesExceptionRepo(repo scheduleModels.StaffShiftSeriesExceptionRepository)
+	// SetDeviationEventRepo injects the Änderungsprotokoll repository (#1884);
+	// when set, MoveShift appends a shift_moved audit event inside the same
+	// tenant tx. Same optional-injection pattern as SetSeriesExceptionRepo.
+	SetDeviationEventRepo(repo auditModels.DeviationEventRepository)
 }
 
 type StaffShiftUpdateOptions struct {
@@ -90,8 +95,13 @@ type staffShiftService struct {
 	staffRepo     usersModels.StaffRepository
 	shiftTypes    ShiftTypeService
 	exceptionRepo scheduleModels.StaffShiftSeriesExceptionRepository
-	db            *bun.DB
-	logger        *slog.Logger
+	// deviationEventRepo appends shift_moved Änderungsprotokoll rows (#1884).
+	// Optional so unit tests without audit stay unchanged; production wiring
+	// (services/factory.go) always sets it, making the event write fail-closed
+	// there (an audit failure rolls the move back).
+	deviationEventRepo auditModels.DeviationEventRepository
+	db                 *bun.DB
+	logger             *slog.Logger
 	// lockObserver, when set, is invoked with the sorted, de-duplicated staff-id
 	// set of every lockStaffWritesOrdered acquisition. It is a test-only seam: the
 	// advisory lock is a no-op without a DB, so a unit test cannot otherwise assert
@@ -115,6 +125,11 @@ func NewStaffShiftService(repo scheduleModels.StaffShiftRepository, staffRepo us
 // shift repo injection).
 func (s *staffShiftService) SetSeriesExceptionRepo(repo scheduleModels.StaffShiftSeriesExceptionRepository) {
 	s.exceptionRepo = repo
+}
+
+// SetDeviationEventRepo wires the Änderungsprotokoll repository (#1884).
+func (s *staffShiftService) SetDeviationEventRepo(repo auditModels.DeviationEventRepository) {
+	s.deviationEventRepo = repo
 }
 
 // lockShiftWrites takes the per-staff advisory lock before the overlap

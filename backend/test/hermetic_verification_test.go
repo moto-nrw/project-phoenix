@@ -303,6 +303,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"setupAutoApproveIntegrationEnv", // services/enrollment auto-approve integration tests — wraps setupRolloverTest
 		"setupGuardianInvitationTest",    // services/auth guardian invitation + related-accounts tests — wraps SetupTestDB
 		"makeScenario",                   // services/schedule materialization/split integration tests — wraps SetupTestDB
+		"makeMoveSetup",                  // services/schedule staff-pool/move tests (#1884) — wraps SetupTestDB
 		"buildDevSetup",                  // api/timetable deviations/protocol tests — wraps SetupTestDB
 		"setupCheckinServiceTest",        // services/iot/checkin CheckinService tests — wraps SetupAPITest (issue #575 B8)
 	}

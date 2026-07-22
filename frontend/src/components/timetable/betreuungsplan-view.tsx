@@ -48,6 +48,7 @@ import {
   InstanceDetailModal,
   type LifecycleAction,
 } from "~/components/timetable/instance-detail-modal";
+import { StaffPoolSlideOver } from "~/components/timetable/staff-pool-slide-over";
 import { TimetableAddMenu } from "~/components/timetable/timetable-add-menu";
 import { MonthPlannerGrid } from "~/components/timetable/month-planner-grid";
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
@@ -182,6 +183,7 @@ function TimetablesContent() {
     hasPermission(session, "schedules:read") &&
     hasPermission(session, "time_tracking:manage") &&
     hasPermission(session, "users:read");
+  const canManageSchedules = hasPermission(session, "schedules:manage");
   const toast = useToast();
   const tenantMutate = useTenantMutate();
   const tenantPath = useTenantAwarePath();
@@ -200,6 +202,12 @@ function TimetablesContent() {
   const todayISO = useMemo(() => berlinTodayISO(), []);
 
   const [eventModalOpen, setEventModalOpen] = useState(false);
+  // Personalpool (#1884): Zielblock, für den der Pool-SlideOver offen ist.
+  // Solange er offen ist, wird das Detail-Modal suspendiert (Kit-Modal
+  // z-9999 würde den SlideOver sonst verdecken; Muster aus PR #1962).
+  const [poolInstance, setPoolInstance] = useState<EnrichedInstance | null>(
+    null,
+  );
   const [eventDefaultRepeat, setEventDefaultRepeat] = useState<
     "none" | "weekly"
   >("none");
@@ -1148,7 +1156,20 @@ function TimetablesContent() {
         studentNames={studentNames}
         onAttendancePatch={handleAttendancePatch}
         editDeferred={false}
-        suspended={eventModalOpen}
+        suspended={eventModalOpen || poolInstance !== null}
+        onOpenPool={setPoolInstance}
+        canManageStaffPool={canManageSchedules}
+      />
+
+      <StaffPoolSlideOver
+        open={poolInstance !== null}
+        instance={poolInstance}
+        canManage={canManageSchedules}
+        onClose={() => setPoolInstance(null)}
+        onMoved={() => {
+          void tenantMutate(swrKey);
+          void tenantMutate(gapsSWRKey);
+        }}
       />
 
       <TimetableEventModal

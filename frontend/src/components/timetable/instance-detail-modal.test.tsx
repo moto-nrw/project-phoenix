@@ -778,3 +778,88 @@ describe("InstanceDetailModal", () => {
     expect(onDeleteCancelled).not.toHaveBeenCalled();
   });
 });
+
+describe("Personalpool-Affordanz (#1884)", () => {
+  it("zeigt 'Person hinzuziehen' für einen zukünftigen geplanten Block", () => {
+    const onOpenPool = vi.fn();
+    render(
+      <InstanceDetailModal
+        instance={instance({ date: "2099-05-04" })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onOpenPool={onOpenPool}
+        canManageStaffPool
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: /Person hinzuziehen/ });
+    fireEvent.click(button);
+    expect(onOpenPool).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "42" }),
+    );
+  });
+
+  it("zeigt einen neutralen Nur-Lese-Einstieg ohne Verwaltungsrecht", () => {
+    const onOpenPool = vi.fn();
+    render(
+      <InstanceDetailModal
+        instance={instance({ date: "2099-05-04" })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onOpenPool={onOpenPool}
+      />,
+    );
+
+    const button = screen.getByRole("button", {
+      name: /Personalpool ansehen/,
+    });
+    fireEvent.click(button);
+    expect(onOpenPool).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "42" }),
+    );
+    expect(
+      screen.queryByRole("button", { name: /Person hinzuziehen/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("versteckt die Affordanz für vergangene Blöcke", () => {
+    render(
+      <InstanceDetailModal
+        instance={instance({ date: "2020-05-04" })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onOpenPool={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: /Person hinzuziehen/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("versteckt die Affordanz für abgeschlossene Blöcke", () => {
+    render(
+      <InstanceDetailModal
+        instance={instance({ date: "2099-05-04", status: "completed" })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onOpenPool={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: /Person hinzuziehen/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("versteckt die Affordanz ohne onOpenPool-Handler", () => {
+    render(
+      <InstanceDetailModal
+        instance={instance({ date: "2099-05-04" })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: /Person hinzuziehen/ }),
+    ).not.toBeInTheDocument();
+  });
+});

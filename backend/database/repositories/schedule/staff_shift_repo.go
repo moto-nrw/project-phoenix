@@ -162,7 +162,11 @@ func (r *StaffShiftRepository) FindByStaffIDsAndDates(ctx context.Context, staff
 }
 
 // FindUsedCalendarWeeks returns distinct ISO-week Mondays for tenant shifts in
-// the inclusive range. The result is small even for multi-week probes.
+// the inclusive range. Cancelled shifts do not mark a week as planned — every
+// consumer (staff pool, coverage warnings, schedule overview) already ignores
+// them in its per-staff data, so counting them here would report a Dienstplan
+// as "in use" that offers nobody a usable shift. The result is small even for
+// multi-week probes.
 func (r *StaffShiftRepository) FindUsedCalendarWeeks(ctx context.Context, start, end timezone.Date) ([]timezone.Date, error) {
 	type usedWeekRow struct {
 		WeekStart timezone.Date `bun:"week_start,type:date"`
@@ -173,6 +177,7 @@ func (r *StaffShiftRepository) FindUsedCalendarWeeks(ctx context.Context, start,
 		ColumnExpr(`DISTINCT date_trunc('week', "staff_shift".date)::date AS week_start`).
 		Where(`"staff_shift".date >= ?`, start).
 		Where(`"staff_shift".date <= ?`, end).
+		Where(`"staff_shift".cancelled = FALSE`).
 		OrderExpr(`week_start ASC`)
 
 	query = base.WithTenantFilter(ctx, query, "staff_shift")

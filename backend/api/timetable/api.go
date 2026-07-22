@@ -183,6 +183,13 @@ func (rs *Resource) Router() chi.Router {
 				// tx so a mid-save failure never commits partial state.
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Post("/{id}/deviations", rs.applyDeviations)
+				// #1884 Personalpool: who is available / already planned in this
+				// block's window (read), and the atomic move of one person onto
+				// this block — from another block or from the free pool (write).
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/{id}/staff-pool", rs.getStaffPool)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Post("/{id}/move-staff", rs.moveStaff)
 
 			// WP-B10: three-field attendance PATCH. Gated on SchedulesManage
 			// like the lifecycle routes. Path params are {instance_id} and

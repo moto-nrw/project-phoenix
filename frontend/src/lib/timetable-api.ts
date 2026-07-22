@@ -27,6 +27,11 @@ import type {
   BackendSplitTemplateResult,
   BackendStartInstanceResult,
   BackendApplyDeviationsResponse,
+  BackendMoveStaffResponse,
+  BackendStaffPoolResponse,
+  MoveStaffInput,
+  MoveStaffResponse,
+  StaffPoolResponse,
   BackendTimetableTemplate,
   BackendTemplatesResponse,
   BackendWeeklyInstancesResponse,
@@ -67,6 +72,8 @@ import {
   mapGaps,
   mapDeviationHistory,
   mapApplyDeviations,
+  mapMoveStaff,
+  mapStaffPool,
   mapInstance,
   mapInstanceStatusResult,
   mapMaterializeResult,
@@ -676,6 +683,57 @@ class TimetableService {
       cancelled: raw.cancelled,
     });
     return mapApplyDeviations(raw);
+  }
+
+  /**
+   * GET /api/timetable/instances/{id}/staff-pool — Personalpool für das
+   * Zeitfenster des Blocks (#1884): jede Person kategorisiert gegen
+   * Dienstplan (Schichten) und überlappende Blockzuordnungen.
+   */
+  async getStaffPool(instanceId: string): Promise<StaffPoolResponse> {
+    const response = await fetch(
+      `/api/timetable/instances/${instanceId}/staff-pool`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    const raw = await unwrap<BackendStaffPoolResponse>(response);
+    return mapStaffPool(raw);
+  }
+
+  /**
+   * POST /api/timetable/instances/{id}/move-staff — atomarer Personal-Move
+   * (#1884): Entnahme aus dem Quellblock und Zuordnung zum Zielblock in
+   * EINEM Save; ohne sourceInstanceId wird eine freie Person zugewiesen.
+   */
+  async moveStaff(
+    instanceId: string,
+    input: MoveStaffInput,
+  ): Promise<MoveStaffResponse> {
+    const body: Record<string, unknown> = { staff_id: Number(input.staffId) };
+    if (input.sourceInstanceId) {
+      body.source_instance_id = Number(input.sourceInstanceId);
+    }
+    const response = await fetch(
+      `/api/timetable/instances/${instanceId}/move-staff`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(body),
+      },
+    );
+    const raw = await unwrap<BackendMoveStaffResponse>(response);
+    logger.info("staff_moved", {
+      target_instance_id: instanceId,
+      action: raw.action,
+    });
+    return mapMoveStaff(raw);
   }
 
   async patchAttendance(

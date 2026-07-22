@@ -17,7 +17,6 @@ package schedule
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -669,7 +668,10 @@ func (s *instanceService) executeDeviationPlan(ctx context.Context, instanceID i
 		return nil, err
 	}
 
-	warnings := s.collectDeviationWarnings(ctx, plan.subs, plan.subPlan, plan.date)
+	warnings, err := s.collectDeviationWarnings(ctx, plan.subs, plan.subPlan, plan.date)
+	if err != nil {
+		return nil, devErrInternal("deviation time-conflict detection failed", err)
+	}
 
 	return &ApplyDeviationsResult{
 		InstanceID:        instanceID,
@@ -747,14 +749,16 @@ func (s *instanceService) reconcileOtherAcks(ctx context.Context, instanceID int
 	return len(clearAck), nil
 }
 
-// collectDeviationWarnings merges per-substitute time-conflict advisories. Best
-// effort: a lookup failure logs and yields an empty list (never blocks a save).
+// collectDeviationWarnings merges per-substitute time-conflict advisories. A
+// lookup failure propagates as an error: the probe runs inside the tenant tx,
+// and a PostgreSQL error aborts that tx, so the eventual commit would fail
+// after the client already saw a 200.
 func (s *instanceService) collectDeviationWarnings(
 	ctx context.Context,
 	subs []DeviationSubstitutionInput,
 	plan []deviationSubOp,
 	date timezone.Date,
-) []SubstituteTimeConflict {
+) ([]SubstituteTimeConflict, error) {
 	warnings := make([]SubstituteTimeConflict, 0)
 	// One substitute can cover several absent colleagues, duplicating conflicts
 	// two ways: a repeated SubstituteStaffID in subs, and two ops staged on one
@@ -775,11 +779,7 @@ func (s *instanceService) collectDeviationWarnings(
 		}
 		w, err := s.buildSubstituteTimeConflicts(ctx, ops, sub.SubstituteStaffID, date)
 		if err != nil {
-			s.getLogger().Warn("deviation time-conflict detection failed",
-				slog.Int64("substitute_staff_id", sub.SubstituteStaffID),
-				slog.String("error", err.Error()),
-			)
-			continue
+			return nil, err
 		}
 		for _, conflict := range w {
 			key := [3]int64{sub.SubstituteStaffID, conflict.InstanceID, conflict.OtherID}
@@ -790,7 +790,7 @@ func (s *instanceService) collectDeviationWarnings(
 			warnings = append(warnings, conflict)
 		}
 	}
-	return warnings
+	return warnings, nil
 }
 
 // buildSubstituteTimeConflicts loads the substitute's OTHER (non-target)

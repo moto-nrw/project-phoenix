@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -92,7 +93,7 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		StaffIDs:        req.StaffIDs,
 		StudentIDs:      req.StudentIDs,
 		RequiredStaff:   normalizeRequiredStaff(req.RequiredStaff),
-	}, resolveActorAccountID(r.Context()))
+	}, jwt.ActorAccountIDFromCtx(r.Context()))
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return

@@ -26,6 +26,8 @@ import {
   getYearRange,
   groupInstancesByDate,
   mapApplyDeviations,
+  mapMoveStaff,
+  mapStaffPool,
   mapAttendance,
   mapConflictCheckResult,
   mapDeviationHistory,
@@ -1384,5 +1386,165 @@ describe("computeTimetableSetup", () => {
     expect(result.totalSteps).toBe(2);
     expect(result.completedSteps).toBe(1);
     expect(result.progressPercent).toBe(50);
+  });
+});
+
+describe("staff pool + move mappers (#1884)", () => {
+  it("labels the new deviation event types", () => {
+    expect(deviationEventLabel("staff_moved")).toBe("Person verschoben");
+    expect(deviationEventLabel("shift_moved")).toBe("Schicht verschoben");
+  });
+
+  it("maps a staff pool response including null collections", () => {
+    expect(
+      mapStaffPool({
+        instance_id: 42,
+        title: "Mensa",
+        date: "2026-05-04",
+        start_time: "12:30",
+        end_time: "13:30",
+        dienstplan_in_use: true,
+        entries: [
+          {
+            staff_id: 7,
+            display_name: "Ina Umzieherin",
+            category: "assigned_elsewhere",
+            on_shift: true,
+            covers_window: true,
+            shift_windows: ["08:00–16:00"],
+            absence_reason: null,
+            assignments: [
+              {
+                instance_id: 41,
+                title: "Schulhof",
+                start_time: "12:00",
+                end_time: "14:00",
+                is_substitute: false,
+              },
+            ],
+          },
+          {
+            staff_id: 8,
+            display_name: "Frido Verfuegbar",
+            category: "on_shift_free",
+            on_shift: true,
+            covers_window: false,
+            shift_windows: null,
+            assignments: null,
+          },
+        ],
+      }),
+    ).toEqual({
+      instanceId: "42",
+      title: "Mensa",
+      date: "2026-05-04",
+      startTime: "12:30",
+      endTime: "13:30",
+      dienstplanInUse: true,
+      entries: [
+        {
+          staffId: "7",
+          displayName: "Ina Umzieherin",
+          category: "assigned_elsewhere",
+          onShift: true,
+          coversWindow: true,
+          shiftWindows: ["08:00–16:00"],
+          absenceReason: undefined,
+          assignments: [
+            {
+              instanceId: "41",
+              title: "Schulhof",
+              startTime: "12:00",
+              endTime: "14:00",
+              isSubstitute: false,
+            },
+          ],
+        },
+        {
+          staffId: "8",
+          displayName: "Frido Verfuegbar",
+          category: "on_shift_free",
+          onShift: true,
+          coversWindow: false,
+          shiftWindows: [],
+          absenceReason: undefined,
+          assignments: [],
+        },
+      ],
+    });
+  });
+
+  it("maps a move result with advisory warnings", () => {
+    expect(
+      mapMoveStaff({
+        target_instance_id: 42,
+        source_instance_id: 41,
+        action: "moved",
+        time_conflicts: [
+          {
+            instance_id: 44,
+            title: "AG",
+            date: "2026-05-04",
+            start_time: "13:00",
+            end_time: "14:00",
+          },
+        ],
+        coverage_warnings: [
+          {
+            staff_id: 7,
+            staff_name: "Ina Umzieherin",
+            date: "2026-05-04",
+            start_time: "12:30",
+            end_time: "13:30",
+            uncovered_start_time: "13:00",
+            uncovered_end_time: "13:30",
+            message: "Keine Schicht deckt 13:00–13:30 ab",
+          },
+        ],
+      }),
+    ).toEqual({
+      targetInstanceId: "42",
+      sourceInstanceId: "41",
+      action: "moved",
+      timeConflicts: [
+        {
+          instanceId: "44",
+          title: "AG",
+          date: "2026-05-04",
+          startTime: "13:00",
+          endTime: "14:00",
+        },
+      ],
+      coverageWarnings: [
+        {
+          staffId: "7",
+          staffName: "Ina Umzieherin",
+          date: "2026-05-04",
+          startTime: "12:30",
+          endTime: "13:30",
+          uncoveredStartTime: "13:00",
+          uncoveredEndTime: "13:30",
+          message: "Keine Schicht deckt 13:00–13:30 ab",
+        },
+      ],
+    });
+  });
+
+  it("maps a pool assign without source and defaults null warning lists", () => {
+    expect(
+      mapMoveStaff({
+        target_instance_id: 42,
+        source_instance_id: null,
+        action: "assigned",
+        time_conflicts: null,
+        coverage_warnings: null,
+      }),
+    ).toEqual({
+      targetInstanceId: "42",
+      sourceInstanceId: undefined,
+      action: "assigned",
+      timeConflicts: [],
+      coverageWarnings: [],
+    });
   });
 });

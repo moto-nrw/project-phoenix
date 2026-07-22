@@ -25,6 +25,7 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -114,7 +115,7 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := rs.InstanceService.ApplyDeviations(ctx, id, req.toServiceInput(resolveActorAccountID(ctx)))
+	result, err := rs.InstanceService.ApplyDeviations(ctx, id, req.toServiceInput(jwt.ActorAccountIDFromCtx(ctx)))
 	if err != nil {
 		renderDeviationError(w, r, err)
 		return

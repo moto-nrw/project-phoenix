@@ -481,15 +481,16 @@ func (rs *Resource) move(w http.ResponseWriter, r *http.Request) {
 	}
 
 	saved, err := rs.Service.MoveShift(r.Context(), scheduleSvc.MoveShiftInput{
-		ShiftID:       id,
-		SourceStaffID: req.SourceStaffID,
-		TargetStaffID: req.TargetStaffID,
-		Date:          date,
-		StartTime:     start,
-		EndTime:       end,
-		BreakMinutes:  req.BreakMinutes,
-		ShiftTypeID:   req.ShiftTypeID.Value,
-		ActorStaffID:  editorID,
+		ShiftID:        id,
+		SourceStaffID:  req.SourceStaffID,
+		TargetStaffID:  req.TargetStaffID,
+		Date:           date,
+		StartTime:      start,
+		EndTime:        end,
+		BreakMinutes:   req.BreakMinutes,
+		ShiftTypeID:    req.ShiftTypeID.Value,
+		ActorStaffID:   editorID,
+		ActorAccountID: jwt.ActorAccountIDFromCtx(r.Context()),
 	})
 	if err != nil {
 		// A series exception may already have been written before a later
