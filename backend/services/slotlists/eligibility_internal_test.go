@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -76,5 +77,26 @@ func TestEligibleOn_ImmediateActivation(t *testing.T) {
 				t.Fatalf("eligibleOn = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+// TestSummarySlotCount_CancelledSlots covers the #1565-review fix that a slot
+// cancelled AFTER it ran (and so retaining present rows) counts as a contained
+// Termin, while a cancelled slot that never ran is still skipped. Deferred slots
+// are excluded regardless. The active slot is the baseline that always counts.
+func TestSummarySlotCount_CancelledSlots(t *testing.T) {
+	result := &Result{
+		Slots: []Slot{
+			{InstanceID: 1, Status: scheduleModel.InstanceStatusActive},    // baseline → counts
+			{InstanceID: 2, Status: scheduleModel.InstanceStatusCancelled}, // never ran → skipped
+			{InstanceID: 3, Status: scheduleModel.InstanceStatusCancelled}, // ran, retained rows → counts
+			{InstanceID: 4, Status: scheduleModel.InstanceStatusActive},    // deferred → skipped
+		},
+		retainedCancelledSlots: map[int64]struct{}{3: {}},
+		deferredSlots:          map[int64]struct{}{4: {}},
+	}
+
+	if got := summarySlotCount(Params{Target: TargetSlots}, result); got != 2 {
+		t.Fatalf("summarySlotCount = %d, want 2 (active baseline + ran-then-cancelled)", got)
 	}
 }

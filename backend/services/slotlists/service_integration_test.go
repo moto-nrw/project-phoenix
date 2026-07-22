@@ -320,6 +320,56 @@ func TestBuildList_MensaReconciliation(t *testing.T) {
 	assert.True(t, walkInRow.Unplanned)
 }
 
+// TestBuildList_CancelledFromActiveRetainsAttendance proves that a slot
+// cancelled AFTER it ran keeps the visits recorded during its brief run as
+// present rows, while its now-void plan produces no "Fehlt". InstanceService.Cancel
+// on an already-active instance ends the active group but deliberately preserves
+// ActiveGroupID and its historical visits, so dropping the slot wholesale would
+// erase documented attendance from Ist and Abgleich (#1565 review).
+func TestBuildList_CancelledFromActiveRetainsAttendance(t *testing.T) {
+	f := buildMensaFixture(t)
+	ctx := testpkg.TenantContext(1)
+
+	// Flip the instance to cancelled while preserving its ActiveGroupID and
+	// visits — exactly the state Cancel leaves behind for a slot that was active
+	// when it was called off.
+	_, err := f.db.NewUpdate().
+		Model((*scheduleModels.ActivityInstance)(nil)).
+		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
+		Set("status = ?", scheduleModels.InstanceStatusCancelled).
+		Where(`"activity_instance".id = ?`, f.instanceID).
+		Where("tenant_id = ?", 1).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	result, err := f.svc.BuildList(ctx, slotlists.Params{
+		Date:   listDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+
+	// planned + walkIn each had a slot-overlapping visit → retained as present
+	// evidence. The void plan is dropped, so both read as unplanned presence.
+	plannedRow := rowByStudent(result.Rows, f.plannedID)
+	require.NotNil(t, plannedRow, "a child present during the run before cancellation stays on the list")
+	assert.True(t, plannedRow.Present)
+	assert.False(t, plannedRow.Planned, "the void plan is dropped; presence is unplanned evidence")
+	assert.True(t, plannedRow.Unplanned)
+
+	walkInRow := rowByStudent(result.Rows, f.walkInID)
+	require.NotNil(t, walkInRow, "a walk-in present during the run stays on the list")
+	assert.True(t, walkInRow.Present)
+
+	// missing had no visit → the void plan must NOT print it as "Fehlt".
+	assert.Nil(t, rowByStudent(result.Rows, f.missingID),
+		"a planned no-show on a cancelled slot must not print as Fehlt")
+
+	assert.Equal(t, 2, result.Counters.Present)
+	assert.Equal(t, 0, result.Counters.Missing, "a cancelled slot produces no missing rows")
+	assert.Equal(t, 0, result.Counters.Planned, "a cancelled slot's void plan yields no planned rows")
+}
+
 func TestBuildList_ListKindRestrictsSlots(t *testing.T) {
 	f := buildMensaFixture(t)
 	ctx := testpkg.TenantContext(1)

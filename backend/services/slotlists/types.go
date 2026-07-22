@@ -281,6 +281,12 @@ type Result struct {
 	// serializes; it exists only so the export "Enthalten" summary does not count
 	// slots the export contains no rows for (#1565 review).
 	deferredSlots map[int64]struct{}
+	// retainedCancelledSlots holds cancelled instance IDs that nonetheless
+	// produced rows because they ran briefly before being called off and kept the
+	// visits recorded during that run (see collectSlotEntries). Unexported so it
+	// never serializes; it exists only so the export "Enthalten" summary counts
+	// these as contained Termine instead of skipping every cancelled slot (#1565).
+	retainedCancelledSlots map[int64]struct{}
 }
 
 // PickupCohortOption describes whether a Ganztag pickup bucket has rows on a

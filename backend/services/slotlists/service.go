@@ -785,8 +785,11 @@ type mergedEntry struct {
 // collectSlotEntries derives the cohort from materialized activity instances
 // (Plan) and their bridged active-group visits (Ist). A visit counts as present
 // when it overlaps the slot's Berlin-local time window, so historical
-// checked-out visits remain valid evidence for past lists. Cancelled slots are
-// returned as selectable context but do not produce rows.
+// checked-out visits remain valid evidence for past lists. A cancelled slot
+// that never started produces no rows (selectable context only), but one that
+// was cancelled *after* running keeps the visits recorded during its brief run
+// as present rows — its void plan is dropped so no planned no-show prints as
+// "Fehlt".
 func (s *service) collectSlotEntries(ctx context.Context, params Params, result *Result) ([]mergedEntry, error) {
 	instances, err := s.instanceRepo.FindByTenantAndDate(ctx, params.Date)
 	if err != nil {
@@ -827,7 +830,15 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 			TimeRange:  fmt.Sprintf("%s–%s", inst.StartTime.Format(timeLayout), inst.EndTime.Format(timeLayout)),
 			Status:     inst.Status,
 		})
-		if inst.Status == scheduleModel.InstanceStatusCancelled {
+		// A cancelled slot that never ran (no active group ever attached) has no
+		// attendance to preserve — skip it; it stays selectable context in
+		// result.Slots above. But InstanceService.Cancel on an already-active
+		// instance ends the active group while deliberately keeping ActiveGroupID
+		// and the visits recorded during the brief run. Dropping such a slot too
+		// would erase documented attendance from Ist and Abgleich, so let it
+		// through; the process loop below suppresses its (now void) roster so only
+		// the present children surface, never a planned no-show as "Fehlt".
+		if inst.Status == scheduleModel.InstanceStatusCancelled && inst.ActiveGroupID == nil {
 			continue
 		}
 		// A reconciliation before the slot's scheduled start has no presence
@@ -899,6 +910,14 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 		slotLabel := p.slotLabel
 		roomName := p.roomName
 		planned := rosterByInstance[inst.ID]
+		cancelled := inst.Status == scheduleModel.InstanceStatusCancelled
+		if cancelled {
+			// The slot ran briefly, then was called off: its plan is void, so no
+			// roster row is a genuine expectation and none may print as "Fehlt".
+			// Suppress the roster and let only the present-loop below retain the
+			// visit evidence recorded during the run as unplanned-present rows.
+			planned = nil
+		}
 		presentSet, err := s.loadPresentStudents(ctx, inst)
 		if err != nil {
 			return nil, err
@@ -1016,6 +1035,16 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 			}
 			if _, ok := seenPlanned[studentID]; ok {
 				continue
+			}
+			if cancelled {
+				// The export "Enthalten" summary skips cancelled slots by default;
+				// record the ones that actually retained a present row so the header
+				// counts them as contained Termine and does not undercount (the same
+				// row/header consistency the deferred-slot handling guards).
+				if result.retainedCancelledSlots == nil {
+					result.retainedCancelledSlots = map[int64]struct{}{}
+				}
+				result.retainedCancelledSlots[inst.ID] = struct{}{}
 			}
 			entries = append(entries, mergedEntry{
 				StudentID:  studentID,
@@ -1664,20 +1693,27 @@ func includedSummary(params Params, result *Result) string {
 
 // summarySlotCount is the number of slots the export actually contains. When an
 // explicit instance selection is present (InstanceIDsSet, even for a classified
-// list_kind) the count is restricted to the selected, non-cancelled slots — so a
-// filtered export reports its real subset instead of claiming the whole cohort
-// (#1565 review). result.Slots is always the full set of matching slots, so the
-// selection has to be re-applied here. Deferred slots (a not-yet-started
-// reconciliation occurrence excluded from the merge in collectSlotEntries) are
-// dropped in both branches: they yield no export rows, so counting them would
-// let the header claim Termine/Angebote the export does not contain (#1565).
+// list_kind) the count is restricted to the selected slots — so a filtered
+// export reports its real subset instead of claiming the whole cohort (#1565
+// review). result.Slots is always the full set of matching slots, so the
+// selection has to be re-applied here. A cancelled slot is dropped unless it ran
+// briefly before being called off and retained present rows (retainedCancelledSlots);
+// deferred slots (a not-yet-started reconciliation occurrence excluded from the
+// merge in collectSlotEntries) are dropped in both branches: they yield no export
+// rows, so counting them would let the header claim Termine/Angebote the export
+// does not contain (#1565).
 func summarySlotCount(params Params, result *Result) int {
 	all := !params.InstanceIDsSet && len(params.InstanceIDs) == 0
 	selected := int64Set(params.InstanceIDs)
 	count := 0
 	for _, slot := range result.Slots {
 		if slot.Status == string(scheduleModel.InstanceStatusCancelled) {
-			continue
+			// A cancelled slot contributes no rows unless it ran briefly before
+			// being called off and retained present children — only then does it
+			// count as a contained Termin (see collectSlotEntries).
+			if _, retained := result.retainedCancelledSlots[slot.InstanceID]; !retained {
+				continue
+			}
 		}
 		if _, deferred := result.deferredSlots[slot.InstanceID]; deferred {
 			continue
