@@ -95,7 +95,10 @@ function mockPool(pool: Partial<StaffPoolResponse>) {
   } as unknown as ReturnType<typeof useSWRAuth>);
 }
 
-function renderPool(overrides: Partial<StaffPoolResponse> = {}) {
+function renderPool(
+  overrides: Partial<StaffPoolResponse> = {},
+  canManage = true,
+) {
   mockPool(overrides);
   const onMoved = vi.fn();
   const onClose = vi.fn();
@@ -103,6 +106,7 @@ function renderPool(overrides: Partial<StaffPoolResponse> = {}) {
     <StaffPoolSlideOver
       open
       instance={makeInstance()}
+      canManage={canManage}
       onClose={onClose}
       onMoved={onMoved}
     />,
@@ -150,6 +154,34 @@ describe("StaffPoolSlideOver", () => {
   it("shows a hint when no Dienstplan exists for the week", () => {
     renderPool({ dienstplanInUse: false });
     expect(screen.getByText(/kein Dienstplan gepflegt/)).toBeInTheDocument();
+  });
+
+  it("keeps the pool readable but hides mutations without schedules:manage", () => {
+    renderPool(
+      {
+        entries: [
+          entry(),
+          entry({
+            staffId: "8",
+            displayName: "Frido Verfuegbar",
+            category: "on_shift_free",
+            assignments: [],
+          }),
+        ],
+      },
+      false,
+    );
+
+    expect(screen.getByText("Ina Umzieherin")).toBeVisible();
+    expect(screen.getByText("Frido Verfuegbar")).toBeVisible();
+    expect(screen.getByText(/nur Leserechte/)).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /Hierher verschieben/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Zuweisen/ }),
+    ).not.toBeInTheDocument();
+    expect(mockMoveStaff).not.toHaveBeenCalled();
   });
 
   it("moves a person after the confirm step and revalidates", async () => {

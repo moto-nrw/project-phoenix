@@ -13,6 +13,8 @@
 // instance_move_staff.go). The handler parses, calls the service once, maps
 // DeviationError onto the wire contract, attaches advisory shift-coverage
 // warnings (#1873, never blocking), and fires the post-save SSE signals.
+// A source-less direct request may still assign someone outside their shift or
+// alongside another assignment: those remain deliberate advisory conflicts.
 //
 // Permission: SchedulesManage. Same tenant tx as the other /instances routes.
 package timetable
@@ -25,6 +27,7 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
@@ -69,7 +72,7 @@ func (rs *Resource) moveStaff(w http.ResponseWriter, r *http.Request) {
 	result, err := rs.InstanceService.MoveStaffBetweenBlocks(ctx, id, scheduleSvc.MoveStaffInput{
 		StaffID:          req.StaffID,
 		SourceInstanceID: req.SourceInstanceID,
-		ActorAccountID:   resolveActorAccountID(ctx),
+		ActorAccountID:   jwt.ActorAccountIDFromCtx(ctx),
 	})
 	if err != nil {
 		renderDeviationError(w, r, err)

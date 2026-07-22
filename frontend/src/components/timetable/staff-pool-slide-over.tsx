@@ -48,6 +48,7 @@ import type {
   StaffPoolEntry,
   StaffPoolResponse,
 } from "~/lib/timetable-types";
+import { timetableMutedSurface } from "./timetable-style";
 
 const logger = createLogger({ component: "StaffPoolSlideOver" });
 
@@ -55,6 +56,8 @@ interface StaffPoolSlideOverProps {
   open: boolean;
   /** Zielblock, der Personal gewinnt. */
   instance: EnrichedInstance | null;
+  /** Mutation controls require schedules:manage; the pool itself is readable. */
+  canManage: boolean;
   onClose: () => void;
   /** Nach erfolgreichem Move/Zuweisen: Caches revalidieren. */
   onMoved: () => void;
@@ -69,6 +72,7 @@ interface PendingMove {
 export function StaffPoolSlideOver({
   open,
   instance,
+  canManage,
   onClose,
   onMoved,
 }: StaffPoolSlideOverProps) {
@@ -90,7 +94,7 @@ export function StaffPoolSlideOver({
   const grouped = useMemo(() => groupEntries(pool), [pool]);
 
   const handleConfirmMove = async () => {
-    if (!pendingMove || !instanceId) return;
+    if (!canManage || !pendingMove || !instanceId) return;
     setSaving(true);
     try {
       const result = await timetableService.moveStaff(instanceId, {
@@ -124,7 +128,7 @@ export function StaffPoolSlideOver({
     <>
       <SlideOver
         open={open}
-        dismissible={pendingMove === null}
+        dismissible={!canManage || pendingMove === null}
         onOpenChange={(next) => {
           if (!next) onClose();
         }}
@@ -158,6 +162,14 @@ export function StaffPoolSlideOver({
                 </span>
               </div>
             )}
+            {pool && !canManage && (
+              <p
+                className={`${timetableMutedSurface} p-3 text-sm text-gray-500`}
+              >
+                Sie haben nur Leserechte für den Betreuungsplan. Personal kann
+                nur mit Verwaltungsrechten verschoben oder zugewiesen werden.
+              </p>
+            )}
             {pool && (
               <>
                 <PoolSection
@@ -165,22 +177,27 @@ export function StaffPoolSlideOver({
                   icon={<ArrowLeftRight className="h-3.5 w-3.5" />}
                   emptyText="Niemand ist zeitgleich auf einem anderen Block eingeplant."
                   entries={grouped.assignedElsewhere}
-                  renderActions={(entry) =>
-                    entry.assignments.map((assignment) => (
-                      <Button
-                        key={assignment.instanceId}
-                        type="button"
-                        variant="outline"
-                        size="compact"
-                        disabled={saving}
-                        onClick={() => setPendingMove({ entry, assignment })}
-                      >
-                        <span className="inline-flex items-center gap-1.5">
-                          <ArrowLeftRight className="h-3.5 w-3.5" />
-                          Hierher verschieben
-                        </span>
-                      </Button>
-                    ))
+                  renderActions={
+                    canManage
+                      ? (entry) =>
+                          entry.assignments.map((assignment) => (
+                            <Button
+                              key={assignment.instanceId}
+                              type="button"
+                              variant="outline"
+                              size="compact"
+                              disabled={saving}
+                              onClick={() =>
+                                setPendingMove({ entry, assignment })
+                              }
+                            >
+                              <span className="inline-flex items-center gap-1.5">
+                                <ArrowLeftRight className="h-3.5 w-3.5" />
+                                Hierher verschieben
+                              </span>
+                            </Button>
+                          ))
+                      : undefined
                   }
                 />
                 <PoolSection
@@ -188,20 +205,24 @@ export function StaffPoolSlideOver({
                   icon={<UserPlus className="h-3.5 w-3.5" />}
                   emptyText="Niemand ist im Zeitfenster frei im Dienst."
                   entries={grouped.onShiftFree}
-                  renderActions={(entry) => (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="compact"
-                      disabled={saving}
-                      onClick={() => setPendingMove({ entry })}
-                    >
-                      <span className="inline-flex items-center gap-1.5">
-                        <UserPlus className="h-3.5 w-3.5" />
-                        Zuweisen
-                      </span>
-                    </Button>
-                  )}
+                  renderActions={
+                    canManage
+                      ? (entry) => (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="compact"
+                            disabled={saving}
+                            onClick={() => setPendingMove({ entry })}
+                          >
+                            <span className="inline-flex items-center gap-1.5">
+                              <UserPlus className="h-3.5 w-3.5" />
+                              Zuweisen
+                            </span>
+                          </Button>
+                        )
+                      : undefined
+                  }
                 />
                 <PoolSection
                   title="Bereits auf diesem Block"
@@ -228,7 +249,7 @@ export function StaffPoolSlideOver({
         </SlideOverContent>
       </SlideOver>
 
-      {pendingMove && instance && (
+      {canManage && pendingMove && instance && (
         <ConfirmationModal
           isOpen
           onClose={() => setPendingMove(null)}

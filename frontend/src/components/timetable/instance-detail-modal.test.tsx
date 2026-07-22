@@ -788,6 +788,7 @@ describe("Personalpool-Affordanz (#1884)", () => {
         onClose={vi.fn()}
         onLifecycleAction={vi.fn()}
         onOpenPool={onOpenPool}
+        canManageStaffPool
       />,
     );
 
@@ -796,6 +797,29 @@ describe("Personalpool-Affordanz (#1884)", () => {
     expect(onOpenPool).toHaveBeenCalledWith(
       expect.objectContaining({ id: "42" }),
     );
+  });
+
+  it("zeigt einen neutralen Nur-Lese-Einstieg ohne Verwaltungsrecht", () => {
+    const onOpenPool = vi.fn();
+    render(
+      <InstanceDetailModal
+        instance={instance({ date: "2099-05-04" })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onOpenPool={onOpenPool}
+      />,
+    );
+
+    const button = screen.getByRole("button", {
+      name: /Personalpool ansehen/,
+    });
+    fireEvent.click(button);
+    expect(onOpenPool).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "42" }),
+    );
+    expect(
+      screen.queryByRole("button", { name: /Person hinzuziehen/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("versteckt die Affordanz für vergangene Blöcke", () => {

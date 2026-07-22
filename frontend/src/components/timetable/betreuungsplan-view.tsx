@@ -183,6 +183,7 @@ function TimetablesContent() {
     hasPermission(session, "schedules:read") &&
     hasPermission(session, "time_tracking:manage") &&
     hasPermission(session, "users:read");
+  const canManageSchedules = hasPermission(session, "schedules:manage");
   const toast = useToast();
   const tenantMutate = useTenantMutate();
   const tenantPath = useTenantAwarePath();
@@ -1157,11 +1158,13 @@ function TimetablesContent() {
         editDeferred={false}
         suspended={eventModalOpen || poolInstance !== null}
         onOpenPool={setPoolInstance}
+        canManageStaffPool={canManageSchedules}
       />
 
       <StaffPoolSlideOver
         open={poolInstance !== null}
         instance={poolInstance}
+        canManage={canManageSchedules}
         onClose={() => setPoolInstance(null)}
         onMoved={() => {
           void tenantMutate(swrKey);

@@ -330,6 +330,7 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
     onEdit,
     onRepeat,
     onAttendancePatch,
+    canManageStaffPool,
   }: {
     instance: { id: string } | null;
     onClose: () => void;
@@ -349,9 +350,13 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
       studentId: string,
       body: { status: "present" },
     ) => Promise<void>;
+    canManageStaffPool: boolean;
   }) =>
     instance ? (
       <div>
+        <span data-testid="detail-can-manage-pool">
+          {String(canManageStaffPool)}
+        </span>
         <button type="button" onClick={onClose}>
           detail-close
         </button>
@@ -768,6 +773,32 @@ describe("BetreuungsplanView", () => {
     // Kein Alt-URL-Parameter überlebt.
     expect(urlParams().has("week")).toBe(false);
     expect(urlParams().has("month")).toBe(false);
+  });
+
+  it("passes schedules:manage to the staff-pool controls", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:manage"] } },
+    });
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByRole("button", { name: "week-grid" }));
+    expect(screen.getByTestId("detail-can-manage-pool")).toHaveTextContent(
+      "true",
+    );
+  });
+
+  it("keeps staff-pool controls read-only without schedules:manage", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:read"] } },
+    });
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByRole("button", { name: "week-grid" }));
+    expect(screen.getByTestId("detail-can-manage-pool")).toHaveTextContent(
+      "false",
+    );
   });
 
   it("falls back to the week for an unknown view value", () => {

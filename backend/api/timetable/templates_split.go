@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -164,7 +165,7 @@ func (rs *Resource) splitTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.GradeLevelMax = gradeLevelMax
-	in.ActorAccountID = resolveActorAccountID(r.Context())
+	in.ActorAccountID = jwt.ActorAccountIDFromCtx(r.Context())
 	// Same tenant-scoped period check the create/update handlers run; the
 	// returned roster start date is unused — the split anchors rosters on
 	// the effective date instead.

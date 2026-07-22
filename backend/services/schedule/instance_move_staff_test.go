@@ -261,6 +261,23 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, de.Status)
 	})
 
+	t.Run("pool assign rejects day-wide absence from a terminal block", func(t *testing.T) {
+		terminal := createMoveInstance(t, s, "Abgeschlossene Historie", "09:00", "10:00", scheduleModels.InstanceStatusCompleted)
+		defer testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", terminal.ID)
+		absent := createMoveStaffRow(t, s, terminal.ID, s.otherID, func(row *scheduleModels.InstanceStaff) {
+			row.IsAbsent = true
+		})
+		defer testpkg.CleanupTableRecords(t, s.db, "schedule.instance_staff", absent.ID)
+
+		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, scheduleSvc.MoveStaffInput{
+			StaffID: s.otherID,
+		})
+		de := requireDeviationErr(t, err)
+		assert.Equal(t, http.StatusConflict, de.Status)
+		assert.Equal(t, "staff_absent_on_date", de.Code)
+		assert.Empty(t, loadInstanceStaffRows(t, s.db, s.ctx, s.target.ID))
+	})
+
 	t.Run("cross-date move rejected", func(t *testing.T) {
 		otherDay := &scheduleModels.ActivityInstance{
 			Date:      moveTestDate().AddDays(1),
@@ -342,7 +359,7 @@ func TestMoveStaffBetweenBlocks_TargetAckClearedSourceAckKept(t *testing.T) {
 	assert.True(t, source.UnderstaffedAck, "the source stays deliberately understaffed")
 }
 
-func TestMoveStaffBetweenBlocks_ActiveBlocksSyncSupervision(t *testing.T) {
+func TestMoveStaffBetweenBlocks_ActiveBlocksSyncSupervisionAndAllowRoundTrip(t *testing.T) {
 	s := makeMoveSetup(t)
 	defer s.cleanup(t)
 	sourceGroup := testpkg.CreateTestActiveGroupForTenant(t, s.db, s.tenantID)
@@ -410,6 +427,39 @@ func TestMoveStaffBetweenBlocks_ActiveBlocksSyncSupervision(t *testing.T) {
 		Scan(s.ctx))
 	require.Len(t, targetSups, 1, "target supervision started")
 	assert.Nil(t, targetSups[0].EndDate)
+
+	// Moving back ends the target supervision and creates a new active source
+	// row. The partial unique index applies only to end_date IS NULL, so the
+	// historical source row must not cause a uniqueness failure.
+	reverse, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.source.ID, scheduleSvc.MoveStaffInput{
+		StaffID:          s.staffID,
+		SourceInstanceID: &s.target.ID,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, scheduleSvc.MoveStaffActionMoved, reverse.Action)
+	assert.Len(t, reverse.ActiveTouched, 2)
+
+	var sourceSups []*activeModels.GroupSupervisor
+	require.NoError(t, s.db.NewSelect().
+		Model(&sourceSups).
+		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
+		Where(`"group_supervisor".group_id = ?`, sourceGroup.ID).
+		Where(`"group_supervisor".staff_id = ?`, s.staffID).
+		OrderExpr(`"group_supervisor".id ASC`).
+		Scan(s.ctx))
+	require.Len(t, sourceSups, 2)
+	assert.NotNil(t, sourceSups[0].EndDate)
+	assert.Nil(t, sourceSups[1].EndDate)
+
+	targetSups = nil
+	require.NoError(t, s.db.NewSelect().
+		Model(&targetSups).
+		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
+		Where(`"group_supervisor".group_id = ?`, targetGroup.ID).
+		Where(`"group_supervisor".staff_id = ?`, s.staffID).
+		Scan(s.ctx))
+	require.Len(t, targetSups, 1)
+	assert.NotNil(t, targetSups[0].EndDate)
 }
 
 // Guard: a DeviationError must always be extractable for the handler mapping.

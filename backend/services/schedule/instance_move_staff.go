@@ -33,6 +33,8 @@ const (
 
 // MoveStaffInput is the parsed move request. A nil SourceInstanceID assigns a
 // person from the pool (create) instead of relocating an existing assignment.
+// Shift gaps and other assignments remain advisory; absence is the one
+// day-wide availability state that blocks the write.
 type MoveStaffInput struct {
 	StaffID          int64
 	SourceInstanceID *int64
@@ -159,6 +161,18 @@ func (s *instanceService) planStaffMove(ctx context.Context, targetID int64, loc
 			plan.action = MoveStaffActionAlreadyApplied
 			return plan, nil
 		}
+		// Absence is day-wide (#1840), not target-row-wide. The pool UI never
+		// offers absent staff, but a stale/direct API request must enforce the
+		// same rule authoritatively under the shared day lock.
+		dayRows, err := s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, in.StaffID, target.Date)
+		if err != nil {
+			return nil, devErrInternal("load same-day staff assignments failed", err)
+		}
+		for _, row := range dayRows {
+			if row != nil && row.IsAbsent {
+				return nil, devErrConflict("staff_absent_on_date", "die Person ist an diesem Tag abwesend markiert")
+			}
+		}
 		plan.action = MoveStaffActionAssigned
 		return plan, nil
 	}
@@ -177,7 +191,9 @@ func (s *instanceService) planStaffMove(ctx context.Context, targetID int64, loc
 
 	if onTarget != nil {
 		if onSource == nil && !onTarget.IsAbsent {
-			// A successful move retried: already on target, gone from source.
+			// A successful move retried: already on target, gone from source. This
+			// deliberately cannot distinguish a genuine retry from a client that
+			// supplied the wrong historical source after the person reached target.
 			plan.action = MoveStaffActionAlreadyApplied
 			return plan, nil
 		}

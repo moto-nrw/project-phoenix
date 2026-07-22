@@ -22,6 +22,11 @@ import (
 func TestFlowI_StaffPoolAndAtomicMove(t *testing.T) {
 	s := newScenario(t)
 	defer s.teardown()
+	s.extraCleanup = append(s.extraCleanup, func() {
+		_, _ = s.db.NewDelete().Model((*struct{})(nil)).
+			ModelTableExpr("audit.deviation_events").
+			Where("tenant_id = ?", primaryTenantID).Exec(s.tenantCtx())
+	})
 
 	date := timezone.TodayDate().AddDays(7)
 	room := testpkg.CreateTestRoom(t, s.db, "Flow-I-Raum")
@@ -108,7 +113,6 @@ func TestFlowI_StaffPoolAndAtomicMove(t *testing.T) {
 			EventType        string  `json:"event_type"`
 			InstanceID       *int64  `json:"instance_id"`
 			SubjectStaffName *string `json:"subject_staff_name"`
-			OldValue         string  `json:"-"`
 		} `json:"events"`
 	}
 	decodeResponse(t, rr, &history)
@@ -118,12 +122,6 @@ func TestFlowI_StaffPoolAndAtomicMove(t *testing.T) {
 	assert.Equal(t, mensa.ID, *history.Events[0].InstanceID)
 	require.NotNil(t, history.Events[0].SubjectStaffName)
 	assert.Contains(t, *history.Events[0].SubjectStaffName, "Ina")
-	s.extraCleanup = append(s.extraCleanup, func() {
-		_, _ = s.db.NewDelete().Model((*struct{})(nil)).
-			ModelTableExpr("audit.deviation_events").
-			Where("tenant_id = ?", primaryTenantID).Exec(s.tenantCtx())
-	})
-
 	// 4. Pool assign: the free person joins Mensa without a source block.
 	rr = s.do(http.MethodPost, fmt.Sprintf("/instances/%d/move-staff", mensa.ID),
 		map[string]any{"staff_id": free.ID}, claims)

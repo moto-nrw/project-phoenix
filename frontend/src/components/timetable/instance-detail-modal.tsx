@@ -41,7 +41,7 @@ import {
   useAttendanceWebEnabled,
   useShowTimetableCounts,
 } from "~/lib/tenant-context";
-import { parseISODate, todayISO } from "~/lib/date-helpers";
+import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
 import {
   getActivityTypeBadge,
   getGermanWeekdayLong,
@@ -130,6 +130,12 @@ interface InstanceDetailModalProps {
    * geplante/laufende Blöcke ab heute — vergangene Blöcke sind Historie.
    */
   onOpenPool?: (instance: EnrichedInstance) => void;
+  /**
+   * Controls whether the pool opener describes a write action. View-only users
+   * may still inspect the schedules:read pool, but cannot move or assign staff.
+   * Defaults false so a missing permission prop never exposes mutation chrome.
+   */
+  canManageStaffPool?: boolean;
 }
 
 const EMPTY_STAFF_NAMES = new Map<string, string>();
@@ -305,10 +311,12 @@ function AssignedStaffSection({
   instance,
   staffNames,
   onOpenPool,
+  canManageStaffPool,
 }: Readonly<{
   instance: EnrichedInstance;
   staffNames: Map<string, string>;
   onOpenPool?: (instance: EnrichedInstance) => void;
+  canManageStaffPool: boolean;
 }>) {
   return (
     <Section title="Personal">
@@ -339,8 +347,12 @@ function AssignedStaffSection({
           className="border border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
         >
           <span className="inline-flex items-center gap-1.5">
-            <UserPlus className="h-3.5 w-3.5" />
-            Person hinzuziehen
+            {canManageStaffPool ? (
+              <UserPlus className="h-3.5 w-3.5" />
+            ) : (
+              <Users className="h-3.5 w-3.5" />
+            )}
+            {canManageStaffPool ? "Person hinzuziehen" : "Personalpool ansehen"}
           </span>
         </Button>
       )}
@@ -430,6 +442,7 @@ export function InstanceDetailModal({
   editDeferred = true,
   suspended = false,
   onOpenPool,
+  canManageStaffPool = false,
 }: InstanceDetailModalProps) {
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const showTimetableCounts = useShowTimetableCounts();
@@ -452,7 +465,7 @@ export function InstanceDetailModal({
   const poolAvailable =
     instance !== null &&
     (instance.status === "planned" || instance.status === "active") &&
-    instance.date >= todayISO();
+    instance.date >= berlinTodayISO();
   const students = useMemo(() => studentsForInstance(instance), [instance]);
   // Same split the header counts use (#1747): an assignment row still reads
   // "expected" when the care plan does not place the child here today, so it
@@ -823,6 +836,7 @@ export function InstanceDetailModal({
             instance={instance}
             staffNames={staffNames}
             onOpenPool={poolAvailable ? onOpenPool : undefined}
+            canManageStaffPool={canManageStaffPool}
           />
 
           <InstanceStudentsSection

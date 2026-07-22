@@ -172,3 +172,43 @@ func TestGetStaffPoolForInstance_CancelledShiftIgnored(t *testing.T) {
 	assert.Equal(t, scheduleSvc.StaffPoolNotOnShift, entry.Category)
 	assert.False(t, entry.OnShift)
 }
+
+func TestGetStaffPoolForInstance_TerminalBlockAbsenceRemainsDayWide(t *testing.T) {
+	for _, status := range []string{
+		scheduleModels.InstanceStatusCompleted,
+		scheduleModels.InstanceStatusCancelled,
+	} {
+		t.Run(status, func(t *testing.T) {
+			s := makeMoveSetup(t)
+			defer s.cleanup(t)
+
+			terminal := createMoveInstance(t, s, "Historie", "09:00", "10:00", status)
+			t.Cleanup(func() {
+				testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", terminal.ID)
+			})
+			createMoveStaffRow(t, s, terminal.ID, s.staffID, func(row *scheduleModels.InstanceStaff) {
+				row.IsAbsent = true
+				row.AbsenceReason = testpkg.StrPtr("krank")
+			})
+			// A non-absent terminal assignment is history, not current occupancy.
+			createMoveStaffRow(t, s, terminal.ID, s.otherID, nil)
+			createPoolShift(t, s, s.staffID, "08:00", "16:00", false)
+			createPoolShift(t, s, s.otherID, "08:00", "16:00", false)
+
+			repoFactory := repositories.NewFactory(s.db)
+			serviceFactory, err := services.NewFactory(repoFactory, s.db, slog.Default())
+			require.NoError(t, err)
+			pool, err := serviceFactory.TimetableData.GetStaffPoolForInstance(s.ctx, s.target.ID)
+			require.NoError(t, err)
+
+			absent := poolEntryOf(t, pool, s.staffID)
+			assert.Equal(t, scheduleSvc.StaffPoolAbsent, absent.Category)
+			require.NotNil(t, absent.AbsenceReason)
+			assert.Equal(t, "krank", *absent.AbsenceReason)
+
+			historicalOnly := poolEntryOf(t, pool, s.otherID)
+			assert.Equal(t, scheduleSvc.StaffPoolOnShiftFree, historicalOnly.Category)
+			assert.Empty(t, historicalOnly.Assignments)
+		})
+	}
+}

@@ -73,9 +73,6 @@ func (s *TimetableDataService) GetStaffPoolForInstance(ctx context.Context, inst
 	if err != nil {
 		return nil, err
 	}
-	if instance == nil {
-		return nil, fmt.Errorf("instance %d not found", instanceID)
-	}
 	date := instance.Date
 
 	sameDay, err := s.deps.ActivityInstanceRepo.FindByTenantAndDateRange(ctx, date, date)
@@ -83,15 +80,21 @@ func (s *TimetableDataService) GetStaffPoolForInstance(ctx context.Context, inst
 		return nil, fmt.Errorf("load same-day instances: %w", err)
 	}
 	plannable := make([]*scheduleModel.ActivityInstance, 0, len(sameDay))
-	ids := make([]int64, 0, len(sameDay))
+	allIDs := make([]int64, 0, len(sameDay))
 	for _, inst := range sameDay {
-		if inst == nil || !isPlannableInstance(inst) {
+		if inst == nil {
+			continue
+		}
+		// Absence is day-wide and remains a fact even when the row that carries
+		// it belongs to a completed/cancelled historical block. Occupancy below
+		// still uses only planned/active blocks.
+		allIDs = append(allIDs, inst.ID)
+		if !isPlannableInstance(inst) {
 			continue
 		}
 		plannable = append(plannable, inst)
-		ids = append(ids, inst.ID)
 	}
-	rows, err := s.deps.InstanceStaffRepo.FindByInstanceIDs(ctx, ids)
+	rows, err := s.deps.InstanceStaffRepo.FindByInstanceIDs(ctx, allIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load same-day assignments: %w", err)
 	}
