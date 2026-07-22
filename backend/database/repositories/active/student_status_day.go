@@ -253,6 +253,38 @@ func (r *StudentStatusDayRepository) FindActiveByStudentIDsAndDate(ctx context.C
 	return entries, nil
 }
 
+// FindSignedOffByStudentIDsAndDate loads the day statuses that count as a valid
+// registered sign-off for a date: rows still active (cleared_at IS NULL) plus
+// rows archived by the end-of-day scheduler (source = "end_of_day"). The
+// scheduler archives the legacy sick/excused flags after the configured clear
+// time by stamping cleared_at and source = end_of_day, which the active-only
+// query would drop — but a child who was sick/excused all day is still a
+// registered absence, not an unexplained "Fehlt" (#1565 review pass 1). A row
+// cleared by any other source (next_checkin, manual, parent, planned) is a
+// genuine revocation and stays excluded.
+func (r *StudentStatusDayRepository) FindSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*active.StudentStatusDay, error) {
+	if len(studentIDs) == 0 {
+		return []*active.StudentStatusDay{}, nil
+	}
+
+	var entries []*active.StudentStatusDay
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&entries).
+		ModelTableExpr(tableExprActiveStudentStatusDaysAsStatusDay).
+		Where(`"student_status_day".student_id IN (?)`, bun.List(studentIDs)).
+		Where(`"student_status_day".date = ?`, date).
+		Where(`("student_status_day".cleared_at IS NULL OR "student_status_day".source = ?)`, active.StudentStatusSourceEndOfDay).
+		OrderExpr(`"student_status_day".student_id ASC`).
+		OrderExpr(`"student_status_day".reported_at DESC`)
+
+	query = base.WithTenantFilter(ctx, query, "student_status_day")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find signed-off student status days by student ids and date", Err: err}
+	}
+	return entries, nil
+}
+
 func (r *StudentStatusDayRepository) FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*active.StudentStatusDay, error) {
 	return r.findByStudentAndDateRange(ctx, studentID, startDate, endDate, false)
 }

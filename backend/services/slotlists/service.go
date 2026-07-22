@@ -81,7 +81,12 @@ type attendanceReader interface {
 // that sign a child off for a whole date (#1565 review: a registered absence
 // must show as "Abgemeldet" on pickup lists, not as unexplained "Fehlt").
 type statusDayReader interface {
-	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*activeModel.StudentStatusDay, error)
+	// FindSignedOffByStudentIDsAndDate returns active sign-offs plus the
+	// scheduler's end-of-day archived rows (source = "end_of_day"), so a child
+	// signed off sick/excused all day still renders "Abgemeldet" after the
+	// configured status-clear time rather than an unexplained "Fehlt" (#1565
+	// review pass 1).
+	FindSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*activeModel.StudentStatusDay, error)
 }
 
 // careDayReader resolves the care-plan verdict per child on a date. A
@@ -1041,10 +1046,25 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 				// signed off, so a no-show belongs on the list as "Abgemeldet" (the
 				// exact registered-absence shape the pickup path renders), never
 				// silently dropped like not_scheduled. If the child attended anyway,
-				// leave them unseen so the presence loop below surfaces them as
-				// unplanned-present — matching the prior behaviour for that case.
-				if !present {
-					seenPlanned[row.StudentID] = struct{}{}
+				// that is unplanned presence: emit the present-only row directly
+				// here rather than defer to the present loop below. On the slot path
+				// `present` can come from a timetable PATCH (row status) with no
+				// active-group visit, and that loop only re-surfaces visit-derived
+				// presence (presentSet) — deferring would drop such a child from
+				// both Ist and Abgleich entirely instead of showing "ungeplant
+				// anwesend" (#1565 review pass 2). This mirrors the IsUnplanned and
+				// not_scheduled branches, which emit their present-only row inline
+				// for the same reason.
+				seenPlanned[row.StudentID] = struct{}{}
+				if present {
+					entries = append(entries, mergedEntry{
+						StudentID:  row.StudentID,
+						InstanceID: inst.ID,
+						SlotLabel:  slotLabel,
+						RoomName:   roomName,
+						Present:    true,
+					})
+				} else {
 					cancelledSubstatus := string(scheduleSvc.CareDayCancelled)
 					entries = append(entries, mergedEntry{
 						StudentID:        row.StudentID,
@@ -1358,8 +1378,12 @@ func (s *service) collectPickupEntries(ctx context.Context, params Params, resul
 	// sign-offs for pickup cohorts — there is no instance_students row to
 	// carry them. Without this evidence a sick child with a recurring pickup
 	// time would show as unexplained "Fehlt" in the Abgleich and could
-	// trigger an unnecessary missing-child response.
-	statusDays, err := s.statusDayRepo.FindActiveByStudentIDsAndDate(ctx, studentIDs, params.Date)
+	// trigger an unnecessary missing-child response. Include the scheduler's
+	// end-of-day archived rows, not just active ones: after the configured
+	// status-clear time (18:00 by default) the sick/excused flag is archived
+	// with cleared_at set and source = end_of_day, but it is still valid
+	// all-day sign-off evidence for this date (#1565 review pass 1).
+	statusDays, err := s.statusDayRepo.FindSignedOffByStudentIDsAndDate(ctx, studentIDs, params.Date)
 	if err != nil {
 		return nil, fmt.Errorf("load student status days: %w", err)
 	}
@@ -1532,15 +1556,25 @@ func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, sour
 	// enrolled on the requested date must be dropped, or it surfaces as an
 	// unexplained "Fehlt" (#1565 review). Documented presence is ground truth
 	// and always kept: a real visit/attendance record outranks the enrollment
-	// interval, so present rows pass regardless.
+	// interval, so present rows pass regardless — but the enrollment check has
+	// established that the roster's *expectation* is invalid, so a present row
+	// for a non-enrolled child must shed its planned classification too, or the
+	// Abgleich reports it as planned-and-present and inflates the planned
+	// counter. Keep the presence, clear the plan, so it reads as "ungeplant
+	// anwesend" (#1565 review pass 2).
 	enrolled := make([]mergedEntry, 0, len(filtered))
 	for _, entry := range filtered {
 		student := students[entry.StudentID]
 		if student == nil {
 			continue
 		}
-		if !entry.Present && !eligibleOn(student, date) {
-			continue
+		if !eligibleOn(student, date) {
+			if !entry.Present {
+				continue
+			}
+			entry.Planned = false
+			entry.PlannedStatus = ""
+			entry.PlannedSubstatus = nil
 		}
 		enrolled = append(enrolled, entry)
 	}
