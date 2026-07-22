@@ -1065,13 +1065,16 @@ export function useEventForm({
     return {
       name: form.title.trim(),
       type: template.type,
-      // Apply the Listenart the user chose in the form to the whole scope
-      // ("Alle Termine" / "Diesen und folgende") — it is one of the fields the
-      // occurrence form edits, like title and time. `|| null` sends an explicit
-      // clear so a cleared Listenart is honored on the split endpoint (which
-      // otherwise keeps the old value on an omitted field) and not silently
-      // reverted to the template's classification (#1565 review).
-      list_kind: form.listKind || null,
+      // Preserve the series' own Listenart. This builder runs only for
+      // occurrence-scope edits ("Alle Termine" / "Diesen und folgende"), where
+      // StepTermin hides the Listenart control behind `isSeriesFlow`, so
+      // `form.listKind` is merely the occurrence snapshot — never a user choice.
+      // Copying it onto the series would clear the classification (stale empty)
+      // or promote a per-occurrence override to every future occurrence. Echo
+      // the fetched template's value; `?? null` sends an explicit clear only
+      // when the template itself has none (a no-op on an already-unset series),
+      // which both the update and split endpoints honor (#1565 review).
+      list_kind: template.listKind ?? null,
       weekdays: weekdays.length > 0 ? weekdays : [1],
       start_time: form.startTime,
       end_time: form.endTime,

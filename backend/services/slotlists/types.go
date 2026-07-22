@@ -275,6 +275,12 @@ type Result struct {
 	Classes      []string      `json:"classes"`
 	Counters     Counters      `json:"counters"`
 	Rows         []Row         `json:"rows"`
+	// deferredSlots holds instance IDs that appear in Slots as selectable context
+	// but were deliberately excluded from the merge (a reconciliation slot that
+	// has not started yet — see collectSlotEntries). Unexported so it never
+	// serializes; it exists only so the export "Enthalten" summary does not count
+	// slots the export contains no rows for (#1565 review).
+	deferredSlots map[int64]struct{}
 }
 
 // PickupCohortOption describes whether a Ganztag pickup bucket has rows on a

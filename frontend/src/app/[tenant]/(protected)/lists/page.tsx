@@ -328,6 +328,17 @@ function parseStringList(value: string | null): string[] | null {
   return values.length > 0 ? values : null;
 }
 
+// Ordered content equality for the URL-synced selection arrays. The
+// serialize→parse round-trip preserves element order, so a positional compare
+// is enough to tell an unchanged selection from a real one and avoid installing
+// a fresh-but-equal reference (#1565 review).
+function sameStringList(a: string[] | null, b: string[] | null): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return false;
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
+}
+
 function defaultSelectionOption(): SelectionOption {
   const option = SELECTION_OPTIONS[0];
   if (!option) {
@@ -526,9 +537,22 @@ export default function SlotListsPage() {
     setSource(next.source);
     setGroupBy(next.groupBy);
     setDateISO(next.dateISO);
-    setSelectedSlotIds(next.selectedSlotIds);
-    setSelectedGroupIds(next.selectedGroupIds);
-    setSelectedClasses(next.selectedClasses);
+    // Keep the previous reference when the URL round-trip yields an equal
+    // selection. A slot/group/class change first updates local state (firing
+    // the preview), then router.replace re-parses searchParams into fresh
+    // arrays here; installing them would recompute `request` and fire a second,
+    // redundant BuildList for the same selection (#1565 review).
+    setSelectedSlotIds((prev) =>
+      sameStringList(prev, next.selectedSlotIds) ? prev : next.selectedSlotIds,
+    );
+    setSelectedGroupIds((prev) =>
+      sameStringList(prev, next.selectedGroupIds)
+        ? prev
+        : next.selectedGroupIds,
+    );
+    setSelectedClasses((prev) =>
+      sameStringList(prev, next.selectedClasses) ? prev : next.selectedClasses,
+    );
   }, [searchParams]);
 
   const pickupOptionByCohort = useMemo(() => {

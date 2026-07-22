@@ -841,6 +841,12 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 		// BuildList — this is the per-slot case on today.
 		if params.Source == SourceReconciliation {
 			if start, _ := instanceTimeRange(inst); s.currentTime().Before(start) {
+				// Remember the deferral so the export "Enthalten" summary does not
+				// count a slot the merge produced no rows for (#1565 review).
+				if result.deferredSlots == nil {
+					result.deferredSlots = map[int64]struct{}{}
+				}
+				result.deferredSlots[inst.ID] = struct{}{}
 				continue
 			}
 		}
@@ -1650,18 +1656,22 @@ func includedSummary(params Params, result *Result) string {
 // list_kind) the count is restricted to the selected, non-cancelled slots — so a
 // filtered export reports its real subset instead of claiming the whole cohort
 // (#1565 review). result.Slots is always the full set of matching slots, so the
-// selection has to be re-applied here.
+// selection has to be re-applied here. Deferred slots (a not-yet-started
+// reconciliation occurrence excluded from the merge in collectSlotEntries) are
+// dropped in both branches: they yield no export rows, so counting them would
+// let the header claim Termine/Angebote the export does not contain (#1565).
 func summarySlotCount(params Params, result *Result) int {
-	if !params.InstanceIDsSet && len(params.InstanceIDs) == 0 {
-		return selectableSlotCount(result.Slots)
-	}
+	all := !params.InstanceIDsSet && len(params.InstanceIDs) == 0
 	selected := int64Set(params.InstanceIDs)
 	count := 0
 	for _, slot := range result.Slots {
 		if slot.Status == string(scheduleModel.InstanceStatusCancelled) {
 			continue
 		}
-		if selected[slot.InstanceID] {
+		if _, deferred := result.deferredSlots[slot.InstanceID]; deferred {
+			continue
+		}
+		if all || selected[slot.InstanceID] {
 			count++
 		}
 	}
@@ -1684,16 +1694,6 @@ func subtitle(result *Result) string {
 			result.Counters.Unplanned,
 		)
 	}
-}
-
-func selectableSlotCount(slots []Slot) int {
-	count := 0
-	for _, slot := range slots {
-		if slot.Status != string(scheduleModel.InstanceStatusCancelled) {
-			count++
-		}
-	}
-	return count
 }
 
 func plural(count int, singular string, pluralValue string) string {
