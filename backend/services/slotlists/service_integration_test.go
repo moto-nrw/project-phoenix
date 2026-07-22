@@ -139,10 +139,17 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 		VisitRepo:           activeRepo.NewVisitRepository(db),
 		AttendanceRepo:      activeRepo.NewAttendanceRepository(db),
 		StatusDayRepo:       activeRepo.NewStudentStatusDayRepository(db),
-		StudentRepo:         usersRepo.NewStudentRepository(db),
-		PersonRepo:          usersRepo.NewPersonRepository(db),
-		EducationGroupRepo:  educationRepo.NewGroupRepository(db),
-		RoomRepo:            roomRepo,
+		CareDayService: scheduleSvc.NewCareDayService(scheduleSvc.CareDayDependencies{
+			ArrivalSchedules:  scheduleRepo.NewStudentArrivalScheduleRepository(db),
+			ArrivalExceptions: scheduleRepo.NewStudentArrivalExceptionRepository(db),
+			PickupSchedules:   scheduleRepo.NewStudentPickupScheduleRepository(db),
+			PickupExceptions:  scheduleRepo.NewStudentPickupExceptionRepository(db),
+		}),
+		PickupScheduleRepo: scheduleRepo.NewStudentPickupScheduleRepository(db),
+		StudentRepo:        usersRepo.NewStudentRepository(db),
+		PersonRepo:         usersRepo.NewPersonRepository(db),
+		EducationGroupRepo: educationRepo.NewGroupRepository(db),
+		RoomRepo:           roomRepo,
 		PickupService: scheduleSvc.NewPickupScheduleService(
 			scheduleRepo.NewStudentPickupScheduleRepository(db),
 			scheduleRepo.NewStudentPickupExceptionRepository(db),
@@ -1004,4 +1011,141 @@ func TestBuildList_PickupReconciliationMarksStatusDayAsExcused(t *testing.T) {
 
 	assert.Equal(t, 1, result.Counters.Excused, "excused counter reflects the status day")
 	assert.Equal(t, 1, result.Counters.Missing, "unexplained absence stays a missing child")
+}
+
+// A cancelled care day ("Kommt heute nicht") is a registered absence carried
+// by a timeless arrival/pickup exception, not a status day. The Ganztag
+// reconciliation must show such a child as "Abgemeldet", never as unexplained
+// "Fehlt": a cleared pickup exception drops the effective time (fall back to
+// the regular bucket), a cleared arrival exception leaves the regular pickup
+// (mark it cancelled anyway) — both would otherwise lose the sign-off (#1565
+// review).
+func TestBuildList_PickupReconciliationMarksCancelledCareDayAsExcused(t *testing.T) {
+	weekday := int(listDate.Weekday())
+
+	cases := []struct {
+		name      string
+		clearWhat string // "pickup" or "arrival"
+	}{
+		{"cleared pickup exception (effective time gone)", "pickup"},
+		{"cleared arrival exception (regular pickup survives)", "arrival"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			db := testpkg.SetupTestDB(t)
+			t.Cleanup(func() { _ = db.Close() })
+			ctx := testpkg.TenantContext(1)
+			suffix := time.Now().UnixNano()
+
+			child := testpkg.CreateTestStudent(t, db, "SL-Cxl", fmt.Sprintf("C-%d", suffix), "2c")
+			staff := testpkg.CreateTestStaff(t, db, "SL-Staff", fmt.Sprintf("SC-%d", suffix))
+
+			pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+			sched := &scheduleModels.StudentPickupSchedule{
+				StudentID: child.ID, Weekday: weekday,
+				PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID,
+			}
+			sched.SetTenantID(1)
+			require.NoError(t, pickupRepo.Create(ctx, sched))
+
+			var exceptionTable string
+			var exceptionID int64
+			if tc.clearWhat == "pickup" {
+				exc := &scheduleModels.StudentPickupException{
+					StudentID: child.ID, ExceptionDate: listDate, PickupTime: nil, CreatedBy: staff.ID,
+				}
+				exc.SetTenantID(1)
+				_, err := db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
+				require.NoError(t, err)
+				exceptionTable, exceptionID = "schedule.student_pickup_exceptions", exc.ID
+			} else {
+				exc := &scheduleModels.StudentArrivalException{
+					StudentID: child.ID, ExceptionDate: listDate, ExpectedArrival: nil, CreatedBy: staff.ID,
+				}
+				exc.SetTenantID(1)
+				_, err := db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_arrival_exceptions`).Exec(ctx)
+				require.NoError(t, err)
+				exceptionTable, exceptionID = "schedule.student_arrival_exceptions", exc.ID
+			}
+			t.Cleanup(func() {
+				testpkg.CleanupTableRecords(t, db, exceptionTable, exceptionID)
+				testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_schedules", sched.ID)
+				testpkg.CleanupActivityFixtures(t, db, child.ID, staff.ID)
+			})
+
+			svc := newTestService(db)
+			result, err := svc.BuildList(ctx, slotlists.Params{
+				Date:         listDate,
+				Target:       slotlists.TargetPickupCohort,
+				PickupCohort: slotlists.PickupCohortLongDay,
+				Source:       slotlists.SourceReconciliation,
+			})
+			require.NoError(t, err)
+
+			row := rowByStudent(result.Rows, child.ID)
+			require.NotNil(t, row, "a cancelled child stays in the cohort via the regular pickup bucket")
+			assert.True(t, row.Excused, "a cancelled care day is a registered sign-off")
+			assert.Equal(t, "Abgemeldet (entschuldigt)", row.StatusLabel)
+			assert.Equal(t, "16:00", row.PickupTime)
+			assert.Equal(t, 1, result.Counters.Excused)
+			assert.Equal(t, 0, result.Counters.Missing)
+		})
+	}
+}
+
+// A pending or inactive student keeps their recurring pickup schedule
+// (lifecycle deactivation does not delete it). They must not be placed into a
+// cohort as a planned / "Fehlt" child, and must not inflate options
+// availability (#1565 review).
+func TestBuildList_PickupCohortExcludesInactiveStudents(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+	weekday := int(listDate.Weekday())
+
+	active := testpkg.CreateTestStudent(t, db, "SL-Active", fmt.Sprintf("A-%d", suffix), "2d")
+	gone := testpkg.CreateTestStudent(t, db, "SL-Gone", fmt.Sprintf("G-%d", suffix), "2d")
+	staff := testpkg.CreateTestStaff(t, db, "SL-Staff", fmt.Sprintf("SI-%d", suffix))
+
+	_, err := db.NewUpdate().TableExpr(`users.students`).
+		Set(`status = ?`, string(userModels.StudentStatusInactive)).
+		Where(`id = ?`, gone.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	var pickupIDs []int64
+	for _, id := range []int64{active.ID, gone.ID} {
+		row := &scheduleModels.StudentPickupSchedule{
+			StudentID: id, Weekday: weekday,
+			PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID,
+		}
+		row.SetTenantID(1)
+		require.NoError(t, pickupRepo.Create(ctx, row))
+		pickupIDs = append(pickupIDs, row.ID)
+	}
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_schedules", pickupIDs...)
+		testpkg.CleanupActivityFixtures(t, db, active.ID, staff.ID)
+		testpkg.CleanupActivityFixtures(t, db, gone.ID)
+	})
+
+	svc := newTestService(db)
+	result, err := svc.BuildList(ctx, slotlists.Params{
+		Date:         listDate,
+		Target:       slotlists.TargetPickupCohort,
+		PickupCohort: slotlists.PickupCohortLongDay,
+		Source:       slotlists.SourcePlanned,
+	})
+	require.NoError(t, err)
+	assert.NotNil(t, rowByStudent(result.Rows, active.ID), "active child is in the cohort")
+	assert.Nil(t, rowByStudent(result.Rows, gone.ID), "inactive child must not appear")
+
+	options, err := svc.ListOptions(ctx, listDate)
+	require.NoError(t, err)
+	byCohort := map[slotlists.PickupCohort]slotlists.PickupCohortOption{}
+	for _, opt := range options.PickupCohorts {
+		byCohort[opt.Cohort] = opt
+	}
+	assert.Equal(t, 1, byCohort[slotlists.PickupCohortLongDay].RowCount, "inactive child must not inflate availability")
 }

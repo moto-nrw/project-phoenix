@@ -65,6 +65,21 @@ type statusDayReader interface {
 	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*activeModel.StudentStatusDay, error)
 }
 
+// careDayReader resolves the care-plan verdict per child on a date. A
+// "cancelled" verdict ("Kommt heute nicht" — a timeless arrival/pickup
+// exception) is a registered absence that pickup cohorts must show as
+// "Abgemeldet", never as unexplained "Fehlt" (#1565 review).
+type careDayReader interface {
+	ResolveForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]scheduleSvc.CareDayStatus, error)
+}
+
+// regularPickupReader returns the recurring weekly pickup rows (no exceptions
+// applied). Used to place a cancelled child into a cohort by their normal
+// pickup bucket when a same-day exception cleared their effective time.
+type regularPickupReader interface {
+	FindByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*scheduleModel.StudentPickupSchedule, error)
+}
+
 type studentReader interface {
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModel.Student, error)
 	List(ctx context.Context, filters map[string]interface{}) ([]*userModel.Student, error)
@@ -98,6 +113,8 @@ type Dependencies struct {
 	VisitRepo           visitReader
 	AttendanceRepo      attendanceReader
 	StatusDayRepo       statusDayReader
+	CareDayService      careDayReader
+	PickupScheduleRepo  regularPickupReader
 	StudentRepo         studentReader
 	PersonRepo          personReader
 	EducationGroupRepo  educationGroupReader
@@ -115,6 +132,8 @@ type service struct {
 	visitRepo           visitReader
 	attendanceRepo      attendanceReader
 	statusDayRepo       statusDayReader
+	careDayService      careDayReader
+	pickupScheduleRepo  regularPickupReader
 	studentRepo         studentReader
 	personRepo          personReader
 	educationGroupRepo  educationGroupReader
@@ -134,6 +153,8 @@ func NewService(deps Dependencies) Service {
 		visitRepo:           deps.VisitRepo,
 		attendanceRepo:      deps.AttendanceRepo,
 		statusDayRepo:       deps.StatusDayRepo,
+		careDayService:      deps.CareDayService,
+		pickupScheduleRepo:  deps.PickupScheduleRepo,
 		studentRepo:         deps.StudentRepo,
 		personRepo:          deps.PersonRepo,
 		educationGroupRepo:  deps.EducationGroupRepo,
@@ -332,7 +353,8 @@ func (s *service) provenance(params Params, listLabel string) string {
 
 func (s *service) BuildList(ctx context.Context, params Params) (*Result, error) {
 	if s.instanceRepo == nil || s.instanceStudentRepo == nil || s.visitRepo == nil ||
-		s.attendanceRepo == nil || s.statusDayRepo == nil || s.studentRepo == nil ||
+		s.attendanceRepo == nil || s.statusDayRepo == nil || s.careDayService == nil ||
+		s.pickupScheduleRepo == nil || s.studentRepo == nil ||
 		s.personRepo == nil || s.educationGroupRepo == nil || s.roomRepo == nil ||
 		s.pickupService == nil || s.listExport == nil {
 		return nil, fmt.Errorf("slot list service is not configured")
@@ -441,10 +463,32 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 		}
 	}
 
+	// Options counts must respect the same GDPR read scope and student
+	// lifecycle as /preview, or the availability hints would leak counts
+	// derived from unsupervised or deactivated children (#1565 review). Build
+	// the readable + active student set once and gate every aggregation on it.
+	access, err := s.resolveStudentReadAccess(ctx)
+	if err != nil {
+		return nil, err
+	}
+	students, err := s.listActiveStudents(ctx)
+	if err != nil {
+		return nil, err
+	}
+	studentIDs := make([]int64, 0, len(students))
+	readable := make(map[int64]struct{}, len(students))
+	for _, student := range students {
+		studentIDs = append(studentIDs, student.ID)
+		if access.canReadGroup(student.GroupID) {
+			readable[student.ID] = struct{}{}
+		}
+	}
+
 	// One bulk roster load over every classified instance for the per-kind
 	// planned row counts. Mirrors collectSlotEntries' planned semantics:
 	// walk-in rows (is_unplanned, #1913) and non-booking markers
-	// (not_scheduled, #1747) are not planned children.
+	// (not_scheduled, #1747) are not planned children; only readable children
+	// count.
 	classifiedIDs := make([]int64, 0)
 	for _, ids := range kindInstanceIDs {
 		classifiedIDs = append(classifiedIDs, ids...)
@@ -457,6 +501,9 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 		}
 		for _, row := range rosterRows {
 			if row.IsUnplanned || row.NotScheduled {
+				continue
+			}
+			if _, ok := readable[row.StudentID]; !ok {
 				continue
 			}
 			plannedByInstance[row.InstanceID]++
@@ -478,20 +525,11 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 		})
 	}
 
-	// One pickup sweep for both Ganztag cohorts. The counts are raw cohort
-	// sizes (no name enrichment happens here, so no read-access filter is
-	// needed for a pure availability hint).
+	// One pickup sweep for both Ganztag cohorts over the same readable +
+	// active set, so the availability hint matches what /preview would show.
 	buckets, err := s.pickupBuckets(ctx)
 	if err != nil {
 		return nil, err
-	}
-	students, err := s.studentRepo.List(ctx, map[string]interface{}{})
-	if err != nil {
-		return nil, err
-	}
-	studentIDs := make([]int64, 0, len(students))
-	for _, student := range students {
-		studentIDs = append(studentIDs, student.ID)
 	}
 	pickupTimes := map[int64]*scheduleSvc.EffectivePickupTime{}
 	if len(studentIDs) > 0 {
@@ -501,8 +539,11 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 		}
 	}
 	cohortCounts := map[PickupCohort]int{}
-	for _, pickup := range pickupTimes {
+	for studentID, pickup := range pickupTimes {
 		if pickup == nil || pickup.PickupTime == nil {
+			continue
+		}
+		if _, ok := readable[studentID]; !ok {
 			continue
 		}
 		hhmm := pickup.PickupTime.Format(timeLayout)
@@ -611,6 +652,14 @@ func filterRows(rows []Row, params Params) []Row {
 	return out
 }
 
+func int64StructSet(ids []int64) map[int64]struct{} {
+	set := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		set[id] = struct{}{}
+	}
+	return set
+}
+
 func int64Set(ids []int64) map[int64]bool {
 	set := make(map[int64]bool, len(ids))
 	for _, id := range ids {
@@ -643,6 +692,17 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 		return nil, err
 	}
 
+	// A non-nil set restricts data collection to the selected instances;
+	// nil means "all" (the default when no slots are explicitly selected).
+	// The option list (result.Slots) is always populated for every matching
+	// instance regardless — only the expensive per-instance roster/visit
+	// reads are gated, so selecting one slot no longer costs the same as
+	// selecting all, and an explicit empty selection issues no per-slot reads.
+	var selected map[int64]struct{}
+	if params.InstanceIDsSet || len(params.InstanceIDs) > 0 {
+		selected = int64StructSet(params.InstanceIDs)
+	}
+
 	roomCache := map[int64]string{}
 	entries := []mergedEntry{}
 	for _, inst := range instances {
@@ -662,6 +722,11 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 		})
 		if inst.Status == scheduleModel.InstanceStatusCancelled {
 			continue
+		}
+		if selected != nil {
+			if _, ok := selected[inst.ID]; !ok {
+				continue
+			}
 		}
 
 		planned, err := s.instanceStudentRepo.FindByInstanceID(ctx, inst.ID)
@@ -826,6 +891,21 @@ func instanceTimeRange(inst *scheduleModel.ActivityInstance) (time.Time, time.Ti
 	return start, end
 }
 
+// activeStudentFilter restricts a student list to the active lifecycle. Pending
+// and inactive students keep their recurring pickup schedules (lifecycle
+// deactivation does not delete them), so an unfiltered list would place a
+// former child into a cohort and report them as planned / "Fehlt" (#1565
+// review).
+func activeStudentFilter() map[string]interface{} {
+	return map[string]interface{}{"status": string(userModel.StudentStatusActive)}
+}
+
+// listActiveStudents returns the tenant's active students, the cohort candidate
+// set shared by the pickup builder and the options aggregation.
+func (s *service) listActiveStudents(ctx context.Context) ([]*userModel.Student, error) {
+	return s.studentRepo.List(ctx, activeStudentFilter())
+}
+
 // collectPickupEntries derives the cohort from effective pickup times
 // (weekly schedule + exceptions) and presence from attendance records on the
 // selected date. Closed attendance rows still count for historical lists.
@@ -834,7 +914,7 @@ func (s *service) collectPickupEntries(ctx context.Context, params Params, resul
 	if err != nil {
 		return nil, err
 	}
-	students, err := s.studentRepo.List(ctx, map[string]interface{}{})
+	students, err := s.listActiveStudents(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -874,19 +954,41 @@ func (s *service) collectPickupEntries(ctx context.Context, params Params, resul
 		statusByStudent[day.StudentID] = day.Status
 	}
 
+	// A cancelled care day ("Kommt heute nicht") is also a registered absence,
+	// but it lives in the arrival/pickup exceptions, not in a status day. Its
+	// effective pickup may be nil (a timeless pickup exception) or the regular
+	// time (a timeless arrival exception) — so resolve the verdict and keep
+	// the regular weekly bucket to place such children into a cohort.
+	careDays, err := s.careDayService.ResolveForDate(ctx, studentIDs, params.Date)
+	if err != nil {
+		return nil, fmt.Errorf("resolve care days: %w", err)
+	}
+	regularRows, err := s.pickupScheduleRepo.FindByStudentIDsAndWeekday(ctx, studentIDs, int(params.Date.Weekday()))
+	if err != nil {
+		return nil, fmt.Errorf("load regular pickup schedules: %w", err)
+	}
+	regularBucket := make(map[int64]string, len(regularRows))
+	for _, row := range regularRows {
+		regularBucket[row.StudentID] = row.PickupTime.Format(timeLayout)
+	}
+
 	slotLabel := result.ListLabel
 	entries := []mergedEntry{}
 	cohort := map[int64]struct{}{}
 	for _, student := range students {
-		pickup := pickupTimes[student.ID]
-		// No effective pickup time (no weekly entry, or an exception cleared
-		// it) means the child is not in care on this date — like a
-		// not_scheduled slot row, they belong to no cohort and are skipped.
-		if pickup == nil || pickup.PickupTime == nil {
-			continue
+		cancelled := careDays[student.ID] == scheduleSvc.CareDayCancelled
+
+		hhmm := ""
+		if pickup := pickupTimes[student.ID]; pickup != nil && pickup.PickupTime != nil {
+			hhmm = pickup.PickupTime.Format(timeLayout)
+		} else if cancelled {
+			// A cleared pickup exception dropped the effective time; fall back
+			// to the regular weekly bucket so the cancellation still shows.
+			hhmm = regularBucket[student.ID]
 		}
-		hhmm := pickup.PickupTime.Format(timeLayout)
-		if !pickupMatchesCohort(params.PickupCohort, hhmm, buckets) {
+		// No time from either source means the child is not in care on this
+		// date — like a not_scheduled slot row, they belong to no cohort.
+		if hhmm == "" || !pickupMatchesCohort(params.PickupCohort, hhmm, buckets) {
 			continue
 		}
 		cohort[student.ID] = struct{}{}
@@ -898,12 +1000,18 @@ func (s *service) collectPickupEntries(ctx context.Context, params Params, resul
 			Planned:    true,
 			Present:    present,
 		}
-		if status, ok := statusByStudent[student.ID]; ok && !present {
-			// Same shape signedOffAbsence reads on slot rows: an absence
-			// with a non-empty substatus counts as "Abgemeldet".
-			statusCopy := status
-			entry.PlannedStatus = scheduleModel.AttendanceStatusAbsent
-			entry.PlannedSubstatus = &statusCopy
+		if !present {
+			// A signed-off absence carries a non-empty substatus, the shape
+			// signedOffAbsence reads to render "Abgemeldet" instead of "Fehlt".
+			if status, ok := statusByStudent[student.ID]; ok {
+				statusCopy := status
+				entry.PlannedStatus = scheduleModel.AttendanceStatusAbsent
+				entry.PlannedSubstatus = &statusCopy
+			} else if cancelled {
+				cancelledSubstatus := string(scheduleSvc.CareDayCancelled)
+				entry.PlannedStatus = scheduleModel.AttendanceStatusAbsent
+				entry.PlannedSubstatus = &cancelledSubstatus
+			}
 		}
 		entries = append(entries, entry)
 	}
@@ -1183,10 +1291,37 @@ func exportFilters(params Params, result *Result) []string {
 		"Datenbasis: " + params.Source.Label() + " – " + result.Provenance,
 		"Enthalten: " + includedSummary(params, result),
 	}
+	if names := selectedGroupNames(params, result); len(names) > 0 {
+		filters = append(filters, "Gruppen: "+strings.Join(names, ", "))
+	}
+	if len(params.Classes) > 0 {
+		filters = append(filters, "Klassen: "+strings.Join(params.Classes, ", "))
+	}
 	if params.GroupBy != GroupByNone {
 		filters = append(filters, "Gruppiert nach: "+params.GroupBy.Label())
 	}
 	return filters
+}
+
+// selectedGroupNames maps the selected education-group IDs to their display
+// names via the options the build already resolved, so a filtered export
+// discloses the restriction instead of looking like the full cohort.
+func selectedGroupNames(params Params, result *Result) []string {
+	if len(params.GroupIDs) == 0 {
+		return nil
+	}
+	byID := make(map[int64]string, len(result.Groups))
+	for _, group := range result.Groups {
+		byID[group.ID] = group.Name
+	}
+	names := make([]string, 0, len(params.GroupIDs))
+	for _, id := range params.GroupIDs {
+		if name := byID[id]; name != "" {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
 }
 
 func includedSummary(params Params, result *Result) string {

@@ -1483,6 +1483,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		VisitRepo:           repos.ActiveVisit,
 		AttendanceRepo:      repos.Attendance,
 		StatusDayRepo:       repos.StudentStatusDay,
+		CareDayService:      careDayService,
+		PickupScheduleRepo:  repos.StudentPickupSchedule,
 		StudentRepo:         repos.Student,
 		PersonRepo:          repos.Person,
 		EducationGroupRepo:  repos.Group,
