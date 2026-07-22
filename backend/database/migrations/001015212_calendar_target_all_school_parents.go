@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	calendarTargetAllSchoolParentsVersion     = "1.15.211"
+	calendarTargetAllSchoolParentsVersion     = "1.15.212"
 	calendarTargetAllSchoolParentsDescription = "Allow the all_school_parents calendar appointment target type"
 )
 
@@ -21,7 +21,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.211: Adding all_school_parents to the calendar target check...")
+			fmt.Println("Migration 1.15.212: Adding all_school_parents to the calendar target check...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE calendar.appointment_targets
 					DROP CONSTRAINT IF EXISTS chk_calendar_targets_type,
@@ -42,7 +42,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.211: Removing all_school_parents from the calendar target check...")
+			fmt.Println("Rolling back migration 1.15.212: Removing all_school_parents from the calendar target check...")
 			// Existing all_school_parents rows would violate the tightened CHECK and
 			// abort the ALTER, so drop them first. Rolling this migration back removes
 			// the target type entirely, so those rows have no valid representation.

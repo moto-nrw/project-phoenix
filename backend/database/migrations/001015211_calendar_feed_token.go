@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	calendarFeedTokenVersion     = "1.15.210"
+	calendarFeedTokenVersion     = "1.15.211"
 	calendarFeedTokenDescription = "Add calendar_feed_token to auth.accounts for iCalendar subscription feeds"
 )
 
@@ -21,7 +21,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.210: Adding calendar_feed_token to auth.accounts...")
+			fmt.Println("Migration 1.15.211: Adding calendar_feed_token to auth.accounts...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE auth.accounts
 					ADD COLUMN IF NOT EXISTS calendar_feed_token TEXT;
@@ -35,7 +35,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.210: Dropping calendar_feed_token...")
+			fmt.Println("Rolling back migration 1.15.211: Dropping calendar_feed_token...")
 			if _, err := db.NewRaw(`
 				DROP INDEX IF EXISTS auth.uq_accounts_calendar_feed_token;
 				ALTER TABLE auth.accounts DROP COLUMN IF EXISTS calendar_feed_token;

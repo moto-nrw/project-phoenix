@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	calendarAppointmentDeletedAtVersion     = "1.15.213"
+	calendarAppointmentDeletedAtVersion     = "1.15.214"
 	calendarAppointmentDeletedAtDescription = "Add deleted_at soft-delete to calendar.appointments for feed-only cancellation tombstones"
 )
 
@@ -21,7 +21,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.213: Adding deleted_at to calendar.appointments...")
+			fmt.Println("Migration 1.15.214: Adding deleted_at to calendar.appointments...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE calendar.appointments
 					ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
@@ -48,7 +48,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.213: Dropping calendar.appointments.deleted_at...")
+			fmt.Println("Rolling back migration 1.15.214: Dropping calendar.appointments.deleted_at...")
 			if _, err := db.NewRaw(`
 				DROP INDEX IF EXISTS calendar.idx_calendar_appointments_deleted_at;
 			`).Exec(ctx); err != nil {

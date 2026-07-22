@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	calendarAppointmentRevisionVersion     = "1.15.212"
+	calendarAppointmentRevisionVersion     = "1.15.213"
 	calendarAppointmentRevisionDescription = "Add revision counter to calendar.appointments for iCalendar SEQUENCE"
 )
 
@@ -21,7 +21,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.212: Adding revision to calendar.appointments...")
+			fmt.Println("Migration 1.15.213: Adding revision to calendar.appointments...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE calendar.appointments
 					ADD COLUMN IF NOT EXISTS revision INTEGER NOT NULL DEFAULT 0;
@@ -31,7 +31,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.212: Dropping calendar.appointments.revision...")
+			fmt.Println("Rolling back migration 1.15.213: Dropping calendar.appointments.revision...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE calendar.appointments DROP COLUMN IF EXISTS revision;
 			`).Exec(ctx); err != nil {
