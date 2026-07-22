@@ -673,6 +673,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Zeigt den Status des Teams: wer anwesend ist, in welchem Raum, im Homeoffice oder abwesend.",
         steps: [
           "`Mitarbeiter` öffnen.",
+          "Mit Genehmigungsrecht erscheinen offene Urlaubs- und Abwesenheitsanträge oben im Bereich `Eingehende Anfragen`: pro Antrag Person, Art, Zeitraum, Tage und Notiz prüfen und direkt `Genehmigen`, `Ablehnen` (mit Begründung) oder eine `Rückfrage` mit Notiz an die Person stellen. Die Tabs filtern nach Art (`Alle`, `Urlaub`, `Krank`, `Fortbildung`, `Sonstige`).",
+          "Offene Anträge sind zusätzlich sichtbar als Zähler am Menüpunkt `Mitarbeiter` in der Seitenleiste und als kleines `Anfragen`-Badge auf der Karte der jeweiligen Person.",
           "Nach Name suchen.",
           "Nach Status filtern, zum Beispiel `Anwesend`, `Abwesend`, `Im Raum`, `Homeoffice` oder `Krank/Urlaub`.",
           "Bei Karten mit Raumangabe die aktuelle Aufsicht direkt in der Liste prüfen.",
@@ -696,7 +698,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Eine Zeile mit Änderungshistorie aufklappen, um geplante gegen tatsächliche Zeit zu sehen. Wurde beim Stempeln eine Abweichung begründet, erscheint sie dort als `Abweichung` mit geplanter Zeit, Ist-Zeit und Grund.",
           "Bei einem Arbeitstag das Stift-Symbol nutzen, um Zeiten nachzutragen oder zu korrigieren. Eine Begründung ist erforderlich und landet im Audit-Log.",
           "Im Reiter `Arbeitszeitmodell` eine Vorlage zuweisen oder ein eigenes Modell mit 1 bis 4 Wochen Rotation pflegen. Pro Arbeitstag kann optional eine Startzeit hinterlegt werden.",
-          "Im Reiter `Abwesenheiten` Urlaubsanspruch und offene Anträge prüfen, genehmigen oder mit Begründung ablehnen.",
+          "Im Reiter `Abwesenheiten` Urlaubsanspruch und offene Anträge prüfen, genehmigen, mit Begründung ablehnen oder eine `Rückfrage` mit Notiz stellen. Die Person sieht die Rückfrage in ihrer Zeiterfassung, kann ihre Antwort ergänzen und den Antrag erneut einreichen.",
           "Über `Krank melden` im Reiter `Abwesenheiten` eine Krankmeldung für die Person eintragen; sie storniert reguläre Schichten und markiert Betreuungsblöcke als abwesend. Bereits eingetragene Vertretungsschichten bleiben bestehen und müssen manuell geprüft werden. Ein halber Krankheitstag gilt immer für ein einzelnes Datum und ändert Dienst- und Betreuungsplan nicht automatisch. Beim Löschen der Krankmeldung werden nur Schichten und Blöcke ohne eingetragenen Ersatz automatisch wiederhergestellt.",
         ],
         callout: {
@@ -945,6 +947,7 @@ export const appChapters: readonly GuideChapter[] = [
           "In der Karte `Urlaub` Resturlaub, beantragte, genehmigte und abgelehnte Anträge prüfen.",
           "Mit `Urlaub beantragen` einen Zeitraum wählen. Halbe Tage, Notiz, Überschneidungen und Resturlaub werden direkt im Dialog geprüft.",
           "Eigene Urlaubsanträge in `Meine Anträge` verfolgen und offene oder zukünftige genehmigte Anträge bei Bedarf stornieren.",
+          "Stellt die Leitung eine `Rückfrage`, erscheint sie direkt am Antrag: die Antwort im Textfeld ergänzen und mit `Antwort senden & erneut einreichen` den Antrag zurück zur Entscheidung geben.",
           "In der Tabelle `Zeiterfassung` zwischen Woche und Monat wechseln und mit `Diese Woche` oder `Diesen Monat` zurückspringen.",
           "In der Monatsansicht die eigene `Monatskarte` prüfen: Übertrag aus dem Vormonat, Summe Soll, Summe Ist, Gutschriften für Krankheit und Urlaub sowie der Monatssaldo stehen dort zusammen.",
           "Tageszeilen prüfen: Plan (geplante Schicht), Check-in, Check-out, Pause, Soll, Ist, Saldo, Status, Quelle und Hinweise zeigen, ob ein Tag vollständig erfasst wurde.",
