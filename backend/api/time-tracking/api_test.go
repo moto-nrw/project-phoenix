@@ -200,6 +200,7 @@ type mockStaffAbsenceService struct {
 	deleteAbsenceFn     func(ctx context.Context, staffID int64, absenceID int64) error
 	getAbsencesForRange func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeSvc.StaffAbsenceResponse, error)
 	hasAbsenceOnDateFn  func(ctx context.Context, staffID int64, date timezone.Date) (bool, *activeModels.StaffAbsence, error)
+	resubmitAbsenceFn   func(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64, note string) (*activeSvc.StaffAbsenceResponse, error)
 }
 
 func (m *mockStaffAbsenceService) CreateAbsence(ctx context.Context, staffID int64, req activeSvc.CreateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
@@ -264,8 +265,11 @@ func (m *mockStaffAbsenceService) QuestionAbsence(_ context.Context, _ int64, _ 
 	return nil, nil
 }
 
-func (m *mockStaffAbsenceService) ResubmitAbsence(_ context.Context, _ int64, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {
-	return nil, nil
+func (m *mockStaffAbsenceService) ResubmitAbsence(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64, note string) (*activeSvc.StaffAbsenceResponse, error) {
+	if m.resubmitAbsenceFn != nil {
+		return m.resubmitAbsenceFn(ctx, staffID, actorAccountID, absenceID, note)
+	}
+	return &activeSvc.StaffAbsenceResponse{}, nil
 }
 
 func (m *mockStaffAbsenceService) CancelAbsence(_ context.Context, _ int64, _ int64, _ int64) error {
@@ -1873,4 +1877,76 @@ func TestCheckOut_MalformedBodyRejected(t *testing.T) {
 	rs.checkOut(w, r)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.False(t, called, "a malformed body must not reach the service")
+}
+
+// --- resubmitAbsence (#1419 Rückfrage answer) ---
+
+func TestResubmitAbsence_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	absSvc := &mockStaffAbsenceService{
+		resubmitAbsenceFn: func(_ context.Context, staffID int64, actorAccountID int64, absenceID int64, note string) (*activeSvc.StaffAbsenceResponse, error) {
+			assert.Equal(t, int64(100), staffID)
+			assert.Equal(t, int64(validClaims().ID), actorAccountID)
+			assert.Equal(t, int64(77), absenceID)
+			assert.Equal(t, "Vertretung geklärt", note)
+			return &activeSvc.StaffAbsenceResponse{}, nil
+		},
+	}
+	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"note":"Vertretung geklärt"}`)
+	r := httptest.NewRequest(http.MethodPost, "/absences/77/resubmit", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	r = withChiParam(r, "id", "77")
+	w := httptest.NewRecorder()
+
+	rs.resubmitAbsence(w, r)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestResubmitAbsence_NotOwn(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	absSvc := &mockStaffAbsenceService{
+		resubmitAbsenceFn: func(_ context.Context, _ int64, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {
+			return nil, errors.New("can only resubmit own absences")
+		},
+	}
+	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"note":"x"}`)
+	r := httptest.NewRequest(http.MethodPost, "/absences/77/resubmit", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	r = withChiParam(r, "id", "77")
+	w := httptest.NewRecorder()
+
+	rs.resubmitAbsence(w, r)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestResubmitAbsence_WrongStatus(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	absSvc := &mockStaffAbsenceService{
+		resubmitAbsenceFn: func(_ context.Context, _ int64, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {
+			return nil, errors.New("only absences with a question can be resubmitted")
+		},
+	}
+	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"note":"x"}`)
+	r := httptest.NewRequest(http.MethodPost, "/absences/77/resubmit", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	r = withChiParam(r, "id", "77")
+	w := httptest.NewRecorder()
+
+	rs.resubmitAbsence(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
