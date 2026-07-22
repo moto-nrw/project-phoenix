@@ -3,7 +3,9 @@ package calendar
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -37,19 +39,53 @@ type FeedAccountRepo interface {
 	EnsureCalendarFeedToken(ctx context.Context, accountID int64, newToken string) (string, error)
 }
 
-// ParentCalendarFeedURL returns the parent's iCalendar subscription URLs,
-// generating the secret token on first request.
+// ParentCalendarFeedURL returns the parent's iCalendar subscription URLs. The
+// raw token only ever exists in memory at generation time (only its hash is
+// stored), so the URLs are show-once: this returns them ONLY when it just
+// generated the token (no feed existed yet). If a feed already exists, it
+// returns empty URLs — the raw token is unrecoverable, and regenerating on every
+// view would silently break the parent's existing subscription. The caller shows
+// a "regenerate to reveal" state for empty URLs. Rotate is the way to see a link
+// again.
 func (s *service) ParentCalendarFeedURL(ctx context.Context, accountID int64) (string, string, error) {
-	token, err := s.ensureFeedToken(ctx, accountID)
+	if s.cfg.AccountRepo == nil {
+		return "", "", fmt.Errorf("%w: calendar feed not configured", ErrInvalidRequest)
+	}
+	if accountID <= 0 {
+		return "", "", fmt.Errorf("%w: account id is required", ErrForbidden)
+	}
+	account, err := s.cfg.AccountRepo.FindByID(ctx, accountID)
 	if err != nil {
 		return "", "", err
+	}
+	if account == nil {
+		return "", "", ErrNotFound
+	}
+	if account.CalendarFeedToken != nil && *account.CalendarFeedToken != "" {
+		// A feed already exists (only its hash is stored) — not re-displayable.
+		return "", "", nil
+	}
+	token, err := newFeedToken()
+	if err != nil {
+		return "", "", err
+	}
+	// Atomic first-writer-wins on the HASH: if two initial requests race, exactly
+	// one persists its hash. Only the caller whose hash won can show the matching
+	// raw URL; the loser can't reveal the winner's raw token, so it shows nothing.
+	persisted, err := s.cfg.AccountRepo.EnsureCalendarFeedToken(ctx, accountID, feedTokenHash(token))
+	if err != nil {
+		return "", "", err
+	}
+	if persisted != feedTokenHash(token) {
+		return "", "", nil
 	}
 	httpsURL, webcalURL := feedURLs(s.cfg.ParentsURL, token)
 	return httpsURL, webcalURL, nil
 }
 
 // RotateParentCalendarFeed issues a fresh token, invalidating the previous
-// subscription URL.
+// subscription URL. Only the new token's hash is persisted; the raw URL is
+// returned once.
 func (s *service) RotateParentCalendarFeed(ctx context.Context, accountID int64) (string, string, error) {
 	if s.cfg.AccountRepo == nil {
 		return "", "", fmt.Errorf("%w: calendar feed not configured", ErrInvalidRequest)
@@ -61,37 +97,11 @@ func (s *service) RotateParentCalendarFeed(ctx context.Context, accountID int64)
 	if err != nil {
 		return "", "", err
 	}
-	if err := s.cfg.AccountRepo.SetCalendarFeedToken(ctx, accountID, token); err != nil {
+	if err := s.cfg.AccountRepo.SetCalendarFeedToken(ctx, accountID, feedTokenHash(token)); err != nil {
 		return "", "", err
 	}
 	httpsURL, webcalURL := feedURLs(s.cfg.ParentsURL, token)
 	return httpsURL, webcalURL, nil
-}
-
-func (s *service) ensureFeedToken(ctx context.Context, accountID int64) (string, error) {
-	if s.cfg.AccountRepo == nil {
-		return "", fmt.Errorf("%w: calendar feed not configured", ErrInvalidRequest)
-	}
-	if accountID <= 0 {
-		return "", fmt.Errorf("%w: account id is required", ErrForbidden)
-	}
-	account, err := s.cfg.AccountRepo.FindByID(ctx, accountID)
-	if err != nil {
-		return "", err
-	}
-	if account == nil {
-		return "", ErrNotFound
-	}
-	if account.CalendarFeedToken != nil && *account.CalendarFeedToken != "" {
-		return *account.CalendarFeedToken, nil
-	}
-	token, err := newFeedToken()
-	if err != nil {
-		return "", err
-	}
-	// Atomic first-writer-wins: if two initial requests race, both get whichever
-	// token actually persisted, never a URL a later write silently overwrote.
-	return s.cfg.AccountRepo.EnsureCalendarFeedToken(ctx, accountID, token)
 }
 
 // ParentCalendarFeedByToken renders the subscription feed for the account that
@@ -104,7 +114,9 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 	if strings.TrimSpace(token) == "" {
 		return "", "", ErrNotFound
 	}
-	account, err := s.cfg.AccountRepo.FindByCalendarFeedToken(ctx, token)
+	// Only the token's hash is stored, so hash the presented raw token before the
+	// lookup (matching how it was persisted at generation/rotation).
+	account, err := s.cfg.AccountRepo.FindByCalendarFeedToken(ctx, feedTokenHash(token))
 	if err != nil {
 		return "", "", err
 	}
@@ -238,4 +250,15 @@ func newFeedToken() (string, error) {
 		return "", fmt.Errorf("generate calendar feed token: %w", err)
 	}
 	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+// feedTokenHash returns the hex-encoded SHA-256 of the raw feed token. Only the
+// hash is persisted (in auth.accounts.calendar_feed_token), so a database read,
+// backup, or dump exposes no replayable /api/calendar-feed/{token} URL. SHA-256
+// (not Argon2) is sufficient because the token is 256 bits of randomness — there
+// is no offline-guessing surface. Mirrors the trusted-device / display token
+// handling (services/auth.HashTrustedDeviceToken, services/display.displayTokenHash).
+func feedTokenHash(token string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))
+	return hex.EncodeToString(sum[:])
 }

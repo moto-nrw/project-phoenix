@@ -71,17 +71,20 @@ func (r *AccountRepository) FindByEmail(ctx context.Context, email string) (*aut
 	return account, nil
 }
 
-// FindByCalendarFeedToken resolves the account owning an iCalendar
-// subscription token. Returns (nil, nil) when no account matches so the public
-// feed endpoint can answer 404 without leaking whether a token exists.
-func (r *AccountRepository) FindByCalendarFeedToken(ctx context.Context, token string) (*auth.Account, error) {
-	if token == "" {
+// FindByCalendarFeedToken resolves the account owning an iCalendar subscription
+// feed. The stored calendar_feed_token is the SHA-256 HASH of the raw token
+// (the service hashes both on write and before this lookup), so callers pass
+// the hash, not the raw token — a DB read exposes no replayable URL. Returns
+// (nil, nil) when no account matches so the public feed endpoint can answer 404
+// without leaking whether a token exists.
+func (r *AccountRepository) FindByCalendarFeedToken(ctx context.Context, tokenHash string) (*auth.Account, error) {
+	if tokenHash == "" {
 		return nil, nil
 	}
 	account := new(auth.Account)
 	err := base.GetDB(ctx, r.db).NewSelect().
 		ModelTableExpr(accountTable).
-		Where("calendar_feed_token = ?", token).
+		Where("calendar_feed_token = ?", tokenHash).
 		Scan(ctx, account)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -92,17 +95,19 @@ func (r *AccountRepository) FindByCalendarFeedToken(ctx context.Context, token s
 	return account, nil
 }
 
-// EnsureCalendarFeedToken atomically claims newToken for the account only if it
-// has no token yet, then returns whatever token is persisted. The conditional
-// UPDATE takes a row lock, so of two concurrent first-time callers exactly one
-// wins the write; the loser matches no row and reads back the winner's token via
-// the follow-up SELECT. Nobody is ever handed a token a later write overwrote.
-func (r *AccountRepository) EnsureCalendarFeedToken(ctx context.Context, accountID int64, newToken string) (string, error) {
+// EnsureCalendarFeedToken atomically claims newTokenHash for the account only if
+// it has no feed token yet, then returns whatever hash is persisted. The value
+// is the SHA-256 hash of the raw token (the service hashes before calling), not
+// the raw token itself. The conditional UPDATE takes a row lock, so of two
+// concurrent first-time callers exactly one wins the write; the loser matches no
+// row and reads back the winner's hash via the follow-up SELECT. Nobody is ever
+// handed a hash a later write overwrote.
+func (r *AccountRepository) EnsureCalendarFeedToken(ctx context.Context, accountID int64, newTokenHash string) (string, error) {
 	db := base.GetDB(ctx, r.db)
 	res, err := db.NewUpdate().
 		Model((*auth.Account)(nil)).
 		ModelTableExpr(accountTable).
-		Set("calendar_feed_token = ?", newToken).
+		Set("calendar_feed_token = ?", newTokenHash).
 		Where(whereID, accountID).
 		Where("(calendar_feed_token IS NULL OR calendar_feed_token = '')").
 		Exec(ctx)
@@ -110,7 +115,7 @@ func (r *AccountRepository) EnsureCalendarFeedToken(ctx context.Context, account
 		return "", &modelBase.DatabaseError{Op: "ensure calendar feed token", Err: err}
 	}
 	if n, err := res.RowsAffected(); err == nil && n > 0 {
-		return newToken, nil
+		return newTokenHash, nil
 	}
 	// Row already had a token, or a concurrent request won the write: return the
 	// persisted value.
@@ -130,12 +135,14 @@ func (r *AccountRepository) EnsureCalendarFeedToken(ctx context.Context, account
 	return *account.CalendarFeedToken, nil
 }
 
-// SetCalendarFeedToken sets or rotates the account's calendar feed token.
-func (r *AccountRepository) SetCalendarFeedToken(ctx context.Context, accountID int64, token string) error {
+// SetCalendarFeedToken sets or rotates the account's calendar feed token. The
+// value stored is the SHA-256 hash of the raw token, not the raw token itself
+// (the service hashes before calling).
+func (r *AccountRepository) SetCalendarFeedToken(ctx context.Context, accountID int64, tokenHash string) error {
 	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*auth.Account)(nil)).
 		ModelTableExpr(accountTable).
-		Set("calendar_feed_token = ?", token).
+		Set("calendar_feed_token = ?", tokenHash).
 		Where(whereID, accountID).
 		Exec(ctx)
 	if err != nil {

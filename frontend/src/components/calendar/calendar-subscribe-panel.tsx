@@ -88,7 +88,7 @@ export function CalendarSubscribePanel() {
             </Button>
           ) : null}
 
-          {open && feed ? (
+          {open && feed && feed.url ? (
             <div className="mt-4 space-y-4">
               <a
                 href={feed.webcal_url}
@@ -123,6 +123,10 @@ export function CalendarSubscribePanel() {
                     Kopieren
                   </Button>
                 </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Aus Sicherheitsgründen wird dieser Link nur jetzt angezeigt.
+                  Kopieren Sie ihn gleich in Ihren Kalender.
+                </p>
               </div>
 
               <div className="rounded-lg bg-gray-50 p-3 text-xs leading-5 text-gray-600">
@@ -149,6 +153,25 @@ export function CalendarSubscribePanel() {
               >
                 <RefreshCw className="h-4 w-4" aria-hidden />
                 Link neu generieren
+              </Button>
+            </div>
+          ) : null}
+
+          {open && feed && !feed.url ? (
+            <div className="mt-4 space-y-3">
+              <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-600">
+                Ihr Abo-Link ist bereits aktiv. Aus Sicherheitsgründen wird er
+                nicht erneut angezeigt. Falls Sie ihn nicht mehr haben, erzeugen
+                Sie einen neuen Link – der bisherige wird dann ungültig.
+              </div>
+              <Button
+                type="button"
+                size="md"
+                isLoading={loading}
+                onClick={rotate}
+              >
+                <RefreshCw className="h-4 w-4" aria-hidden />
+                Neuen Abo-Link erzeugen
               </Button>
             </div>
           ) : null}

@@ -58,6 +58,36 @@ describe("CalendarSubscribePanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("prompts to regenerate when the link is not re-displayable", async () => {
+    // The backend only stores the token hash, so an already-generated feed
+    // returns empty URLs (show-once). The panel offers a regenerate instead.
+    mockGetFeed.mockResolvedValue({ url: "", webcal_url: "" });
+    mockRotateFeed.mockResolvedValue({
+      url: "https://parents.test/api/calendar-feed/fresh",
+      webcal_url: "webcal://parents.test/api/calendar-feed/fresh",
+    });
+
+    render(<CalendarSubscribePanel />);
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+    await waitFor(() => expect(mockGetFeed).toHaveBeenCalledOnce());
+
+    // No URL is shown; the parent gets a regenerate button instead.
+    expect(
+      screen.queryByRole("link", { name: /Im Kalender abonnieren/ }),
+    ).toBeNull();
+    const regenerate = await screen.findByRole("button", {
+      name: /Neuen Abo-Link erzeugen/,
+    });
+
+    fireEvent.click(regenerate);
+    await waitFor(() => expect(mockRotateFeed).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(
+        screen.getByDisplayValue("https://parents.test/api/calendar-feed/fresh"),
+      ).toBeInTheDocument(),
+    );
+  });
+
   it("rotates the link when requested", async () => {
     mockGetFeed.mockResolvedValue({
       url: "https://parents.test/api/calendar-feed/old",

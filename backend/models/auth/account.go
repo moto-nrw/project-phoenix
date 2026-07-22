@@ -25,8 +25,10 @@ type Account struct {
 	PINLockedUntil *time.Time `bun:"pin_locked_until" json:"-"`
 	MFAAttempts    int        `bun:"mfa_attempts,default:0" json:"-"`
 	MFALockedUntil *time.Time `bun:"mfa_locked_until" json:"-"`
-	// CalendarFeedToken is a secret capability token in the parent's iCalendar
-	// subscription URL. Unset until the parent first requests their feed URL.
+	// CalendarFeedToken stores the SHA-256 HASH of the secret capability token in
+	// the parent's iCalendar subscription URL — never the raw token, so a DB read
+	// exposes no replayable /api/calendar-feed/{token} URL. The service hashes on
+	// write and before lookup. Unset until the parent first requests their feed.
 	CalendarFeedToken *string `bun:"calendar_feed_token" json:"-"`
 	// The per-account MFA admin override no longer lives on this row.
 	// Tenant-scoped overrides + the operator's account-wide emergency

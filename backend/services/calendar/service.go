@@ -592,11 +592,25 @@ func (s *service) CancelStaffAppointment(ctx context.Context, appointmentID int6
 	if appointment.CancelledAt == nil {
 		// Cancel via the dedicated conditional update (not Update): it only writes
 		// cancelled_at/revision, so it can't clobber a concurrent edit and — being
-		// WHERE cancelled_at IS NULL — is idempotent under a concurrent cancel.
-		// `transitioned` is true only for the caller that actually flipped the row.
+		// WHERE cancelled_at IS NULL AND deleted_at IS NULL — matches nothing once a
+		// concurrent cancel or delete has won. `transitioned` is true only for the
+		// caller that actually flipped the row.
 		transitioned, err := s.cfg.AppointmentRepo.Cancel(ctx, appointment.ID)
 		if err != nil {
 			return nil, err
+		}
+		if !transitioned {
+			// A concurrent cancel or delete won between our load and this update, so
+			// the row did NOT transition. Do NOT mark the stale in-memory object
+			// cancelled (that would return a "cancelled" view of a possibly-deleted
+			// appointment). Reload for the true state: loadOrganizedAppointment
+			// surfaces a concurrent delete as not-found and returns the (already)
+			// cancelled detail for a concurrent cancel — idempotent, no double notice.
+			reloaded, err := s.loadOrganizedAppointment(ctx, appointmentID)
+			if err != nil {
+				return nil, err
+			}
+			return s.appointmentDetail(ctx, reloaded)
 		}
 		now := time.Now()
 		appointment.CancelledAt = &now
@@ -604,14 +618,12 @@ func (s *service) CancelStaffAppointment(ctx context.Context, appointmentID int6
 		// so two concurrent cancels can't send duplicate guardian e-mails. And even
 		// then, honour the persisted opt-in: an appointment created without
 		// send_email never mails guardians on cancellation.
-		if transitioned {
-			if err := s.cancelPendingNotifications(ctx, appointment.ID, "appointment cancelled"); err != nil {
+		if err := s.cancelPendingNotifications(ctx, appointment.ID, "appointment cancelled"); err != nil {
+			return nil, err
+		}
+		if appointment.NotifyGuardians {
+			if err := s.notifyGuardians(ctx, appointment, platformModels.EmailKindAppointmentCancelled); err != nil {
 				return nil, err
-			}
-			if appointment.NotifyGuardians {
-				if err := s.notifyGuardians(ctx, appointment, platformModels.EmailKindAppointmentCancelled); err != nil {
-					return nil, err
-				}
 			}
 		}
 	}

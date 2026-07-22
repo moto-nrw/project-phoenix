@@ -2,6 +2,8 @@ package calendar_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"log/slog"
 	"sort"
@@ -634,18 +636,33 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
-	// First request generates a stable token + subscription URLs.
+	// First request generates the token and returns the subscription URLs once.
 	httpsURL, webcalURL, err := service.ParentCalendarFeedURL(testpkg.TenantContext(1), parentChain.AccountID)
 	require.NoError(t, err)
 	assert.True(t, strings.HasPrefix(httpsURL, "https://parents.test/api/calendar-feed/"))
 	assert.True(t, strings.HasPrefix(webcalURL, "webcal://parents.test/api/calendar-feed/"))
 
-	// Idempotent: the URL is stable on a second request.
-	httpsURL2, _, err := service.ParentCalendarFeedURL(testpkg.TenantContext(1), parentChain.AccountID)
+	// Show-once: only the token hash is stored, so a second request cannot
+	// re-display the raw URL — it returns empty (the UI then offers a rotate).
+	httpsURL2, webcalURL2, err := service.ParentCalendarFeedURL(testpkg.TenantContext(1), parentChain.AccountID)
 	require.NoError(t, err)
-	assert.Equal(t, httpsURL, httpsURL2)
+	assert.Empty(t, httpsURL2)
+	assert.Empty(t, webcalURL2)
 
 	token := strings.TrimPrefix(httpsURL, "https://parents.test/api/calendar-feed/")
+
+	// Security: the DB stores only the SHA-256 hash of the token, never the raw
+	// capability token — a DB read/backup exposes no replayable feed URL.
+	var storedFeedToken string
+	require.NoError(t, db.NewSelect().
+		Table("auth.accounts").
+		Column("calendar_feed_token").
+		Where("id = ?", parentChain.AccountID).
+		Scan(context.Background(), &storedFeedToken))
+	rawSum := sha256.Sum256([]byte(token))
+	assert.Equal(t, hex.EncodeToString(rawSum[:]), storedFeedToken, "only the token hash is persisted")
+	assert.NotEqual(t, token, storedFeedToken, "the raw token must never be stored")
+
 	filename, content, err := service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
 	require.NoError(t, err)
 	assert.Equal(t, "moto-kalender.ics", filename)
