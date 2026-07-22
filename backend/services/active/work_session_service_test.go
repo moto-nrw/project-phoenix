@@ -473,7 +473,7 @@ func (m *wsMockStaffAbsenceRepository) GetTodayAbsenceMap(ctx context.Context) (
 	return nil, nil
 }
 
-// ListByStaffAndStatuses + ListByStatus are part of the StaffAbsenceRepository
+// ListByStaffAndStatuses + ListByStatuses are part of the StaffAbsenceRepository
 // interface added in the Tranche 4 vacation-workflow spike. No-op defaults so
 // work-session tests still satisfy the interface.
 func (m *wsMockStaffAbsenceRepository) ListByStaffAndStatuses(_ context.Context, _ int64, _ []string) ([]*activeModels.StaffAbsence, error) {
@@ -481,10 +481,6 @@ func (m *wsMockStaffAbsenceRepository) ListByStaffAndStatuses(_ context.Context,
 }
 
 func (m *wsMockStaffAbsenceRepository) ListByStatuses(_ context.Context, _ []string) ([]*activeModels.StaffAbsence, error) {
-	return nil, nil
-}
-
-func (m *wsMockStaffAbsenceRepository) ListByStatus(_ context.Context, _ string) ([]*activeModels.StaffAbsence, error) {
 	return nil, nil
 }
 

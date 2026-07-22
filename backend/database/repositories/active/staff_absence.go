@@ -155,23 +155,6 @@ func (r *StaffAbsenceRepository) GetTodayAbsenceMap(ctx context.Context) (map[in
 	return result, nil
 }
 
-// ListByStatus returns all absences for the current tenant with the given status
-func (r *StaffAbsenceRepository) ListByStatus(ctx context.Context, status string) ([]*active.StaffAbsence, error) {
-	var absences []*active.StaffAbsence
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&absences).
-		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
-		Where(`"staff_absence".status = ?`, status).
-		OrderExpr(`"staff_absence".requested_at ASC`)
-
-	query = base.WithTenantFilter(ctx, query, "staff_absence")
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list absences by status", Err: err}
-	}
-	return absences, nil
-}
-
 // ListByStatuses returns all absences whose status is in the given set,
 // ordered by requested_at ASC (oldest request first).
 func (r *StaffAbsenceRepository) ListByStatuses(ctx context.Context, statuses []string) ([]*active.StaffAbsence, error) {

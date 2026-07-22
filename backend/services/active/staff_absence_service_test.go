@@ -101,14 +101,10 @@ func (m *absStaffAbsenceRepoMock) GetTodayAbsenceMap(ctx context.Context) (map[i
 	return nil, nil
 }
 
-// ListByStaffAndStatuses + ListByStatus are part of the StaffAbsenceRepository
+// ListByStaffAndStatuses + ListByStatuses are part of the StaffAbsenceRepository
 // interface added in the Tranche 4 vacation-workflow spike. No-op defaults so
 // tests that don't exercise the vacation inbox still satisfy the interface.
 func (m *absStaffAbsenceRepoMock) ListByStaffAndStatuses(_ context.Context, _ int64, _ []string) ([]*activeModels.StaffAbsence, error) {
-	return nil, nil
-}
-
-func (m *absStaffAbsenceRepoMock) ListByStatus(_ context.Context, _ string) ([]*activeModels.StaffAbsence, error) {
 	return nil, nil
 }
 

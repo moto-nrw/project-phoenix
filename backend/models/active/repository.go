@@ -349,9 +349,6 @@ type StaffAbsenceRepository interface {
 	// Priority order when multiple absences exist: sick > training > vacation > other
 	GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error)
 
-	// ListByStatus returns all absences with the given status (used for inbox view)
-	ListByStatus(ctx context.Context, status string) ([]*StaffAbsence, error)
-
 	// ListByStatuses returns all absences whose status is in the given set,
 	// ordered by requested_at (used for the /staff inbox: requested + question)
 	ListByStatuses(ctx context.Context, statuses []string) ([]*StaffAbsence, error)
