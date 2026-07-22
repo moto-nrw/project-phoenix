@@ -17,7 +17,6 @@ require (
 	github.com/k3a/html2text v1.4.0
 	github.com/lestrrat-go/jwx/v3 v3.1.1
 	github.com/prometheus/client_golang v1.23.2
-	github.com/rickar/cal/v2 v2.1.28
 	github.com/samber/slog-chi v1.19.1
 	github.com/signintech/gopdf v0.37.0
 	github.com/spf13/cobra v1.10.2
@@ -29,6 +28,7 @@ require (
 	github.com/uptrace/bun/driver/pgdriver v1.2.18
 	github.com/uudashr/gocognit v1.2.1
 	github.com/vanng822/go-premailer v1.34.0
+	github.com/wlbr/feiertage v1.20.1
 	github.com/wneessen/go-mail v0.8.1
 	github.com/xuri/excelize/v2 v2.11.0
 	golang.org/x/crypto v0.54.0

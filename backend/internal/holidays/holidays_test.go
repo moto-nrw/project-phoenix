@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rickar/cal/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -56,7 +55,7 @@ func TestRegionalDifferences(t *testing.T) {
 	assert.True(t, names("DE-SN")["Buß- und Bettag"])
 	assert.False(t, names("DE-NW")["Buß- und Bettag"])
 
-	assert.True(t, names("DE-BE")["Frauentag"])
+	assert.True(t, names("DE-BE")["Internationaler Frauentag"])
 	assert.True(t, names("DE-TH")["Weltkindertag"])
 	assert.True(t, names("DE-SL")["Mariä Himmelfahrt"])
 	assert.False(t, names("DE-BY")["Mariä Himmelfahrt"]) // only in Catholic municipalities — not state-wide
@@ -70,20 +69,75 @@ func TestForYearUnknownRegion(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestForYearSkipsDefinitionsOutsideTheirValidityWindow(t *testing.T) {
-	const region = "DE-TEST"
-	regionHolidays[region] = []*cal.Holiday{{
-		Name:      "Future holiday",
-		StartYear: 2027,
-		Month:     time.January,
-		Day:       1,
-		Func:      cal.CalcDayOfMonth,
-	}}
-	t.Cleanup(func() { delete(regionHolidays, region) })
+func TestForYearRespectsHolidayValidityWindows(t *testing.T) {
+	nameOn := func(region string, year int, d timezone.Date) string {
+		list, err := ForYear(region, year)
+		require.NoError(t, err)
+		for _, h := range list {
+			if h.Date == d {
+				return h.Name
+			}
+		}
+		return ""
+	}
 
-	list, err := ForYear(region, 2026)
+	// Frauentag is statutory in MV only since 2023.
+	assert.Empty(t, nameOn("DE-MV", 2022, date(2022, time.March, 8)))
+	assert.Equal(t, "Internationaler Frauentag", nameOn("DE-MV", 2023, date(2023, time.March, 8)))
+
+	// Berlin's Tag der Befreiung was a one-off holiday in 2020 and 2025.
+	assert.Empty(t, nameOn("DE-BE", 2024, date(2024, time.May, 8)))
+	assert.Equal(t, "Tag der Befreiung", nameOn("DE-BE", 2025, date(2025, time.May, 8)))
+
+	// Weltkindertag is statutory in Thüringen only since 2019.
+	assert.Empty(t, nameOn("DE-TH", 2018, date(2018, time.September, 20)))
+	assert.Equal(t, "Weltkindertag", nameOn("DE-TH", 2019, date(2019, time.September, 20)))
+}
+
+func TestBrandenburgIncludesEasterAndPentecostSundays(t *testing.T) {
+	// Easter 2026 is April 5, Pentecost Sunday May 24. Statutory holidays
+	// in Brandenburg only.
+	bb, err := DateSet("DE-BB", date(2026, time.January, 1), date(2026, time.December, 31))
 	require.NoError(t, err)
-	assert.Empty(t, list)
+	assert.True(t, bb[date(2026, time.April, 5)])
+	assert.True(t, bb[date(2026, time.May, 24)])
+
+	nw, err := DateSet("DE-NW", date(2026, time.January, 1), date(2026, time.December, 31))
+	require.NoError(t, err)
+	assert.False(t, nw[date(2026, time.April, 5)])
+	assert.False(t, nw[date(2026, time.May, 24)])
+
+	list, err := ForYear("DE-BB", 2026)
+	require.NoError(t, err)
+	names := make(map[timezone.Date]string, len(list))
+	for _, h := range list {
+		names[h.Date] = h.Name
+	}
+	assert.Equal(t, "Ostersonntag", names[date(2026, time.April, 5)])
+	assert.Equal(t, "Pfingstsonntag", names[date(2026, time.May, 24)])
+}
+
+func TestDisplayNameNormalization(t *testing.T) {
+	list, err := ForYear("DE-NW", 2026)
+	require.NoError(t, err)
+	names := make(map[timezone.Date]string, len(list))
+	for _, h := range list {
+		names[h.Date] = h.Name
+	}
+
+	assert.Equal(t, "Neujahrstag", names[date(2026, time.January, 1)])
+	assert.Equal(t, "Tag der Deutschen Einheit", names[date(2026, time.October, 3)])
+	assert.Equal(t, "Erster Weihnachtsfeiertag", names[date(2026, time.December, 25)])
+
+	by, err := ForYear("DE-BY", 2026)
+	require.NoError(t, err)
+	found := ""
+	for _, h := range by {
+		if h.Date == date(2026, time.January, 6) {
+			found = h.Name
+		}
+	}
+	assert.Equal(t, "Heilige Drei Könige", found)
 }
 
 func TestInRangeCrossesYears(t *testing.T) {

@@ -1,8 +1,11 @@
 // Package holidays computes German public holidays (gesetzliche Feiertage)
 // per Bundesland. The dates are pure calendar facts (fixed days plus
-// Easter-derived offsets), so they are computed locally via rickar/cal
+// Easter-derived offsets), so they are computed locally via wlbr/feiertage
 // instead of being synced from an external API — no runtime dependency,
-// no licensing question, no stale cache (#1418 3a).
+// no licensing question, no stale cache (#1418 3a). The library covers the
+// state-specific edge cases rickar/cal missed: Frauentag in MV since 2023,
+// Ostersonntag/Pfingstsonntag in Brandenburg, and Berlin's one-off
+// Tag der Befreiung on 2025-05-08.
 //
 // Regions are ISO 3166-2 codes (DE-NW, DE-BY, ...) matching the
 // operations.federal_state setting. Municipality-dependent holidays that
@@ -14,8 +17,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/rickar/cal/v2"
-	"github.com/rickar/cal/v2/de"
+	"github.com/wlbr/feiertage"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
@@ -29,32 +31,46 @@ type Holiday struct {
 // DefaultRegion is the fallback Bundesland (the product's home state).
 const DefaultRegion = "DE-NW"
 
-// regionHolidays maps ISO 3166-2 codes to the state-wide holiday
-// definitions. Keep in sync with the operations.federal_state options.
-var regionHolidays = map[string][]*cal.Holiday{
-	"DE-BW": de.HolidaysBW,
-	"DE-BY": de.HolidaysBY,
-	"DE-BE": de.HolidaysBE,
-	"DE-BB": de.HolidaysBB,
-	"DE-HB": de.HolidaysHB,
-	"DE-HH": de.HolidaysHH,
-	"DE-HE": de.HolidaysHE,
-	"DE-MV": de.HolidaysMV,
-	"DE-NI": de.HolidaysNI,
-	"DE-NW": de.HolidaysNW,
-	"DE-RP": de.HolidaysRP,
-	"DE-SL": de.HolidaysSL,
-	"DE-SN": de.HolidaysSN,
-	"DE-ST": de.HolidaysST,
-	"DE-SH": de.HolidaysSH,
-	"DE-TH": de.HolidaysTH,
+// regionFuncs maps ISO 3166-2 codes to the state-wide holiday functions.
+// Keep in sync with the operations.federal_state options. The functions
+// are called WITHOUT the optional inklSonntage argument: that default
+// includes Ostersonntag/Pfingstsonntag for Brandenburg (where they are
+// statutory) and adds nothing extra for any other state.
+var regionFuncs = map[string]func(int, ...bool) feiertage.Region{
+	"DE-BW": feiertage.BadenWürttemberg,
+	"DE-BY": feiertage.Bayern,
+	"DE-BE": feiertage.Berlin,
+	"DE-BB": feiertage.Brandenburg,
+	"DE-HB": feiertage.Bremen,
+	"DE-HH": feiertage.Hamburg,
+	"DE-HE": feiertage.Hessen,
+	"DE-MV": feiertage.MecklenburgVorpommern,
+	"DE-NI": feiertage.Niedersachsen,
+	"DE-NW": feiertage.NordrheinWestfalen,
+	"DE-RP": feiertage.RheinlandPfalz,
+	"DE-SL": feiertage.Saarland,
+	"DE-SN": feiertage.Sachsen,
+	"DE-ST": feiertage.SachsenAnhalt,
+	"DE-SH": feiertage.SchleswigHolstein,
+	"DE-TH": feiertage.Thüringen,
+}
+
+// displayNames overrides library holiday names where the official (and
+// previously shipped) spelling differs; names not listed pass through.
+var displayNames = map[string]string{
+	"Neujahr":                   "Neujahrstag",
+	"Epiphanias":                "Heilige Drei Könige",
+	"Ostern":                    "Ostersonntag",
+	"Pfingsten":                 "Pfingstsonntag",
+	"Tag der deutschen Einheit": "Tag der Deutschen Einheit",
+	"Weihnachten":               "Erster Weihnachtsfeiertag",
 }
 
 // Regions returns the supported region codes (sorted, for validation and
 // option lists).
 func Regions() []string {
-	codes := make([]string, 0, len(regionHolidays))
-	for code := range regionHolidays {
+	codes := make([]string, 0, len(regionFuncs))
+	for code := range regionFuncs {
 		codes = append(codes, code)
 	}
 	sort.Strings(codes)
@@ -63,25 +79,26 @@ func Regions() []string {
 
 // ValidRegion reports whether code is a supported Bundesland code.
 func ValidRegion(code string) bool {
-	_, ok := regionHolidays[code]
+	_, ok := regionFuncs[code]
 	return ok
 }
 
 // ForYear returns all public holidays of the region in the given year,
 // sorted by date.
 func ForYear(region string, year int) ([]Holiday, error) {
-	defs, ok := regionHolidays[region]
+	fn, ok := regionFuncs[region]
 	if !ok {
 		return nil, fmt.Errorf("unknown federal state region %q", region)
 	}
-	result := make([]Holiday, 0, len(defs))
-	for _, def := range defs {
-		actual, _ := def.Calc(year)
-		if actual.IsZero() {
-			continue
+	days := fn(year).Feiertage
+	result := make([]Holiday, 0, len(days))
+	for _, f := range days {
+		name := f.Text
+		if display, ok := displayNames[name]; ok {
+			name = display
 		}
-		y, m, d := actual.Date()
-		result = append(result, Holiday{Date: timezone.NewDate(y, m, d), Name: def.Name})
+		y, m, d := f.Date()
+		result = append(result, Holiday{Date: timezone.NewDate(y, m, d), Name: name})
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Date.Before(result[j].Date) })
 	return result, nil
