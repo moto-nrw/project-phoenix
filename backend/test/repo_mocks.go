@@ -159,6 +159,8 @@ type StaffRepoMock struct {
 	FindByIDsFn                     func(ctx context.Context, ids []int64) (map[int64]*users.Staff, error)
 	FindWithPersonByIDsFn           func(ctx context.Context, ids []int64) (map[int64]*users.Staff, error)
 	ListStaffByRolesFn              func(ctx context.Context, roles []string) ([]*users.StaffWithRoleInfo, error)
+	ListStaffWithPermissionFn       func(ctx context.Context, permissionName string) ([]*users.StaffWithRoleInfo, error)
+	GetStaffContactInfoFn           func(ctx context.Context, staffID int64) (*users.StaffWithRoleInfo, error)
 	FindReachableCalendarStaffIDsFn func(ctx context.Context, ids []int64) (map[int64]bool, error)
 }
 
@@ -237,6 +239,20 @@ func (m *StaffRepoMock) FindByIDs(ctx context.Context, ids []int64) (map[int64]*
 func (m *StaffRepoMock) FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*users.Staff, error) {
 	if m.FindWithPersonByIDsFn != nil {
 		return m.FindWithPersonByIDsFn(ctx, ids)
+	}
+	return nil, nil
+}
+
+func (m *StaffRepoMock) GetStaffContactInfo(ctx context.Context, staffID int64) (*users.StaffWithRoleInfo, error) {
+	if m.GetStaffContactInfoFn != nil {
+		return m.GetStaffContactInfoFn(ctx, staffID)
+	}
+	return nil, nil
+}
+
+func (m *StaffRepoMock) ListStaffWithPermission(ctx context.Context, permissionName string) ([]*users.StaffWithRoleInfo, error) {
+	if m.ListStaffWithPermissionFn != nil {
+		return m.ListStaffWithPermissionFn(ctx, permissionName)
 	}
 	return nil, nil
 }

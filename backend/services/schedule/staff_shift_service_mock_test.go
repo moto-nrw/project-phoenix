@@ -167,6 +167,14 @@ func (m *shiftMockStaffRepo) FindByIDs(context.Context, []int64) (map[int64]*use
 func (m *shiftMockStaffRepo) FindWithPersonByIDs(context.Context, []int64) (map[int64]*usersModels.Staff, error) {
 	return nil, nil
 }
+func (m *shiftMockStaffRepo) ListStaffWithPermission(context.Context, string) ([]*usersModels.StaffWithRoleInfo, error) {
+	return nil, nil
+}
+
+func (m *shiftMockStaffRepo) GetStaffContactInfo(context.Context, int64) (*usersModels.StaffWithRoleInfo, error) {
+	return nil, nil
+}
+
 func (m *shiftMockStaffRepo) ListStaffByRoles(context.Context, []string) ([]*usersModels.StaffWithRoleInfo, error) {
 	return nil, nil
 }

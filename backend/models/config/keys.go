@@ -157,6 +157,9 @@ const (
 	// KeyFederalState is the school's Bundesland (ISO 3166-2, e.g. DE-NW).
 	// Drives the public-holiday calendar in time tracking (#1418 3a).
 	KeyFederalState = "operations.federal_state"
+	// KeyNotificationsAbsenceApprovalEmail toggles the absence-request email
+	// notifications (request received / approved / declined / Rückfrage, #1419).
+	KeyNotificationsAbsenceApprovalEmail = "notifications.absence_approval_email"
 )
 
 // PresenceMode option values for KeyPresenceMode.

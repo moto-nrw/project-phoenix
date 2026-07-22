@@ -214,6 +214,15 @@ type StaffRepository interface {
 	// FindWithPersonByIDs retrieves multiple staff members with their associated person data in a single query
 	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*Staff, error)
 
+	// ListStaffWithPermission returns all active staff whose effective
+	// permissions match the given permission name (wildcard-aware,
+	// tenant-scoped). Used for absence-request email fan-out (#1419).
+	ListStaffWithPermission(ctx context.Context, permissionName string) ([]*StaffWithRoleInfo, error)
+
+	// GetStaffContactInfo returns name + account email for one staff member
+	// (staff → person → account join). Used for absence-decision emails (#1419).
+	GetStaffContactInfo(ctx context.Context, staffID int64) (*StaffWithRoleInfo, error)
+
 	// ListStaffByRoles retrieves staff members who have any of the specified roles,
 	// including their person data, account ID, and email, using a single JOIN query.
 	ListStaffByRoles(ctx context.Context, roles []string) ([]*StaffWithRoleInfo, error)

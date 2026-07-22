@@ -1,0 +1,30 @@
+{{define "absence-request-approved.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "moto-brand" .}}
+    <h1>Dein Antrag wurde genehmigt</h1>
+
+    <p>Hallo {{.FirstName}},</p>
+
+    <p>dein Abwesenheitsantrag wurde genehmigt:</p>
+
+    <div class="highlight-box">
+        <p><strong>{{.AbsenceTypeLabel}}</strong><br>
+        Zeitraum: {{.DateRange}}</p>
+        {{if .DecisionNote}}
+        <p>Anmerkung der Leitung: {{.DecisionNote}}</p>
+        {{end}}
+    </div>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.LinkURL}}">Zur Zeiterfassung</a>
+    </div>
+
+    <div class="link-box">
+        <a href="{{.LinkURL}}">{{.LinkURL}}</a>
+    </div>
+</div>
+
+{{template "footer" .}}
+{{end}}

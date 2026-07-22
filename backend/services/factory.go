@@ -379,6 +379,22 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Initialize staff absence service
 	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit)
 
+	// Absence email notifications (#1419 4d). Setter injection keeps the
+	// constructor stable and unit tests email-free (mirrors SetShiftPlanSyncer);
+	// the interface stays untouched via the assertion (like SetHolidayReader).
+	if emailAware, ok := staffAbsenceService.(interface {
+		SetAbsenceEmailDeps(active.AbsenceEmailDeps)
+	}); ok {
+		emailAware.SetAbsenceEmailDeps(active.AbsenceEmailDeps{
+			Settings:    settingsService,
+			Dispatcher:  dispatcher,
+			StaffRepo:   repos.Staff,
+			DefaultFrom: defaultFrom,
+			FrontendURL: frontendURL,
+			Logger:      activeLogger,
+		})
+	}
+
 	// Initialize attendance sync service (WP-B10). Implements
 	// active.AttendanceSyncer - called from CreateVisit / EndVisit to mirror
 	// into schedule.instance_students and enrich SSE events. No circular

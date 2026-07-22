@@ -1,0 +1,32 @@
+{{define "absence-request-received.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "moto-brand" .}}
+    <h1>Neuer Abwesenheitsantrag</h1>
+
+    <p>Hallo {{.FirstName}},</p>
+
+    <p><strong>{{.RequesterName}}</strong> hat einen neuen Antrag eingereicht:</p>
+
+    <div class="highlight-box">
+        <p><strong>{{.AbsenceTypeLabel}}</strong><br>
+        Zeitraum: {{.DateRange}}</p>
+        {{if .Note}}
+        <p>Notiz: {{.Note}}</p>
+        {{end}}
+    </div>
+
+    <p>Du kannst den Antrag direkt in den eingehenden Anfragen auf der Mitarbeiter-Seite bearbeiten.</p>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.LinkURL}}">Antrag ansehen</a>
+    </div>
+
+    <div class="link-box">
+        <a href="{{.LinkURL}}">{{.LinkURL}}</a>
+    </div>
+</div>
+
+{{template "footer" .}}
+{{end}}
