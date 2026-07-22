@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -91,15 +92,21 @@ func (rs *Resource) moveStaff(w http.ResponseWriter, r *http.Request) {
 		slog.String("action", result.Action),
 	)
 
-	common.Respond(w, r, http.StatusOK, moveStaffResponseOf(rs, ctx, result, req.StaffID), "Staff move applied")
+	resp, err := moveStaffResponseOf(rs, ctx, result, req.StaffID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, resp, "Staff move applied")
 }
 
 // moveStaffResponseOf shapes the service result and attaches the advisory
-// shift-coverage probe for the moved person on the target window. Best effort:
-// a probe failure logs and ships an empty list — the writes have already
-// landed in the tenant tx (which commits when the middleware unwinds), and a
-// failed probe must never turn the applied move into a 5xx rollback.
-func moveStaffResponseOf(rs *Resource, ctx context.Context, result *scheduleSvc.MoveStaffResult, staffID int64) MoveStaffResponse {
+// shift-coverage probe for the moved person on the target window. A probe
+// failure propagates as an error: the probe runs inside the request's tenant
+// tx, and a PostgreSQL error aborts that tx, so the eventual commit would fail
+// after the client already saw a 200 — the request must 5xx (and roll back)
+// instead of reporting a move that never lands.
+func moveStaffResponseOf(rs *Resource, ctx context.Context, result *scheduleSvc.MoveStaffResult, staffID int64) (MoveStaffResponse, error) {
 	resp := MoveStaffResponse{
 		TargetInstanceID: result.Target.ID,
 		Action:           result.Action,
@@ -110,7 +117,7 @@ func moveStaffResponseOf(rs *Resource, ctx context.Context, result *scheduleSvc.
 		resp.SourceInstanceID = &result.Source.ID
 	}
 	if rs.TimetableData == nil || result.Action == scheduleSvc.MoveStaffActionAlreadyApplied {
-		return resp
+		return resp, nil
 	}
 	coverage, err := rs.TimetableData.DetectShiftCoverageWarnings(ctx, scheduleSvc.ShiftCoverageQuery{
 		Dates:     []timezone.Date{result.Target.Date},
@@ -119,14 +126,10 @@ func moveStaffResponseOf(rs *Resource, ctx context.Context, result *scheduleSvc.
 		StaffIDs:  []int64{staffID},
 	})
 	if err != nil {
-		rs.getLogger().Warn("staff move coverage probe failed",
-			slog.Int64("staff_id", staffID),
-			slog.String("error", err.Error()),
-		)
-		return resp
+		return MoveStaffResponse{}, fmt.Errorf("staff move coverage probe failed: %w", err)
 	}
 	if coverage.Warnings != nil {
 		resp.CoverageWarnings = coverage.Warnings
 	}
-	return resp
+	return resp, nil
 }

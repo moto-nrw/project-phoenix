@@ -13,7 +13,6 @@ package schedule
 
 import (
 	"context"
-	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -315,11 +314,16 @@ func (s *instanceService) executeStaffMove(ctx context.Context, plan *staffMoveP
 		return nil, devErrInternal("log staff move failed", err)
 	}
 
+	warnings, err := s.collectStaffMoveWarnings(ctx, plan)
+	if err != nil {
+		return nil, devErrInternal("staff move time-conflict detection failed", err)
+	}
+
 	return &MoveStaffResult{
 		Target:        plan.target,
 		Source:        plan.source,
 		Action:        plan.action,
-		Warnings:      s.collectStaffMoveWarnings(ctx, plan),
+		Warnings:      warnings,
 		ActiveTouched: activeTouched,
 	}, nil
 }
@@ -353,20 +357,17 @@ func staffMoveSlot(inst *scheduleModel.ActivityInstance, prefix string) map[stri
 }
 
 // collectStaffMoveWarnings returns the moved person's remaining same-day
-// overlaps with the target window. Best effort: a lookup failure logs and
-// yields an empty list (never blocks the already-committed save).
-func (s *instanceService) collectStaffMoveWarnings(ctx context.Context, plan *staffMovePlan) []SubstituteTimeConflict {
+// overlaps with the target window. A lookup failure propagates as an error:
+// the probe runs inside the tenant tx, and a PostgreSQL error aborts that tx,
+// so the eventual commit would fail after the client already saw a 200.
+func (s *instanceService) collectStaffMoveWarnings(ctx context.Context, plan *staffMovePlan) ([]SubstituteTimeConflict, error) {
 	ops := []SubstituteWriteOp{{Instance: plan.target, Action: SubstituteActionSubstituted}}
 	warnings, err := s.buildSubstituteTimeConflicts(ctx, ops, plan.staffID, plan.target.Date)
 	if err != nil {
-		s.getLogger().Warn("staff move time-conflict detection failed",
-			slog.Int64("staff_id", plan.staffID),
-			slog.String("error", err.Error()),
-		)
-		return []SubstituteTimeConflict{}
+		return nil, err
 	}
 	if warnings == nil {
-		return []SubstituteTimeConflict{}
+		return []SubstituteTimeConflict{}, nil
 	}
-	return warnings
+	return warnings, nil
 }
