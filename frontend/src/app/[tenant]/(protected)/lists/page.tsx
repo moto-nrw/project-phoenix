@@ -763,6 +763,37 @@ export default function SlotListsPage() {
     }
   }, [result, selectedGroupIds, selectedClasses, replaceListUrl]);
 
+  // Prune stale manual slot selections the same way. Unlike groups/classes the
+  // selectable set comes from the date options (listOptions), not the preview,
+  // so gate on those having loaded: during the options-loading window
+  // listOptions is null and selectableSlotIds is empty, and pruning then would
+  // wrongly collapse a real selection. A bookmarked list can point at an
+  // occurrence that was since deleted, replanned, cancelled, or moved to
+  // another date; without this the stale ID stays an explicit restriction and
+  // empties the preview while the summary still claims slots are selected and
+  // no checkbox is checked (#1565 review). An explicit empty ("keine")
+  // selection has nothing to prune, so it survives unchanged.
+  useEffect(() => {
+    if (!isManualSlotSelection || selectedSlotIds === null || !listOptions) {
+      return;
+    }
+    const available = new Set(selectableSlotIds);
+    const pruned = selectedSlotIds.filter((id) => available.has(id));
+    if (pruned.length === selectedSlotIds.length) return;
+    const next =
+      pruned.length === 0 || pruned.length === selectableSlotIds.length
+        ? null
+        : pruned;
+    setSelectedSlotIds(next);
+    replaceListUrl({ selectedSlotIds: next });
+  }, [
+    isManualSlotSelection,
+    listOptions,
+    selectedSlotIds,
+    selectableSlotIds,
+    replaceListUrl,
+  ]);
+
   const handleExport = useCallback(
     async (format: SlotListFormat, mode: "download" | "print") => {
       setIsExporting(true);

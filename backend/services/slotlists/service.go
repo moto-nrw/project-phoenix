@@ -941,11 +941,22 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 				// signed-off (cancelled) booked day is handled next and stays
 				// "Abgemeldet".
 				continue
-			case row.Status == scheduleModel.AttendanceStatusExpected && verdict == scheduleSvc.CareDayCancelled:
-				// #1747/#1565 review: a same-day "Kommt heute nicht" cancelled the
-				// booked day. Unlike a genuine non-booking, the day WAS booked and the
-				// child signed off, so a no-show belongs on the list as "Abgemeldet"
-				// (the exact registered-absence shape the pickup path renders), never
+			case row.ManualStatusAt == nil && careDay[row.StudentID] == scheduleSvc.CareDayCancelled:
+				// #1747/#1565 review: a "Kommt heute nicht" cancelled the booked
+				// day. The cancellation is care-plan evidence that outlives the
+				// row's attendance status, so key on the raw care-day verdict, not
+				// the status-gated `verdict` above: a real check-in flips the row to
+				// present and a completed block flips a no-show to absent, and for
+				// both AttendanceRowCareDay reports unknown (a real/finalized status
+				// tells its own story). Keying on `verdict` there would lose the
+				// cancellation entirely and mislabel the walk-in as "geplant &
+				// anwesend" or the no-show as an unexplained "Fehlt". A manual
+				// override (ManualStatusAt) still wins and is excluded here, exactly
+				// as AttendanceRowCareDay does.
+				//
+				// Unlike a genuine non-booking, the day WAS booked and the child
+				// signed off, so a no-show belongs on the list as "Abgemeldet" (the
+				// exact registered-absence shape the pickup path renders), never
 				// silently dropped like not_scheduled. If the child attended anyway,
 				// leave them unseen so the presence loop below surfaces them as
 				// unplanned-present — matching the prior behaviour for that case.

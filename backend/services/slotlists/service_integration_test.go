@@ -973,6 +973,84 @@ func TestBuildList_ExcusedAbsence(t *testing.T) {
 	assert.Equal(t, "Fehlt", noShowRow.StatusLabel)
 }
 
+// TestBuildList_CancelledCareDayCompletedNoShowStaysAbgemeldet guards the
+// timetable-merge path against losing a sign-off once the row leaves the
+// expected state. Completing a block stamps the cancelled child absent WITHOUT
+// a substatus (BulkUpdateStatus only flips status), so the finalized row is
+// indistinguishable from a genuine no-show — the cancellation survives only in
+// the care-day verdict. The merge must consult that verdict, not the row's
+// current status, or the no-show is mislabelled as unexplained "Fehlt" (#1565
+// review).
+func TestBuildList_CancelledCareDayCompletedNoShowStaysAbgemeldet(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-CxlRoom-%d", suffix))
+	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-CxlAct-%d", suffix))
+	staff := testpkg.CreateTestStaff(t, db, "SL-Staff", fmt.Sprintf("SCC-%d", suffix))
+
+	// A completed instance: the block already ran and ended.
+	instance := &scheduleModels.ActivityInstance{
+		Date:            listDate,
+		ActivityGroupID: &activity.ID,
+		Title:           fmt.Sprintf("Mensa %d", suffix),
+		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 13, 0, 0, 0, time.UTC),
+		RoomID:          room.ID,
+		Status:          scheduleModels.InstanceStatusCompleted,
+	}
+	instance.SetTenantID(1)
+	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
+	require.NoError(t, err)
+
+	child := testpkg.CreateTestStudent(t, db, "SL-Cxl", fmt.Sprintf("CC-%d", suffix), "3b")
+
+	// Completion stamped the cancelled child absent with no substatus, exactly
+	// how BulkUpdateStatus leaves it — the row carries no sign-off evidence.
+	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	row := &scheduleModels.InstanceStudent{
+		InstanceID: instance.ID,
+		StudentID:  child.ID,
+		Status:     scheduleModels.AttendanceStatusAbsent,
+	}
+	row.SetTenantID(1)
+	require.NoError(t, isRepo.Create(ctx, row))
+
+	// A timeless "Kommt heute nicht" pickup exception on the list date is the
+	// only thing that makes the care-day verdict CareDayCancelled.
+	exc := &scheduleModels.StudentPickupException{
+		StudentID: child.ID, ExceptionDate: listDate, PickupTime: nil, CreatedBy: staff.ID,
+	}
+	exc.SetTenantID(1)
+	_, err = db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_exceptions", exc.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID)
+		testpkg.CleanupActivityFixtures(t, db, child.ID, staff.ID, activity.ID, room.ID)
+	})
+
+	svc := newTestService(db)
+	result, err := svc.BuildList(ctx, slotlists.Params{
+		Date:   listDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+
+	childRow := rowByStudent(result.Rows, child.ID)
+	require.NotNil(t, childRow, "a cancelled no-show stays on the reconciliation list")
+	assert.True(t, childRow.Excused, "a cancelled care day is a registered sign-off")
+	assert.Equal(t, "Abgemeldet (entschuldigt)", childRow.StatusLabel)
+	assert.Equal(t, 1, result.Counters.Excused)
+	assert.Equal(t, 0, result.Counters.Missing, "the cancellation must not count as unexplained Fehlt")
+}
+
 func TestRenderList_PDFSmoke(t *testing.T) {
 	f := buildMensaFixture(t)
 	ctx := testpkg.TenantContext(1)
