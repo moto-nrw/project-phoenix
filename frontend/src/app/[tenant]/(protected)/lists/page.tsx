@@ -1149,8 +1149,23 @@ export default function SlotListsPage() {
                 setSource(nextSource);
                 setSelectedGroupIds(null);
                 setSelectedClasses(null);
+                // Abgleich rejects future dates (ErrReconciliationFutureDate).
+                // The picker's maxDate only blocks the next pick, not an
+                // already-selected future day, so clamp to the school's Berlin
+                // today during this same transition; otherwise the next preview
+                // is backend-rejected.
+                const clampFutureDate =
+                  nextSource === "reconciliation" && dateISO > berlinTodayISO();
+                const nextDate = clampFutureDate ? berlinTodayISO() : dateISO;
+                if (clampFutureDate) {
+                  setDateISO(nextDate);
+                  setSelectedSlotIds(null);
+                }
                 replaceListUrl({
                   source: nextSource,
+                  ...(clampFutureDate
+                    ? { dateISO: nextDate, selectedSlotIds: null }
+                    : {}),
                   selectedGroupIds: null,
                   selectedClasses: null,
                 });

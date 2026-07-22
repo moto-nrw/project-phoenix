@@ -97,6 +97,13 @@ func (i *ActivityInstance) Validate() error {
 	if i.RequiredStaff != nil && *i.RequiredStaff < 0 {
 		return errors.New("required_staff cannot be negative")
 	}
+	// Canonicalize a non-nil pointer to "" to NULL so it satisfies the DB's
+	// `list_kind IS NULL OR list_kind IN (...)` CHECK instead of hitting a
+	// constraint error (IsValidListKind("") stays true for the slot-list
+	// filter, where empty means "any kind").
+	if i.ListKind != nil && *i.ListKind == "" {
+		i.ListKind = nil
+	}
 	if i.ListKind != nil && !activitiesModel.IsValidListKind(*i.ListKind) {
 		return errors.New("invalid list kind")
 	}

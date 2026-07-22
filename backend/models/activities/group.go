@@ -137,6 +137,14 @@ func (g *Group) Validate() error {
 	if g.CategoryID <= 0 {
 		return errors.New("category ID is required")
 	}
+	// A non-nil pointer to "" means "no list kind" for callers that build a
+	// Group{} literal; canonicalize it to NULL so it satisfies the DB's
+	// `list_kind IS NULL OR list_kind IN (...)` CHECK instead of hitting a
+	// constraint error (IsValidListKind("") stays true for the slot-list
+	// filter, where empty means "any kind").
+	if g.ListKind != nil && *g.ListKind == "" {
+		g.ListKind = nil
+	}
 	if g.ListKind != nil && !IsValidListKind(*g.ListKind) {
 		return errors.New("invalid list kind")
 	}
