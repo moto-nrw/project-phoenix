@@ -988,6 +988,7 @@ export function useEventForm({
       end_time: form.endTime,
       room_id: roomId,
       notes: form.notes.trim() || undefined,
+      list_kind: form.listKind || undefined,
       activity_group_id: activityGroupId ? Number(activityGroupId) : undefined,
       staff_ids: staffIDsForSave.map(Number),
       student_ids: studentIDsForSave.map(Number),
@@ -1000,6 +1001,7 @@ export function useEventForm({
   ): CreateTemplateBody => ({
     name: form.title.trim(),
     type: form.type,
+    list_kind: form.listKind || undefined,
     weekdays: form.weekdays,
     start_time: form.startTime,
     end_time: form.endTime,
@@ -1063,6 +1065,9 @@ export function useEventForm({
     return {
       name: form.title.trim(),
       type: template.type,
+      // Preserve the series' Listenart (#1565) — an instance-scope edit never
+      // changes the series classification.
+      list_kind: template.listKind,
       weekdays: weekdays.length > 0 ? weekdays : [1],
       start_time: form.startTime,
       end_time: form.endTime,

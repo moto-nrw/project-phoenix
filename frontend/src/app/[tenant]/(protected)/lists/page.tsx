@@ -17,13 +17,14 @@ import {
   Utensils,
   type LucideIcon,
 } from "lucide-react";
+import { BackButton } from "~/components/ui/back-button";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DatePicker } from "~/components/ui/date-picker";
 import { Loading } from "~/components/ui/loading";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { DesktopFilters } from "~/components/ui/page-header/DesktopFilters";
-import type { FilterConfig } from "~/components/ui/page-header";
+import type { FilterConfig } from "~/components/ui/page-header/types";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
 import { LOCATION_COLORS } from "~/lib/location-helper";
@@ -753,6 +754,8 @@ export default function SlotListsPage() {
     "";
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+      {/* Reached from Datenverwaltung → Exporte (no sidebar entry of its own). */}
+      <BackButton referrer="/database/exports" />
       {/* Selection: source + date + data mode */}
       <section
         aria-label="Listenauswahl"

@@ -14,7 +14,7 @@ import { Field } from "./field";
 import { isoWeekday } from "./form-model";
 import type { EventFormState } from "./form-model";
 import type { RoomOption } from "./use-event-form";
-import type { ActivityType } from "~/lib/timetable-types";
+import type { ActivityType, TimetableListKind } from "~/lib/timetable-types";
 
 const FORM_SELECT_CLASS = timetableSelectClass;
 
@@ -26,6 +26,18 @@ const TYPE_OPTIONS: Array<{
   { value: "care", label: "Betreuung", hint: "Mensa, Lernzeit, Freispiel" },
   { value: "activity", label: "AG", hint: "Yoga, Bouldern, …" },
   { value: "external", label: "Extern", hint: "DAZ, Musikschule" },
+];
+
+// Listenart (#1565): optional classification driving the printable
+// Tageslisten (Datenverwaltung → Exporte → Tageslisten).
+const LIST_KIND_OPTIONS: Array<{
+  value: TimetableListKind;
+  label: string;
+}> = [
+  { value: "edge_hours", label: "Randstunden" },
+  { value: "learning_time", label: "Lernzeit" },
+  { value: "activity", label: "AG-Angebote" },
+  { value: "mensa", label: "Mensa" },
 ];
 
 export interface StepTerminProps {
@@ -141,6 +153,31 @@ export function StepTermin({
                 </option>
               ))}
             </select>
+          </Field>
+
+          <Field label="Listenart" htmlFor="event_list_kind">
+            <select
+              id="event_list_kind"
+              value={form.listKind}
+              onChange={(event) =>
+                update(
+                  "listKind",
+                  event.target.value as EventFormState["listKind"],
+                )
+              }
+              className={FORM_SELECT_CLASS}
+            >
+              <option value="">Keine</option>
+              {LIST_KIND_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] leading-4 text-gray-500">
+              Ordnet den Termin einer druckbaren Tagesliste zu (Exporte →
+              Tageslisten).
+            </p>
           </Field>
         </>
       )}

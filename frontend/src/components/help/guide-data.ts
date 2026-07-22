@@ -782,6 +782,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Schritt 3 `Personal und Kinder`: `Personal` und `Kinder` zuordnen. Mit `Jahrgang/Klasse/Gruppe komplett hinzufügen …` kommt eine ganze Zielgruppe auf einmal in die Auswahl. Suche und Filter helfen bei langen Kinderlisten. Hier erscheinen auch Hinweise zu doppelt belegten Räumen, Personal oder Kindern sowie zum Abgleich mit dem Dienstplan; sie verhindern das Speichern nicht.",
           "`Benötigtes Personal` legt in Schritt 3 den Personalbedarf des Blocks fest. Bleibt das Feld leer, berechnet Phoenix den Bedarf automatisch aus der Kinderzahl und dem Betreuungsschlüssel; eine eingetragene Zahl überschreibt diese Berechnung und bestimmt die Besetzungsanzeige (z. B. `2/3`).",
           "Bei einem Regeltermin in Schritt 3 unter `Zielgruppe` festlegen, für wen der Block gedacht ist: `Jahrgang`, `Klasse`, `Gruppe` oder `Angebotsauswahl`. Die Zielgruppe beschreibt den Block; bei Jahrgang, Klasse oder Gruppe übernimmt die angebotene Schaltfläche die passenden Kinder zusätzlich in die Auswahl. Bereits ausgewählte Kinder bleiben erhalten, und die Liste lässt sich danach weiter anpassen. Bei `Angebotsauswahl` kommen Kinder automatisch über ein verknüpftes Betreuungsangebot hinzu.",
+          "Bei einem Regeltermin lässt sich in Schritt 1 unter `Listenart` festlegen, zu welcher druckbaren Tagesliste der Block gehört: `Randstunden`, `Lernzeit`, `AG-Angebote` oder `Mensa`. Die Zuordnung steuert, welche Termine die jeweilige Tagesliste unter `Datenverwaltung` -> `Exporte` -> `Tageslisten` automatisch einsammelt; ohne Listenart bleibt der Block über die `Freie Angebotsauswahl` erreichbar.",
           "Über `Termin wiederholen` an einem einzelnen Termin öffnet sich derselbe Assistent direkt bei Schritt 2 `Wiederholung`, um aus dem Einzeltermin eine Serie zu machen.",
           "Speichern. Wiederholte Termine trägt Phoenix automatisch für das gesamte Schuljahr ein.",
           "Neben Personal- und Kinderzahl zeigen Termine und Regeltermine eine kleine Besetzungsanzeige (z. B. `2/3`), die nach Betreuungsschlüssel färbt, wie gut der Block besetzt ist. Die Übersicht meldet auch unterbesetzte Termine, selbst wenn bereits Personal eingetragen ist.",
@@ -909,7 +910,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Erzeugt druckbare Tageslisten aus Angeboten, Ganztag und dokumentierter Anwesenheit.",
         steps: [
-          "`Tageslisten` in der Seitenleiste öffnen.",
+          "`Datenverwaltung` -> `Exporte` öffnen und unter `Betreuungsplan` der Karte `Tageslisten` folgen.",
           "Als Quelle `Freie Angebotsauswahl`, eine Listenart wie `Mensa` oder `Lernzeit` oder eine Ganztagsliste wie `Ganztag bis 14:30` wählen.",
           "Datum prüfen (vorausgewählt ist heute).",
           "Unter `Freie Angebotsauswahl` ein oder mehrere Angebote des Tages auswählen. Ohne Einschränkung nutzt Phoenix alle aktiven Angebote des gewählten Datums. Bei einer Listenart nimmt Phoenix automatisch die Termine, denen diese Listenart im Stundenplan zugeordnet wurde.",
@@ -1017,6 +1018,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Unter `Kinderlisten` hat jede Liste eine eigene Karte (`OGS Wochenliste`, `Klassenliste`, `Tagesliste`, `Abholliste`, `Checkliste`, `Geburtstagsliste` und weitere). `Liste erstellen` öffnet den Export direkt mit der passenden Vorlage; dort legst du nur noch das Format fest. Die freie Kombination aus beliebiger Vorlage und einzeln zu- oder abgewählten Spalten findest du weiterhin in der `Kindersuche` unter `Exportieren`.",
           "Die Karte `Geburtstagsliste` gibt die Geburtstage nach Kalender sortiert aus. Voreingestellt ist der aktuelle Monat; über die Monatsfelder wählst du weitere Monate dazu oder ab, mit `Ganzes Jahr` erhältst du alle Geburtstage des Jahres.",
           "Unter `Momentaufnahmen` erzeugt `Notfallliste` die Liste aller aktuell anwesenden Kinder mit den Kontaktdaten der Erziehungsberechtigten, wahlweise als PDF oder direkt zum Drucken. `Wer ist wo` gibt die aktuelle Belegung aller Räume mit Aufsicht und Kinderzahl aus.",
+          "Unter `Betreuungsplan` führt die Karte `Tageslisten` zu den Listen aus geplanten Angeboten (Mensa, Lernzeit, AG-Angebote, Randstunden, Ganztag) mit den Datenbasen Plan, Ist und Abgleich - siehe das Kapitel `Tageslisten` im Bereich Planung.",
           "Unter `Auf anderen Seiten` führen `Anmeldungen` und `Zeitnachweis` auf die Seite, zu der der jeweilige Export gehört: Anmeldungen werden je Anmeldephase exportiert, Zeitnachweise je Person.",
         ],
         callout: {

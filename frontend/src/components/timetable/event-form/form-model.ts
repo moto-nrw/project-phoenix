@@ -4,6 +4,7 @@ import type {
   ActivityType,
   EnrichedInstance,
   TargetGroupType,
+  TimetableListKind,
   TimetableTemplate,
 } from "~/lib/timetable-types";
 
@@ -19,6 +20,11 @@ export interface EventFormState {
   roomId: string;
   type: ActivityType;
   categoryId: string;
+  /**
+   * Listenart (#1565) — classifies the slot for printable daily lists
+   * (Randstunden, Lernzeit, AG-Angebote, Mensa). "" = no list kind.
+   */
+  listKind: "" | TimetableListKind;
   educationGroupId: string;
   /**
    * Tagesnotiz — the one-off note on a single occurrence
@@ -89,6 +95,7 @@ export function emptyForm(
     roomId: "",
     type: "care",
     categoryId: "",
+    listKind: "",
     educationGroupId: "",
     notes: "",
     seriesNotes: "",
@@ -120,6 +127,7 @@ export function formFromInstance(
     roomId: instance.roomId,
     type: instance.activityType,
     categoryId: "",
+    listKind: instance.listKind ?? "",
     educationGroupId: "",
     notes: instance.notes ?? "",
     // Read-only on a single occurrence: the series note is edited via the
@@ -165,6 +173,7 @@ export function formFromSeries(
     roomId: series.roomId ?? "",
     type: series.type,
     categoryId: series.categoryId,
+    listKind: series.listKind ?? "",
     educationGroupId: series.educationGroupId ?? "",
     notes: "",
     seriesNotes: series.notes ?? "",

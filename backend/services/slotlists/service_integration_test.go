@@ -146,6 +146,7 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 			scheduleRepo.NewStudentPickupScheduleRepository(db),
 			scheduleRepo.NewStudentPickupExceptionRepository(db),
 			scheduleRepo.NewStudentPickupNoteRepository(db),
+			db,
 		),
 		ListExport:  listexport.NewService(),
 		Settings:    settings,

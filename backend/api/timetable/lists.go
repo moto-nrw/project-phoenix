@@ -119,7 +119,7 @@ func parseSlotListIDList(values []string, field string) ([]int64, error) {
 
 // listSlotListOptions handles POST /api/timetable/lists/options.
 func (rs *Resource) listSlotListOptions(w http.ResponseWriter, r *http.Request) {
-	if rs.slotListsService == nil {
+	if rs.SlotListsService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("slot lists service not wired")))
 		return
 	}
@@ -134,7 +134,7 @@ func (rs *Resource) listSlotListOptions(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("date must be YYYY-MM-DD")))
 		return
 	}
-	result, err := rs.slotListsService.ListOptions(r.Context(), date)
+	result, err := rs.SlotListsService.ListOptions(r.Context(), date)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("build slot list options failed", err))
 		return
@@ -144,7 +144,7 @@ func (rs *Resource) listSlotListOptions(w http.ResponseWriter, r *http.Request) 
 
 // previewSlotList handles POST /api/timetable/lists/preview.
 func (rs *Resource) previewSlotList(w http.ResponseWriter, r *http.Request) {
-	if rs.slotListsService == nil {
+	if rs.SlotListsService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("slot lists service not wired")))
 		return
 	}
@@ -159,7 +159,7 @@ func (rs *Resource) previewSlotList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := rs.slotListsService.BuildList(r.Context(), params)
+	result, err := rs.SlotListsService.BuildList(r.Context(), params)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("build slot list failed", err))
 		return
@@ -169,7 +169,7 @@ func (rs *Resource) previewSlotList(w http.ResponseWriter, r *http.Request) {
 
 // exportSlotList handles POST /api/timetable/lists/export.
 func (rs *Resource) exportSlotList(w http.ResponseWriter, r *http.Request) {
-	if rs.slotListsService == nil {
+	if rs.SlotListsService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("slot lists service not wired")))
 		return
 	}
@@ -193,7 +193,7 @@ func (rs *Resource) exportSlotList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, err := rs.slotListsService.RenderList(r.Context(), params, format)
+	file, err := rs.SlotListsService.RenderList(r.Context(), params, format)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("render slot list failed", err))
 		return

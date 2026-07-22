@@ -96,6 +96,12 @@ export default function DatabaseExportsPage() {
   // of the users:read that gates this page. Without rooms:read the export 403s,
   // so hide the card rather than offer a button that always fails.
   const canReadRooms = isAdmin(session) || hasPermission(session, "rooms:read");
+  // Slot lists expose named children + presence, so the backend requires
+  // schedules:read AND users:read (#1565) — mirror that here.
+  const canUseSlotLists =
+    isAdmin(session) ||
+    (hasPermission(session, "schedules:read") &&
+      hasPermission(session, "users:read"));
   const [studentModal, setStudentModal] = useState<StudentModalConfig | null>(
     null,
   );
@@ -241,6 +247,22 @@ export default function DatabaseExportsPage() {
             </InfoCard>
           )}
         </ExportSection>
+
+        {canUseSlotLists && (
+          <ExportSection title="Betreuungsplan">
+            <InfoCard
+              title="Tageslisten"
+              icon={<CalendarClock className="h-5 w-5" />}
+            >
+              <ExportDescription>
+                Listen aus geplanten Angeboten wie Mensa, Lernzeit, AG oder
+                Ganztag: Plan, Ist und Abgleich für ein Datum — mit Vorschau,
+                Zählern und PDF-/XLSX-Export.
+              </ExportDescription>
+              <ExportLink href="/lists">Zu den Tageslisten</ExportLink>
+            </InfoCard>
+          </ExportSection>
+        )}
 
         <ExportSection title="Auf anderen Seiten">
           {/* /admin/enrollments redirects non-admins to /dashboard (useRequireAdmin),

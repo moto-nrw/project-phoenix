@@ -93,7 +93,7 @@ type Dependencies struct {
 	EducationGroupRepo  educationGroupReader
 	RoomRepo            roomReader
 	PickupService       pickupTimeReader
-	ListExport          listexport.Service
+	ListExport          *listexport.RendererService
 	Settings            settingsReader
 	UserContext         authorize.StudentReadUserContext
 	Logger              *slog.Logger
@@ -109,7 +109,7 @@ type service struct {
 	educationGroupRepo  educationGroupReader
 	roomRepo            roomReader
 	pickupService       pickupTimeReader
-	listExport          listexport.Service
+	listExport          *listexport.RendererService
 	settings            settingsReader
 	userContext         authorize.StudentReadUserContext
 	logger              *slog.Logger
@@ -586,17 +586,57 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 
 		seenPlanned := make(map[int64]struct{}, len(planned))
 		for _, row := range planned {
-			seenPlanned[row.StudentID] = struct{}{}
-			entries = append(entries, mergedEntry{
-				StudentID:        row.StudentID,
-				InstanceID:       inst.ID,
-				SlotLabel:        slotLabel,
-				RoomName:         roomName,
-				Planned:          true,
-				Present:          presentSet[row.StudentID] || row.Status == scheduleModel.AttendanceStatusPresent,
-				PlannedStatus:    row.Status,
-				PlannedSubstatus: row.Substatus,
-			})
+			present := presentSet[row.StudentID] || row.Status == scheduleModel.AttendanceStatusPresent
+			switch {
+			case row.IsUnplanned:
+				// #1913: the row was created by an observed walk-in visit,
+				// not by planning. It is durable presence evidence, never a
+				// plan entry — otherwise the Abgleich would relabel the
+				// walk-in as "geplant & anwesend".
+				seenPlanned[row.StudentID] = struct{}{}
+				if present {
+					entries = append(entries, mergedEntry{
+						StudentID:  row.StudentID,
+						InstanceID: inst.ID,
+						SlotLabel:  slotLabel,
+						RoomName:   roomName,
+						Present:    true,
+					})
+				}
+			case row.NotScheduled && row.Status == scheduleModel.AttendanceStatusExpected:
+				// #1747 non-booking marker: the care plan did not place the
+				// child in the OGS on this date. Not a genuine expectation —
+				// skip, and leave the student unseen so a live visit can
+				// still surface them as unplanned below.
+				continue
+			case row.NotScheduled:
+				// Unbooked day the system decided anyway (checked in, or an
+				// absence written by a status day). The child was never
+				// planned for this slot; presence shows as unplanned, an
+				// absence on an unbooked day shows nowhere.
+				seenPlanned[row.StudentID] = struct{}{}
+				if present {
+					entries = append(entries, mergedEntry{
+						StudentID:  row.StudentID,
+						InstanceID: inst.ID,
+						SlotLabel:  slotLabel,
+						RoomName:   roomName,
+						Present:    true,
+					})
+				}
+			default:
+				seenPlanned[row.StudentID] = struct{}{}
+				entries = append(entries, mergedEntry{
+					StudentID:        row.StudentID,
+					InstanceID:       inst.ID,
+					SlotLabel:        slotLabel,
+					RoomName:         roomName,
+					Planned:          true,
+					Present:          present,
+					PlannedStatus:    row.Status,
+					PlannedSubstatus: row.Substatus,
+				})
+			}
 		}
 		for studentID, present := range presentSet {
 			if !present {

@@ -2,6 +2,7 @@
 // Extracted to reduce cognitive complexity in header.tsx
 
 const exactPageTitles: Record<string, string> = {
+  "/lists": "Tageslisten",
   "/staff/dienstplan": "Dienstplan",
   "/admin/guardian-approvals": "Konto-Anfragen",
   "/admin/change-requests": "Änderungsanfragen",
