@@ -52,6 +52,7 @@ DELETE /api/suggestions/{id}
 DELETE /api/suggestions/{id}/comments/{commentId}
 DELETE /api/suggestions/{id}/vote
 DELETE /api/time-tracking/absences/{id}
+DELETE /api/timetable/closing-days/{id}
 DELETE /api/timetable/instances/{id}
 DELETE /api/timetable/periods/{id}
 DELETE /api/timetable/templates/{id}
@@ -317,6 +318,7 @@ GET /api/suggestions/{id}/comments/
 GET /api/time-tracking/absences
 GET /api/time-tracking/assignments
 GET /api/time-tracking/breaks/{sessionId}
+GET /api/time-tracking/closing-days
 GET /api/time-tracking/config
 GET /api/time-tracking/current
 GET /api/time-tracking/export
@@ -328,6 +330,7 @@ GET /api/time-tracking/schedule-targets
 GET /api/time-tracking/shifts
 GET /api/time-tracking/vacation/quota
 GET /api/time-tracking/{id}/edits
+GET /api/timetable/closing-days/
 GET /api/timetable/conflicts
 GET /api/timetable/deviations/history
 GET /api/timetable/exception-conflicts
@@ -597,6 +600,7 @@ POST /api/time-tracking/break/start
 POST /api/time-tracking/check-in
 POST /api/time-tracking/check-out
 POST /api/time-tracking/vacation/request
+POST /api/timetable/closing-days/
 POST /api/timetable/instances/
 POST /api/timetable/instances/re-plan-week
 POST /api/timetable/instances/{id}/acknowledge-understaffed
@@ -751,6 +755,7 @@ PUT /api/substitutions/{id}
 PUT /api/suggestions/{id}
 PUT /api/time-tracking/absences/{id}
 PUT /api/time-tracking/{id}
+PUT /api/timetable/closing-days/{id}
 PUT /api/timetable/instances/{id}
 PUT /api/timetable/periods/{id}
 PUT /api/timetable/templates/{id}

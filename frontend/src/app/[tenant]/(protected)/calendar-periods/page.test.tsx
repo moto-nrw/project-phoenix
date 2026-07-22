@@ -13,6 +13,10 @@ vi.mock("~/components/planning/calendar-periods-editor", () => ({
   CalendarPeriodsEditor: () => <div data-testid="calendar-periods-editor" />,
 }));
 
+vi.mock("~/components/planning/closing-days-editor", () => ({
+  ClosingDaysEditor: () => <div data-testid="closing-days-editor" />,
+}));
+
 vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading" />,
 }));

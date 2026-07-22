@@ -544,6 +544,63 @@ export function mapHolidaysResponse(
   return holidays;
 }
 
+export interface BackendClosingDayRange {
+  start_date: string;
+  end_date: string;
+  reason: string;
+}
+
+// The backend accepts a maximum date distance of 400 days. Because both
+// endpoints are inclusive, that window contains up to 401 calendar dates.
+const MAX_CLOSING_DAY_WINDOW_DATES = 401;
+
+/**
+ * OGS-Schließtage im Zeitraum, keyed nach ISO-Tag (YYYY-MM-DD), Wert ist
+ * der Grund (#1418 3b). Das Backend liefert die gespeicherten Zeiträume;
+ * hier werden sie tageweise expandiert. An diesen Tagen liefert das
+ * Backend Soll = 0 — die Map ist reine Anzeige, keine Rechengrundlage.
+ */
+export function mapClosingDaysResponse(
+  data: BackendClosingDayRange[] | null | undefined,
+  from: string,
+  to: string,
+): ReadonlyMap<string, string> {
+  const closingDays = new Map<string, string>();
+  const windowStart = from.slice(0, 10);
+  const windowEnd = to.slice(0, 10);
+  if (windowEnd < windowStart) return closingDays;
+
+  for (const entry of data ?? []) {
+    const storedStart = entry.start_date.slice(0, 10);
+    const storedEnd = entry.end_date.slice(0, 10);
+    const start = storedStart < windowStart ? windowStart : storedStart;
+    const end = storedEnd > windowEnd ? windowEnd : storedEnd;
+    if (end < start) continue;
+
+    const startDate = new Date(`${start}T00:00:00`);
+    const endDate = new Date(`${end}T00:00:00`);
+    // Clamp before applying the hard cap: stored ranges can be much longer
+    // than the requested window. Math.round (not floor) keeps the count
+    // DST-safe across 23/25-hour days; setDate walks local calendar days.
+    const dayCount = Math.min(
+      Math.max(
+        0,
+        Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1,
+      ),
+      MAX_CLOSING_DAY_WINDOW_DATES,
+    );
+    for (let offset = 0; offset < dayCount; offset++) {
+      const cursor = new Date(startDate);
+      cursor.setDate(cursor.getDate() + offset);
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
+      if (!closingDays.has(key)) {
+        closingDays.set(key, entry.reason);
+      }
+    }
+  }
+  return closingDays;
+}
+
 export interface BackendMonthSummary {
   staff_id: number;
   year: number;

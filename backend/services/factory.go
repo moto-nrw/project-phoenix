@@ -64,6 +64,7 @@ type Factory struct {
 	WorkSession              active.WorkSessionService
 	WorkTimeMonth            active.WorkTimeMonthService
 	Holidays                 schedule.HolidayService
+	ClosingDays              schedule.ClosingDayService
 	StaffAbsence             active.StaffAbsenceService
 	Activities               activities.ActivityService
 	Education                education.Service
@@ -359,14 +360,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Public holidays per Bundesland (#1418 3a): computed from the
 	// operations.federal_state setting, zero the Soll of their day.
 	holidayService := schedule.NewHolidayService(settingsService, logger.With("service", "holidays"))
-	workTimeMonthService.SetHolidayReader(holidayService)
+	// Tenant closing days (#1418 3b) share the Soll=0 semantics of public
+	// holidays. The Soll consumers get the UNION of both via the composite
+	// reader; Factory.Holidays stays the plain holiday service so the
+	// /holidays endpoint keeps reporting only real public holidays.
+	closingDayService := schedule.NewClosingDayService(repos.ClosingDay)
+	nonWorkingDayService := schedule.NewNonWorkingDayResolver(holidayService, closingDayService)
+	workTimeMonthService.SetHolidayReader(nonWorkingDayService)
 	// The session service's weekly summaries reduce their Soll by holidays
 	// too. The setter is not part of the WorkSessionService interface (it
 	// would break external mocks), hence the assertion.
 	if holidayAware, ok := workSessionService.(interface {
 		SetHolidayReader(active.HolidayDatesReader)
 	}); ok {
-		holidayAware.SetHolidayReader(holidayService)
+		holidayAware.SetHolidayReader(nonWorkingDayService)
 	}
 
 	// Initialize staff absence service
@@ -606,7 +613,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Staff:         repos.Staff,
 		WorkSchedules: repos.StaffWorkSchedule,
 		WorkModels:    repos.WorkTimeModel,
-		Holidays:      holidayService,
+		Holidays:      nonWorkingDayService,
 	})
 
 	// Initialize pickup schedule service
@@ -1517,6 +1524,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		WorkSession:              workSessionService,
 		WorkTimeMonth:            workTimeMonthService,
 		Holidays:                 holidayService,
+		ClosingDays:              closingDayService,
 		StaffAbsence:             staffAbsenceService,
 		Activities:               activitiesService,
 		Education:                educationService,

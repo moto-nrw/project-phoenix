@@ -46,7 +46,10 @@ type Resource struct {
 	// calendar marking and the holiday-session warning (#1418 3a). Injected
 	// as a field in api/base.go to keep the constructor signature stable.
 	HolidayService scheduleSvc.HolidayService
-	db             *bun.DB
+	// ClosingDayService backs GET /closing-days — the tenant's closure
+	// periods (#1418 3b). Injected as a field like HolidayService.
+	ClosingDayService scheduleSvc.ClosingDayService
+	db                *bun.DB
 }
 
 // NewResource creates a new time-tracking resource
@@ -81,6 +84,7 @@ func (rs *Resource) Router() chi.Router {
 		// endpoints it pairs with gate on TimeTrackingManage alone.
 		r.With(authorize.RequiresAnyPermission(permissions.TimeTrackingOwn, permissions.TimeTrackingManage), withTx).Get("/config", rs.getConfig)
 		r.With(authorize.RequiresAnyPermission(permissions.TimeTrackingOwn, permissions.TimeTrackingManage), withTx).Get("/holidays", rs.getHolidays)
+		r.With(authorize.RequiresAnyPermission(permissions.TimeTrackingOwn, permissions.TimeTrackingManage), withTx).Get("/closing-days", rs.getClosingDays)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/history", rs.getHistory)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Put("/{id}", rs.updateSession)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/{id}/edits", rs.getSessionEdits)

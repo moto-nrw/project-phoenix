@@ -3,6 +3,7 @@
 import { getSession } from "next-auth/react";
 import { buildApiError } from "./auth-api";
 import type {
+  BackendClosingDayRange,
   BackendDailyTarget,
   BackendHoliday,
   BackendMonthSummary,
@@ -15,6 +16,7 @@ import type {
   WorkSessionHistory,
 } from "./time-tracking-helpers";
 import {
+  mapClosingDaysResponse,
   mapDailyTargetsResponse,
   mapHistoryResponse,
   mapHolidaysResponse,
@@ -252,6 +254,22 @@ class TimeTrackingService {
       "Failed to get holidays",
     );
     return mapHolidaysResponse(result.data);
+  }
+
+  // OGS-Schließtage des Tenants (#1418 3b), keyed YYYY-MM-DD → Grund.
+  // Tenant-global wie die Feiertage; das Backend liefert Zeiträume, der
+  // Mapper expandiert sie tageweise.
+  async getClosingDays(
+    from: string,
+    to: string,
+  ): Promise<ReadonlyMap<string, string>> {
+    const params = new URLSearchParams({ from, to });
+    const result = await this.request<BackendClosingDayRange[] | null>(
+      `/closing-days?${params}`,
+      "GET",
+      "Failed to get closing days",
+    );
+    return mapClosingDaysResponse(result.data, from, to);
   }
 
   async updateSession(

@@ -95,6 +95,7 @@ type Resource struct {
 // site.
 type Dependencies struct {
 	CalendarPeriodService  scheduleSvc.CalendarPeriodService
+	ClosingDayService      scheduleSvc.ClosingDayService
 	MaterializationService scheduleSvc.MaterializationService
 	InstanceService        scheduleSvc.InstanceService
 	OperationsService      scheduleSvc.TimetableOperationsService
@@ -132,6 +133,15 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/{id}", rs.getPeriod)
 			r.With(authorize.RequiresPermission(permissions.SchedulesUpdate), withTx).Put("/{id}", rs.updatePeriod)
 			r.With(authorize.RequiresPermission(permissions.SchedulesDelete), withTx).Delete("/{id}", rs.deletePeriod)
+		})
+
+		// OGS-Schließtage (#1418 3b): closure ranges maintained on the same
+		// admin page as the calendar periods, hence the same permissions.
+		r.Route("/closing-days", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/", rs.listClosingDays)
+			r.With(authorize.RequiresPermission(permissions.SchedulesCreate), withTx).Post("/", rs.createClosingDay)
+			r.With(authorize.RequiresPermission(permissions.SchedulesUpdate), withTx).Put("/{id}", rs.updateClosingDay)
+			r.With(authorize.RequiresPermission(permissions.SchedulesDelete), withTx).Delete("/{id}", rs.deleteClosingDay)
 		})
 
 		// WP-B8: manual materialization. Admin-only — reuses SchedulesManage

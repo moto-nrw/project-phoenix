@@ -1631,6 +1631,13 @@ function OwnZeiterfassungSection({
     () => timeTrackingService.getHolidays(visibleFromKey, visibleToKey),
     { keepPreviousData: true, revalidateOnFocus: false },
   );
+  // OGS-Schließtage im sichtbaren Zeitraum (#1418 3b): eigenes Badge in der
+  // Tabelle, Soll kommt bereits als 0 vom Server.
+  const { data: tableClosingDays } = useSWRAuth(
+    `time-tracking-closing-days-${visibleFromKey}-${visibleToKey}`,
+    () => timeTrackingService.getClosingDays(visibleFromKey, visibleToKey),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
 
   const {
     data: monthSummary,
@@ -1878,6 +1885,7 @@ function OwnZeiterfassungSection({
             dailyTargetsError={dailyTargetsError != null}
             dailyTargetsPending={dailyTargetsLoading}
             holidays={tableHolidays}
+            closingDays={tableClosingDays}
             accountStartDate={timeTrackingConfig?.accountStartDate ?? null}
             accountStartDatePending={timeTrackingConfigLoading}
             accountStartDateError={
