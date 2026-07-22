@@ -839,44 +839,23 @@ export default function SlotListsPage() {
     optionsError,
   ]);
 
-  // Reconcile stale URL filters against the date's actual options. result.groups
-  // / result.classes are derived from the preview rows, so they only list the
-  // groups/classes that actually have rows for this date + source — NOT the
-  // school's complete set. A bookmarked filter can therefore be absent here for
-  // two very different reasons: the group/class was deleted, or it is still valid
-  // but simply has no rows today. We cannot tell them apart from this data, so we
-  // only ever DROP selected entries that survive alongside at least one match,
-  // and never treat a wholesale miss as "clear the filter". Collapsing a
-  // zero-survivor selection to null (all groups) would silently broaden a saved
-  // single-group export into a school-wide one — the worse failure for a
-  // confidential child list — so we leave the explicit filter in place and let
-  // the preview render empty instead (#1565 review pass 2).
-  useEffect(() => {
-    if (!result) return;
-    if (selectedGroupIds !== null) {
-      const available = new Set(result.groups.map((g) => g.id));
-      const pruned = selectedGroupIds.filter((id) => available.has(id));
-      // Only reconcile when at least one selected group still matches. next ===
-      // null only when the survivors already cover every available group (an
-      // explicit "select all" that is equivalent to no filter — same rows).
-      if (pruned.length > 0 && pruned.length !== selectedGroupIds.length) {
-        const next = pruned.length === result.groups.length ? null : pruned;
-        setSelectedGroupIds(next);
-        replaceListUrl({ selectedGroupIds: next });
-      }
-    }
-    if (selectedClasses !== null) {
-      const available = new Set(result.classes);
-      const pruned = selectedClasses.filter((c) => available.has(c));
-      // Same guard as groups: a zero-survivor class filter is left untouched so a
-      // saved single-class list is never broadened to every class.
-      if (pruned.length > 0 && pruned.length !== selectedClasses.length) {
-        const next = pruned.length === result.classes.length ? null : pruned;
-        setSelectedClasses(next);
-        replaceListUrl({ selectedClasses: next });
-      }
-    }
-  }, [result, selectedGroupIds, selectedClasses, replaceListUrl]);
+  // We deliberately do NOT reconcile stale group/class URL filters against the
+  // preview. result.groups / result.classes are derived from the preview rows,
+  // so they list only the groups/classes that actually have rows for this date +
+  // source — NOT the school's complete set. A selected group/class absent from
+  // that derived set is ambiguous: it may have been deleted, or it may still be
+  // valid but simply have no rows today. There is no authoritative complete
+  // option set to disambiguate (the /options endpoint returns slots and cohorts,
+  // not groups/classes), so pruning a partial selection down to only its
+  // surviving members would silently narrow a saved multi-group export whenever
+  // one of the requested groups happens to be rowless — dropping a group the
+  // user explicitly asked to disclose. Leaving the explicit filter untouched
+  // keeps the requested scope exact; the preview simply renders no rows for a
+  // rowless member (#1565 review pass 2).
+  //
+  // Stale MANUAL SLOT selections are still pruned below because their selectable
+  // set comes from the authoritative /options endpoint (listOptions), which CAN
+  // distinguish a deleted/cancelled slot from a valid one.
 
   // Prune stale manual slot selections the same way. Unlike groups/classes the
   // selectable set comes from the date options (listOptions), not the preview,

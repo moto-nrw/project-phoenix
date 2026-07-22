@@ -50,9 +50,19 @@ async function POSTHandler(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const rawBody = await request.text();
-    const body = JSON.stringify(
-      normalizeSlotListRequestBody(rawBody ? JSON.parse(rawBody) : {}),
-    );
+    let parsedBody: unknown;
+    try {
+      parsedBody = rawBody ? JSON.parse(rawBody) : {};
+    } catch {
+      // Malformed client JSON is a bad request, not a server failure. Classify
+      // it as 400 to match the preview route and the Go handler instead of
+      // letting the outer catch report it as a 500 (#1565 review pass 1).
+      return NextResponse.json(
+        { error: "Ungültiger Anfrage-Text." },
+        { status: 400 },
+      );
+    }
+    const body = JSON.stringify(normalizeSlotListRequestBody(parsedBody));
 
     const response = await proxyExport(session.user.token, body);
     if (response.status !== 401) return response;
