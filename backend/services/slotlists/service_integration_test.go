@@ -48,11 +48,22 @@ import (
 // in the care-day tests below.
 var listDate = timezone.NewDate(2020, 9, 2)
 
-// pickupDate is today. A pickup cohort is refused for a past date
+// pickupNow pins the slot list service clock (injected via Dependencies.Now)
+// so the pickup suite is deterministic regardless of the weekday CI runs on. A
+// Ganztag pickup schedule only exists for ISO weekdays 1–5 and the
+// effective-pickup service short-circuits weekends, so a wall-clock "today"
+// made the whole pickup suite fail every Saturday and Sunday: the model
+// rejected the weekend weekday, and no pickup time resolved. It is a fixed
+// Wednesday (Go weekday 3 == ISO 3), after listDate so slot reconciliations
+// still treat those 2020 occurrences as already started.
+var pickupNow = time.Date(2025, 9, 3, 12, 0, 0, 0, timezone.Berlin)
+
+// pickupDate is the calendar day of pickupNow — "today" from the injected
+// clock's point of view. A pickup cohort is refused for a past date
 // (ErrPickupCohortPastDate) and a reconciliation for a future date, so only
 // today satisfies both a pickup list and its reconciliation together. Pickup
 // weekdays are derived from it dynamically.
-var pickupDate = timezone.TodayDate()
+var pickupDate = timezone.DateFromTime(pickupNow)
 
 // atOn returns the given Berlin wall-clock instant on calendar date d, so a
 // seeded visit/attendance lands on the same day as the list being built.
@@ -177,6 +188,9 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 		ListExport:  listexport.NewService(),
 		Settings:    settings,
 		UserContext: userCtx,
+		// Pin the clock to a fixed Wednesday so the pickup suite does not depend
+		// on the weekday CI runs on (see pickupNow).
+		Now: func() time.Time { return pickupNow },
 	})
 }
 
@@ -1177,7 +1191,9 @@ func TestBuildList_PickupCohortRejectsPastDate(t *testing.T) {
 	ctx := testpkg.TenantContext(1)
 	svc := newTestService(db)
 
-	pastDate := timezone.TodayDate().AddDays(-1)
+	// Relative to the injected service clock (pickupDate == "today"), so the
+	// past-date guards fire deterministically on any real weekday.
+	pastDate := pickupDate.AddDays(-1)
 
 	_, err := svc.BuildList(ctx, slotlists.Params{
 		Date:         pastDate,
@@ -1700,4 +1716,191 @@ func TestListOptions_CancelledCareDayCountedInSlotList(t *testing.T) {
 	}
 	require.NotNil(t, mensaOption, "the Mensa list kind is available")
 	assert.Equal(t, 1, mensaOption.RowCount, "options must count the signed-off child, like preview/export")
+}
+
+// TestBuildList_SlotReconciliationExcludesNotYetStartedSlot proves the per-slot
+// today guard (#1565 review): an Abgleich requested before a slot's scheduled
+// start has no presence evidence yet, so its planned children must be excluded
+// from the merge rather than reported as a group of missing ("Fehlt") children.
+// A slot whose start has already passed still reconciles normally.
+func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-NysRoom-%d", suffix))
+	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-NysAct-%d", suffix))
+	mensa := activitiesModels.ListKindMensa
+
+	// pickupNow is 12:00; this occurrence starts at 15:00 → not yet started.
+	future := &scheduleModels.ActivityInstance{
+		Date:            pickupDate,
+		ActivityGroupID: &activity.ID,
+		Title:           fmt.Sprintf("Mensa-Future %d", suffix),
+		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:          room.ID,
+		Status:          scheduleModels.InstanceStatusPlanned,
+		ListKind:        &mensa,
+	}
+	future.SetTenantID(1)
+	_, err := db.NewInsert().Model(future).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
+	require.NoError(t, err)
+
+	planned := testpkg.CreateTestStudent(t, db, "SL-NysPlanned", fmt.Sprintf("NP-%d", suffix), "3a")
+
+	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	row := &scheduleModels.InstanceStudent{
+		InstanceID: future.ID,
+		StudentID:  planned.ID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+	}
+	row.SetTenantID(1)
+	require.NoError(t, isRepo.Create(ctx, row))
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", future.ID)
+		testpkg.CleanupActivityFixtures(t, db, planned.ID)
+		testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activity.ID, room.ID)
+	})
+
+	svc := newTestService(db)
+
+	// Plan still lists the expected child (the plan is exactly what has not
+	// happened yet).
+	plan, err := svc.BuildList(ctx, slotlists.Params{
+		Date:   pickupDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourcePlanned,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, rowByStudent(plan.Rows, planned.ID), "Plan must show the not-yet-started slot's expected child")
+
+	// Reconciliation excludes the not-yet-started slot: no false "Fehlt".
+	recon, err := svc.BuildList(ctx, slotlists.Params{
+		Date:   pickupDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+	assert.Nil(t, rowByStudent(recon.Rows, planned.ID), "a not-yet-started slot must not report its planned children as missing")
+	assert.Equal(t, 0, recon.Counters.Missing, "no missing-child count before the slot has started")
+	require.Len(t, recon.Slots, 1, "the slot stays selectable context even when excluded from the merge")
+
+	// A slot that has already started (start 09:00 < 12:00) with no presence
+	// evidence does reconcile — its expected no-show is a genuine "Fehlt".
+	started := &scheduleModels.ActivityInstance{
+		Date:            pickupDate,
+		ActivityGroupID: &activity.ID,
+		Title:           fmt.Sprintf("Mensa-Started %d", suffix),
+		StartTime:       time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
+		RoomID:          room.ID,
+		Status:          scheduleModels.InstanceStatusPlanned,
+		ListKind:        &mensa,
+	}
+	started.SetTenantID(1)
+	_, err = db.NewInsert().Model(started).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
+	require.NoError(t, err)
+	startedRow := &scheduleModels.InstanceStudent{
+		InstanceID: started.ID,
+		StudentID:  planned.ID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+	}
+	startedRow.SetTenantID(1)
+	require.NoError(t, isRepo.Create(ctx, startedRow))
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", startedRow.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", started.ID)
+	})
+
+	reconStarted, err := svc.BuildList(ctx, slotlists.Params{
+		Date:        pickupDate,
+		Target:      slotlists.TargetSlots,
+		InstanceIDs: []int64{started.ID},
+		Source:      slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+	missing := rowByStudent(reconStarted.Rows, planned.ID)
+	require.NotNil(t, missing, "an already-started slot reconciles its expected children")
+	assert.Equal(t, "Fehlt", missing.StatusLabel)
+	assert.Equal(t, 1, reconStarted.Counters.Missing)
+}
+
+// TestBuildList_PickupReconciliationCancelledButPresentIsUnplanned proves the
+// pickup path agrees with the slot path (#1565 review): a child whose care day
+// was signed off ("Kommt heute nicht") but who attends anyway is unplanned
+// presence ("Ungeplant anwesend"), never planned-and-present ("Anwesend").
+func TestBuildList_PickupReconciliationCancelledButPresentIsUnplanned(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+	weekday := int(pickupDate.Weekday())
+
+	child := testpkg.CreateTestStudent(t, db, "SL-CxlPresent", fmt.Sprintf("CP-%d", suffix), "2c")
+	staff := testpkg.CreateTestStaff(t, db, "SL-Staff", fmt.Sprintf("SCP-%d", suffix))
+	device := testpkg.CreateTestDevice(t, db, fmt.Sprintf("sl-cxlp-%d", suffix))
+
+	// Regular long-day pickup, then a timeless "Kommt heute nicht" pickup
+	// exception → cancelled care day whose cohort falls back to the regular
+	// 16:00 bucket.
+	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	sched := &scheduleModels.StudentPickupSchedule{
+		StudentID: child.ID, Weekday: weekday,
+		PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID,
+	}
+	sched.SetTenantID(1)
+	require.NoError(t, pickupRepo.Create(ctx, sched))
+
+	exc := &scheduleModels.StudentPickupException{
+		StudentID: child.ID, ExceptionDate: pickupDate, PickupTime: nil, CreatedBy: staff.ID,
+	}
+	exc.SetTenantID(1)
+	_, err := db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
+	require.NoError(t, err)
+
+	// The child attended anyway (closed attendance still counts).
+	checkIn := atOn(pickupDate, 8, 0)
+	checkOut := atOn(pickupDate, 15, 30)
+	att := &activeModels.Attendance{
+		StudentID:    child.ID,
+		Date:         pickupDate,
+		CheckInTime:  checkIn,
+		CheckOutTime: &checkOut,
+		CheckedInBy:  staff.ID,
+		DeviceID:     device.ID,
+	}
+	att.SetTenantID(1)
+	_, err = db.NewInsert().Model(att).ModelTableExpr(`active.attendance`).Exec(ctx)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "active.attendance", att.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_exceptions", exc.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_schedules", sched.ID)
+		testpkg.CleanupActivityFixtures(t, db, child.ID, staff.ID, device.ID)
+	})
+
+	svc := newTestService(db)
+	result, err := svc.BuildList(ctx, slotlists.Params{
+		Date:         pickupDate,
+		Target:       slotlists.TargetPickupCohort,
+		PickupCohort: slotlists.PickupCohortLongDay,
+		Source:       slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+
+	row := rowByStudent(result.Rows, child.ID)
+	require.NotNil(t, row, "a cancelled-but-present child stays on the reconciliation list")
+	assert.True(t, row.Unplanned, "cancelled-but-attended is unplanned presence")
+	assert.False(t, row.Planned, "a signed-off child who attends is not planned-and-present")
+	assert.False(t, row.Excused, "attendance overrides the sign-off — it is not an excused absence")
+	assert.Equal(t, "Ungeplant anwesend", row.StatusLabel)
+	assert.Equal(t, 1, result.Counters.Unplanned)
+	assert.Equal(t, 0, result.Counters.Excused)
+	assert.Equal(t, 0, result.Counters.Missing)
 }

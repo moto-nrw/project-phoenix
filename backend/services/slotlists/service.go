@@ -143,6 +143,9 @@ type Dependencies struct {
 	Settings            settingsReader
 	UserContext         authorize.StudentReadUserContext
 	Logger              *slog.Logger
+	// Now overrides the service clock. Leave nil in production (defaults to
+	// time.Now); tests inject a fixed instant for a deterministic weekday.
+	Now func() time.Time
 }
 
 type service struct {
@@ -162,10 +165,18 @@ type service struct {
 	settings            settingsReader
 	userContext         authorize.StudentReadUserContext
 	logger              *slog.Logger
+	// now is the clock the service reads "today" and "has this slot started
+	// yet" from. Production leaves it nil (→ time.Now); tests inject a fixed
+	// instant so the pickup suite is not at the mercy of the weekday CI runs on.
+	now func() time.Time
 }
 
 // NewService creates a slot list service.
 func NewService(deps Dependencies) Service {
+	now := deps.Now
+	if now == nil {
+		now = time.Now
+	}
 	return &service{
 		instanceRepo:        deps.InstanceRepo,
 		instanceStudentRepo: deps.InstanceStudentRepo,
@@ -183,8 +194,17 @@ func NewService(deps Dependencies) Service {
 		settings:            deps.Settings,
 		userContext:         deps.UserContext,
 		logger:              deps.Logger,
+		now:                 now,
 	}
 }
+
+// currentTime returns the service's notion of "now" (real clock in production,
+// an injected fixed instant in tests).
+func (s *service) currentTime() time.Time { return s.now() }
+
+// todayDate returns the current calendar day in Berlin, derived from the
+// service clock so the date guards move with an injected test clock.
+func (s *service) todayDate() timezone.Date { return timezone.DateFromTime(s.now()) }
 
 type pickupBucketConfig struct {
 	ShortCutoff string
@@ -396,15 +416,17 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 	// A Ganztag pickup plan cannot be reconstructed for a past date (the pickup
 	// schedule has no history) — refuse rather than project the current schedule
 	// backwards. Slot-based lists stay available for any date (#1565 review).
-	if params.Target == TargetPickupCohort && params.Date.Before(timezone.TodayDate()) {
+	if params.Target == TargetPickupCohort && params.Date.Before(s.todayDate()) {
 		return nil, ErrPickupCohortPastDate
 	}
 	// A reconciliation on a strictly-future date has no presence evidence to merge
 	// against, so every planned child would be labelled "Fehlt". Refuse it rather
 	// than emit a list that reports the whole group missing before the day starts
 	// (#1565 review). Today is fine — evidence accrues through the day; Plan/Ist
-	// stay available for any date.
-	if params.Source == SourceReconciliation && params.Date.After(timezone.TodayDate()) {
+	// stay available for any date. Slots that have not started yet *on today* are
+	// handled per-slot in collectSlotEntries (a not-yet-begun occurrence is
+	// excluded from the merge, not reported as a group of missing children).
+	if params.Source == SourceReconciliation && params.Date.After(s.todayDate()) {
 		return nil, ErrReconciliationFutureDate
 	}
 	access, err := s.resolveStudentReadAccess(ctx)
@@ -595,7 +617,7 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 		return nil, err
 	}
 	cohortCounts := map[PickupCohort]int{}
-	if !date.Before(timezone.TodayDate()) && len(studentIDs) > 0 {
+	if !date.Before(s.todayDate()) && len(studentIDs) > 0 {
 		pickupTimes, err := s.pickupService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, date)
 		if err != nil {
 			return nil, err
@@ -807,6 +829,20 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 		})
 		if inst.Status == scheduleModel.InstanceStatusCancelled {
 			continue
+		}
+		// A reconciliation before the slot's scheduled start has no presence
+		// evidence yet: loadPresentStudents returns nothing (the occurrence has
+		// no active group), so every planned child would merge to Present=false
+		// and render as "Fehlt" — a safety-relevant false missing-child list
+		// before the activity has begun (#1565 review). Exclude the occurrence
+		// from the merge; it stays selectable context in result.Slots above.
+		// Plan/Ist are unaffected (Plan still lists the expected children, Ist is
+		// legitimately empty), and a future *date* is refused outright in
+		// BuildList — this is the per-slot case on today.
+		if params.Source == SourceReconciliation {
+			if start, _ := instanceTimeRange(inst); s.currentTime().Before(start) {
+				continue
+			}
 		}
 		if selected != nil {
 			if _, ok := selected[inst.ID]; !ok {
@@ -1208,6 +1244,23 @@ func (s *service) collectPickupEntries(ctx context.Context, params Params, resul
 		}
 		cohort[student.ID] = struct{}{}
 		_, present := presentSet[student.ID]
+		if cancelled && present {
+			// The care day was signed off ("Kommt heute nicht") but the child
+			// attended anyway. That is an unplanned presence, not a
+			// planned-and-present child — mirror the slot-list path, which leaves
+			// the same cancelled-but-attended case unseen so it surfaces as
+			// "Ungeplant anwesend". Classifying it as Planned here would label the
+			// child "Anwesend" and disagree with collectSlotEntries and its
+			// counters (#1565 review). Emit a present-only entry; the child stays
+			// in `cohort` so the unplanned sweep below does not re-add them.
+			entries = append(entries, mergedEntry{
+				StudentID:  student.ID,
+				SlotLabel:  slotLabel,
+				PickupTime: hhmm,
+				Present:    true,
+			})
+			continue
+		}
 		entry := mergedEntry{
 			StudentID:  student.ID,
 			SlotLabel:  slotLabel,
