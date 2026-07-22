@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
+	holidayModel "github.com/moto-nrw/project-phoenix/internal/holidays"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -321,6 +323,120 @@ func (f *fakeStaffReader) FindWithPersonByIDs(_ context.Context, _ []int64) (map
 
 func fakeStaff(id int64, first, last string) *users.Staff {
 	return &users.Staff{Person: &users.Person{FirstName: first, LastName: last}, PersonID: id + 100}
+}
+
+type fakeOverviewHolidayService struct {
+	dates map[timezone.Date]bool
+	err   error
+	calls int
+	from  timezone.Date
+	to    timezone.Date
+}
+
+func (f *fakeOverviewHolidayService) HolidaysInRange(_ context.Context, _, _ timezone.Date) ([]holidayModel.Holiday, error) {
+	return nil, f.err
+}
+
+func (f *fakeOverviewHolidayService) HolidayDates(_ context.Context, from, to timezone.Date) (map[timezone.Date]bool, error) {
+	f.calls++
+	f.from, f.to = from, to
+	return f.dates, f.err
+}
+
+type fakeOverviewWorkModelReader struct {
+	models []*configModel.WorkTimeModel
+	err    error
+	ids    []int64
+}
+
+func (f *fakeOverviewWorkModelReader) FindByIDs(_ context.Context, ids []int64) ([]*configModel.WorkTimeModel, error) {
+	f.ids = append([]int64(nil), ids...)
+	return f.models, f.err
+}
+
+func TestStaffScheduleOverview_ReducesScheduleAndModelTargetsOnPublicHolidays(t *testing.T) {
+	monday := timezone.NewDate(2026, time.December, 21)
+	friday := monday.AddDays(4)
+	validFrom := monday.AddDays(-7)
+	modelID := int64(22)
+	holidayReader := &fakeOverviewHolidayService{dates: map[timezone.Date]bool{
+		monday: true,
+		friday: true,
+	}}
+	modelReader := &fakeOverviewWorkModelReader{models: []*configModel.WorkTimeModel{{
+		ID:                 modelID,
+		RotationLength:     1,
+		RotationAnchorDate: monday,
+		Entries: []*configModel.WorkTimeModelEntry{
+			{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 240},
+			{WeekIndex: 0, DayOfWeek: configModel.DayTuesday, TargetMinutes: 60},
+		},
+	}}}
+	service := &staffScheduleOverviewService{deps: StaffScheduleOverviewDependencies{
+		Holidays:   holidayReader,
+		WorkModels: modelReader,
+	}}
+	scheduledStaff := &users.Staff{}
+	scheduledStaff.ID = 11
+	modelStaff := &users.Staff{WorkTimeModelID: &modelID}
+	modelStaff.ID = 12
+
+	targets, err := service.resolveWeeklyTargets(
+		context.Background(),
+		[]*users.Staff{scheduledStaff, modelStaff},
+		[]*configModel.StaffWorkSchedule{
+			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayMonday, TargetMinutes: 120, ValidFrom: validFrom},
+			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayFriday, TargetMinutes: 180, ValidFrom: validFrom},
+		},
+		[]timezone.Date{monday},
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, 0, targets[staffDateKey{staffID: 11, date: monday}], "both scheduled workdays are public holidays")
+	assert.Equal(t, 60, targets[staffDateKey{staffID: 12, date: monday}], "the model's Monday target is removed")
+	assert.Equal(t, []int64{modelID}, modelReader.ids)
+	assert.Equal(t, monday, holidayReader.from)
+	assert.Equal(t, monday.AddDays(6), holidayReader.to)
+}
+
+func TestStaffScheduleOverview_HolidayRangeUsesAllWeeksAndPropagatesErrors(t *testing.T) {
+	middle := timezone.NewDate(2026, time.December, 21)
+	earlier := middle.AddDays(-7)
+	later := middle.AddDays(7)
+
+	t.Run("uses earliest Monday through latest Sunday", func(t *testing.T) {
+		reader := &fakeOverviewHolidayService{dates: map[timezone.Date]bool{middle: true}}
+		service := &staffScheduleOverviewService{deps: StaffScheduleOverviewDependencies{Holidays: reader}}
+
+		set, err := service.holidayDatesForWeeks(context.Background(), []timezone.Date{middle, earlier, later})
+		require.NoError(t, err)
+		assert.True(t, set[middle])
+		assert.Equal(t, earlier, reader.from)
+		assert.Equal(t, later.AddDays(6), reader.to)
+	})
+
+	t.Run("wraps resolver errors", func(t *testing.T) {
+		reader := &fakeOverviewHolidayService{err: errors.New("boom")}
+		service := &staffScheduleOverviewService{deps: StaffScheduleOverviewDependencies{Holidays: reader}}
+
+		_, err := service.holidayDatesForWeeks(context.Background(), []timezone.Date{middle})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "load public holidays")
+
+		_, err = service.resolveWeeklyTargets(context.Background(), nil, nil, []timezone.Date{middle})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "load public holidays")
+	})
+
+	t.Run("skips lookup without weeks", func(t *testing.T) {
+		reader := &fakeOverviewHolidayService{}
+		service := &staffScheduleOverviewService{deps: StaffScheduleOverviewDependencies{Holidays: reader}}
+
+		set, err := service.holidayDatesForWeeks(context.Background(), nil)
+		require.NoError(t, err)
+		assert.Nil(t, set)
+		assert.Zero(t, reader.calls)
+	})
 }
 
 func TestStaffScheduleOverview_BatchesAndProjectsEffectiveDailyAssignments(t *testing.T) {

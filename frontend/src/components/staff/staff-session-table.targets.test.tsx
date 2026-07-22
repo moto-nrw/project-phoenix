@@ -216,6 +216,17 @@ describe("StaffSessionTable Soll-Auflösung", () => {
 describe("StaffSessionTable Wochenendtage", () => {
   // Sa, 10.01.2026 — im Zeitraum from/to und in der Vergangenheit.
   const saturday = "2026-01-10";
+  const emptySessions: readonly StaffHistorySession[] = [];
+  const weekendTargets = new Map([
+    ["2026-01-05", 480],
+    ["2026-01-06", 480],
+    ["2026-01-07", 480],
+    ["2026-01-08", 480],
+    ["2026-01-09", 480],
+    // Der Server liefert Wochenenden mit Soll 0 mit.
+    ["2026-01-10", 0],
+    ["2026-01-11", 0],
+  ]);
 
   const weekendSession: StaffHistorySession = {
     id: 42,
@@ -226,39 +237,36 @@ describe("StaffSessionTable Wochenendtage", () => {
     break_minutes: 0,
   };
 
-  function renderWeekend(props: {
+  type WeekendTableProps = {
     sessions?: readonly StaffHistorySession[];
     plannedShifts?: readonly StaffShift[];
     absences?: readonly StaffAbsenceRow[];
-  }) {
-    return render(
+    holidays?: ReadonlyMap<string, string>;
+  };
+
+  function WeekendTable(props: WeekendTableProps) {
+    return (
       <StaffSessionTable
         staffId="1"
         from={from}
         to={to}
-        sessions={props.sessions ?? []}
+        sessions={props.sessions ?? emptySessions}
         absences={props.absences}
         plannedShifts={props.plannedShifts}
         schedule={schedule}
         accountStartDate="2026-01-08"
-        dailyTargets={
-          new Map([
-            ["2026-01-05", 480],
-            ["2026-01-06", 480],
-            ["2026-01-07", 480],
-            ["2026-01-08", 480],
-            ["2026-01-09", 480],
-            // Der Server liefert Wochenenden mit Soll 0 mit.
-            ["2026-01-10", 0],
-            ["2026-01-11", 0],
-          ])
-        }
+        dailyTargets={weekendTargets}
+        holidays={props.holidays}
         today={today}
         isAdminView
         accountStartDatePending={false}
         accountStartDateError={false}
-      />,
+      />
     );
+  }
+
+  function renderWeekend(props: WeekendTableProps) {
+    return render(<WeekendTable {...props} />);
   }
 
   it("blendet leere Wochenenden weiter aus", () => {
@@ -267,6 +275,23 @@ describe("StaffSessionTable Wochenendtage", () => {
     // 10.01. = Sa, 11.01. = So — beide Datumszellen fehlen.
     expect(screen.queryByText("10.01.")).not.toBeInTheDocument();
     expect(screen.queryByText("11.01.")).not.toBeInTheDocument();
+  });
+
+  it("zeigt einen Feiertag am Sonntag, sobald die Feiertage geladen sind", () => {
+    const view = renderWeekend({});
+    expect(screen.queryByText("11.01.")).not.toBeInTheDocument();
+
+    view.rerender(
+      <WeekendTable holidays={new Map([["2026-01-11", "Ostersonntag"]])} />,
+    );
+
+    const row = screen.getByText("11.01.").closest("tr");
+    expect(row).not.toBeNull();
+    expect(within(row!).getByText("Feiertag")).toHaveAttribute(
+      "title",
+      "Ostersonntag",
+    );
+    expect(screen.queryByText("10.01.")).not.toBeInTheDocument();
   });
 
   it("zeigt einen Samstag mit Session als Zeile", () => {

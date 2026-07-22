@@ -20,6 +20,7 @@ import {
   getComplianceWarnings,
   calculateNetMinutes,
   mapHistoryResponse,
+  mapHolidaysResponse,
 } from "./time-tracking-helpers";
 
 // Helper to create mock backend session
@@ -291,6 +292,29 @@ describe("mapHistoryResponse", () => {
       sessionCount: 3,
       isOverWeeklyMax: false,
     });
+  });
+});
+
+describe("mapHolidaysResponse", () => {
+  it("maps timestamps to calendar-date keys and preserves names", () => {
+    const result = mapHolidaysResponse([
+      {
+        date: "2026-05-14T00:00:00Z",
+        name: "Christi Himmelfahrt",
+      },
+      { date: "2026-05-25", name: "Pfingstmontag" },
+    ]);
+
+    expect(result).toEqual(
+      new Map([
+        ["2026-05-14", "Christi Himmelfahrt"],
+        ["2026-05-25", "Pfingstmontag"],
+      ]),
+    );
+  });
+
+  it.each([null, undefined])("returns an empty map for %s", (data) => {
+    expect(mapHolidaysResponse(data)).toEqual(new Map());
   });
 });
 

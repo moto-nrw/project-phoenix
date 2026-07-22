@@ -1622,6 +1622,16 @@ function OwnZeiterfassungSection({
   const monthNumber = monthAnchor.getMonth() + 1;
   const isCurrentMonth =
     monthYear === today.getFullYear() && monthNumber === today.getMonth() + 1;
+  // Gesetzliche Feiertage im sichtbaren Zeitraum (#1418 3a): eigenes Badge
+  // in der Tabelle + Feiertagsarbeit-Warnung. Das Soll dieser Tage liefert
+  // der Server bereits als 0; ein Fetch-Fehler lässt die Markierung weg,
+  // ohne die Tabelle zu blockieren.
+  const { data: tableHolidays } = useSWRAuth(
+    `time-tracking-holidays-${visibleFromKey}-${visibleToKey}`,
+    () => timeTrackingService.getHolidays(visibleFromKey, visibleToKey),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
   const {
     data: monthSummary,
     isLoading: monthSummaryLoading,
@@ -1867,6 +1877,7 @@ function OwnZeiterfassungSection({
             dailyTargets={dailyTargets}
             dailyTargetsError={dailyTargetsError != null}
             dailyTargetsPending={dailyTargetsLoading}
+            holidays={tableHolidays}
             accountStartDate={timeTrackingConfig?.accountStartDate ?? null}
             accountStartDatePending={timeTrackingConfigLoading}
             accountStartDateError={

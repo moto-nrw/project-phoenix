@@ -148,6 +148,15 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
     { keepPreviousData: true, revalidateOnFocus: false },
   );
 
+  // Gesetzliche Feiertage im sichtbaren Zeitraum (#1418 3a). Tenant-global
+  // (Bundesland-Setting), daher derselbe Endpunkt wie die MA-Sicht; die
+  // Route akzeptiert time_tracking:own ODER :manage.
+  const { data: tableHolidays } = useSWRAuth(
+    `time-tracking-holidays-${visibleFromKey}-${visibleToKey}`,
+    () => timeTrackingService.getHolidays(visibleFromKey, visibleToKey),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
   // Monatskarte (#1842): server-computed month aggregate, only fetched in
   // month mode. Everything is live — the Übertrag recomputes automatically
   // when past months are corrected. Edits and backfills invalidate this key
@@ -291,6 +300,7 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
               dailyTargets={dailyTargets}
               dailyTargetsError={dailyTargetsError != null}
               dailyTargetsPending={dailyTargetsLoading}
+              holidays={tableHolidays}
               accountStartDate={timeTrackingConfig?.accountStartDate ?? null}
               accountStartDatePending={timeTrackingConfigLoading}
               accountStartDateError={

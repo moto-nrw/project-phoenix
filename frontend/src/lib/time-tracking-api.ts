@@ -4,6 +4,7 @@ import { getSession } from "next-auth/react";
 import { buildApiError } from "./auth-api";
 import type {
   BackendDailyTarget,
+  BackendHoliday,
   BackendMonthSummary,
   MonthSummary,
   StaffAbsence,
@@ -16,6 +17,7 @@ import type {
 import {
   mapDailyTargetsResponse,
   mapHistoryResponse,
+  mapHolidaysResponse,
   mapMonthSummaryResponse,
   mapStaffAbsenceResponse,
   mapWorkSessionResponse,
@@ -234,6 +236,22 @@ class TimeTrackingService {
       "Failed to get schedule targets",
     );
     return mapDailyTargetsResponse(result.data);
+  }
+
+  // Gesetzliche Feiertage des Tenants (#1418 3a), keyed YYYY-MM-DD → Name.
+  // Tenant-global (Bundesland-Setting), daher kein Staff-Parameter — die
+  // Admin-Detailansicht nutzt denselben Endpunkt.
+  async getHolidays(
+    from: string,
+    to: string,
+  ): Promise<ReadonlyMap<string, string>> {
+    const params = new URLSearchParams({ from, to });
+    const result = await this.request<BackendHoliday[] | null>(
+      `/holidays?${params}`,
+      "GET",
+      "Failed to get holidays",
+    );
+    return mapHolidaysResponse(result.data);
   }
 
   async updateSession(

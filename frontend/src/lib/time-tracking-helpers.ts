@@ -524,6 +524,26 @@ export function mapDailyTargetsResponse(
   return targets;
 }
 
+export interface BackendHoliday {
+  date: string;
+  name: string;
+}
+
+/**
+ * Gesetzliche Feiertage im Zeitraum, keyed nach ISO-Tag (YYYY-MM-DD),
+ * Wert ist der Feiertagsname (#1418 3a). Quelle ist das Bundesland-Setting
+ * des Tenants; an diesen Tagen liefert das Backend Soll = 0.
+ */
+export function mapHolidaysResponse(
+  data: BackendHoliday[] | null | undefined,
+): ReadonlyMap<string, string> {
+  const holidays = new Map<string, string>();
+  for (const entry of data ?? []) {
+    holidays.set(entry.date.slice(0, 10), entry.name);
+  }
+  return holidays;
+}
+
 export interface BackendMonthSummary {
   staff_id: number;
   year: number;

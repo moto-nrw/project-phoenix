@@ -154,6 +154,9 @@ const (
 	KeyTimeTrackingRequireDeviationReason    = "operations.time_tracking_require_deviation_reason"
 	KeyTimeTrackingDeviationToleranceMinutes = "operations.time_tracking_deviation_tolerance_minutes"
 	KeyMealPlanEnabled                       = "operations.meal_plan_enabled"
+	// KeyFederalState is the school's Bundesland (ISO 3166-2, e.g. DE-NW).
+	// Drives the public-holiday calendar in time tracking (#1418 3a).
+	KeyFederalState = "operations.federal_state"
 )
 
 // PresenceMode option values for KeyPresenceMode.

@@ -341,6 +341,7 @@ type workSessionService struct {
 	workModelRepo  configModels.WorkTimeModelRepository
 	settings       settingsResolver
 	staffShiftRepo scheduleModels.StaffShiftRepository
+	holidayReader  HolidayDatesReader
 	logger         *slog.Logger
 	nowFunc        func() time.Time
 }
@@ -351,6 +352,14 @@ type workSessionService struct {
 // calls it right after construction.
 func (s *workSessionService) SetStaffShiftRepo(repo scheduleModels.StaffShiftRepository) {
 	s.staffShiftRepo = repo
+}
+
+// SetHolidayReader injects the public-holiday resolver (#1418 3a): holidays
+// reduce the weekly Soll shown in the history summaries. Deliberately NOT
+// part of the WorkSessionService interface — the factory injects it via a
+// type assertion, so external mocks of the interface stay untouched.
+func (s *workSessionService) SetHolidayReader(reader HolidayDatesReader) {
+	s.holidayReader = reader
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
@@ -1492,9 +1501,13 @@ func (s *workSessionService) getWeeklyTargetsForSummaries(ctx context.Context, s
 	if len(sessions) == 0 {
 		return nil
 	}
+	holidaySet, ok := s.holidayDatesForWeeks(ctx, sessionWeekStarts(sessions))
+	if !ok {
+		return nil
+	}
 	staff := s.resolveStaffForTargets(ctx, staffID)
 	if s.scheduleRepo != nil {
-		targets := s.weeklyTargetsFromDateValidSchedule(ctx, staffID, staff, sessions)
+		targets := s.weeklyTargetsFromDateValidSchedule(ctx, staffID, staff, sessions, holidaySet)
 		if len(targets) > 0 {
 			return targets
 		}
@@ -1511,9 +1524,69 @@ func (s *workSessionService) getWeeklyTargetsForSummaries(ctx context.Context, s
 		if staff.RotationAnchorDate != nil {
 			anchor = *staff.RotationAnchorDate
 		}
-		return summaryKeysOf(configModels.WeeklyTargetsFromModel(model, anchor, sessionWeekStarts(sessions)))
+		targets := configModels.WeeklyTargetsFromModel(model, anchor, sessionWeekStarts(sessions))
+		for weekStart, target := range targets {
+			targets[weekStart] = target - holidayModelMinutes(model, anchor, weekStart, holidaySet)
+		}
+		return summaryKeysOf(targets)
 	}
 	return nil
+}
+
+// holidayDatesForWeeks loads the public holidays covering the given weeks.
+// ok=false signals a resolver failure — then NO weekly Soll is shown rather
+// than one that ignores holidays and fakes minus hours (#1418 3a).
+func (s *workSessionService) holidayDatesForWeeks(ctx context.Context, weekStarts []timezone.Date) (map[timezone.Date]bool, bool) {
+	if s.holidayReader == nil || len(weekStarts) == 0 {
+		return nil, true
+	}
+	from, to := weekStarts[0], weekStarts[0]
+	for _, weekStart := range weekStarts[1:] {
+		if weekStart.Before(from) {
+			from = weekStart
+		}
+		if weekStart.After(to) {
+			to = weekStart
+		}
+	}
+	set, err := s.holidayReader.HolidayDates(ctx, from, to.AddDays(6))
+	if err != nil {
+		s.getLogger().Warn("failed to load public holidays for weekly summaries",
+			"error", err.Error(),
+		)
+		return nil, false
+	}
+	return set, true
+}
+
+// holidayScheduleMinutes sums the schedule Soll of the week's holiday days —
+// the amount a holiday week's target shrinks by.
+func holidayScheduleMinutes(entries []*configModels.StaffWorkSchedule, staffAnchor *timezone.Date, weekStart timezone.Date, holidaySet map[timezone.Date]bool) int {
+	total := 0
+	for offset := 0; offset < 7; offset++ {
+		day := weekStart.AddDays(offset)
+		if !holidaySet[day] {
+			continue
+		}
+		dayTarget, _ := configModels.DailyTargetFromSchedule(entries, staffAnchor, day)
+		total += dayTarget
+	}
+	return total
+}
+
+// holidayModelMinutes is holidayScheduleMinutes for the work-time-model
+// fallback path.
+func holidayModelMinutes(model *configModels.WorkTimeModel, anchor timezone.Date, weekStart timezone.Date, holidaySet map[timezone.Date]bool) int {
+	total := 0
+	for offset := 0; offset < 7; offset++ {
+		day := weekStart.AddDays(offset)
+		if !holidaySet[day] {
+			continue
+		}
+		dayTarget, _ := configModels.DailyTargetFromModel(model, anchor, day)
+		total += dayTarget
+	}
+	return total
 }
 
 func (s *workSessionService) resolveStaffForTargets(ctx context.Context, staffID int64) *userModels.Staff {
@@ -1537,6 +1610,7 @@ func (s *workSessionService) weeklyTargetsFromDateValidSchedule(
 	staffID int64,
 	staff *userModels.Staff,
 	sessions []*SessionResponse,
+	holidaySet map[timezone.Date]bool,
 ) map[summaryWeekKey]int {
 	weekStarts := sessionWeekStarts(sessions)
 	if len(weekStarts) == 0 {
@@ -1558,6 +1632,7 @@ func (s *workSessionService) weeklyTargetsFromDateValidSchedule(
 	targetsByWeek := make(map[summaryWeekKey]int)
 	for _, weekStart := range weekStarts {
 		if target, ok := configModels.WeeklyTargetFromSchedule(entries, staffAnchorOf(staff), weekStart); ok {
+			target -= holidayScheduleMinutes(entries, staffAnchorOf(staff), weekStart, holidaySet)
 			targetsByWeek[summaryKeyOf(weekStart)] = target
 		}
 	}

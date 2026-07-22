@@ -300,6 +300,46 @@ describe("TimeTrackingService", () => {
     });
   });
 
+  describe("getHolidays", () => {
+    it("sends the date range and maps holidays by calendar date", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "",
+        data: [
+          {
+            date: "2026-12-25T00:00:00Z",
+            name: "Erster Weihnachtsfeiertag",
+          },
+        ],
+      });
+
+      const result = await timeTrackingService.getHolidays(
+        "2026-12-01",
+        "2026-12-31",
+      );
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/time-tracking/holidays?from=2026-12-01&to=2026-12-31",
+        expect.objectContaining({ method: "GET" }),
+      );
+      expect(result).toEqual(
+        new Map([["2026-12-25", "Erster Weihnachtsfeiertag"]]),
+      );
+    });
+
+    it("returns an empty map when the backend returns null", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "",
+        data: null,
+      });
+
+      await expect(
+        timeTrackingService.getHolidays("2026-12-01", "2026-12-31"),
+      ).resolves.toEqual(new Map());
+    });
+  });
+
   describe("updateSession", () => {
     it("sends PUT with updates and returns mapped session", async () => {
       global.fetch = mockFetchResponse({

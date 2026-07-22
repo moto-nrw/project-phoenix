@@ -318,6 +318,7 @@ GET /api/time-tracking/config
 GET /api/time-tracking/current
 GET /api/time-tracking/export
 GET /api/time-tracking/history
+GET /api/time-tracking/holidays
 GET /api/time-tracking/month-summary
 GET /api/time-tracking/presence-map
 GET /api/time-tracking/schedule-targets

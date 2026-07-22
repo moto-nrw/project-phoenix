@@ -63,6 +63,7 @@ type Factory struct {
 	ActiveCleanup            active.CleanupService
 	WorkSession              active.WorkSessionService
 	WorkTimeMonth            active.WorkTimeMonthService
+	Holidays                 schedule.HolidayService
 	StaffAbsence             active.StaffAbsenceService
 	Activities               activities.ActivityService
 	Education                education.Service
@@ -355,6 +356,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		activeLogger,
 	)
 
+	// Public holidays per Bundesland (#1418 3a): computed from the
+	// operations.federal_state setting, zero the Soll of their day.
+	holidayService := schedule.NewHolidayService(settingsService, logger.With("service", "holidays"))
+	workTimeMonthService.SetHolidayReader(holidayService)
+	// The session service's weekly summaries reduce their Soll by holidays
+	// too. The setter is not part of the WorkSessionService interface (it
+	// would break external mocks), hence the assertion.
+	if holidayAware, ok := workSessionService.(interface {
+		SetHolidayReader(active.HolidayDatesReader)
+	}); ok {
+		holidayAware.SetHolidayReader(holidayService)
+	}
+
 	// Initialize staff absence service
 	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit)
 
@@ -590,6 +604,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Staff:         repos.Staff,
 		WorkSchedules: repos.StaffWorkSchedule,
 		WorkModels:    repos.WorkTimeModel,
+		Holidays:      holidayService,
 	})
 
 	// Initialize pickup schedule service
@@ -1482,6 +1497,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ActiveCleanup:            activeCleanupService,
 		WorkSession:              workSessionService,
 		WorkTimeMonth:            workTimeMonthService,
+		Holidays:                 holidayService,
 		StaffAbsence:             staffAbsenceService,
 		Activities:               activitiesService,
 		Education:                educationService,

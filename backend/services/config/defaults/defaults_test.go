@@ -3,6 +3,7 @@ package defaults_test
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/internal/holidays"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/stretchr/testify/assert"
@@ -31,6 +32,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.status_flag_clear_time",
 		"operations.sick_clear_mode",
 		"operations.excused_clear_mode",
+		"operations.federal_state",
 		"gdpr.data_cleanup_enabled",
 		"gdpr.data_cleanup_time",
 		"gdpr.data_cleanup_timeout_minutes",
@@ -168,6 +170,27 @@ func TestPresenceModeSetting(t *testing.T) {
 	values := []any{def.Options.Static[0].Value, def.Options.Static[1].Value}
 	assert.Contains(t, values, config.PresenceModeDetailed)
 	assert.Contains(t, values, config.PresenceModeBinary)
+}
+
+func TestFederalStateSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyFederalState)
+	require.NotNil(t, def, "operations.federal_state should be registered")
+	assert.Equal(t, config.FieldSelect, def.Type)
+	assert.Equal(t, holidays.DefaultRegion, def.Default, "default must stay DE-NW - existing schools are NRW")
+	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy, "federal_state is operator-only - changing it shifts the whole Arbeitszeitkonto")
+	assert.Equal(t, "operations", def.Tab)
+
+	// The select options and the holiday computation must know the same
+	// regions, or a school could pick a state without a holiday calendar.
+	require.NotNil(t, def.Options)
+	require.Len(t, def.Options.Static, 16)
+	optionValues := make([]string, 0, len(def.Options.Static))
+	for _, opt := range def.Options.Static {
+		value, ok := opt.Value.(string)
+		require.True(t, ok, "federal_state option values must be strings")
+		optionValues = append(optionValues, value)
+	}
+	assert.ElementsMatch(t, holidays.Regions(), optionValues)
 }
 
 func TestDisplayEnabledSetting(t *testing.T) {
