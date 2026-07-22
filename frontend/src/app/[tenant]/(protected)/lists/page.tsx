@@ -25,7 +25,11 @@ import { DatePicker } from "~/components/ui/date-picker";
 import { Loading } from "~/components/ui/loading";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { DesktopFilters } from "~/components/ui/page-header/DesktopFilters";
-import type { FilterConfig } from "~/components/ui/page-header/types";
+import { ActiveFilterChips } from "~/components/ui/page-header/ActiveFilterChips";
+import type {
+  ActiveFilter,
+  FilterConfig,
+} from "~/components/ui/page-header/types";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -1011,6 +1015,43 @@ export default function SlotListsPage() {
     replaceListUrl,
   ]);
 
+  // Surface a group/class restriction that the standard dropdowns above cannot
+  // show. Those dropdowns only render when the preview exposes more than one
+  // option (`result.groups`/`result.classes` are derived from the day's rows).
+  // A bookmarked filter can point at a group/class with no rows for the selected
+  // date + source: the reconciliation effect deliberately keeps that selection
+  // (dropping it would broaden a confidential single-group list to the whole
+  // cohort), but with zero or one visible options the control disappears,
+  // leaving an unexplained empty preview and no way to inspect or clear the
+  // restriction. Render a removable chip for exactly those cases so the still-
+  // active filter stays visible and clearable (#1565 review pass 2).
+  const hiddenActiveFilters: ActiveFilter[] = useMemo(() => {
+    const chips: ActiveFilter[] = [];
+    const groupDropdownShown = !!result && result.groups.length > 1;
+    const classDropdownShown = !!result && result.classes.length > 1;
+    if (selectedGroupIds !== null && !groupDropdownShown) {
+      chips.push({
+        id: "group-restriction",
+        label: "Gruppenfilter aktiv",
+        onRemove: () => {
+          setSelectedGroupIds(null);
+          replaceListUrl({ selectedGroupIds: null });
+        },
+      });
+    }
+    if (selectedClasses !== null && !classDropdownShown) {
+      chips.push({
+        id: "class-restriction",
+        label: "Klassenfilter aktiv",
+        onRemove: () => {
+          setSelectedClasses(null);
+          replaceListUrl({ selectedClasses: null });
+        },
+      });
+    }
+    return chips;
+  }, [result, selectedGroupIds, selectedClasses, replaceListUrl]);
+
   // Group the preview rows by their backend-assigned section heading. Rows
   // arrive pre-sorted by group, so Map insertion order keeps sections intact.
   const sections = useMemo(() => {
@@ -1381,6 +1422,9 @@ export default function SlotListsPage() {
               {/* Standard filters that narrow the list (offering / group / class) */}
               {filterConfigs.length > 0 ? (
                 <DesktopFilters filters={filterConfigs} />
+              ) : null}
+              {hiddenActiveFilters.length > 0 ? (
+                <ActiveFilterChips filters={hiddenActiveFilters} />
               ) : null}
               {result && !isLoading ? (
                 <CounterChips counters={result.counters} source={source} />

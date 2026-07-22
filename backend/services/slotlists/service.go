@@ -1829,6 +1829,11 @@ func exportFilters(params Params, result *Result) []string {
 // selectedGroupNames maps the selected education-group IDs to their display
 // names via the options the build already resolved, so a filtered export
 // discloses the restriction instead of looking like the full cohort.
+// result.Groups is derived from the day's rows (availableOptions(allRows)), so a
+// saved selection that references a group with no rows for this date/source is
+// absent from it. Such an ID is disclosed via an explicit "Gruppe #<id>" marker
+// rather than dropped — otherwise an empty or partial confidential export would
+// print as if it were unfiltered (#1565 review pass 2).
 func selectedGroupNames(params Params, result *Result) []string {
 	if len(params.GroupIDs) == 0 {
 		return nil
@@ -1841,7 +1846,9 @@ func selectedGroupNames(params Params, result *Result) []string {
 	for _, id := range params.GroupIDs {
 		if name := byID[id]; name != "" {
 			names = append(names, name)
+			continue
 		}
+		names = append(names, fmt.Sprintf("Gruppe #%d", id))
 	}
 	sort.Strings(names)
 	return names
