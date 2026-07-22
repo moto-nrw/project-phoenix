@@ -19,6 +19,9 @@ func TestEligibleOn_ImmediateActivation(t *testing.T) {
 	list := timezone.NewDate(2030, 9, 4)
 	future := timezone.NewDate(2030, 12, 1)
 	past := timezone.NewDate(2030, 8, 1)
+	// The list is built for "today": the immediate-activation override lets an
+	// active child count from today onward, so the requested date is today here.
+	today := list
 
 	cases := []struct {
 		name    string
@@ -73,7 +76,7 @@ func TestEligibleOn_ImmediateActivation(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := eligibleOn(tc.student, list); got != tc.want {
+			if got := eligibleOn(tc.student, list, today); got != tc.want {
 				t.Fatalf("eligibleOn = %v, want %v", got, tc.want)
 			}
 		})
@@ -98,15 +101,15 @@ func TestEligibleOn_HistoricalDateBeforeEnrollment(t *testing.T) {
 		}
 	}
 
-	if eligibleOn(activeChild(enrolledFrom), beforeEnrollment) {
+	if eligibleOn(activeChild(enrolledFrom), beforeEnrollment, today) {
 		t.Fatal("active child must NOT be eligible for a past date before enrolled_from")
 	}
-	if !eligibleOn(activeChild(enrolledFrom), withinWindow) {
+	if !eligibleOn(activeChild(enrolledFrom), withinWindow, today) {
 		t.Fatal("active child must be eligible within the enrollment window")
 	}
 	// Immediate activation is unchanged: a future enrolled_from must still let the
 	// current day count.
-	if !eligibleOn(activeChild(today.AddDays(30)), today) {
+	if !eligibleOn(activeChild(today.AddDays(30)), today, today) {
 		t.Fatal("immediately-activated child must be eligible today despite a future enrolled_from")
 	}
 }

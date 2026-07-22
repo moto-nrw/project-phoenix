@@ -1346,7 +1346,14 @@ func instanceTimeRange(inst *scheduleModel.ActivityInstance) (time.Time, time.Ti
 // When neither bound is recorded (legacy rows, manual create) the interval
 // carries no information, so the current lifecycle status is the only signal
 // and an inactive student is treated as no longer enrolled.
-func eligibleOn(student *userModel.Student, date timezone.Date) bool {
+//
+// today is the service clock's calendar day (s.todayDate()), threaded in so
+// the immediate-activation cutoff uses the same clock as every other date
+// guard in BuildList/ListOptions — deterministic simulations and
+// time-controlled tests pin Dependencies.Now, and reading the process clock
+// here instead would decide eligibility against a different "today" (#1565
+// review).
+func eligibleOn(student *userModel.Student, date, today timezone.Date) bool {
 	if student == nil {
 		return false
 	}
@@ -1354,7 +1361,7 @@ func eligibleOn(student *userModel.Student, date timezone.Date) bool {
 	if student.EnrolledFrom != nil && date.Before(*student.EnrolledFrom) {
 		// Before the recorded start date, an active child is only eligible from
 		// today onward (immediate activation); past dates keep the lower bound.
-		if !active || date.Before(timezone.TodayDate()) {
+		if !active || date.Before(today) {
 			return false
 		}
 	}
@@ -1376,9 +1383,10 @@ func (s *service) listEligibleStudents(ctx context.Context, date timezone.Date) 
 	if err != nil {
 		return nil, err
 	}
+	today := s.todayDate()
 	eligible := make([]*userModel.Student, 0, len(all))
 	for _, student := range all {
-		if eligibleOn(student, date) {
+		if eligibleOn(student, date, today) {
 			eligible = append(eligible, student)
 		}
 	}
@@ -1638,13 +1646,14 @@ func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, sour
 	// Abgleich reports it as planned-and-present and inflates the planned
 	// counter. Keep the presence, clear the plan, so it reads as "ungeplant
 	// anwesend" (#1565 review pass 2).
+	today := s.todayDate()
 	enrolled := make([]mergedEntry, 0, len(filtered))
 	for _, entry := range filtered {
 		student := students[entry.StudentID]
 		if student == nil {
 			continue
 		}
-		if !eligibleOn(student, date) {
+		if !eligibleOn(student, date, today) {
 			if !entry.Present {
 				continue
 			}
