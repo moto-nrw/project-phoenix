@@ -154,4 +154,18 @@ func TestDeviationEventRepository_ListByRangeExcludesShiftAnchoredRows(t *testin
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "only the slot-anchored event surfaces")
 	require.Equal(t, slotEvent.ID, rows[0].ID)
+
+	// Deleting the shift clears the FK anchor (ON DELETE SET NULL); the
+	// event-type exclusion must still keep the row out of slot history.
+	_, err = db.NewDelete().
+		Model((*scheduleModels.StaffShift)(nil)).
+		ModelTableExpr(`schedule.staff_shifts AS "staff_shift"`).
+		Where(`"staff_shift".id = ?`, shift.ID).
+		Exec(scope.Context())
+	require.NoError(t, err)
+
+	rows, err = repo.ListByRange(scope.Context(), day, day, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, rows, 1, "a deleted shift must not leak its event into slot history")
+	require.Equal(t, slotEvent.ID, rows[0].ID)
 }

@@ -43,6 +43,13 @@ const (
 	DeviationEventShiftMoved = "shift_moved"
 )
 
+// ShiftScopedDeviationEventTypes lists the event types that belong to the
+// Dienstplan, never the Betreuungsplan slot history. The StaffShiftID anchor
+// alone cannot mark that scope durably: its FK is ON DELETE SET NULL, so
+// deleting the shift would otherwise leak the event into slot-history reads.
+// Extend this list whenever a new shift-anchored event type is added.
+var ShiftScopedDeviationEventTypes = []string{DeviationEventShiftMoved}
+
 // DeviationEvent is one append-only entry in the planning Änderungsprotokoll
 // (#1886). Rows are never updated or deleted by application code; only the
 // GDPR retention job removes old rows. The slot anchor (ActivityGroupID,

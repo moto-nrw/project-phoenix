@@ -164,14 +164,8 @@ func (s *instanceService) planStaffMove(ctx context.Context, targetID int64, loc
 		// Absence is day-wide (#1840), not target-row-wide. The pool UI never
 		// offers absent staff, but a stale/direct API request must enforce the
 		// same rule authoritatively under the shared day lock.
-		dayRows, err := s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, in.StaffID, target.Date)
-		if err != nil {
-			return nil, devErrInternal("load same-day staff assignments failed", err)
-		}
-		for _, row := range dayRows {
-			if row != nil && row.IsAbsent {
-				return nil, devErrConflict("staff_absent_on_date", "die Person ist an diesem Tag abwesend markiert")
-			}
+		if err := s.rejectDayWideAbsence(ctx, in.StaffID, target.Date); err != nil {
+			return nil, err
 		}
 		plan.action = MoveStaffActionAssigned
 		return plan, nil
@@ -205,10 +199,32 @@ func (s *instanceService) planStaffMove(ctx context.Context, targetID int64, loc
 	if onSource.IsAbsent {
 		return nil, devErrBadRequest("eine abwesend markierte Person kann nicht verschoben werden")
 	}
+	// Absence is day-wide (#1840): an absent row on ANY same-day block blocks
+	// the move, even when the source row itself is not the one carrying it.
+	// Same stale/direct-request defense as the pool-assign path above.
+	if err := s.rejectDayWideAbsence(ctx, in.StaffID, target.Date); err != nil {
+		return nil, err
+	}
 
 	plan.sourceRow = onSource
 	plan.action = MoveStaffActionMoved
 	return plan, nil
+}
+
+// rejectDayWideAbsence returns the staff_absent_on_date conflict when any
+// same-day instance_staff row marks the person absent (#1840: absence is
+// day-wide, whichever block carries it).
+func (s *instanceService) rejectDayWideAbsence(ctx context.Context, staffID int64, date timezone.Date) error {
+	dayRows, err := s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, staffID, date)
+	if err != nil {
+		return devErrInternal("load same-day staff assignments failed", err)
+	}
+	for _, row := range dayRows {
+		if row != nil && row.IsAbsent {
+			return devErrConflict("staff_absent_on_date", "die Person ist an diesem Tag abwesend markiert")
+		}
+	}
+	return nil
 }
 
 // executeStaffMove runs Phase B: relocate/create the row, sync live
@@ -251,15 +267,31 @@ func (s *instanceService) executeStaffMove(ctx context.Context, plan *staffMoveP
 	}
 
 	if plan.target.Status == scheduleModel.InstanceStatusActive && plan.target.ActiveGroupID != nil {
-		newSup := &activeModel.GroupSupervisor{
-			StaffID:   plan.staffID,
-			GroupID:   *plan.target.ActiveGroupID,
-			Role:      "supervisor",
-			StartDate: timezone.DateFromTime(now),
+		// A person can already hold an open supervision on the target's live
+		// group via a path that never wrote an instance_staff row; a second
+		// Create would trip the end_date IS NULL partial unique index.
+		open, err := s.deps.SupervisorRepo.FindByActiveGroupID(ctx, *plan.target.ActiveGroupID, true)
+		if err != nil {
+			return nil, devErrInternal("load target supervision failed", err)
 		}
-		newSup.SetTenantID(tenant.FromContext(ctx))
-		if err := s.deps.SupervisorRepo.Create(ctx, newSup); err != nil {
-			return nil, devErrInternal("start target supervision failed", err)
+		alreadySupervising := false
+		for _, sup := range open {
+			if sup != nil && sup.StaffID == plan.staffID {
+				alreadySupervising = true
+				break
+			}
+		}
+		if !alreadySupervising {
+			newSup := &activeModel.GroupSupervisor{
+				StaffID:   plan.staffID,
+				GroupID:   *plan.target.ActiveGroupID,
+				Role:      "supervisor",
+				StartDate: timezone.DateFromTime(now),
+			}
+			newSup.SetTenantID(tenant.FromContext(ctx))
+			if err := s.deps.SupervisorRepo.Create(ctx, newSup); err != nil {
+				return nil, devErrInternal("start target supervision failed", err)
+			}
 		}
 		activeTouched[*plan.target.ActiveGroupID] = plan.target
 	}

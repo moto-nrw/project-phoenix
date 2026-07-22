@@ -278,6 +278,24 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 		assert.Empty(t, loadInstanceStaffRows(t, s.db, s.ctx, s.target.ID))
 	})
 
+	t.Run("relocate rejects day-wide absence from another block", func(t *testing.T) {
+		third := createMoveInstance(t, s, "Dritter Block", "09:00", "10:00", scheduleModels.InstanceStatusPlanned)
+		defer testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", third.ID)
+		absent := createMoveStaffRow(t, s, third.ID, s.staffID, func(row *scheduleModels.InstanceStaff) {
+			row.IsAbsent = true
+		})
+		defer testpkg.CleanupTableRecords(t, s.db, "schedule.instance_staff", absent.ID)
+
+		_, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, scheduleSvc.MoveStaffInput{
+			StaffID:          s.staffID,
+			SourceInstanceID: &s.source.ID,
+		})
+		de := requireDeviationErr(t, err)
+		assert.Equal(t, http.StatusConflict, de.Status)
+		assert.Equal(t, "staff_absent_on_date", de.Code)
+		assert.Empty(t, loadInstanceStaffRows(t, s.db, s.ctx, s.target.ID))
+	})
+
 	t.Run("cross-date move rejected", func(t *testing.T) {
 		otherDay := &scheduleModels.ActivityInstance{
 			Date:      moveTestDate().AddDays(1),
@@ -460,6 +478,61 @@ func TestMoveStaffBetweenBlocks_ActiveBlocksSyncSupervisionAndAllowRoundTrip(t *
 		Scan(s.ctx))
 	require.Len(t, targetSups, 1)
 	assert.NotNil(t, targetSups[0].EndDate)
+}
+
+// A person can already supervise the target's live group without holding an
+// instance_staff row; the move must reuse that open supervision instead of
+// tripping the end_date IS NULL partial unique index with a second Create.
+func TestMoveStaffBetweenBlocks_ExistingOpenSupervisionIsReused(t *testing.T) {
+	s := makeMoveSetup(t)
+	defer s.cleanup(t)
+	targetGroup := testpkg.CreateTestActiveGroupForTenant(t, s.db, s.tenantID)
+	_, err := s.db.NewUpdate().
+		Model((*scheduleModels.ActivityInstance)(nil)).
+		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
+		Set("status = ?", scheduleModels.InstanceStatusActive).
+		Set("active_group_id = ?", targetGroup.ID).
+		Where(`"activity_instance".id = ?`, s.target.ID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	existing := &activeModels.GroupSupervisor{
+		StaffID:   s.otherID,
+		GroupID:   targetGroup.ID,
+		Role:      "supervisor",
+		StartDate: timezone.TodayDate(),
+	}
+	existing.SetTenantID(s.tenantID)
+	_, err = s.db.NewInsert().Model(existing).ModelTableExpr(`active.group_supervisors`).Exec(s.ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		var supIDs []int64
+		_ = s.db.NewSelect().
+			Model((*activeModels.GroupSupervisor)(nil)).
+			ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
+			Column("id").
+			Where("tenant_id = ?", s.tenantID).
+			Scan(context.Background(), &supIDs)
+		testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", supIDs...)
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", targetGroup.ID)
+	})
+
+	result, err := s.factory.Instance.MoveStaffBetweenBlocks(s.ctx, s.target.ID, scheduleSvc.MoveStaffInput{
+		StaffID: s.otherID,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, scheduleSvc.MoveStaffActionAssigned, result.Action)
+	assert.Len(t, result.ActiveTouched, 1)
+
+	var sups []*activeModels.GroupSupervisor
+	require.NoError(t, s.db.NewSelect().
+		Model(&sups).
+		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
+		Where(`"group_supervisor".group_id = ?`, targetGroup.ID).
+		Where(`"group_supervisor".staff_id = ?`, s.otherID).
+		Scan(s.ctx))
+	require.Len(t, sups, 1, "the open supervision is reused, not duplicated")
+	assert.Nil(t, sups[0].EndDate)
 }
 
 // Guard: a DeviationError must always be extractable for the handler mapping.

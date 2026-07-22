@@ -18,8 +18,11 @@ import (
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 )
 
-// Staff pool categories, mutually exclusive per staff member. Precedence:
-// assigned_here > absent > assigned_elsewhere > on_shift_free > not_on_shift.
+// Staff pool categories, mutually exclusive per staff member. Precedence: a
+// NON-absent assignment on the target block wins (assigned_here); otherwise
+// any absent row on the day wins (absent is day-wide, #1840 — including when
+// the target's own row carries the absence); then assigned_elsewhere >
+// on_shift_free > not_on_shift.
 const (
 	StaffPoolAssignedHere      = "assigned_here"
 	StaffPoolAbsent            = "absent"
