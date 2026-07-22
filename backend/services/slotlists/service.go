@@ -70,7 +70,7 @@ type instanceStudentReader interface {
 }
 
 type visitReader interface {
-	FindByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*activeModel.Visit, error)
+	FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*activeModel.Visit, error)
 }
 
 type attendanceReader interface {
@@ -878,8 +878,8 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 			continue
 		}
 		// A reconciliation before the slot's scheduled start has no presence
-		// evidence yet: loadPresentStudents returns nothing (the occurrence has
-		// no active group), so every planned child would merge to Present=false
+		// evidence yet: the occurrence has no active group, so it contributes no
+		// visits and every planned child would merge to Present=false
 		// and render as "Fehlt" — a safety-relevant false missing-child list
 		// before the activity has begun (#1565 review). Exclude the occurrence
 		// from the merge; it stays selectable context in result.Slots above.
@@ -889,8 +889,9 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 		//
 		// Gate this strictly on occurrences that have NOT actually started: a
 		// slot Start()ed manually before its nominal time already carries an
-		// ActiveGroupID and visits, so loadPresentStudents returns real presence
-		// and the Abgleich must show the children currently attending it. Only an
+		// ActiveGroupID and visits, so the bulk presence load returns real
+		// presence and the Abgleich must show the children currently attending
+		// it. Only an
 		// occurrence with no active group has no attendance evidence to lose, so
 		// only that one is deferred (#1565 review).
 		if params.Source == SourceReconciliation && inst.ActiveGroupID == nil {
@@ -923,10 +924,19 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 	// though they were never booked.
 	rosterByInstance := make(map[int64][]*scheduleModel.InstanceStudent, len(process))
 	careDay := map[int64]scheduleSvc.CareDayStatus{}
+	// presentByGroup maps an active-group ID to the students seen present in it.
+	// A slot only has visit evidence once it carries an ActiveGroupID, so this is
+	// keyed by group, not instance; instances without one (never started — e.g.
+	// most Plan requests) contribute nothing and cost no query.
+	presentByGroup := map[int64]map[int64]bool{}
 	if len(process) > 0 {
 		instanceIDs := make([]int64, 0, len(process))
+		activeGroupIDs := make([]int64, 0, len(process))
 		for _, p := range process {
 			instanceIDs = append(instanceIDs, p.inst.ID)
+			if p.inst.ActiveGroupID != nil {
+				activeGroupIDs = append(activeGroupIDs, *p.inst.ActiveGroupID)
+			}
 		}
 		rosterRows, err := s.instanceStudentRepo.FindByInstanceIDs(ctx, instanceIDs)
 		if err != nil {
@@ -945,6 +955,37 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 		if err != nil {
 			return nil, fmt.Errorf("resolve care days: %w", err)
 		}
+		// Bulk-load every started slot's visits in one query rather than probing
+		// each instance individually inside the merge loop below — a historical
+		// day with many slots otherwise runs N sequential visit queries per
+		// preview/export/filter change.
+		//
+		// The instance↔active.group bridge is 1:1 (a UNIQUE partial index on
+		// schedule.activity_instances.active_group_id) and the active.group is
+		// created fresh when the occurrence is started, so every visit reachable
+		// through it is that occurrence's own attendance — it is deliberately NOT
+		// time-filtered against the planned window. Staff may Start an instance
+		// late, or start and complete it early: InstanceService.Start permits the
+		// transition regardless of the nominal StartTime/EndTime, which pushes
+		// those visits wholly outside the scheduled window. Comparing them to the
+		// planned times would drop documented attendance, omitting present
+		// children from Ist lists and printing attended children as "Fehlt" in the
+		// Abgleich (#1565 review pass 2).
+		visits, err := s.visitRepo.FindByActiveGroupIDs(ctx, activeGroupIDs)
+		if err != nil {
+			return nil, err
+		}
+		for _, visit := range visits {
+			if visit == nil {
+				continue
+			}
+			byStudent := presentByGroup[visit.ActiveGroupID]
+			if byStudent == nil {
+				byStudent = map[int64]bool{}
+				presentByGroup[visit.ActiveGroupID] = byStudent
+			}
+			byStudent[visit.StudentID] = true
+		}
 	}
 
 	entries := []mergedEntry{}
@@ -961,9 +1002,11 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 			// visit evidence recorded during the run as unplanned-present rows.
 			planned = nil
 		}
-		presentSet, err := s.loadPresentStudents(ctx, inst)
-		if err != nil {
-			return nil, err
+		// Presence was bulk-loaded above; a slot with no active group (never
+		// started) simply has no entry and yields a nil map (safe to index).
+		var presentSet map[int64]bool
+		if inst.ActiveGroupID != nil {
+			presentSet = presentByGroup[*inst.ActiveGroupID]
 		}
 		completed := inst.Status == scheduleModel.InstanceStatusCompleted
 
@@ -1189,36 +1232,6 @@ func (s *service) lookupRoomName(ctx context.Context, roomID int64, cache map[in
 	}
 	cache[roomID] = room.Name
 	return room.Name, nil
-}
-
-// loadPresentStudents returns the set of students with a visit under the
-// instance's bridged active.group. The bridge is 1:1 (a UNIQUE partial index on
-// schedule.activity_instances.active_group_id) and the active.group is created
-// fresh when the occurrence is started, so every visit reachable through it is
-// this occurrence's own attendance — it is deliberately NOT time-filtered
-// against the planned window. Staff may Start an instance late, or start and
-// complete it early: InstanceService.Start permits the transition regardless of
-// the nominal StartTime/EndTime, which pushes those visits wholly outside the
-// scheduled window. Comparing them to the planned times would drop documented
-// attendance, omitting present children from Ist lists and printing attended
-// children as "Fehlt" in the Abgleich (#1565 review pass 2). A slot that has not
-// started has no active group and therefore no presence evidence.
-func (s *service) loadPresentStudents(ctx context.Context, inst *scheduleModel.ActivityInstance) (map[int64]bool, error) {
-	present := map[int64]bool{}
-	if inst.ActiveGroupID == nil {
-		return present, nil
-	}
-	visits, err := s.visitRepo.FindByActiveGroupID(ctx, *inst.ActiveGroupID)
-	if err != nil {
-		return nil, err
-	}
-	for _, visit := range visits {
-		if visit == nil {
-			continue
-		}
-		present[visit.StudentID] = true
-	}
-	return present, nil
 }
 
 // beforeEffectiveArrival reports whether the service clock is still earlier than

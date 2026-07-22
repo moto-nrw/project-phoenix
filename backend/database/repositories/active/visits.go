@@ -79,6 +79,33 @@ func (r *VisitRepository) FindByActiveGroupID(ctx context.Context, activeGroupID
 	return visits, nil
 }
 
+// FindByActiveGroupIDs finds all visits belonging to any of the given active
+// groups in a single query. It is the bulk counterpart of FindByActiveGroupID:
+// callers that resolve many groups (a whole day of slots) get one query instead
+// of one per group. An empty input returns no visits without hitting the DB.
+func (r *VisitRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*active.Visit, error) {
+	if len(activeGroupIDs) == 0 {
+		return nil, nil
+	}
+	var visits []*active.Visit
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&visits).
+		ModelTableExpr(tableExprActiveVisitsAsVisit).
+		Where(`"visit".active_group_id IN (?)`, bun.In(activeGroupIDs))
+
+	query = base.WithTenantFilter(ctx, query, "visit")
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by active group IDs",
+			Err: err,
+		}
+	}
+
+	return visits, nil
+}
+
 // FindByTimeRange finds all visits active during a specific time range
 func (r *VisitRepository) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Visit, error) {
 	var visits []*active.Visit

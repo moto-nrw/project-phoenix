@@ -354,6 +354,53 @@ func TestVisitRepository_FindByActiveGroupID(t *testing.T) {
 	})
 }
 
+func TestVisitRepository_FindByActiveGroupIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveVisit
+	ctx := testpkg.TenantContext(1)
+	data := createVisitTestData(t, db)
+	defer cleanupVisitTestData(t, db, data)
+
+	t.Run("empty input hits no DB and returns nothing", func(t *testing.T) {
+		visits, err := repo.FindByActiveGroupIDs(ctx, nil)
+		require.NoError(t, err)
+		assert.Empty(t, visits)
+	})
+
+	t.Run("finds visits across the given active groups in one call", func(t *testing.T) {
+		now := time.Now()
+		visit1 := &active.Visit{
+			StudentID:     data.Student1.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now,
+		}
+		require.NoError(t, repo.Create(ctx, visit1))
+		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit1.ID)
+
+		visit2 := &active.Visit{
+			StudentID:     data.Student2.ID,
+			ActiveGroupID: data.ActiveGroup.ID,
+			EntryTime:     now,
+		}
+		require.NoError(t, repo.Create(ctx, visit2))
+		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit2.ID)
+
+		// One unknown id in the set must not affect the real matches.
+		visits, err := repo.FindByActiveGroupIDs(ctx, []int64{data.ActiveGroup.ID, -1})
+		require.NoError(t, err)
+
+		foundStudents := map[int64]bool{}
+		for _, v := range visits {
+			assert.Equal(t, data.ActiveGroup.ID, v.ActiveGroupID)
+			foundStudents[v.StudentID] = true
+		}
+		assert.True(t, foundStudents[data.Student1.ID])
+		assert.True(t, foundStudents[data.Student2.ID])
+	})
+}
+
 func TestVisitRepository_FindByTimeRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

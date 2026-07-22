@@ -309,10 +309,24 @@ function StatusBadge({
   );
 }
 
-// nextStringSelection collapses a multi-select to null ("all") when the chosen
-// set is empty or equal to the full option set; otherwise keeps the subset.
-function nextSelection<T>(values: T[], total: number): T[] | null {
-  return values.length === 0 || values.length === total ? null : values;
+// nextSelection collapses a multi-select to null ("all") when the chosen set is
+// empty or covers every current option; otherwise it keeps the subset.
+//
+// It compares MEMBERSHIP against the actual option values, not just the count.
+// A bookmarked `gruppen`/`klassen` filter can carry a value that is absent from
+// today's options (a stale ID, a group with no rows today, a duplicated URL
+// value). Such a value lingers in the dropdown's selection while not being a
+// current option, so a plain `values.length === total` compare could report a
+// partial selection as "complete" and return null — silently dropping a
+// confidential group/class restriction and broadening the named-student
+// preview/export to the whole cohort. Deduplicating and dropping unknown values
+// keeps the restriction accurate and prunes the stale selection (#1565 review).
+function nextSelection<T>(values: T[], options: T[]): T[] | null {
+  const optionSet = new Set(options);
+  const chosen = [...new Set(values)].filter((value) => optionSet.has(value));
+  if (chosen.length === 0) return null; // nothing valid chosen → no restriction
+  if (chosen.length === optionSet.size) return null; // every option → no restriction
+  return chosen;
 }
 
 function parseIdList(
@@ -1007,7 +1021,7 @@ export default function SlotListsPage() {
         multiSelect: true,
         value: active,
         onChange: (v) => {
-          const nextGroupIds = nextSelection(v as string[], groupIds.length);
+          const nextGroupIds = nextSelection(v as string[], groupIds);
           setSelectedGroupIds(nextGroupIds);
           replaceListUrl({ selectedGroupIds: nextGroupIds });
         },
@@ -1027,10 +1041,7 @@ export default function SlotListsPage() {
         multiSelect: true,
         value: active,
         onChange: (v) => {
-          const nextClasses = nextSelection(
-            v as string[],
-            result.classes.length,
-          );
+          const nextClasses = nextSelection(v as string[], result.classes);
           setSelectedClasses(nextClasses);
           replaceListUrl({ selectedClasses: nextClasses });
         },
