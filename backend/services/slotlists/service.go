@@ -34,6 +34,16 @@ const (
 
 const timeLayout = "15:04"
 
+// ErrPickupCohortPastDate is returned when a Ganztag pickup list is requested
+// for a date before today. Recurring pickup schedules
+// (schedule.student_pickup_schedules) carry no validity interval and no
+// historical snapshot, so a past pickup plan cannot be faithfully
+// reconstructed: the *current* schedule would be projected onto the past date
+// and silently move children between cohorts or show a time that was never
+// planned then (#1565 review). Slot-based lists remain available for past dates
+// — only pickup cohorts are refused. The handler maps this to HTTP 400.
+var ErrPickupCohortPastDate = errors.New("Ganztag-Listen sind nur für heute und künftige Tage verfügbar")
+
 // Service builds slot lists for preview (JSON) and export (PDF/XLSX).
 type Service interface {
 	BuildList(ctx context.Context, params Params) (*Result, error)
@@ -377,6 +387,12 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 	if !params.GroupBy.ValidFor(params.Target) {
 		return nil, fmt.Errorf("grouping %q is not valid for target %q", params.GroupBy, params.Target)
 	}
+	// A Ganztag pickup plan cannot be reconstructed for a past date (the pickup
+	// schedule has no history) — refuse rather than project the current schedule
+	// backwards. Slot-based lists stay available for any date (#1565 review).
+	if params.Target == TargetPickupCohort && params.Date.Before(timezone.TodayDate()) {
+		return nil, ErrPickupCohortPastDate
+	}
 	access, err := s.resolveStudentReadAccess(ctx)
 	if err != nil {
 		return nil, err
@@ -412,7 +428,7 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 
 	// Full (unfiltered) rows for the requested source — used both to derive the
 	// available group/class options and as the input to the row filters.
-	allRows, err := s.enrichEntries(ctx, entries, params.Source, access)
+	allRows, err := s.enrichEntries(ctx, entries, params.Source, access, params.Date)
 	if err != nil {
 		return nil, err
 	}
@@ -463,15 +479,16 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 		}
 	}
 
-	// Options counts must respect the same GDPR read scope and student
-	// lifecycle as /preview, or the availability hints would leak counts
-	// derived from unsupervised or deactivated children (#1565 review). Build
-	// the readable + active student set once and gate every aggregation on it.
+	// Options counts must respect the same GDPR read scope and date-effective
+	// enrollment as /preview, or the availability hints would leak counts
+	// derived from unsupervised children or from children not enrolled on the
+	// requested date (#1565 review). Build the readable + enrolled student set
+	// once and gate every aggregation on it.
 	access, err := s.resolveStudentReadAccess(ctx)
 	if err != nil {
 		return nil, err
 	}
-	students, err := s.listActiveStudents(ctx)
+	students, err := s.listEligibleStudents(ctx, date)
 	if err != nil {
 		return nil, err
 	}
@@ -526,30 +543,49 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 	}
 
 	// One pickup sweep for both Ganztag cohorts over the same readable +
-	// active set, so the availability hint matches what /preview would show.
+	// enrolled set, so the availability hint matches what /preview would show.
+	// A past date is skipped entirely: BuildList refuses past pickup lists (the
+	// schedule has no history), so their availability is always zero (#1565
+	// review).
 	buckets, err := s.pickupBuckets(ctx)
 	if err != nil {
 		return nil, err
 	}
-	pickupTimes := map[int64]*scheduleSvc.EffectivePickupTime{}
-	if len(studentIDs) > 0 {
-		pickupTimes, err = s.pickupService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, date)
+	cohortCounts := map[PickupCohort]int{}
+	if !date.Before(timezone.TodayDate()) && len(studentIDs) > 0 {
+		pickupTimes, err := s.pickupService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, date)
 		if err != nil {
 			return nil, err
 		}
-	}
-	cohortCounts := map[PickupCohort]int{}
-	for studentID, pickup := range pickupTimes {
-		if pickup == nil || pickup.PickupTime == nil {
-			continue
+		// Same cancelled-care fallback as collectPickupEntries: a cleared
+		// same-day exception drops the effective time, but a cancelled verdict
+		// keeps the child visible via the regular weekly bucket. Without this,
+		// the card reported zero while the preview showed the signed-off child.
+		careDays, err := s.careDayService.ResolveForDate(ctx, studentIDs, date)
+		if err != nil {
+			return nil, fmt.Errorf("resolve care days: %w", err)
 		}
-		if _, ok := readable[studentID]; !ok {
-			continue
+		regularRows, err := s.pickupScheduleRepo.FindByStudentIDsAndWeekday(ctx, studentIDs, int(date.Weekday()))
+		if err != nil {
+			return nil, fmt.Errorf("load regular pickup schedules: %w", err)
 		}
-		hhmm := pickup.PickupTime.Format(timeLayout)
-		for _, cohort := range []PickupCohort{PickupCohortShortDay, PickupCohortLongDay} {
-			if pickupMatchesCohort(cohort, hhmm, buckets) {
-				cohortCounts[cohort]++
+		regularBucket := make(map[int64]string, len(regularRows))
+		for _, row := range regularRows {
+			regularBucket[row.StudentID] = row.PickupTime.Format(timeLayout)
+		}
+		for _, student := range students {
+			if _, ok := readable[student.ID]; !ok {
+				continue
+			}
+			cancelled := careDays[student.ID] == scheduleSvc.CareDayCancelled
+			hhmm := cohortPickupTime(cancelled, pickupTimes[student.ID], regularBucket[student.ID])
+			if hhmm == "" {
+				continue
+			}
+			for _, cohort := range []PickupCohort{PickupCohortShortDay, PickupCohortLongDay} {
+				if pickupMatchesCohort(cohort, hhmm, buckets) {
+					cohortCounts[cohort]++
+				}
 			}
 		}
 	}
@@ -891,19 +927,66 @@ func instanceTimeRange(inst *scheduleModel.ActivityInstance) (time.Time, time.Ti
 	return start, end
 }
 
-// activeStudentFilter restricts a student list to the active lifecycle. Pending
-// and inactive students keep their recurring pickup schedules (lifecycle
-// deactivation does not delete them), so an unfiltered list would place a
-// former child into a cohort and report them as planned / "Fehlt" (#1565
-// review).
-func activeStudentFilter() map[string]interface{} {
-	return map[string]interface{}{"status": string(userModel.StudentStatusActive)}
+// eligibleOn reports whether a student is enrolled in the OGS on the given
+// calendar date. The enrollment interval (enrolled_from..enrolled_until) is the
+// source of truth: it is correct for past and future dates alike, whereas the
+// lifecycle status is only the scheduler's projection of "enrolled today" and
+// is wrong for any other date — a currently active child whose enrollment ends
+// before a future list date would otherwise still be counted, and a pending
+// child whose enrollment has already started would be missed (#1565 review).
+//
+// When neither bound is recorded (legacy rows, manual create) the interval
+// carries no information, so the current lifecycle status is the only signal
+// and an inactive student is treated as no longer enrolled.
+func eligibleOn(student *userModel.Student, date timezone.Date) bool {
+	if student == nil {
+		return false
+	}
+	if student.EnrolledFrom != nil && date.Before(*student.EnrolledFrom) {
+		return false
+	}
+	if student.EnrolledUntil != nil && date.After(*student.EnrolledUntil) {
+		return false
+	}
+	if student.EnrolledFrom == nil && student.EnrolledUntil == nil {
+		return student.Status != userModel.StudentStatusInactive
+	}
+	return true
 }
 
-// listActiveStudents returns the tenant's active students, the cohort candidate
-// set shared by the pickup builder and the options aggregation.
-func (s *service) listActiveStudents(ctx context.Context) ([]*userModel.Student, error) {
-	return s.studentRepo.List(ctx, activeStudentFilter())
+// listEligibleStudents returns the tenant students enrolled on the given date —
+// the cohort candidate set shared by the pickup builder and the options
+// aggregation. Loading the full set and filtering by enrollment interval (not a
+// status filter) is what keeps pickup cohorts correct for non-today dates.
+func (s *service) listEligibleStudents(ctx context.Context, date timezone.Date) ([]*userModel.Student, error) {
+	all, err := s.studentRepo.List(ctx, map[string]interface{}{})
+	if err != nil {
+		return nil, err
+	}
+	eligible := make([]*userModel.Student, 0, len(all))
+	for _, student := range all {
+		if eligibleOn(student, date) {
+			eligible = append(eligible, student)
+		}
+	}
+	return eligible, nil
+}
+
+// cohortPickupTime returns the HH:MM used to place a student into a Ganztag
+// cohort on a date, or "" when the child is not in care that day. A cleared
+// same-day exception ("Kommt heute nicht") drops the effective pickup time; a
+// cancelled care verdict then falls back to the regular weekly bucket so the
+// signed-off child still appears in their cohort. Preview, export, and the
+// options availability counts MUST all apply this identical fallback or they
+// disagree on cancelled care days (#1565 review).
+func cohortPickupTime(cancelled bool, effective *scheduleSvc.EffectivePickupTime, regular string) string {
+	if effective != nil && effective.PickupTime != nil {
+		return effective.PickupTime.Format(timeLayout)
+	}
+	if cancelled {
+		return regular
+	}
+	return ""
 }
 
 // collectPickupEntries derives the cohort from effective pickup times
@@ -914,7 +997,7 @@ func (s *service) collectPickupEntries(ctx context.Context, params Params, resul
 	if err != nil {
 		return nil, err
 	}
-	students, err := s.listActiveStudents(ctx)
+	students, err := s.listEligibleStudents(ctx, params.Date)
 	if err != nil {
 		return nil, err
 	}
@@ -977,17 +1060,9 @@ func (s *service) collectPickupEntries(ctx context.Context, params Params, resul
 	cohort := map[int64]struct{}{}
 	for _, student := range students {
 		cancelled := careDays[student.ID] == scheduleSvc.CareDayCancelled
-
-		hhmm := ""
-		if pickup := pickupTimes[student.ID]; pickup != nil && pickup.PickupTime != nil {
-			hhmm = pickup.PickupTime.Format(timeLayout)
-		} else if cancelled {
-			// A cleared pickup exception dropped the effective time; fall back
-			// to the regular weekly bucket so the cancellation still shows.
-			hhmm = regularBucket[student.ID]
-		}
 		// No time from either source means the child is not in care on this
 		// date — like a not_scheduled slot row, they belong to no cohort.
+		hhmm := cohortPickupTime(cancelled, pickupTimes[student.ID], regularBucket[student.ID])
 		if hhmm == "" || !pickupMatchesCohort(params.PickupCohort, hhmm, buckets) {
 			continue
 		}
@@ -1054,7 +1129,7 @@ func pickupMatchesCohort(cohort PickupCohort, hhmm string, buckets pickupBucketC
 
 // enrichEntries filters by source/read access, resolves names/classes/groups,
 // and maps to display rows.
-func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, source Source, access studentReadAccess) ([]Row, error) {
+func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, source Source, access studentReadAccess, date timezone.Date) ([]Row, error) {
 	filtered := make([]mergedEntry, 0, len(entries))
 	for _, entry := range entries {
 		switch source {
@@ -1085,6 +1160,29 @@ func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, sour
 	students, err := s.studentRepo.FindByIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, err
+	}
+
+	// Date-effective enrollment gate: the lifecycle scheduler inactivates a
+	// student by flipping users.students.status only — already-materialized
+	// schedule.instance_students rows survive. A *planned* row for a child not
+	// enrolled on the requested date must be dropped, or it surfaces as an
+	// unexplained "Fehlt" (#1565 review). Documented presence is ground truth
+	// and always kept: a real visit/attendance record outranks the enrollment
+	// interval, so present rows pass regardless.
+	enrolled := make([]mergedEntry, 0, len(filtered))
+	for _, entry := range filtered {
+		student := students[entry.StudentID]
+		if student == nil {
+			continue
+		}
+		if !entry.Present && !eligibleOn(student, date) {
+			continue
+		}
+		enrolled = append(enrolled, entry)
+	}
+	filtered = enrolled
+	if len(filtered) == 0 {
+		return []Row{}, nil
 	}
 
 	readableStudents := make(map[int64]*userModel.Student, len(students))

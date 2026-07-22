@@ -2005,3 +2005,56 @@ func TestSetLoginImageURL_NonexistentSchool(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "find school")
 }
+
+// TestSetValue_SlotListCutoffPair_CrossFieldValidation covers the #1565-review
+// fix: an inverted or equal Ganztag cutoff pair passes the per-field FieldTime
+// validation but must be rejected here so it can never be persisted (and then
+// 500 every pickup list). A valid pair, and any pair reached in a consistent
+// edit order, is accepted.
+func TestSetValue_SlotListCutoffPair_CrossFieldValidation(t *testing.T) {
+	registerCutoffs := func() {
+		registerTestSetting(config.KeySlotListShortDayCutoff, config.FieldTime, "14:30")
+		registerTestSetting(config.KeySlotListLongDayCutoff, config.FieldTime, "16:00")
+	}
+
+	t.Run("long cutoff not after short is rejected", func(t *testing.T) {
+		setupTest(t)
+		registerCutoffs()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+		err := svc.SetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, "14:00", nil, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "muss nach dem kurzen Ganztag")
+	})
+
+	t.Run("equal cutoffs are rejected", func(t *testing.T) {
+		setupTest(t)
+		registerCutoffs()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+		err := svc.SetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, "16:00", nil, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "muss nach dem kurzen Ganztag")
+	})
+
+	t.Run("valid pair is accepted", func(t *testing.T) {
+		setupTest(t)
+		registerCutoffs()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, "17:00", nil, nil))
+	})
+
+	t.Run("window can be shifted later via a consistent edit order", func(t *testing.T) {
+		setupTest(t)
+		registerCutoffs()
+		repo := newMockValueRepo()
+		svc := createService(repo, &mockAuditRepo{})
+
+		// Setting the short cutoff past the current long cutoff first is refused,
+		// but setting the long cutoff first, then the short cutoff, succeeds.
+		require.Error(t, svc.SetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, "18:00", nil, nil))
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListLongDayCutoff, "19:00", nil, nil))
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeySlotListShortDayCutoff, "18:00", nil, nil))
+	})
+}

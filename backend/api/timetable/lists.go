@@ -161,6 +161,10 @@ func (rs *Resource) previewSlotList(w http.ResponseWriter, r *http.Request) {
 
 	result, err := rs.SlotListsService.BuildList(r.Context(), params)
 	if err != nil {
+		if errors.Is(err, slotlists.ErrPickupCohortPastDate) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("build slot list failed", err))
 		return
 	}
@@ -195,6 +199,10 @@ func (rs *Resource) exportSlotList(w http.ResponseWriter, r *http.Request) {
 
 	file, err := rs.SlotListsService.RenderList(r.Context(), params, format)
 	if err != nil {
+		if errors.Is(err, slotlists.ErrPickupCohortPastDate) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("render slot list failed", err))
 		return
 	}

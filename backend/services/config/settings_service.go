@@ -262,6 +262,17 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 		return &SettingsError{Op: "set_value", Err: fmt.Errorf("no tenant context")}
 	}
 
+	// Cross-field invariants the per-field validation above cannot express.
+	// Rejecting the pair here is what keeps an unusable configuration from ever
+	// being persisted (#1565 review: an inverted Ganztag cutoff pair passed
+	// FieldTime validation and then 500'd every pickup list, options and export).
+	if err := s.validateCrossField(ctx, key, value); err != nil {
+		return &SettingsError{
+			Op:  "set_value",
+			Err: &InvalidValueError{Key: key, Reason: err.Error()},
+		}
+	}
+
 	// Read current value for audit
 	existing, err := s.valueRepo.FindByTenantAndKey(ctx, tenantID, key)
 	if err != nil {
@@ -447,6 +458,54 @@ func validateValue(def *config.Definition, value any) error {
 		}
 	}
 
+	return nil
+}
+
+// validateCrossField enforces invariants that span more than one setting, using
+// the sibling setting's currently effective value (the new value is not yet
+// persisted). There is always an edit order that reaches any valid target pair,
+// so a rejection here only asks the admin to set the values in a consistent
+// order — never blocks a reachable configuration.
+func (s *settingsService) validateCrossField(ctx context.Context, key string, value any) error {
+	switch key {
+	case config.KeySlotListShortDayCutoff, config.KeySlotListLongDayCutoff:
+		return s.validateSlotListCutoffPair(ctx, key, value)
+	}
+	return nil
+}
+
+// validateSlotListCutoffPair rejects a Ganztag cutoff pair where the long-day
+// cutoff is not strictly after the short-day cutoff — the pickup buckets are
+// [.., short] and (short, long], so an inverted or equal pair leaves the
+// long-day bucket empty and, before this guard, made every pickup list fail.
+func (s *settingsService) validateSlotListCutoffPair(ctx context.Context, key string, value any) error {
+	newVal, ok := value.(string)
+	if !ok || newVal == "" {
+		// A non-string or empty value falls back to the registry default, which
+		// is a valid pair; format errors are already caught by validateValue.
+		return nil
+	}
+	short, long := newVal, newVal
+	var err error
+	if key == config.KeySlotListShortDayCutoff {
+		long, err = s.ResolveString(ctx, config.KeySlotListLongDayCutoff)
+	} else {
+		short, err = s.ResolveString(ctx, config.KeySlotListShortDayCutoff)
+	}
+	if err != nil {
+		return fmt.Errorf("resolve paired Ganztag cutoff: %w", err)
+	}
+	shortT, err := time.Parse("15:04", strings.TrimSpace(short))
+	if err != nil {
+		return nil // sibling is unparseable/empty; nothing to compare against yet
+	}
+	longT, err := time.Parse("15:04", strings.TrimSpace(long))
+	if err != nil {
+		return nil
+	}
+	if !longT.After(shortT) {
+		return fmt.Errorf("der lange Ganztag (%s) muss nach dem kurzen Ganztag (%s) liegen", long, short)
+	}
 	return nil
 }
 

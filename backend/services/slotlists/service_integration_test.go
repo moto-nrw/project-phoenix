@@ -1149,3 +1149,244 @@ func TestBuildList_PickupCohortExcludesInactiveStudents(t *testing.T) {
 	}
 	assert.Equal(t, 1, byCohort[slotlists.PickupCohortLongDay].RowCount, "inactive child must not inflate availability")
 }
+
+// A Ganztag pickup plan cannot be reconstructed for a past date — the pickup
+// schedule has no history — so BuildList refuses it (#1565 review). Slot-based
+// lists stay available for the same past date.
+func TestBuildList_PickupCohortRejectsPastDate(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := testpkg.TenantContext(1)
+	svc := newTestService(db)
+
+	pastDate := timezone.TodayDate().AddDays(-1)
+
+	_, err := svc.BuildList(ctx, slotlists.Params{
+		Date:         pastDate,
+		Target:       slotlists.TargetPickupCohort,
+		PickupCohort: slotlists.PickupCohortShortDay,
+		Source:       slotlists.SourcePlanned,
+	})
+	require.ErrorIs(t, err, slotlists.ErrPickupCohortPastDate)
+
+	// A slot list for the same past date is allowed (materialized instances and
+	// attendance are historical).
+	_, err = svc.BuildList(ctx, slotlists.Params{
+		Date:   pastDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+
+	// Options degrades gracefully rather than erroring: pickup cohorts report
+	// unavailable for the past date.
+	options, err := svc.ListOptions(ctx, pastDate)
+	require.NoError(t, err)
+	for _, opt := range options.PickupCohorts {
+		assert.False(t, opt.Available, "pickup cohort must be unavailable for a past date")
+		assert.Equal(t, 0, opt.RowCount)
+	}
+}
+
+// Cohort membership must be decided from the enrollment interval relative to the
+// requested (future) date, not the scheduler-maintained current status: a child
+// whose enrollment ends before the date is excluded even while still "active"
+// today, and a pending child whose enrollment has already started is included
+// (#1565 review).
+func TestBuildList_PickupCohortUsesEnrollmentInterval(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+	weekday := int(listDate.Weekday())
+
+	// listDate = 2030-09-04.
+	ended := testpkg.CreateTestStudent(t, db, "SL-Ended", fmt.Sprintf("EN-%d", suffix), "2a")     // active today, enrollment already over
+	started := testpkg.CreateTestStudent(t, db, "SL-Started", fmt.Sprintf("ST-%d", suffix), "2a") // pending today, already enrolled on listDate
+	notYet := testpkg.CreateTestStudent(t, db, "SL-NotYet", fmt.Sprintf("NY-%d", suffix), "2a")   // pending, enrolled only after listDate
+	staff := testpkg.CreateTestStaff(t, db, "SL-EnrStaff", fmt.Sprintf("ES-%d", suffix))
+
+	setEnrollment := func(id int64, status userModels.StudentStatus, from, until *timezone.Date) {
+		_, err := db.NewUpdate().TableExpr(`users.students`).
+			Set(`status = ?`, string(status)).
+			Set(`enrolled_from = ?`, from).
+			Set(`enrolled_until = ?`, until).
+			Where(`id = ?`, id).Exec(ctx)
+		require.NoError(t, err)
+	}
+	endedUntil := timezone.NewDate(2030, 9, 3)  // day before listDate
+	startedFrom := timezone.NewDate(2030, 8, 1) // before listDate
+	notYetFrom := timezone.NewDate(2030, 12, 1) // after listDate
+	setEnrollment(ended.ID, userModels.StudentStatusActive, nil, &endedUntil)
+	setEnrollment(started.ID, userModels.StudentStatusPending, &startedFrom, nil)
+	setEnrollment(notYet.ID, userModels.StudentStatusPending, &notYetFrom, nil)
+
+	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	var pickupIDs []int64
+	for _, id := range []int64{ended.ID, started.ID, notYet.ID} {
+		row := &scheduleModels.StudentPickupSchedule{
+			StudentID: id, Weekday: weekday,
+			PickupTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC), CreatedBy: staff.ID, // 14:00 → short cohort
+		}
+		row.SetTenantID(1)
+		require.NoError(t, pickupRepo.Create(ctx, row))
+		pickupIDs = append(pickupIDs, row.ID)
+	}
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_schedules", pickupIDs...)
+		testpkg.CleanupActivityFixtures(t, db, ended.ID, staff.ID)
+		testpkg.CleanupActivityFixtures(t, db, started.ID)
+		testpkg.CleanupActivityFixtures(t, db, notYet.ID)
+	})
+
+	svc := newTestService(db)
+	result, err := svc.BuildList(ctx, slotlists.Params{
+		Date:         listDate,
+		Target:       slotlists.TargetPickupCohort,
+		PickupCohort: slotlists.PickupCohortShortDay,
+		Source:       slotlists.SourcePlanned,
+	})
+	require.NoError(t, err)
+	assert.Nil(t, rowByStudent(result.Rows, ended.ID), "enrollment ended before the date → excluded despite active status")
+	assert.NotNil(t, rowByStudent(result.Rows, started.ID), "pending child already enrolled on the date → included")
+	assert.Nil(t, rowByStudent(result.Rows, notYet.ID), "enrollment starts after the date → excluded")
+
+	options, err := svc.ListOptions(ctx, listDate)
+	require.NoError(t, err)
+	byCohort := map[slotlists.PickupCohort]slotlists.PickupCohortOption{}
+	for _, opt := range options.PickupCohorts {
+		byCohort[opt.Cohort] = opt
+	}
+	assert.Equal(t, 1, byCohort[slotlists.PickupCohortShortDay].RowCount, "options availability matches the preview cohort")
+}
+
+// A cancelled care day whose same-day exception cleared the effective pickup
+// time must still be counted in the options availability (via the regular
+// weekly bucket), matching what the preview/export show (#1565 review).
+func TestListOptions_CancelledCareDayCountedInCohort(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+	weekday := int(listDate.Weekday())
+
+	child := testpkg.CreateTestStudent(t, db, "SL-CxlOpt", fmt.Sprintf("CO-%d", suffix), "2c")
+	staff := testpkg.CreateTestStaff(t, db, "SL-CxlStaff", fmt.Sprintf("CS-%d", suffix))
+
+	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	sched := &scheduleModels.StudentPickupSchedule{
+		StudentID: child.ID, Weekday: weekday,
+		PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID, // 16:00 → long cohort
+	}
+	sched.SetTenantID(1)
+	require.NoError(t, pickupRepo.Create(ctx, sched))
+
+	// A timeless pickup exception ("Kommt heute nicht") clears the effective
+	// pickup time for listDate.
+	exc := &scheduleModels.StudentPickupException{
+		StudentID: child.ID, ExceptionDate: listDate, PickupTime: nil, CreatedBy: staff.ID,
+	}
+	exc.SetTenantID(1)
+	_, err := db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_exceptions", exc.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_schedules", sched.ID)
+		testpkg.CleanupActivityFixtures(t, db, child.ID, staff.ID)
+	})
+
+	svc := newTestService(db)
+
+	// Preview keeps the cancelled child (falls back to the 16:00 bucket).
+	preview, err := svc.BuildList(ctx, slotlists.Params{
+		Date:         listDate,
+		Target:       slotlists.TargetPickupCohort,
+		PickupCohort: slotlists.PickupCohortLongDay,
+		Source:       slotlists.SourcePlanned,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, rowByStudent(preview.Rows, child.ID), "cancelled child stays in the cohort via the regular bucket")
+
+	// Options must count the same child, not report zero/unavailable.
+	options, err := svc.ListOptions(ctx, listDate)
+	require.NoError(t, err)
+	byCohort := map[slotlists.PickupCohort]slotlists.PickupCohortOption{}
+	for _, opt := range options.PickupCohorts {
+		byCohort[opt.Cohort] = opt
+	}
+	assert.Equal(t, 1, byCohort[slotlists.PickupCohortLongDay].RowCount, "cancelled child must be counted in options")
+	assert.True(t, byCohort[slotlists.PickupCohortLongDay].Available)
+}
+
+// A planned instance_students row that survives a lifecycle inactivation (the
+// scheduler flips users.students.status / lets enrolled_until pass but leaves
+// the roster row) must be dropped from a slot list rather than reported as an
+// unexplained "Fehlt". An enrolled planned-absent child still shows as Fehlt
+// (#1565 review).
+func TestBuildList_SlotListDropsPlannedRowForEndedEnrollment(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-EndRoom-%d", suffix))
+	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-EndAct-%d", suffix))
+	listKind := activitiesModels.ListKindMensa
+	instance := &scheduleModels.ActivityInstance{
+		Date:            listDate,
+		ActivityGroupID: &activity.ID,
+		Title:           fmt.Sprintf("Mensa %d", suffix),
+		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 13, 0, 0, 0, time.UTC),
+		RoomID:          room.ID,
+		Status:          scheduleModels.InstanceStatusActive,
+		ListKind:        &listKind,
+	}
+	instance.SetTenantID(1)
+	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
+	require.NoError(t, err)
+
+	enrolled := testpkg.CreateTestStudent(t, db, "SL-StillHere", fmt.Sprintf("SH-%d", suffix), "5a")
+	ended := testpkg.CreateTestStudent(t, db, "SL-Left", fmt.Sprintf("LF-%d", suffix), "5a")
+
+	endedUntil := timezone.NewDate(2030, 9, 3) // day before listDate
+	_, err = db.NewUpdate().TableExpr(`users.students`).
+		Set(`status = ?`, string(userModels.StudentStatusInactive)).
+		Set(`enrolled_until = ?`, endedUntil).
+		Where(`id = ?`, ended.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	var isIDs []int64
+	for _, id := range []int64{enrolled.ID, ended.ID} {
+		row := &scheduleModels.InstanceStudent{
+			InstanceID: instance.ID,
+			StudentID:  id,
+			Status:     scheduleModels.AttendanceStatusExpected,
+		}
+		row.SetTenantID(1)
+		require.NoError(t, isRepo.Create(ctx, row))
+		isIDs = append(isIDs, row.ID)
+	}
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", isIDs...)
+		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID)
+		testpkg.CleanupActivityFixtures(t, db, enrolled.ID)
+		testpkg.CleanupActivityFixtures(t, db, ended.ID)
+		testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activity.ID, room.ID)
+	})
+
+	svc := newTestService(db)
+	result, err := svc.BuildList(ctx, slotlists.Params{
+		Date:   listDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+	assert.Nil(t, rowByStudent(result.Rows, ended.ID), "stale planned row for an ended enrollment must be dropped, not shown as Fehlt")
+	enrolledRow := rowByStudent(result.Rows, enrolled.ID)
+	require.NotNil(t, enrolledRow, "an enrolled planned-absent child is still surfaced")
+	assert.Equal(t, "Fehlt", enrolledRow.StatusLabel)
+	assert.Equal(t, 1, result.Counters.Missing, "only the enrolled child counts as Fehlt")
+}
