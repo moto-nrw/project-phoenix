@@ -467,6 +467,12 @@ export default function SlotListsPage() {
   const [isOptionsLoading, setIsOptionsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Non-null once /options rejects. Without it a failed options request leaves
+  // listOptions null forever, so activeInstanceIds stays null and
+  // awaitingActiveSlots never clears — the preview gate below would then hold
+  // isLoading true indefinitely (permanent spinner, exports disabled) even
+  // though /preview itself could succeed (#1565 review pass 1).
+  const [optionsError, setOptionsError] = useState<string | null>(null);
 
   const isPickupBased = target === "pickup_cohort";
   const isManualSlotSelection = target === "slots" && listKind === "";
@@ -724,6 +730,7 @@ export default function SlotListsPage() {
     // once the new options arrive. selectableSlotIds empties with them, so the
     // slot controls disable until the correct set loads.
     setListOptions(null);
+    setOptionsError(null);
     setIsOptionsLoading(true);
     fetchSlotListOptions(dateISO)
       .then((options) => {
@@ -735,6 +742,13 @@ export default function SlotListsPage() {
           error: err instanceof Error ? err.message : String(err),
         });
         setListOptions(null);
+        // Record the failure so the preview gate releases instead of spinning
+        // forever. Prefer the API client's resolved German sentence (#1565).
+        setOptionsError(
+          err instanceof Error && err.message
+            ? err.message
+            : "Die Slot-Optionen konnten nicht geladen werden.",
+        );
       })
       .finally(() => {
         if (!cancelled) setIsOptionsLoading(false);
@@ -752,6 +766,16 @@ export default function SlotListsPage() {
     // result also drops the previous date's rows, which would otherwise stay
     // exportable during the options-loading window after a date change.
     if (awaitingActiveSlots) {
+      // The authoritative active slot set never arrived because /options
+      // failed. Don't hold the gate — surface the options error and stop
+      // loading so the user isn't stuck on a permanent spinner (#1565 review
+      // pass 1).
+      if (optionsError) {
+        setResult(null);
+        setError(optionsError);
+        setIsLoading(false);
+        return;
+      }
       setResult(null);
       setError(null);
       setIsLoading(true);
@@ -785,7 +809,13 @@ export default function SlotListsPage() {
     return () => {
       cancelled = true;
     };
-  }, [authStatus, request, timetableDisabled, awaitingActiveSlots]);
+  }, [
+    authStatus,
+    request,
+    timetableDisabled,
+    awaitingActiveSlots,
+    optionsError,
+  ]);
 
   // Reconcile stale URL filters against the date's actual options. result.groups
   // / result.classes are the unfiltered option set for the cohort, so a
