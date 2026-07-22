@@ -39,9 +39,7 @@ export function ClosingDaysEditor() {
     setError(null);
     try {
       const data = await closingDayService.list();
-      setClosingDays(
-        [...data].sort((a, b) => a.startDate.localeCompare(b.startDate)),
-      );
+      setClosingDays(data);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("closing_days_load_failed", { error: message });

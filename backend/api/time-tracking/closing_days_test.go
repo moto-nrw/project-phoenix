@@ -12,49 +12,20 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 )
 
-type mockClosingDayService struct {
-	days []*schedule.ClosingDay
-	err  error
-}
-
-func (m *mockClosingDayService) GetAll(_ context.Context) ([]*schedule.ClosingDay, error) {
-	return m.days, m.err
-}
-
-func (m *mockClosingDayService) GetByID(_ context.Context, _ int64) (*schedule.ClosingDay, error) {
-	return nil, m.err
-}
-
-func (m *mockClosingDayService) Create(_ context.Context, _ *schedule.ClosingDay) error {
-	return m.err
-}
-
-func (m *mockClosingDayService) Update(_ context.Context, _ *schedule.ClosingDay) error {
-	return m.err
-}
-
-func (m *mockClosingDayService) Delete(_ context.Context, _ int64) error {
-	return m.err
-}
-
-func (m *mockClosingDayService) ClosingDaysInRange(_ context.Context, _, _ timezone.Date) ([]*schedule.ClosingDay, error) {
-	return m.days, m.err
-}
-
-func (m *mockClosingDayService) ClosingDayDates(_ context.Context, _, _ timezone.Date) (map[timezone.Date]bool, error) {
-	return nil, m.err
-}
-
 func TestGetClosingDays(t *testing.T) {
-	rs := &Resource{ClosingDayService: &mockClosingDayService{days: []*schedule.ClosingDay{
-		{
-			StartDate: timezone.NewDate(2026, 12, 24),
-			EndDate:   timezone.NewDate(2026, 12, 31),
-			Reason:    "Weihnachtswoche",
+	days := []*schedule.ClosingDay{{
+		StartDate: timezone.NewDate(2026, 12, 24),
+		EndDate:   timezone.NewDate(2026, 12, 31),
+		Reason:    "Weihnachtswoche",
+	}}
+	rs := &Resource{ClosingDayService: &scheduletest.ClosingDayServiceMock{
+		ClosingDaysInRangeFn: func(_ context.Context, _, _ timezone.Date) ([]*schedule.ClosingDay, error) {
+			return days, nil
 		},
-	}}}
+	}}
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/closing-days?from=2026-12-01&to=2026-12-31", nil)
@@ -76,7 +47,7 @@ func TestGetClosingDays(t *testing.T) {
 }
 
 func TestGetClosingDaysInvalidRange(t *testing.T) {
-	rs := &Resource{ClosingDayService: &mockClosingDayService{}}
+	rs := &Resource{ClosingDayService: &scheduletest.ClosingDayServiceMock{}}
 
 	w := httptest.NewRecorder()
 	rs.getClosingDays(w, httptest.NewRequest("GET", "/closing-days?from=nope&to=2026-05-31", nil))
@@ -88,7 +59,11 @@ func TestGetClosingDaysInvalidRange(t *testing.T) {
 }
 
 func TestGetClosingDaysServiceError(t *testing.T) {
-	rs := &Resource{ClosingDayService: &mockClosingDayService{err: errors.New("boom")}}
+	rs := &Resource{ClosingDayService: &scheduletest.ClosingDayServiceMock{
+		ClosingDaysInRangeFn: func(_ context.Context, _, _ timezone.Date) ([]*schedule.ClosingDay, error) {
+			return nil, errors.New("boom")
+		},
+	}}
 
 	w := httptest.NewRecorder()
 	rs.getClosingDays(w, httptest.NewRequest("GET", "/closing-days?from=2026-05-01&to=2026-05-31", nil))

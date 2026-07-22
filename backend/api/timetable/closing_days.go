@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -22,10 +24,11 @@ type ClosingDayRequest struct {
 
 // Bind validates the request
 func (req *ClosingDayRequest) Bind(_ *http.Request) error {
+	req.Reason = strings.TrimSpace(req.Reason)
 	if req.Reason == "" {
 		return errors.New("reason is required")
 	}
-	if len(req.Reason) > schedule.ClosingDayReasonMaxLength {
+	if utf8.RuneCountInString(req.Reason) > schedule.ClosingDayReasonMaxLength {
 		return errors.New("reason cannot exceed 255 characters")
 	}
 	if req.StartDate == "" {

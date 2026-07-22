@@ -3,6 +3,8 @@ package schedule
 import (
 	"context"
 	"errors"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -26,10 +28,11 @@ type ClosingDay struct {
 
 // Validate ensures closing day data is valid
 func (c *ClosingDay) Validate() error {
-	if c.Reason == "" {
+	trimmedReason := strings.TrimSpace(c.Reason)
+	if trimmedReason == "" {
 		return errors.New("reason is required")
 	}
-	if len(c.Reason) > ClosingDayReasonMaxLength {
+	if utf8.RuneCountInString(trimmedReason) > ClosingDayReasonMaxLength {
 		return errors.New("reason cannot exceed 255 characters")
 	}
 	if c.StartDate.IsZero() {

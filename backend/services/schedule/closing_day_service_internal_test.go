@@ -110,8 +110,18 @@ func TestClosingDayCreateRejectsInvalid(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "reason is required")
 
+	err = svc.Create(context.Background(), closingRange(timezone.NewDate(2026, 8, 1), timezone.NewDate(2026, 8, 7), " \t\n "))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "reason is required")
+
 	longReason := strings.Repeat("x", schedule.ClosingDayReasonMaxLength+1)
 	err = svc.Create(context.Background(), closingRange(timezone.NewDate(2026, 8, 1), timezone.NewDate(2026, 8, 7), longReason))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "reason cannot exceed 255 characters")
+
+	unicodeReason := strings.Repeat("ä", schedule.ClosingDayReasonMaxLength)
+	require.NoError(t, svc.Create(context.Background(), closingRange(timezone.NewDate(2026, 8, 1), timezone.NewDate(2026, 8, 7), unicodeReason)))
+	err = svc.Create(context.Background(), closingRange(timezone.NewDate(2026, 8, 1), timezone.NewDate(2026, 8, 7), unicodeReason+"ä"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "reason cannot exceed 255 characters")
 

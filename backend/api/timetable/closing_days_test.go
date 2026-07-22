@@ -5,57 +5,15 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	"github.com/stretchr/testify/assert"
 )
-
-// =============================================================================
-// Mock ClosingDayService
-// =============================================================================
-
-type mockClosingDayService struct {
-	days        []*schedule.ClosingDay
-	day         *schedule.ClosingDay
-	err         error
-	lastCreated *schedule.ClosingDay
-	lastUpdated *schedule.ClosingDay
-	lastDeleted int64
-}
-
-func (m *mockClosingDayService) GetAll(_ context.Context) ([]*schedule.ClosingDay, error) {
-	return m.days, m.err
-}
-
-func (m *mockClosingDayService) GetByID(_ context.Context, _ int64) (*schedule.ClosingDay, error) {
-	return m.day, m.err
-}
-
-func (m *mockClosingDayService) Create(_ context.Context, d *schedule.ClosingDay) error {
-	m.lastCreated = d
-	return m.err
-}
-
-func (m *mockClosingDayService) Update(_ context.Context, d *schedule.ClosingDay) error {
-	m.lastUpdated = d
-	return m.err
-}
-
-func (m *mockClosingDayService) Delete(_ context.Context, id int64) error {
-	m.lastDeleted = id
-	return m.err
-}
-
-func (m *mockClosingDayService) ClosingDaysInRange(_ context.Context, _, _ timezone.Date) ([]*schedule.ClosingDay, error) {
-	return m.days, m.err
-}
-
-func (m *mockClosingDayService) ClosingDayDates(_ context.Context, _, _ timezone.Date) (map[timezone.Date]bool, error) {
-	return nil, m.err
-}
 
 func newTestClosingDay() *schedule.ClosingDay {
 	d := &schedule.ClosingDay{
@@ -71,7 +29,11 @@ func newTestClosingDay() *schedule.ClosingDay {
 
 func TestListClosingDays(t *testing.T) {
 	t.Run("returns all closing days", func(t *testing.T) {
-		mock := &mockClosingDayService{days: []*schedule.ClosingDay{newTestClosingDay()}}
+		mock := &scheduletest.ClosingDayServiceMock{
+			GetAllFn: func(_ context.Context) ([]*schedule.ClosingDay, error) {
+				return []*schedule.ClosingDay{newTestClosingDay()}, nil
+			},
+		}
 		res := NewResource(Dependencies{ClosingDayService: mock})
 		router := setupTestRouter(res.listClosingDays, http.MethodGet, false)
 
@@ -83,7 +45,11 @@ func TestListClosingDays(t *testing.T) {
 	})
 
 	t.Run("returns 500 on service error", func(t *testing.T) {
-		mock := &mockClosingDayService{err: errors.New("db error: password=secret")}
+		mock := &scheduletest.ClosingDayServiceMock{
+			GetAllFn: func(_ context.Context) ([]*schedule.ClosingDay, error) {
+				return nil, errors.New("db error: password=secret")
+			},
+		}
 		res := NewResource(Dependencies{ClosingDayService: mock})
 		router := setupTestRouter(res.listClosingDays, http.MethodGet, false)
 
@@ -96,7 +62,13 @@ func TestListClosingDays(t *testing.T) {
 
 func TestCreateClosingDay(t *testing.T) {
 	t.Run("creates a closing day range", func(t *testing.T) {
-		mock := &mockClosingDayService{}
+		var created *schedule.ClosingDay
+		mock := &scheduletest.ClosingDayServiceMock{
+			CreateFn: func(_ context.Context, day *schedule.ClosingDay) error {
+				created = day
+				return nil
+			},
+		}
 		res := NewResource(Dependencies{ClosingDayService: mock})
 		router := setupTestRouter(res.createClosingDay, http.MethodPost, false)
 
@@ -107,13 +79,13 @@ func TestCreateClosingDay(t *testing.T) {
 		})
 
 		assert.Equal(t, http.StatusCreated, w.Code)
-		assert.NotNil(t, mock.lastCreated)
-		assert.Equal(t, timezone.NewDate(2026, 7, 20), mock.lastCreated.StartDate)
-		assert.Equal(t, "Sommerschließung", mock.lastCreated.Reason)
+		assert.NotNil(t, created)
+		assert.Equal(t, timezone.NewDate(2026, 7, 20), created.StartDate)
+		assert.Equal(t, "Sommerschließung", created.Reason)
 	})
 
 	t.Run("accepts single-day range (start = end)", func(t *testing.T) {
-		mock := &mockClosingDayService{}
+		mock := &scheduletest.ClosingDayServiceMock{}
 		res := NewResource(Dependencies{ClosingDayService: mock})
 		router := setupTestRouter(res.createClosingDay, http.MethodPost, false)
 
@@ -127,7 +99,7 @@ func TestCreateClosingDay(t *testing.T) {
 	})
 
 	t.Run("rejects missing reason", func(t *testing.T) {
-		res := NewResource(Dependencies{ClosingDayService: &mockClosingDayService{}})
+		res := NewResource(Dependencies{ClosingDayService: &scheduletest.ClosingDayServiceMock{}})
 		router := setupTestRouter(res.createClosingDay, http.MethodPost, false)
 
 		w := executeRequest(router, http.MethodPost, "/", ClosingDayRequest{
@@ -138,8 +110,50 @@ func TestCreateClosingDay(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
+	t.Run("rejects whitespace-only reason", func(t *testing.T) {
+		res := NewResource(Dependencies{ClosingDayService: &scheduletest.ClosingDayServiceMock{}})
+		router := setupTestRouter(res.createClosingDay, http.MethodPost, false)
+
+		w := executeRequest(router, http.MethodPost, "/", ClosingDayRequest{
+			StartDate: "2026-07-20",
+			EndDate:   "2026-08-07",
+			Reason:    " \t\n ",
+		})
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("counts reason length in characters and trims it", func(t *testing.T) {
+		var created *schedule.ClosingDay
+		mock := &scheduletest.ClosingDayServiceMock{
+			CreateFn: func(_ context.Context, day *schedule.ClosingDay) error {
+				created = day
+				return nil
+			},
+		}
+		res := NewResource(Dependencies{ClosingDayService: mock})
+		router := setupTestRouter(res.createClosingDay, http.MethodPost, false)
+
+		w := executeRequest(router, http.MethodPost, "/", ClosingDayRequest{
+			StartDate: "2026-07-20",
+			EndDate:   "2026-08-07",
+			Reason:    "  " + strings.Repeat("ä", schedule.ClosingDayReasonMaxLength) + "  ",
+		})
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+		assert.NotNil(t, created)
+		assert.Equal(t, strings.Repeat("ä", schedule.ClosingDayReasonMaxLength), created.Reason)
+
+		w = executeRequest(router, http.MethodPost, "/", ClosingDayRequest{
+			StartDate: "2026-07-20",
+			EndDate:   "2026-08-07",
+			Reason:    strings.Repeat("ä", schedule.ClosingDayReasonMaxLength+1),
+		})
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
 	t.Run("rejects end before start", func(t *testing.T) {
-		res := NewResource(Dependencies{ClosingDayService: &mockClosingDayService{}})
+		res := NewResource(Dependencies{ClosingDayService: &scheduletest.ClosingDayServiceMock{}})
 		router := setupTestRouter(res.createClosingDay, http.MethodPost, false)
 
 		w := executeRequest(router, http.MethodPost, "/", ClosingDayRequest{
@@ -152,7 +166,7 @@ func TestCreateClosingDay(t *testing.T) {
 	})
 
 	t.Run("rejects invalid date format", func(t *testing.T) {
-		res := NewResource(Dependencies{ClosingDayService: &mockClosingDayService{}})
+		res := NewResource(Dependencies{ClosingDayService: &scheduletest.ClosingDayServiceMock{}})
 		router := setupTestRouter(res.createClosingDay, http.MethodPost, false)
 
 		w := executeRequest(router, http.MethodPost, "/", ClosingDayRequest{
@@ -167,7 +181,16 @@ func TestCreateClosingDay(t *testing.T) {
 
 func TestUpdateClosingDay(t *testing.T) {
 	t.Run("updates a closing day", func(t *testing.T) {
-		mock := &mockClosingDayService{day: newTestClosingDay()}
+		var updated *schedule.ClosingDay
+		mock := &scheduletest.ClosingDayServiceMock{
+			GetByIDFn: func(_ context.Context, _ int64) (*schedule.ClosingDay, error) {
+				return newTestClosingDay(), nil
+			},
+			UpdateFn: func(_ context.Context, day *schedule.ClosingDay) error {
+				updated = day
+				return nil
+			},
+		}
 		res := NewResource(Dependencies{ClosingDayService: mock})
 		router := setupTestRouter(res.updateClosingDay, http.MethodPut, true)
 
@@ -178,13 +201,13 @@ func TestUpdateClosingDay(t *testing.T) {
 		})
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		assert.NotNil(t, mock.lastUpdated)
-		assert.Equal(t, timezone.NewDate(2027, 1, 2), mock.lastUpdated.EndDate)
-		assert.Equal(t, "Weihnachtsferien", mock.lastUpdated.Reason)
+		assert.NotNil(t, updated)
+		assert.Equal(t, timezone.NewDate(2027, 1, 2), updated.EndDate)
+		assert.Equal(t, "Weihnachtsferien", updated.Reason)
 	})
 
 	t.Run("returns 400 for invalid ID", func(t *testing.T) {
-		res := NewResource(Dependencies{ClosingDayService: &mockClosingDayService{}})
+		res := NewResource(Dependencies{ClosingDayService: &scheduletest.ClosingDayServiceMock{}})
 		router := setupTestRouter(res.updateClosingDay, http.MethodPut, true)
 
 		w := executeRequest(router, http.MethodPut, "/abc", ClosingDayRequest{
@@ -197,7 +220,11 @@ func TestUpdateClosingDay(t *testing.T) {
 	})
 
 	t.Run("returns 404 when not found", func(t *testing.T) {
-		mock := &mockClosingDayService{err: sql.ErrNoRows}
+		mock := &scheduletest.ClosingDayServiceMock{
+			GetByIDFn: func(_ context.Context, _ int64) (*schedule.ClosingDay, error) {
+				return nil, sql.ErrNoRows
+			},
+		}
 		res := NewResource(Dependencies{ClosingDayService: mock})
 		router := setupTestRouter(res.updateClosingDay, http.MethodPut, true)
 
@@ -213,18 +240,31 @@ func TestUpdateClosingDay(t *testing.T) {
 
 func TestDeleteClosingDay(t *testing.T) {
 	t.Run("deletes a closing day", func(t *testing.T) {
-		mock := &mockClosingDayService{day: newTestClosingDay()}
+		var deleted int64
+		mock := &scheduletest.ClosingDayServiceMock{
+			GetByIDFn: func(_ context.Context, _ int64) (*schedule.ClosingDay, error) {
+				return newTestClosingDay(), nil
+			},
+			DeleteFn: func(_ context.Context, id int64) error {
+				deleted = id
+				return nil
+			},
+		}
 		res := NewResource(Dependencies{ClosingDayService: mock})
 		router := setupTestRouter(res.deleteClosingDay, http.MethodDelete, true)
 
 		w := executeRequest(router, http.MethodDelete, "/7", nil)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Equal(t, int64(7), mock.lastDeleted)
+		assert.Equal(t, int64(7), deleted)
 	})
 
 	t.Run("returns 404 when not found", func(t *testing.T) {
-		mock := &mockClosingDayService{err: sql.ErrNoRows}
+		mock := &scheduletest.ClosingDayServiceMock{
+			GetByIDFn: func(_ context.Context, _ int64) (*schedule.ClosingDay, error) {
+				return nil, sql.ErrNoRows
+			},
+		}
 		res := NewResource(Dependencies{ClosingDayService: mock})
 		router := setupTestRouter(res.deleteClosingDay, http.MethodDelete, true)
 
@@ -234,7 +274,7 @@ func TestDeleteClosingDay(t *testing.T) {
 	})
 
 	t.Run("returns 400 for invalid ID", func(t *testing.T) {
-		res := NewResource(Dependencies{ClosingDayService: &mockClosingDayService{}})
+		res := NewResource(Dependencies{ClosingDayService: &scheduletest.ClosingDayServiceMock{}})
 		router := setupTestRouter(res.deleteClosingDay, http.MethodDelete, true)
 
 		w := executeRequest(router, http.MethodDelete, "/abc", nil)

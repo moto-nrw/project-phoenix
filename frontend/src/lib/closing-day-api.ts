@@ -96,16 +96,7 @@ class ClosingDayService {
       headers: { Accept: "application/json" },
       credentials: "include",
     });
-    if (!response.ok && response.status !== 204) {
-      let message = `Anfrage fehlgeschlagen (HTTP ${response.status})`;
-      try {
-        const body = (await response.json()) as { error?: string };
-        if (body.error) message = body.error;
-      } catch {
-        // not JSON
-      }
-      throw new ClosingDayApiError(message, response.status);
-    }
+    await unwrap<void>(response);
     logger.info("closing_day_deleted", { closing_day_id: id });
   }
 }

@@ -550,6 +550,10 @@ export interface BackendClosingDayRange {
   reason: string;
 }
 
+// The backend accepts a maximum date distance of 400 days. Because both
+// endpoints are inclusive, that window contains up to 401 calendar dates.
+const MAX_CLOSING_DAY_WINDOW_DATES = 401;
+
 /**
  * OGS-Schließtage im Zeitraum, keyed nach ISO-Tag (YYYY-MM-DD), Wert ist
  * der Grund (#1418 3b). Das Backend liefert die gespeicherten Zeiträume;
@@ -558,20 +562,32 @@ export interface BackendClosingDayRange {
  */
 export function mapClosingDaysResponse(
   data: BackendClosingDayRange[] | null | undefined,
+  from: string,
+  to: string,
 ): ReadonlyMap<string, string> {
   const closingDays = new Map<string, string>();
+  const windowStart = from.slice(0, 10);
+  const windowEnd = to.slice(0, 10);
+  if (windowEnd < windowStart) return closingDays;
+
   for (const entry of data ?? []) {
-    const start = entry.start_date.slice(0, 10);
-    const end = entry.end_date.slice(0, 10);
+    const storedStart = entry.start_date.slice(0, 10);
+    const storedEnd = entry.end_date.slice(0, 10);
+    const start = storedStart < windowStart ? windowStart : storedStart;
+    const end = storedEnd > windowEnd ? windowEnd : storedEnd;
+    if (end < start) continue;
+
     const startDate = new Date(`${start}T00:00:00`);
     const endDate = new Date(`${end}T00:00:00`);
-    // Hard cap mirrors the backend's 400-day query window; a corrupt range
-    // must not blow up the map. Math.round (not floor) keeps the count
-    // DST-safe: across a spring-forward the midnight-to-midnight diff is an
-    // hour short of a full day multiple. setDate below walks calendar days.
+    // Clamp before applying the hard cap: stored ranges can be much longer
+    // than the requested window. Math.round (not floor) keeps the count
+    // DST-safe across 23/25-hour days; setDate walks local calendar days.
     const dayCount = Math.min(
-      Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1,
-      400,
+      Math.max(
+        0,
+        Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1,
+      ),
+      MAX_CLOSING_DAY_WINDOW_DATES,
     );
     for (let offset = 0; offset < dayCount; offset++) {
       const cursor = new Date(startDate);

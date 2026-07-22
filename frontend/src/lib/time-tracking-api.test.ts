@@ -383,6 +383,29 @@ describe("TimeTrackingService", () => {
         timeTrackingService.getClosingDays("2026-12-01", "2026-12-31"),
       ).resolves.toEqual(new Map());
     });
+
+    it("maps the visible part of a stored range that starts over 400 days earlier", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "",
+        data: [
+          {
+            start_date: "2020-01-01",
+            end_date: "2030-12-31",
+            reason: "Langzeit-Schließung",
+          },
+        ],
+      });
+
+      const result = await timeTrackingService.getClosingDays(
+        "2026-12-01",
+        "2026-12-31",
+      );
+
+      expect(result.size).toBe(31);
+      expect(result.get("2026-12-01")).toBe("Langzeit-Schließung");
+      expect(result.get("2026-12-31")).toBe("Langzeit-Schließung");
+    });
   });
 
   describe("updateSession", () => {

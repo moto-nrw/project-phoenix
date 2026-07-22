@@ -269,7 +269,7 @@ class TimeTrackingService {
       "GET",
       "Failed to get closing days",
     );
-    return mapClosingDaysResponse(result.data);
+    return mapClosingDaysResponse(result.data, from, to);
   }
 
   async updateSession(
