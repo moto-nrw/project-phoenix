@@ -414,8 +414,23 @@ function sameStringSet(a: string[], b: string[]): boolean {
 // costs one silent fetch and no redundant preview/BuildList churn (#1565 review
 // pass 2 — stale one-time /options snapshot).
 function optionsSignature(options: SlotListOptionsResult): string {
+  // Encode each slot as a JSON tuple, not a `:`-joined string: a slot's
+  // title/time_range are free text (a time_range like "14:30 - 15:15" already
+  // contains the delimiter), so plain concatenation could let two genuinely
+  // different payloads collapse to the same signature and miss a rename/
+  // reschedule. title and time_range MUST be part of the signature — when a
+  // slot is renamed or moved in another tab its ID and status are unchanged,
+  // and without these fields the fresh payload is discarded on focus while a
+  // later export silently renders the updated label (#1565 review pass 3).
   const slots = options.slots
-    .map((slot) => `${slot.instance_id}:${slot.status}`)
+    .map((slot) =>
+      JSON.stringify([
+        slot.instance_id,
+        slot.status,
+        slot.title,
+        slot.time_range,
+      ]),
+    )
     .sort()
     .join(",");
   const cohorts = options.pickup_cohorts
@@ -1084,21 +1099,42 @@ export default function SlotListsPage() {
       // buttons are disabled while no result exists; this is defense in depth.
       if (filterLinkInvalid) return;
 
+      // Open the print placeholder NOW, synchronously, while the click's
+      // transient user activation is still valid. The slot revalidation below
+      // awaits a network round-trip; after it Safari and strict popup blockers
+      // return null from window.open, so a tab opened inside exportSlotList
+      // would fail and Drucken would never start (#1565 review pass 3). Hand the
+      // retained tab to exportSlotList; close it on every bail-out path so a
+      // refused export leaves no orphaned blank tab.
+      let printTarget: Window | null = null;
+      if (mode === "print") {
+        printTarget = globalThis.open("", "_blank");
+        if (!printTarget) {
+          setError("Der Druckdialog konnte nicht geöffnet werden.");
+          return;
+        }
+      }
+
       // An export is the one non-idempotent, hand-it-out action here, so before
-      // it fires validate the active-slot set against a FRESH /options read —
-      // never the possibly-hours-old snapshot the current request was built from
-      // (#1565 review pass 2). Recompute the exact instance_ids the request would
-      // carry under the fresh set (explicit manual subset intersected, otherwise
-      // the whole active set) and, if it no longer matches what request.instance_ids
-      // holds, refuse the export: swap in the fresh options (which re-renders the
-      // preview and prunes now-cancelled selections) and ask the user to re-check
-      // and export again, rather than print a stale list. Pickup cohorts carry no
-      // instance_ids, so they skip this guard.
+      // it fires validate against a FRESH /options read — never the possibly-
+      // hours-old snapshot the current request/preview was built from (#1565
+      // review pass 2). Refuse the export when the fresh options differ from the
+      // loaded ones in ANY way that changes the document: the effective
+      // instance_ids the request would carry (additions/cancellations), OR the
+      // option metadata — a rename/reschedule, or a list_kind reassignment that
+      // moves a slot in or out of a classified list without changing the active
+      // ID set (the backend intersects list_kind with instance_ids, so
+      // request.instance_ids stays equal yet the rendered document differs).
+      // On any such drift swap in the fresh options (re-rendering the preview and
+      // pruning now-cancelled selections) and ask the user to re-check and export
+      // again, rather than print a stale or differently-labeled list. Pickup
+      // cohorts carry no instance_ids/slot metadata, so they skip this guard.
       if (target === "slots") {
         let fresh: SlotListOptionsResult;
         try {
           fresh = await fetchSlotListOptions(dateISO);
         } catch (err: unknown) {
+          printTarget?.close();
           logger.error("slot_list_options_revalidate_failed", {
             error: err instanceof Error ? err.message : String(err),
           });
@@ -1112,7 +1148,14 @@ export default function SlotListsPage() {
           isManualSlotSelection && selectedSlotIds !== null
             ? selectedSlotIds.filter((id) => freshActive.includes(id))
             : freshActive;
-        if (!sameStringSet(effective, request.instance_ids ?? [])) {
+        const metadataChanged =
+          !listOptions ||
+          optionsSignature(listOptions) !== optionsSignature(fresh);
+        if (
+          metadataChanged ||
+          !sameStringSet(effective, request.instance_ids ?? [])
+        ) {
+          printTarget?.close();
           setOptionsError(null);
           setListOptions(fresh);
           setError(
@@ -1125,7 +1168,7 @@ export default function SlotListsPage() {
       setIsExporting(true);
       setError(null);
       try {
-        await exportSlotList(request, format, mode);
+        await exportSlotList(request, format, mode, printTarget);
       } catch (err: unknown) {
         logger.error("slot_list_export_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -1145,6 +1188,7 @@ export default function SlotListsPage() {
       dateISO,
       isManualSlotSelection,
       selectedSlotIds,
+      listOptions,
     ],
   );
 

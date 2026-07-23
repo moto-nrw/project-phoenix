@@ -173,12 +173,21 @@ export async function exportSlotList(
   request: SlotListRequest,
   format: SlotListFormat,
   mode: SlotListExportMode,
+  preOpenedPrintTarget?: Window | null,
 ): Promise<void> {
   // The print tab must open synchronously while the click's transient user
   // activation is still valid: after `await fetch` popup blockers (Safari,
   // strict settings) return null from window.open and Drucken always fails.
-  // Open a placeholder now and navigate it to the blob once the PDF exists.
-  const printTarget = mode === "print" ? globalThis.open("", "_blank") : null;
+  // When the caller runs its own async step before export (e.g. the pre-export
+  // slot revalidation), it opens the placeholder during the click and hands it
+  // in via preOpenedPrintTarget; we reuse it rather than opening a second tab
+  // after the activation has lapsed. When no tab is supplied we open one now.
+  const printTarget =
+    mode === "print"
+      ? preOpenedPrintTarget !== undefined
+        ? preOpenedPrintTarget
+        : globalThis.open("", "_blank")
+      : null;
   if (mode === "print" && !printTarget) {
     throw new Error("Der Druckdialog konnte nicht geöffnet werden.");
   }
