@@ -15,28 +15,36 @@ import (
 )
 
 // hasPickupScheduleBroadcast reports whether the recorder saw a
-// pickup_schedule_changed event addressed to the given tenant AND naming the
-// given student.
+// pickup_schedule_changed event addressed to the given tenant.
 //
 // Deliberately reads CallsByMethod("tenant"), not "all": only the writing
 // school can read the affected child, so a global fan-out would make every
 // other school refetch student and care-plan data for an invisible write.
-//
-// The student id is asserted, not just present: clients narrow their per-child
-// invalidation (care-plan-*, pickup-data-*, student-detail-*) with it, so an
-// event that omits it silently degrades every staff tab in the school to
-// refetching every open child's caches.
-func hasPickupScheduleBroadcast(b *testpkg.RecordingBroadcaster, tenantID, studentID int64) bool {
-	want := fmt.Sprintf("%d", studentID)
+func hasPickupScheduleBroadcast(b *testpkg.RecordingBroadcaster, tenantID int64) bool {
 	for _, c := range b.CallsByMethod("tenant") {
-		if c.Event.Type != realtime.EventPickupScheduleChanged || c.TenantID != tenantID {
-			continue
-		}
-		if c.Event.Data.StudentID != nil && *c.Event.Data.StudentID == want {
+		if c.Event.Type == realtime.EventPickupScheduleChanged && c.TenantID == tenantID {
 			return true
 		}
 	}
 	return false
+}
+
+// requirePickupEventsCarryNoStudentID pins the GDPR contract: a
+// pickup_schedule_changed event is a TENANT-WIDE staff broadcast, so its
+// payload must not name the child. An id in that raw SSE stream would tell a
+// staffer who, under gdpr.student_data_scope=group_supervisors_only, cannot
+// read the child that the child's pickup plan just changed. The id-less event
+// makes clients re-check their pickup caches broadly; every refetch is
+// server-access-filtered, so no unauthorized data comes back.
+func requirePickupEventsCarryNoStudentID(t *testing.T, b *testpkg.RecordingBroadcaster) {
+	t.Helper()
+	for _, c := range b.CallsByMethod("tenant") {
+		if c.Event.Type != realtime.EventPickupScheduleChanged {
+			continue
+		}
+		assert.Nil(t, c.Event.Data.StudentID,
+			"a tenant-wide pickup_schedule_changed must not name the child (GDPR: group_supervisors_only)")
+	}
 }
 
 // hasGlobalPickupScheduleBroadcast reports whether any pickup_schedule_changed
@@ -82,10 +90,11 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 		rr := authExec(t, tc, req, claims, []string{"admin:*"})
 		require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 
-		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID(), student.ID),
+		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID()),
 			"a weekly Gehzeit update must broadcast pickup_schedule_changed to staff tabs")
 		assert.False(t, hasGlobalPickupScheduleBroadcast(tc.broadcaster),
 			"the event must stay scoped to the writing tenant, never fan out to every school")
+		requirePickupEventsCarryNoStudentID(t, tc.broadcaster)
 	})
 
 	t.Run("exception_create_update_delete", func(t *testing.T) {
@@ -103,7 +112,7 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-exceptions", student.ID), body)
 		rr := authExec(t, tc, req, claims, []string{"admin:*"})
 		require.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
-		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID(), student.ID),
+		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID()),
 			"creating a pickup exception must broadcast pickup_schedule_changed")
 
 		exceptionID := latestPickupExceptionID(t, tc, student.ID)
@@ -115,7 +124,7 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 			fmt.Sprintf("/%d/pickup-exceptions/%d", student.ID, exceptionID), body)
 		rr = authExec(t, tc, req, claims, []string{"admin:*"})
 		require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID(), student.ID),
+		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID()),
 			"editing a pickup exception must broadcast pickup_schedule_changed")
 
 		// Delete
@@ -124,10 +133,11 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 			fmt.Sprintf("/%d/pickup-exceptions/%d", student.ID, exceptionID), nil)
 		rr = authExec(t, tc, req, claims, []string{"admin:*"})
 		require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID(), student.ID),
+		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID()),
 			"deleting a pickup exception must broadcast pickup_schedule_changed")
 		assert.False(t, hasGlobalPickupScheduleBroadcast(tc.broadcaster),
 			"the event must stay scoped to the writing tenant, never fan out to every school")
+		requirePickupEventsCarryNoStudentID(t, tc.broadcaster)
 	})
 
 	// A day note travels in the same pickup payload as the times (the detail
@@ -143,7 +153,7 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 		rr := authExec(t, tc, req, claims, []string{"admin:*"})
 		require.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 
-		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID(), student.ID),
+		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID()),
 			"creating a pickup day note must broadcast pickup_schedule_changed")
 	})
 }

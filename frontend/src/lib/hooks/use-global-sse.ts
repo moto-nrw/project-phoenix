@@ -47,15 +47,6 @@ const STUDENT_SCOPED_KEY_PREFIXES = [
   "care-plan-week-",
 ] as const;
 
-// What a pickup (Gehzeit) write touches for ONE child: the same three, plus the
-// detail header's pickup slot. Deliberately a separate list — adding
-// "pickup-data-" to the set above would refetch the header's pickup payload on
-// every check-in, which never changes the plan.
-const PICKUP_SCOPED_KEY_PREFIXES = [
-  ...STUDENT_SCOPED_KEY_PREFIXES,
-  "pickup-data-",
-] as const;
-
 /**
  * Whether an SWR cache key belongs to exactly this student.
  *
@@ -65,6 +56,11 @@ const PICKUP_SCOPED_KEY_PREFIXES = [
  * and worse on a morning check-in burst where several such events land at once.
  * The id must therefore end the key or be followed by "-", and the prefix must
  * start the key or sit right after the tenant separator.
+ *
+ * Only usable for events whose audience is ALREADY scoped to the child — the
+ * group-topic check-in/checkout events. A tenant-wide event (pickup) must not
+ * carry a student id at all (GDPR: group_supervisors_only), so it cannot and
+ * does not go through here.
  */
 function keyTargetsStudent(
   key: string,
@@ -126,11 +122,10 @@ export function useGlobalSSE(): SSEHookState {
   const hasPendingArrivalScheduleEvent = useRef(false);
   // Pickup (Gehzeit) writes get their own flag rather than riding the arrival
   // one: they invalidate a different key set, and merging them would refetch
-  // the arrival caches on every pickup edit. The flag drives the tenant-wide
-  // half (student lists, reminders); the id set below drives the per-child
-  // half, so one child's edit doesn't refetch every open child's caches.
+  // the arrival caches on every pickup edit. Intentionally a plain flag with no
+  // per-student set: the event is tenant-wide and carries NO student id (GDPR —
+  // see the backend broadcast), so invalidation is broad, exactly like arrival.
   const hasPendingPickupScheduleEvent = useRef(false);
-  const pendingPickupStudentIds = useRef(new Set<string>());
   const hasPendingStudentUpdateEvent = useRef(false);
   // Kept apart from the student-update flag on purpose: only a write that can
   // actually have changed the "läuft mit" links sets it.
@@ -324,45 +319,27 @@ export function useGlobalSSE(): SSEHookState {
     // and the student detail response carries the day-planning pickup time —
     // all fetched with focus revalidation disabled, so this event is their ONLY
     // live update path: without it a colleague's Gehzeit edit stays invisible in
-    // an open tab indefinitely. The student list caches are covered by the flag
-    // in the broad block above (a list response carries every row's pickup
-    // time, so that half cannot be narrowed to one child).
+    // an open tab indefinitely.
     //
-    // Per child, driven by the event's student_id: a single Gehzeit edit used to
-    // make EVERY staff tab in the school refetch EVERY open child's care-plan,
-    // header and detail caches.
-    for (const studentId of pendingPickupStudentIds.current) {
-      mutate(
-        (key) =>
-          typeof key === "string" &&
-          keyTargetsStudent(key, studentId, PICKUP_SCOPED_KEY_PREFIXES),
-      ).catch((err) => {
-        logger.debug("swr_revalidation_failed", {
-          error: err instanceof Error ? err.message : String(err),
-          scope: "pickup_schedule",
-        });
-      });
-    }
-
-    // Fallback for an event that carries no student_id — a backend older than
-    // the field during a rolling deploy, where the narrow path above would
-    // invalidate nothing at all. Correctness beats precision here: a stale
-    // Gehzeit is worse than a few extra refetches for the length of a deploy.
-    if (
-      hasPendingPickupScheduleEvent.current &&
-      pendingPickupStudentIds.current.size === 0
-    ) {
+    // Broad by design, exactly like arrival: the event is tenant-wide and
+    // carries no student id (a tenant-wide id would leak pickup activity to
+    // staff outside gdpr.student_data_scope=group_supervisors_only — see the
+    // backend broadcast), so it cannot be narrowed to one child here. The cost
+    // is one re-check per open detail/care-plan page; each refetch is
+    // server-access-filtered, so an out-of-scope staffer gets nothing back.
+    if (hasPendingPickupScheduleEvent.current) {
       mutate(
         (key) =>
           typeof key === "string" &&
           (key.includes("care-plan-day-") ||
             key.includes("care-plan-week-") ||
+            // the detail header's "Gehzeit heute" slot
             key.includes("pickup-data-") ||
             key.includes("student-detail-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
-          scope: "pickup_schedule_broad",
+          scope: "pickup_schedule",
         });
       });
     }
@@ -506,7 +483,6 @@ export function useGlobalSSE(): SSEHookState {
     hasPendingDailyCheckoutDashboardEvent.current = false;
     hasPendingArrivalScheduleEvent.current = false;
     hasPendingPickupScheduleEvent.current = false;
-    pendingPickupStudentIds.current.clear();
     hasPendingStudentUpdateEvent.current = false;
     hasPendingCompanionEvent.current = false;
     hasPendingTimetableEvent.current = false;
@@ -609,13 +585,9 @@ export function useGlobalSSE(): SSEHookState {
         case "pickup_schedule_changed": {
           // Staff-side Gehzeit write (weekly plan or date exception). Parent
           // submits do NOT emit this — they broadcast student_updated, which
-          // already invalidates the same caches above.
+          // already invalidates the same caches above. Tenant-wide and
+          // deliberately id-less (GDPR), so invalidation stays broad.
           hasPendingPickupScheduleEvent.current = true;
-          // Absent only from a backend predating the field; the flag alone then
-          // drives the broad fallback in flushInvalidations.
-          if (event.data.student_id) {
-            pendingPickupStudentIds.current.add(event.data.student_id);
-          }
           scheduleFlush();
           break;
         }

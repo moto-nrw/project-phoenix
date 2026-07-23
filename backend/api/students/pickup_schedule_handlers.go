@@ -422,19 +422,24 @@ func (rs *Resource) broadcastPickupScheduleChanged(tenantID, studentID int64) {
 		return
 	}
 
-	// student_id lets each client invalidate only THAT child's per-student
-	// caches (care-plan-*, pickup-data-*, student-detail-*) instead of every
-	// child's; the student-list refresh stays broad because a list response
-	// carries the pickup times of all its rows. Only the opaque id travels — no
-	// name, unlike student_checkin — and the refetch it triggers is still
-	// server-authorized per student, so a staffer without access to the child
-	// gains nothing from the event.
+	// No student_id on the payload — deliberately, for GDPR. This is a
+	// TENANT-WIDE broadcast: every staff client in the school receives it,
+	// including those who under gdpr.student_data_scope=group_supervisors_only
+	// may NOT read this child. A student_id in that raw SSE stream would leak
+	// which children have pickup-plan activity to staff outside their scope.
+	// The rule this follows: only GROUP-topic events (student_checkin/checkout
+	// via BroadcastToGroup, whose audience is already the child's room) may
+	// carry the id; tenant-wide staff events must not — the arrival sibling is
+	// id-less for the same reason, and parent_message scrubs the id for its
+	// staff fan-out (staffSafeParentMessage). The cost is that each client
+	// re-checks its pickup-derived caches rather than only the affected one, but
+	// every refetch is itself server-access-filtered per student, so nothing
+	// leaks and no unauthorized data is returned.
 	source := "manual"
-	studentIDStr := fmt.Sprintf("%d", studentID)
 	event := realtime.NewEvent(
 		realtime.EventPickupScheduleChanged,
 		"",
-		realtime.EventData{Source: &source, StudentID: &studentIDStr},
+		realtime.EventData{Source: &source},
 	)
 	if err := rs.Broadcaster.BroadcastToTenant(tenantID, event); err != nil && rs.Logger != nil {
 		rs.Logger.Warn(
