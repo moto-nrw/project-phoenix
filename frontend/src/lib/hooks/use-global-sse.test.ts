@@ -693,4 +693,49 @@ describe("useGlobalSSE — companion announcements", () => {
       window.removeEventListener("phoenix:reminders-stale", listener);
     }
   });
+
+  it("announces phoenix:care-schedule-stale on pickup, arrival and student_updated", () => {
+    // The Betreuungszeiten editor keeps arrival/pickup in local state (not SWR)
+    // and stays force-mounted, so SWR invalidation cannot reach it. Each of
+    // these events changes the data it renders — a staff pickup/arrival write,
+    // or a parent care-exception that surfaces only as student_updated — so all
+    // three must announce staleness on the window event it listens for.
+    for (const evt of [
+      "pickup_schedule_changed",
+      "arrival_schedule_changed",
+      "student_updated",
+    ] as const) {
+      const listener = vi.fn();
+      window.addEventListener("phoenix:care-schedule-stale", listener);
+      try {
+        const { unmount } = renderHook(() => useGlobalSSE());
+        fireSSE(makeEvent(evt, { student_id: "s1" }));
+        act(() => {
+          vi.advanceTimersByTime(500);
+        });
+        expect(
+          listener,
+          `${evt} must announce care-schedule staleness`,
+        ).toHaveBeenCalledTimes(1);
+        unmount();
+      } finally {
+        window.removeEventListener("phoenix:care-schedule-stale", listener);
+      }
+    }
+  });
+
+  it("does not announce phoenix:care-schedule-stale for an unrelated event", () => {
+    const listener = vi.fn();
+    window.addEventListener("phoenix:care-schedule-stale", listener);
+    try {
+      renderHook(() => useGlobalSSE());
+      fireSSE(makeEvent("tenant_settings_changed", {}));
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      expect(listener).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener("phoenix:care-schedule-stale", listener);
+    }
+  });
 });

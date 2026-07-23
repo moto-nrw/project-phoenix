@@ -91,15 +91,29 @@ describe("CarePlanDayTimeline", () => {
     expect(screen.getByText(/abgesagt/)).toBeInTheDocument();
   });
 
-  it("renders a deviation banner above the timeline", () => {
+  it("shows the deviation banner and suppresses the plan for an all-day absence", () => {
+    // A status-day deviation (Krank/Entschuldigt/Klassenfahrt) IS an all-day
+    // absence, so the normal timeline must not render beneath the banner even
+    // though the day itself carries a plan and no no-time exception.
     render(
       <CarePlanDayTimeline
-        day={day()}
+        day={day({
+          arrival: { expectedTime: "08:00", source: "schedule" },
+          instances: [instance()],
+          pickup: { expectedTime: "15:30", source: "schedule" },
+        })}
         deviation={{ kind: "sick", label: "Krank", note: "Fieber" }}
       />,
     );
     expect(screen.getByText("Krank")).toBeInTheDocument();
     expect(screen.getByText(/Fieber/)).toBeInTheDocument();
+    // Plan suppressed: no anchors, no activity block, no free-care band.
+    expect(screen.queryByText("Ankunft")).not.toBeInTheDocument();
+    expect(screen.queryByText("Abholung")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mittagessen")).not.toBeInTheDocument();
+    expect(screen.queryByText("Freie Betreuung")).not.toBeInTheDocument();
+    // The banner stands alone — no duplicate absence notice.
+    expect(screen.queryByText("Kommt heute nicht")).not.toBeInTheDocument();
   });
 
   it("surfaces an exception arrival as abweichend with its reason", () => {

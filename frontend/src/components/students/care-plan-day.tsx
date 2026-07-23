@@ -254,6 +254,11 @@ export function CarePlanDayTimeline({
   // A no-time arrival/pickup exception is a planned absence that overrides the
   // normal plan for the day.
   const absence = day ? resolveAbsence(day) : { absent: false };
+  // A status-day deviation (Krank / Entschuldigt / Klassenfahrt) is itself an
+  // all-day absence — DayDeviation.kind is only ever one of those three — so it
+  // suppresses the plan exactly like a no-time exception. Without this the
+  // normal timeline rendered UNDER the "Krank" banner, contradicting it.
+  const isAbsent = absence.absent || deviation != null;
   const timeline = day ? buildTimeline(day) : [];
   const isEmpty = !hasArrival && !hasPickup && timeline.length === 0;
 
@@ -261,15 +266,17 @@ export function CarePlanDayTimeline({
     <div className={compact ? "space-y-2" : "space-y-2.5"}>
       {deviation ? <DeviationBanner deviation={deviation} /> : null}
 
-      {isEmpty ? (
-        <p className="py-6 text-center text-sm text-gray-500">
-          Kein Betreuungsplan für diesen Tag.
-        </p>
-      ) : absence.absent ? (
+      {isAbsent ? (
         // Suppress the plan; the deviation banner (if any) already explains why.
+        // A status-day absence shows the banner alone; a plain no-time exception
+        // with no banner falls back to its own notice.
         deviation ? null : (
           <AbsenceNotice reason={absence.reason} />
         )
+      ) : isEmpty ? (
+        <p className="py-6 text-center text-sm text-gray-500">
+          Kein Betreuungsplan für diesen Tag.
+        </p>
       ) : (
         <>
           {hasArrival ? (

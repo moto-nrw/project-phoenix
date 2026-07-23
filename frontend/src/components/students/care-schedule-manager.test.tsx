@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CareScheduleManager } from "./care-schedule-manager";
 import type { ArrivalData } from "~/lib/student-arrival-api";
@@ -352,6 +358,29 @@ describe("CareScheduleManager", () => {
     ).toBeGreaterThan(0);
     expect(screen.getAllByText("Ankunft:").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Abholung:").length).toBeGreaterThan(0);
+  });
+
+  it("re-fetches arrival and pickup on a remote care-schedule-stale event", async () => {
+    // The editor holds arrival/pickup in local state and stays force-mounted, so
+    // it cannot see SWR invalidation; the global SSE hook announces remote
+    // pickup/arrival changes on this window event, which it must react to.
+    render(
+      <CareScheduleManager studentId="42" statusDays={statusDays} readOnly />,
+    );
+    await screen.findByText("Betreuungsplan");
+
+    expect(mockFetchArrivalData).toHaveBeenCalledTimes(1);
+    expect(mockFetchStudentPickupData).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("phoenix:care-schedule-stale"));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(mockFetchArrivalData).toHaveBeenCalledTimes(2);
+      expect(mockFetchStudentPickupData).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("reports the newly visible week range when navigating", async () => {

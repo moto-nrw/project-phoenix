@@ -342,6 +342,33 @@ export function CareScheduleManager({
     loadCareData().catch(() => undefined);
   }, [loadCareData]);
 
+  // React to REMOTE arrival/pickup changes. This editor keeps its arrival/pickup
+  // in local state (not SWR) and stays force-mounted across tabs, so the global
+  // SSE hook's SWR invalidation never reaches it. It announces staleness on this
+  // window event instead; re-fetch quietly (no spinner, no onUpdate — that would
+  // ripple a parent refresh for a change the parent already heard about).
+  useEffect(() => {
+    const onStale = () => {
+      Promise.all([
+        fetchArrivalData(studentId),
+        fetchStudentPickupData(studentId),
+      ])
+        .then(([arrival, pickup]) => {
+          setArrivalData(arrival);
+          setPickupData(pickup);
+        })
+        .catch((err) => {
+          logger.debug("care_schedule_remote_refresh_failed", {
+            error: err instanceof Error ? err.message : String(err),
+            student_id: studentId,
+          });
+        });
+    };
+    window.addEventListener("phoenix:care-schedule-stale", onStale);
+    return () =>
+      window.removeEventListener("phoenix:care-schedule-stale", onStale);
+  }, [studentId]);
+
   const handleUpdateWeeklyPlan = async (data: {
     arrivalSchedules: ArrivalScheduleFormEntry[];
     pickupData: BulkPickupScheduleFormData;

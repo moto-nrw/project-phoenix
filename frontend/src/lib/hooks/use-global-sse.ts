@@ -344,6 +344,25 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
+    // The Betreuungszeiten editor (CareScheduleManager) holds its arrival/pickup
+    // data in local state, NOT SWR, and stays force-mounted across tabs — so the
+    // mutate() calls above never reach it and a remote pickup/arrival change (a
+    // colleague's edit, or an approved parent request) leaves it stale until the
+    // page reloads. It owns its correctly-scoped refetch, so mirror the
+    // reminders/tenant-settings decoupling: announce staleness on a window
+    // event and let the mounted editor re-fetch. student_updated is included
+    // because a parent care-exception submit/delete changes the day's
+    // pickup/arrival override under that event alone.
+    if (
+      hasPendingPickupScheduleEvent.current ||
+      hasPendingArrivalScheduleEvent.current ||
+      hasPendingStudentUpdateEvent.current
+    ) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("phoenix:care-schedule-stale"));
+      }
+    }
+
     // Invalidate dashboard for activity events, explicit dashboard broadcasts,
     // and student movement fallbacks. BroadcastToAll is best-effort, so a
     // delivered student_checkin/student_checkout may be the only signal that
