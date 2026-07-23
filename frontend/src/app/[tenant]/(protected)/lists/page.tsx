@@ -828,6 +828,22 @@ export default function SlotListsPage() {
     ],
   );
 
+  // A live snapshot of the request identity, refreshed every render. handleExport
+  // closes over the request value at click time and then awaits two network
+  // round-trips before it hands out the file; during that window the date,
+  // source, list type, slot selection, or filters can still change. This ref
+  // exposes the CURRENT request so the export can detect that mid-flight change
+  // and refuse rather than download/print the list the user has already navigated
+  // away from — the revalidation fetches below all use the captured (now stale)
+  // request/dateISO, so they validate the old document against itself and would
+  // otherwise pass. The request useMemo returns a stable reference while its
+  // document-affecting inputs are unchanged and a fresh one on any change, so an
+  // identity comparison against the captured value is exact (#1565 review pass 7).
+  const requestRef = useRef(request);
+  useEffect(() => {
+    requestRef.current = request;
+  }, [request]);
+
   // For slot lists the active (non-cancelled) instance set is authoritative and
   // comes from /options, never the preview. Until it loads, activeInstanceIds is
   // null and the request omits instance_ids — which the backend reads as "all
@@ -1320,13 +1336,15 @@ export default function SlotListsPage() {
         }
       }
 
-      // Lock the export action and every list control NOW, before the two async
-      // revalidation round-trips below. Left unlocked, the buttons stay enabled
-      // and the date/source/filter controls stay interactive throughout
-      // preflight, so a double-click launches duplicate downloads/print tabs and
-      // changing the date, source or filters mid-preflight lets a callback export
-      // its captured stale request after the UI has moved to another list (#1565
-      // review pass 6). Every bail-out path below clears it again.
+      // Lock the export action NOW, before the two async revalidation round-trips
+      // below, so a double-click cannot launch duplicate downloads/print tabs.
+      // isExporting only disables the export buttons, though — the date, source,
+      // list-type, slot and filter controls stay interactive during preflight
+      // (disabling them would mean threading a disabled prop through the shared
+      // DatePicker/DesktopFilters kit). Changing any of them mid-preflight is
+      // instead caught by the requestRef identity gates below, which abort before
+      // a stale request is handed out (#1565 review pass 7). Every bail-out path
+      // below clears the lock again.
       setIsExporting(true);
       setError(null);
 
@@ -1424,6 +1442,20 @@ export default function SlotListsPage() {
         return;
       }
 
+      // If the user changed the date, source, list type, slot selection, or a
+      // filter while the options round-trip was in flight, everything below still
+      // operates on the captured (now stale) request — the preview refetch and the
+      // export would hand out the list the UI has moved away from. Abort here
+      // rather than waste the preview fetch on it (#1565 review pass 7).
+      if (requestRef.current !== request) {
+        printTarget?.close();
+        setIsExporting(false);
+        setError(
+          "Die Auswahl hat sich während des Exports geändert. Bitte prüfen und erneut exportieren.",
+        );
+        return;
+      }
+
       // The options guard above only sees slot/cohort METADATA. Roster membership
       // and attendance can drift without touching it — a child swaps groups or
       // cohorts, checks in/out, or is marked sick — and the export re-derives from
@@ -1455,6 +1487,19 @@ export default function SlotListsPage() {
         setResult(freshPreview);
         setError(
           "Die Liste hat sich seit dem Laden geändert. Bitte prüfen und erneut exportieren.",
+        );
+        return;
+      }
+
+      // Final identity gate before the file is handed out: the preview refetch
+      // above is another round-trip during which the selection could have moved
+      // on. Never export the captured request once the live selection no longer
+      // matches it (#1565 review pass 7).
+      if (requestRef.current !== request) {
+        printTarget?.close();
+        setIsExporting(false);
+        setError(
+          "Die Auswahl hat sich während des Exports geändert. Bitte prüfen und erneut exportieren.",
         );
         return;
       }

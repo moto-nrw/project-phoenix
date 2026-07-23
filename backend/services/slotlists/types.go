@@ -310,6 +310,16 @@ type Result struct {
 	// never serializes; it exists only so the export "Enthalten" summary counts
 	// these as contained Termine instead of skipping every cancelled slot (#1565).
 	retainedCancelledSlots map[int64]struct{}
+	// exportHeaderSig is the rendered document header (title + every export filter
+	// line) fingerprinted into Signature. The row/counter hash alone does not
+	// cover the "Enthalten" slot summary, which is derived from Slots plus the
+	// retained/deferred sets — so a rowless selected slot cancelled between the
+	// verified preview and the export rebuild would change the printed header
+	// while the row/counter hash stayed equal and slipped past the 409 drift guard
+	// (#1565 review pass 7). Precomputed in BuildList because the header needs
+	// Params (the slot selection, classes, grouping); unexported so it never
+	// serializes.
+	exportHeaderSig string
 }
 
 // PickupCohortOption describes whether a Ganztag pickup bucket has rows on a

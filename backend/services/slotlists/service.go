@@ -530,22 +530,37 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 	})
 	result.Rows = rows
 	result.Counters = countRows(rows, params.Source)
+	// Fingerprint the exact rendered header (title + every export filter line)
+	// so the signature reflects the "Enthalten" slot summary and the other
+	// metadata lines the export prints, not just rows and counters (#1565 review
+	// pass 7). Computed here because the header needs Params.
+	result.exportHeaderSig = strings.Join(
+		append([]string{documentTitle(result)}, exportFilters(params, result)...),
+		"\x1f",
+	)
 	result.Signature = listSignature(result)
 	return result, nil
 }
 
 // listSignature is a stable content hash of the rendered list: its label,
-// provenance, counters and every row's identity, placement and status. Rows are
-// already sorted deterministically by BuildList, so a positional walk is stable
-// across two builds of the same unchanged data. Unit/record separators (0x1f /
-// 0x1e) delimit fields so no value can be confused with a boundary. See the
-// Result.Signature doc for how the export drift guard uses it (#1565 review
-// pass 2).
+// provenance, the precomputed export header (title + filter lines, which carry
+// the "Enthalten" slot summary — see Result.exportHeaderSig), counters and every
+// row's identity, placement and status. Rows are already sorted deterministically
+// by BuildList, so a positional walk is stable across two builds of the same
+// unchanged data. Unit/record separators (0x1f / 0x1e) delimit fields so no value
+// can be confused with a boundary. See the Result.Signature doc for how the
+// export drift guard uses it (#1565 review pass 2 + pass 7).
 func listSignature(r *Result) string {
 	var b strings.Builder
 	b.WriteString(r.ListLabel)
 	b.WriteByte('\x1e')
 	b.WriteString(r.Provenance)
+	b.WriteByte('\x1e')
+	// The rendered document header (title + export filter lines), precomputed in
+	// BuildList. Binds the signature to the "Enthalten" slot summary and the
+	// date/group/class/grouping metadata the export prints — none of which the
+	// row/counter hash below covers (#1565 review pass 7).
+	b.WriteString(r.exportHeaderSig)
 	b.WriteByte('\x1e')
 	fmt.Fprintf(&b, "%d\x1f%d\x1f%d\x1f%d\x1f%d\x1e",
 		r.Counters.Planned, r.Counters.Present, r.Counters.Missing,

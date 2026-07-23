@@ -67,3 +67,35 @@ func TestListSignature(t *testing.T) {
 		assert.NotEqual(t, listSignature(a), listSignature(b))
 	})
 }
+
+// TestListSignatureExportHeader guards the #1565 review-pass-7 extension: the
+// exported file header carries the "Enthalten" slot summary (derived in BuildList
+// from Slots plus the retained/deferred sets). A rowless selected slot cancelled
+// between the verified preview and the export rebuild changes that summary without
+// moving any row or counter, so the signature must track exportHeaderSig or the
+// 409 drift guard would hand out a file whose header differs from the preview.
+func TestListSignatureExportHeader(t *testing.T) {
+	base := func() *Result {
+		return &Result{
+			ListLabel:       "Ganztag",
+			Provenance:      "Plan",
+			exportHeaderSig: "Tagesliste Plan – Ganztag\x1fEnthalten: 3 Angebote",
+			Counters:        Counters{Planned: 2},
+			Rows: []Row{
+				{StudentID: 1, Name: "Anna", SchoolClass: "1a", GroupName: "Rot", Slot: "AG", StatusLabel: "Anwesend", Planned: true},
+			},
+		}
+	}
+
+	t.Run("identical header yields identical signature", func(t *testing.T) {
+		assert.Equal(t, listSignature(base()), listSignature(base()))
+	})
+
+	t.Run("a changed included-slot summary flips the signature", func(t *testing.T) {
+		// One rowless selected slot was cancelled: "3 Angebote" -> "2 Angebote"
+		// in the header while the single row and the counter stay put.
+		changed := base()
+		changed.exportHeaderSig = "Tagesliste Plan – Ganztag\x1fEnthalten: 2 Angebote"
+		assert.NotEqual(t, listSignature(base()), listSignature(changed))
+	})
+}
