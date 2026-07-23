@@ -1,12 +1,24 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 import {
+  ABSENCES_REFRESH_EVENT,
+  absenceTypeNoun,
   absenceStatusMeta,
   countWorkdaysInclusive,
   dayCountFor,
+  dispatchAbsencesRefresh,
   formatAbsenceRange,
   formatDayCount,
 } from "./absence-helpers";
+
+describe("absenceTypeNoun", () => {
+  it("maps known types and falls back to the generic noun", () => {
+    expect(absenceTypeNoun("sick")).toBe("Krankmeldung");
+    expect(absenceTypeNoun("vacation")).toBe("Urlaub");
+    expect(absenceTypeNoun("training")).toBe("Fortbildung");
+    expect(absenceTypeNoun("other")).toBe("Abwesenheit");
+  });
+});
 
 describe("absenceStatusMeta", () => {
   it("maps every workflow status to a German label", () => {
@@ -44,6 +56,10 @@ describe("countWorkdaysInclusive", () => {
   it("returns 0 for inverted ranges", () => {
     expect(countWorkdaysInclusive("2027-07-11", "2027-07-05")).toBe(0);
   });
+
+  it("returns 0 for a weekend-only range", () => {
+    expect(countWorkdaysInclusive("2027-07-10", "2027-07-11")).toBe(0);
+  });
 });
 
 describe("dayCountFor", () => {
@@ -80,6 +96,62 @@ describe("dayCountFor", () => {
       }),
     ).toBe(0.5);
   });
+
+  it("keeps a full legacy day when halfDay is false", () => {
+    expect(
+      dayCountFor({
+        dateStart: "2027-07-05",
+        dateEnd: "2027-07-05",
+        halfDay: false,
+        hasBoundaryFields: false,
+      }),
+    ).toBe(1);
+  });
+
+  it("returns 0 before applying half-day boundaries to an empty range", () => {
+    expect(
+      dayCountFor({
+        dateStart: "2027-07-10",
+        dateEnd: "2027-07-11",
+        startHalfDay: true,
+        endHalfDay: true,
+        hasBoundaryFields: true,
+      }),
+    ).toBe(0);
+  });
+
+  it("handles a same-day end-half-day boundary without double subtraction", () => {
+    expect(
+      dayCountFor({
+        dateStart: "2027-07-05",
+        dateEnd: "2027-07-05",
+        startHalfDay: false,
+        endHalfDay: true,
+        hasBoundaryFields: true,
+      }),
+    ).toBe(0.5);
+    expect(
+      dayCountFor({
+        dateStart: "2027-07-05",
+        dateEnd: "2027-07-05",
+        startHalfDay: true,
+        endHalfDay: true,
+        hasBoundaryFields: true,
+      }),
+    ).toBe(0.5);
+  });
+
+  it("does not subtract half days from weekend boundaries", () => {
+    expect(
+      dayCountFor({
+        dateStart: "2027-07-04",
+        dateEnd: "2027-07-10",
+        startHalfDay: true,
+        endHalfDay: true,
+        hasBoundaryFields: true,
+      }),
+    ).toBe(5);
+  });
 });
 
 describe("formatDayCount", () => {
@@ -96,5 +168,17 @@ describe("formatAbsenceRange", () => {
     expect(formatAbsenceRange("2027-07-05", "2027-07-06")).toBe(
       "05.07.2027 - 06.07.2027",
     );
+  });
+});
+
+describe("dispatchAbsencesRefresh", () => {
+  it("dispatches the shared refresh event", () => {
+    const listener = vi.fn();
+    window.addEventListener(ABSENCES_REFRESH_EVENT, listener);
+
+    dispatchAbsencesRefresh();
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    window.removeEventListener(ABSENCES_REFRESH_EVENT, listener);
   });
 });

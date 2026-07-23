@@ -695,6 +695,41 @@ describe("TimeTrackingService", () => {
     });
   });
 
+  describe("resubmitAbsence", () => {
+    it("sends the amended note for another decision round", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "Resubmitted",
+        data: null,
+      });
+
+      await timeTrackingService.resubmitAbsence(
+        "7",
+        "Die Vertretung ist geklärt",
+      );
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/time-tracking/absences/7/resubmit",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ note: "Die Vertretung ist geklärt" }),
+        }),
+      );
+    });
+
+    it("surfaces the backend error", async () => {
+      global.fetch = mockFetchResponse(
+        { error: "Nur Rückfragen können erneut eingereicht werden" },
+        false,
+        409,
+      );
+
+      await expect(
+        timeTrackingService.resubmitAbsence("7", "Antwort"),
+      ).rejects.toThrow("Nur Rückfragen können erneut eingereicht werden");
+    });
+  });
+
   describe("getVacationQuota", () => {
     const quota = {
       staff_id: 10,

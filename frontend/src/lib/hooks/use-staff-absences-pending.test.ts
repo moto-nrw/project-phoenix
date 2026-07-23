@@ -9,6 +9,7 @@ const {
   mockHasPermission,
   mockUseUnreadCount,
   mockListPending,
+  mockUseTenantSlugSafe,
 } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
   mockUseShellAuth: vi.fn(),
@@ -16,6 +17,7 @@ const {
   mockHasPermission: vi.fn(),
   mockUseUnreadCount: vi.fn(),
   mockListPending: vi.fn(),
+  mockUseTenantSlugSafe: vi.fn(),
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -39,7 +41,8 @@ vi.mock("~/lib/staff-api", () => ({
 }));
 
 vi.mock("~/lib/tenant-context", () => ({
-  useTenantSlugSafe: (): string => "testschool",
+  useTenantSlugSafe: (): ReturnType<typeof mockUseTenantSlugSafe> =>
+    mockUseTenantSlugSafe(),
 }));
 
 vi.mock("./use-unread-count", () => ({
@@ -62,6 +65,7 @@ beforeEach(() => {
   mockIsAdmin.mockReturnValue(false);
   mockHasPermission.mockReturnValue(false);
   mockUseShellAuth.mockReturnValue({ mode: "teacher" });
+  mockUseTenantSlugSafe.mockReturnValue("testschool");
   mockUseSession.mockReturnValue({
     data: { user: { id: "7" } },
     status: "authenticated",
@@ -115,5 +119,18 @@ describe("useStaffAbsencesPending", () => {
     expect(capturedOptions().cacheKey).toBe(
       "staff_absences_pending_count:testschool:7",
     );
+  });
+
+  it("uses empty cache-key segments before tenant and account resolution", () => {
+    mockUseTenantSlugSafe.mockReturnValue(null);
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: "loading",
+    });
+
+    const opts = capturedOptions();
+
+    expect(opts.enabled).toBe(false);
+    expect(opts.cacheKey).toBe("staff_absences_pending_count::");
   });
 });
