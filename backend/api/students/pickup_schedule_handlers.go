@@ -422,11 +422,19 @@ func (rs *Resource) broadcastPickupScheduleChanged(tenantID, studentID int64) {
 		return
 	}
 
+	// student_id lets each client invalidate only THAT child's per-student
+	// caches (care-plan-*, pickup-data-*, student-detail-*) instead of every
+	// child's; the student-list refresh stays broad because a list response
+	// carries the pickup times of all its rows. Only the opaque id travels — no
+	// name, unlike student_checkin — and the refetch it triggers is still
+	// server-authorized per student, so a staffer without access to the child
+	// gains nothing from the event.
 	source := "manual"
+	studentIDStr := fmt.Sprintf("%d", studentID)
 	event := realtime.NewEvent(
 		realtime.EventPickupScheduleChanged,
 		"",
-		realtime.EventData{Source: &source},
+		realtime.EventData{Source: &source, StudentID: &studentIDStr},
 	)
 	if err := rs.Broadcaster.BroadcastToTenant(tenantID, event); err != nil && rs.Logger != nil {
 		rs.Logger.Warn(

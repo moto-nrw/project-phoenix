@@ -609,6 +609,70 @@ describe("useGlobalSSE — companion announcements", () => {
     }
   });
 
+  it("leaves other children's caches alone on pickup_schedule_changed", () => {
+    renderHook(() => useGlobalSSE());
+
+    // The event names the child it concerns, so one Gehzeit edit must not make
+    // every staff tab refetch every other open child's plan, header and detail
+    // caches. The student LISTS stay broad on purpose — a list response carries
+    // the pickup time of every row it returns.
+    fireSSE(makeEvent("pickup_schedule_changed", { student_id: "s1" }));
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const matchers = mockMutate.mock.calls
+      .map(([matcher]) => matcher)
+      .filter(
+        (matcher): matcher is (key: unknown) => boolean =>
+          typeof matcher === "function",
+      );
+    const matchesAny = (key: string) =>
+      matchers.some((matcher) => matcher(key));
+
+    expect(matchesAny("t1:pickup-data-s1")).toBe(true);
+    for (const key of [
+      "t1:care-plan-day-s2-2026-07-22",
+      "t1:care-plan-week-s2-2026-07-20-2026-07-24",
+      "t1:pickup-data-s2",
+      "t1:student-detail-s2",
+    ]) {
+      expect(matchesAny(key), `${key} belongs to another child`).toBe(false);
+    }
+    // The list refresh is still broad.
+    expect(matchesAny("t1:search-students--all-")).toBe(true);
+  });
+
+  it("falls back to a broad pickup refresh when the event carries no student_id", () => {
+    renderHook(() => useGlobalSSE());
+
+    // Rolling deploy: a backend older than the student_id field. Narrow
+    // invalidation would then match nothing, so the flag alone must still
+    // refresh the pickup-derived caches — a stale Gehzeit is worse than a few
+    // extra refetches for the length of the deploy.
+    fireSSE(makeEvent("pickup_schedule_changed", {}));
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const matchers = mockMutate.mock.calls
+      .map(([matcher]) => matcher)
+      .filter(
+        (matcher): matcher is (key: unknown) => boolean =>
+          typeof matcher === "function",
+      );
+    for (const key of [
+      "t1:care-plan-day-s2-2026-07-22",
+      "t1:pickup-data-s2",
+      "t1:student-detail-s2",
+    ]) {
+      expect(
+        matchers.some((matcher) => matcher(key)),
+        `an id-less pickup event must still invalidate ${key}`,
+      ).toBe(true);
+    }
+  });
+
   it("refreshes the detail header's pickup/arrival slots on student_updated", () => {
     renderHook(() => useGlobalSSE());
 

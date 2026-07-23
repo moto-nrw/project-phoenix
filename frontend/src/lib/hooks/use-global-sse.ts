@@ -47,6 +47,15 @@ const STUDENT_SCOPED_KEY_PREFIXES = [
   "care-plan-week-",
 ] as const;
 
+// What a pickup (Gehzeit) write touches for ONE child: the same three, plus the
+// detail header's pickup slot. Deliberately a separate list — adding
+// "pickup-data-" to the set above would refetch the header's pickup payload on
+// every check-in, which never changes the plan.
+const PICKUP_SCOPED_KEY_PREFIXES = [
+  ...STUDENT_SCOPED_KEY_PREFIXES,
+  "pickup-data-",
+] as const;
+
 /**
  * Whether an SWR cache key belongs to exactly this student.
  *
@@ -57,8 +66,12 @@ const STUDENT_SCOPED_KEY_PREFIXES = [
  * The id must therefore end the key or be followed by "-", and the prefix must
  * start the key or sit right after the tenant separator.
  */
-function keyTargetsStudent(key: string, studentId: string): boolean {
-  return STUDENT_SCOPED_KEY_PREFIXES.some((prefix) => {
+function keyTargetsStudent(
+  key: string,
+  studentId: string,
+  prefixes: readonly string[] = STUDENT_SCOPED_KEY_PREFIXES,
+): boolean {
+  return prefixes.some((prefix) => {
     const needle = `${prefix}${studentId}`;
     for (
       let at = key.indexOf(needle);
@@ -113,8 +126,11 @@ export function useGlobalSSE(): SSEHookState {
   const hasPendingArrivalScheduleEvent = useRef(false);
   // Pickup (Gehzeit) writes get their own flag rather than riding the arrival
   // one: they invalidate a different key set, and merging them would refetch
-  // the arrival caches on every pickup edit.
+  // the arrival caches on every pickup edit. The flag drives the tenant-wide
+  // half (student lists, reminders); the id set below drives the per-child
+  // half, so one child's edit doesn't refetch every open child's caches.
   const hasPendingPickupScheduleEvent = useRef(false);
+  const pendingPickupStudentIds = useRef(new Set<string>());
   const hasPendingStudentUpdateEvent = useRef(false);
   // Kept apart from the student-update flag on purpose: only a write that can
   // actually have changed the "läuft mit" links sets it.
@@ -304,24 +320,49 @@ export function useGlobalSSE(): SSEHookState {
     }
 
     // Pickup (Gehzeit) plan or exception changed. The per-child Betreuungsplan
-    // renders the resolved pickup slot, and the student detail response carries
-    // the day-planning pickup time — both fetched with focus revalidation
-    // disabled, so this event is their ONLY live update path: without it a
-    // colleague's Gehzeit edit stays invisible in an open tab indefinitely.
-    // The student list caches above are covered by the same flag.
-    if (hasPendingPickupScheduleEvent.current) {
+    // renders the resolved pickup slot, the detail header shows "Gehzeit heute",
+    // and the student detail response carries the day-planning pickup time —
+    // all fetched with focus revalidation disabled, so this event is their ONLY
+    // live update path: without it a colleague's Gehzeit edit stays invisible in
+    // an open tab indefinitely. The student list caches are covered by the flag
+    // in the broad block above (a list response carries every row's pickup
+    // time, so that half cannot be narrowed to one child).
+    //
+    // Per child, driven by the event's student_id: a single Gehzeit edit used to
+    // make EVERY staff tab in the school refetch EVERY open child's care-plan,
+    // header and detail caches.
+    for (const studentId of pendingPickupStudentIds.current) {
+      mutate(
+        (key) =>
+          typeof key === "string" &&
+          keyTargetsStudent(key, studentId, PICKUP_SCOPED_KEY_PREFIXES),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "pickup_schedule",
+        });
+      });
+    }
+
+    // Fallback for an event that carries no student_id — a backend older than
+    // the field during a rolling deploy, where the narrow path above would
+    // invalidate nothing at all. Correctness beats precision here: a stale
+    // Gehzeit is worse than a few extra refetches for the length of a deploy.
+    if (
+      hasPendingPickupScheduleEvent.current &&
+      pendingPickupStudentIds.current.size === 0
+    ) {
       mutate(
         (key) =>
           typeof key === "string" &&
           (key.includes("care-plan-day-") ||
             key.includes("care-plan-week-") ||
-            // the detail header's "Gehzeit heute" slot
             key.includes("pickup-data-") ||
             key.includes("student-detail-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
-          scope: "pickup_schedule",
+          scope: "pickup_schedule_broad",
         });
       });
     }
@@ -465,6 +506,7 @@ export function useGlobalSSE(): SSEHookState {
     hasPendingDailyCheckoutDashboardEvent.current = false;
     hasPendingArrivalScheduleEvent.current = false;
     hasPendingPickupScheduleEvent.current = false;
+    pendingPickupStudentIds.current.clear();
     hasPendingStudentUpdateEvent.current = false;
     hasPendingCompanionEvent.current = false;
     hasPendingTimetableEvent.current = false;
@@ -569,6 +611,11 @@ export function useGlobalSSE(): SSEHookState {
           // submits do NOT emit this — they broadcast student_updated, which
           // already invalidates the same caches above.
           hasPendingPickupScheduleEvent.current = true;
+          // Absent only from a backend predating the field; the flag alone then
+          // drives the broad fallback in flushInvalidations.
+          if (event.data.student_id) {
+            pendingPickupStudentIds.current.add(event.data.student_id);
+          }
           scheduleFlush();
           break;
         }
