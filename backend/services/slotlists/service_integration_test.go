@@ -577,6 +577,93 @@ func TestBuildList_CancelledFromActiveRetainsAttendance(t *testing.T) {
 	assert.Equal(t, 0, result.Counters.Planned, "a cancelled slot's void plan yields no planned rows")
 }
 
+// TestBuildList_CancelledManualAbsenceSuppressesStaleVisit proves that a manual
+// attendance correction outranks stale visit evidence even when the slot is
+// afterwards CANCELLED. An erroneous scan created a visit, staff corrected the
+// roster row to absent (ManualStatusAt set), and the occurrence was then called
+// off — which keeps its ActiveGroupID and the historical visit. The void-plan
+// retention pass must honour the human correction: the child must NOT resurface
+// as "Anwesend" via the visit sweep and must not inflate the present counter.
+// Without the manual-correction case in retainVoidPlanRows this fails: the
+// retained visit is re-added as unplanned presence, contradicting the correction
+// (#1565 review pass 12 / P1).
+func TestBuildList_CancelledManualAbsenceSuppressesStaleVisit(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-CxlManRoom-%d", suffix))
+	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-CxlManAct-%d", suffix))
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	listKind := activitiesModels.ListKindMensa
+
+	// Cancelled AFTER it ran: ActiveGroupID and the visit are preserved, exactly
+	// the state InstanceService.Cancel leaves behind for an already-active slot.
+	instance := &scheduleModels.ActivityInstance{
+		Date:            listDate,
+		ActivityGroupID: &activity.ID,
+		Title:           fmt.Sprintf("Mensa-CxlMan %d", suffix),
+		StartTime:       time.Date(1, 1, 1, 11, 30, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 13, 0, 0, 0, time.UTC),
+		RoomID:          room.ID,
+		Status:          scheduleModels.InstanceStatusCancelled,
+		ActiveGroupID:   &activeGroup.ID,
+		ListKind:        &listKind,
+	}
+	instance.SetTenantID(1)
+	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
+	require.NoError(t, err)
+
+	corrected := testpkg.CreateTestStudent(t, db, "SL-CxlManCorr", fmt.Sprintf("CMC-%d", suffix), "3a")
+
+	// Roster row corrected to absent by hand: ManualStatusAt records the human
+	// decision. The erroneous scan's visit still exists (created below).
+	manualAt := atOn(listDate, 12, 0)
+	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	row := &scheduleModels.InstanceStudent{
+		InstanceID:     instance.ID,
+		StudentID:      corrected.ID,
+		Status:         scheduleModels.AttendanceStatusAbsent,
+		ManualStatusAt: &manualAt,
+	}
+	row.SetTenantID(1)
+	require.NoError(t, isRepo.Create(ctx, row))
+
+	entry := atOn(listDate, 11, 35)
+	exit := atOn(listDate, 12, 15)
+	visit := testpkg.CreateTestVisit(t, db, corrected.ID, activeGroup.ID, entry, &exit)
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID)
+		testpkg.CleanupActivityFixtures(t, db, corrected.ID)
+		testpkg.CleanupTableRecords(t, db, "active.groups", activeGroup.ID)
+		testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activity.ID, room.ID)
+	})
+
+	svc := newTestService(db)
+	result, err := svc.BuildList(ctx, slotlists.Params{
+		Date:   listDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+
+	// A cancelled slot's void plan prints no "Fehlt", and the manual absence must
+	// suppress the retained visit — so the child either drops off the list
+	// entirely or, if present, is never reported present. Assert both robustly.
+	correctedRow := rowByStudent(result.Rows, corrected.ID)
+	if correctedRow != nil {
+		assert.False(t, correctedRow.Present,
+			"manual absence must suppress the stale scan visit on a cancelled slot")
+	}
+	assert.Equal(t, 0, result.Counters.Present,
+		"the suppressed visit must not inflate the present counter")
+}
+
 func TestBuildList_ListKindRestrictsSlots(t *testing.T) {
 	f := buildMensaFixture(t)
 	ctx := testpkg.TenantContext(1)

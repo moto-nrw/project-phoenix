@@ -1313,7 +1313,7 @@ func recordVoidPlanAccounting(result *Result, instanceID int64, cancelled, defer
 // whether any row was kept (for the export "Enthalten" accounting).
 //
 // A void plan is never a source of "Fehlt": the caller nils `planned` after this
-// so no roster row reaches the switch. Two kinds of row still carry real
+// so no roster row reaches the switch. Three kinds of row still carry real
 // information that must survive that suppression:
 //
 //   - Present evidence. A timetable PATCH records status=present on the roster row
@@ -1332,6 +1332,14 @@ func recordVoidPlanAccounting(result *Result, instanceID int64, cancelled, defer
 //     review pass 1 P2). A cancelled slot is deliberately excluded: the whole
 //     occurrence was called off, so a per-slot sign-off is moot and only present
 //     evidence is retained.
+//
+//   - A manual NON-present correction (ManualStatusAt set, status absent/expected)
+//     on a CANCELLED slot. The slot retained its ActiveGroupID and the erroneous
+//     scan's visit, so the child is still in presentSet; the human correction must
+//     win over that stale visit, exactly as classifyPlannedRows enforces on a live
+//     slot. Such a row emits nothing (a void plan prints no "Fehlt") but is marked
+//     seen so the presence sweep does not resurrect the visit and report the child
+//     "Anwesend" against the correction (#1565 review pass 12 / P1).
 func (s *service) retainVoidPlanRows(
 	p slotContext,
 	planned []*scheduleModel.InstanceStudent,
@@ -1371,6 +1379,23 @@ func (s *service) retainVoidPlanRows(
 				PlannedStatus:    scheduleModel.AttendanceStatusAbsent,
 				PlannedSubstatus: &substatusCopy,
 			})
+		case row.ManualStatusAt != nil:
+			// A manual correction to a NON-present status (absent or expected; the
+			// present case above already caught a manual present) is a human
+			// decision that outranks stale visit evidence, exactly as
+			// classifyPlannedRows treats it on a live slot. This case is reached
+			// only for a CANCELLED slot (the `case deferred` above fully handles
+			// deferred rows, routing registered sign-offs — which ApplyStatusDay
+			// stamps WITHOUT ManualStatusAt — to "Abgemeldet" and continuing past
+			// everything else). A slot cancelled after it ran keeps its
+			// ActiveGroupID and the erroneous scan's visit, so the child is still in
+			// presentSet; without accounting for the row here appendUnseenPresent
+			// would resurrect that visit and report the child "Anwesend" against the
+			// explicit correction. Mark the student seen so the presence sweep skips
+			// them, and emit nothing — a void plan is never a source of
+			// "Fehlt"/"Abgemeldet", so a manual non-present correction simply drops
+			// the child from the called-off slot (#1565 review pass 12 / P1).
+			seenPlanned[row.StudentID] = struct{}{}
 		}
 	}
 	return entries, retained

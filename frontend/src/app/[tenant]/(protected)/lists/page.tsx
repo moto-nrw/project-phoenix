@@ -1434,6 +1434,17 @@ export default function SlotListsPage() {
       // controls and pruning now-cancelled selections) and ask the user to
       // re-check and export again, rather than hand out a stale or
       // differently-labeled list.
+      // Stamp this preflight /options read with the SHARED options generation so
+      // it participates in the same last-started-wins ordering as the initial
+      // load and revalidateOptions. Captured at fetch START (not at commit) so a
+      // focus/visibility revalidation already in flight is ordered by when it
+      // started, not when it resolves. Without this, the setListOptions(fresh)
+      // install in the drift branch below bypasses optionsCommittedGenerationRef
+      // entirely: an older revalidation resolving afterwards would still pass its
+      // own `generation <= committed` check and overwrite the export-fresh
+      // snapshot, rolling active slot IDs or cutoff metadata back and re-firing a
+      // stale preview / repeated export refusal (#1565 review pass 1 P2).
+      const exportOptionsGeneration = ++optionsRequestGenerationRef.current;
       let fresh: SlotListOptionsResult;
       try {
         fresh = await fetchSlotListOptions(dateISO);
@@ -1523,7 +1534,17 @@ export default function SlotListsPage() {
         // refresh this branch triggers, flashing for a frame or never showing at
         // all. Stash it exactly like the 409 path so the refreshed preview
         // reapplies it once the fresh content lands (#1565 review pass 13).
-        setListOptions(fresh);
+        //
+        // Commit under the shared generation: install `fresh` only when no newer
+        // /options request has committed since this preflight started, then
+        // advance the marker so an older revalidation resolving later is dropped
+        // rather than overwriting this snapshot. If a newer request already won,
+        // keep its options and just re-check (the drift warning is stashed below
+        // regardless) (#1565 review pass 1 P2).
+        if (exportOptionsGeneration > optionsCommittedGenerationRef.current) {
+          optionsCommittedGenerationRef.current = exportOptionsGeneration;
+          setListOptions(fresh);
+        }
         pendingPreviewWarning.current =
           target === "slots"
             ? "Die Angebote für diesen Tag haben sich seit dem Laden geändert. Bitte prüfen und erneut exportieren."
