@@ -98,7 +98,8 @@ export interface BackendStaffAbsence {
 }
 
 // Frontend absence type
-export type AbsenceType = "sick" | "vacation" | "training" | "other";
+export type AbsenceType =
+  "sick" | "vacation" | "training" | "other" | "comp_time";
 
 export interface StaffAbsence {
   id: string;
@@ -128,6 +129,7 @@ export const absenceTypeLabels: Record<AbsenceType, string> = {
   vacation: "Urlaub",
   training: "Fortbildung",
   other: "Sonstige",
+  comp_time: "Freizeitausgleich",
 };
 
 export function mapStaffAbsenceResponse(
@@ -615,8 +617,56 @@ export interface BackendMonthSummary {
   sick_days: number;
   vacation_days: number;
   planned_shift_minutes?: number | null;
+  adjustment_minutes: number;
+  adjustments?: BackendBalanceAdjustment[] | null;
   balance_minutes: number;
   closing_balance_minutes: number;
+}
+
+/** One Stundenkonto transaction (#1420): payout / comp-time grant / reset. */
+export interface BackendBalanceAdjustment {
+  id: number;
+  type: string;
+  minutes_delta: number;
+  effective_date: string;
+  note: string;
+  decided_by: number;
+  decided_at: string;
+}
+
+export type BalanceAdjustmentType = "payout" | "comp_time" | "reset";
+
+export interface BalanceAdjustment {
+  id: string;
+  type: BalanceAdjustmentType;
+  minutesDelta: number;
+  effectiveDate: string;
+  note: string;
+  decidedBy: string;
+  decidedAt: string;
+}
+
+export const balanceAdjustmentTypeLabels: Record<
+  BalanceAdjustmentType,
+  string
+> = {
+  payout: "Auszahlung",
+  comp_time: "Freizeitausgleich",
+  reset: "Reset",
+};
+
+export function mapBalanceAdjustmentResponse(
+  data: BackendBalanceAdjustment,
+): BalanceAdjustment {
+  return {
+    id: data.id.toString(),
+    type: data.type as BalanceAdjustmentType,
+    minutesDelta: data.minutes_delta,
+    effectiveDate: data.effective_date,
+    note: data.note,
+    decidedBy: data.decided_by.toString(),
+    decidedAt: data.decided_at,
+  };
 }
 
 /**
@@ -639,6 +689,8 @@ export interface MonthSummary {
   sickDays: number;
   vacationDays: number;
   plannedShiftMinutes: number | null;
+  adjustmentMinutes: number;
+  adjustments: BalanceAdjustment[];
   balanceMinutes: number;
   closingBalanceMinutes: number;
 }
@@ -660,6 +712,8 @@ export function mapMonthSummaryResponse(
     sickDays: data.sick_days,
     vacationDays: data.vacation_days,
     plannedShiftMinutes: data.planned_shift_minutes ?? null,
+    adjustmentMinutes: data.adjustment_minutes ?? 0,
+    adjustments: (data.adjustments ?? []).map(mapBalanceAdjustmentResponse),
     balanceMinutes: data.balance_minutes,
     closingBalanceMinutes: data.closing_balance_minutes,
   };

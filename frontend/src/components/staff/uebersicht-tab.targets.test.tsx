@@ -13,12 +13,14 @@ vi.mock("~/lib/swr", () => ({
     if (key) swrKeys.push(key);
     return { data: undefined, isLoading: false, error: undefined };
   },
+  useTenantMutateMatching: () => () => Promise.resolve([]),
 }));
 
 const getSchedule = vi.fn();
 const getScheduleTargetsRange = vi.fn();
 vi.mock("~/lib/staff-api", () => ({
   staffAbsenceService: { getAbsences: vi.fn() },
+  staffBalanceAdjustmentService: { list: vi.fn() },
   staffHistoryService: { getHistory: vi.fn() },
   staffScheduleService: {
     getSchedule: (...args: unknown[]) => getSchedule(...args),
@@ -28,6 +30,10 @@ vi.mock("~/lib/staff-api", () => ({
       getScheduleTargetsRange(...args),
     getMonthSummary: vi.fn(),
   },
+}));
+
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn() }),
 }));
 
 vi.mock("~/lib/time-tracking-api", () => ({

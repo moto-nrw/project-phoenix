@@ -9,6 +9,7 @@ export const ABSENCE_TYPE_LABEL: Record<string, string> = {
   sick: "Krank",
   training: "Fortbildung",
   other: "Sonstige",
+  comp_time: "Freizeitausgleich",
 };
 
 // Brand hex per absence type, rendered via StatusDotBadge (colored dot +
@@ -18,6 +19,7 @@ export const ABSENCE_TYPE_HEX: Record<string, string> = {
   sick: LOCATION_COLORS.SICK,
   training: LOCATION_COLORS.EXCUSED,
   other: LOCATION_COLORS.UNKNOWN,
+  comp_time: LOCATION_COLORS.TRANSIT,
 };
 
 // Noun form for action labels ("Krankmeldung löschen", not "Krank löschen");
@@ -26,6 +28,7 @@ export function absenceTypeNoun(absenceType: string): string {
   if (absenceType === "sick") return "Krankmeldung";
   if (absenceType === "vacation") return "Urlaub";
   if (absenceType === "training") return "Fortbildung";
+  if (absenceType === "comp_time") return "Freizeitausgleich";
   return "Abwesenheit";
 }
 

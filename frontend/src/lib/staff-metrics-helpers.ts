@@ -237,6 +237,10 @@ function absenceCreditForDay(
   key: string,
   range: EffectiveAbsenceRange,
 ): number {
+  // Freizeitausgleich (#1420 5b) wird bewusst NICHT gutgeschrieben: der Tag
+  // behält sein Soll, der Saldo sinkt um das Tagessoll. Der Tag gilt trotzdem
+  // als verbraucht (seen), gespiegelt zum Server (creditAbsenceDays).
+  if (absence.absence_type === "comp_time") return 0;
   const target = targetFor(day);
   return isHalfAbsenceBoundary(absence, key, range.startKey, range.endKey)
     ? Math.floor(target / 2)

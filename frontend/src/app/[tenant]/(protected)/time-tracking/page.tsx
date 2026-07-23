@@ -2879,6 +2879,7 @@ const ABSENCE_TYPE_OPTIONS: { value: AbsenceType; label: string }[] = [
   { value: "sick", label: "Krank" },
   { value: "vacation", label: "Urlaub" },
   { value: "training", label: "Fortbildung" },
+  { value: "comp_time", label: "Freizeitausgleich" },
   { value: "other", label: "Sonstige" },
 ];
 

@@ -39,6 +39,7 @@ DELETE /api/staff-shifts/series/{id}
 DELETE /api/staff-shifts/{id}
 DELETE /api/staff/{id}
 DELETE /api/staff/{id}/absences/{absenceId}
+DELETE /api/staff/{id}/time-tracking/adjustments/{adjustmentId}
 DELETE /api/students/{id}
 DELETE /api/students/{id}/arrival-exceptions/{exceptionId}
 DELETE /api/students/{id}/arrival-notes/{noteId}
@@ -282,6 +283,7 @@ GET /api/staff/{id}/avatar
 GET /api/staff/{id}/groups
 GET /api/staff/{id}/schedule
 GET /api/staff/{id}/substitutions
+GET /api/staff/{id}/time-tracking/adjustments
 GET /api/staff/{id}/time-tracking/export
 GET /api/staff/{id}/time-tracking/history
 GET /api/staff/{id}/time-tracking/month-summary
@@ -571,6 +573,8 @@ POST /api/staff/absences/{absenceId}/approve
 POST /api/staff/absences/{absenceId}/deny
 POST /api/staff/absences/{absenceId}/question
 POST /api/staff/{id}/absences
+POST /api/staff/{id}/time-tracking/adjustments
+POST /api/staff/{id}/time-tracking/reset
 POST /api/staff/{id}/time-tracking/sessions
 POST /api/students/
 POST /api/students/arrival-schedules/bulk

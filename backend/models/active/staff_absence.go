@@ -21,6 +21,10 @@ const (
 	AbsenceTypeVacation = "vacation"
 	AbsenceTypeTraining = "training"
 	AbsenceTypeOther    = "other"
+	// AbsenceTypeCompTime is Freizeitausgleich (#1420 5b): the day keeps its
+	// Soll but is deliberately NOT credited, so approving it reduces the
+	// Stundenkonto by the day's contractual target.
+	AbsenceTypeCompTime = "comp_time"
 )
 
 // AbsenceStatus constants. `reported` = admin-direct entry (skips approval),
@@ -43,6 +47,7 @@ var ValidAbsenceTypes = []string{
 	AbsenceTypeVacation,
 	AbsenceTypeTraining,
 	AbsenceTypeOther,
+	AbsenceTypeCompTime,
 }
 
 // ValidAbsenceStatuses lists all valid absence statuses

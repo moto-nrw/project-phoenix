@@ -32,6 +32,7 @@ import {
 import { UebersichtTabSkeleton } from "~/components/staff/uebersicht-tab-skeleton";
 import {
   staffAbsenceService,
+  staffBalanceAdjustmentService,
   staffHistoryService,
   staffMonthSummaryService,
 } from "~/lib/staff-api";
@@ -48,10 +49,12 @@ import {
 import { parseISODate } from "~/lib/date-helpers";
 import { useAccountBalance } from "~/lib/hooks/use-account-balance";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { timeTrackingService } from "~/lib/time-tracking-api";
+import type { BalanceAdjustment } from "~/lib/time-tracking-helpers";
 
 import { formatSignedDuration, KpiCard } from "./staff-time-views";
+import { StundenkontoPanel } from "./stundenkonto-panel";
 
 /**
  * Soll-Minuten je Kalendertag, aufgelöst gegen den Plan, der AN diesem Tag
@@ -147,6 +150,20 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
   >(`staff-absences-account-${staffId}-${accountStartKey}-${yearEndKey}`, () =>
     staffAbsenceService.getAbsences(staffId, accountStartKey, yearEndKey),
   );
+  // Stundenkonto-Buchungen (#1420) — Teil der Saldo-Wahrheit: sie fliessen in
+  // den kumulativen Saldo-Verlauf ein, sonst widerspricht die Kurve der
+  // "Stundenkonto"-Kachel direkt darueber.
+  const { data: accountAdjustments } = useSWRAuth<BalanceAdjustment[]>(
+    `staff-balance-adjustments-${staffId}-${accountStartKey}-${yearEndKey}`,
+    () =>
+      staffBalanceAdjustmentService.list(staffId, accountStartKey, yearEndKey),
+  );
+  const refreshStundenkonto = useTenantMutateMatching([
+    `staff-month-summary-${staffId}-`,
+    `staff-balance-adjustments-${staffId}-`,
+    `staff-history-account-${staffId}-`,
+    `staff-absences-account-${staffId}-`,
+  ]);
 
   // Date-valid Soll for the whole account range — the same map the Monatskarte
   // and the daily rows are priced against (#1842). The charts used to resolve
@@ -225,10 +242,18 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
         accountTargets ?? EMPTY_TARGETS,
         accountSessions ?? [],
         accountAbsences ?? [],
+        accountAdjustments ?? [],
         saldoFrom,
         saldoTo,
       ),
-    [accountTargets, accountSessions, accountAbsences, saldoFrom, saldoTo],
+    [
+      accountTargets,
+      accountSessions,
+      accountAbsences,
+      accountAdjustments,
+      saldoFrom,
+      saldoTo,
+    ],
   );
 
   const dailyTrendData = useMemo(
@@ -311,6 +336,15 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
           color="gray"
         />
       </div>
+
+      {/* A2 — Stundenkonto-Verwaltung (#1420): Auszahlung / FZA / Reset */}
+      <StundenkontoPanel
+        staffId={staffId}
+        accountStartKey={accountStartKey}
+        balanceMinutes={accountBalanceMinutes}
+        adjustments={accountAdjustments ?? []}
+        onChanged={refreshStundenkonto}
+      />
 
       {/* B — Zwei Charts side-by-side */}
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
@@ -615,6 +649,7 @@ const distributionConfig = {
   urlaub: { label: "Urlaub", color: "#F78C10" },
   krank: { label: "Krank", color: "#EAB308" },
   fortbildung: { label: "Fortbildung", color: "#7C3AED" },
+  freizeitausgleich: { label: "Freizeitausgleich", color: "#D946EF" },
   sonstige: { label: "Sonstige", color: "#6B7280" },
 } satisfies ChartConfig;
 
@@ -624,6 +659,7 @@ interface AbsenceDayCounts {
   vacation: number;
   sick: number;
   training: number;
+  compTime: number;
   other: number;
 }
 
@@ -636,6 +672,7 @@ function countAbsenceDays(
     vacation: 0,
     sick: 0,
     training: 0,
+    compTime: 0,
     other: 0,
   };
   const fromKey = toDateKey(from);
@@ -658,7 +695,9 @@ function countAbsenceDays(
           ? "vacation"
           : a.absence_type === "training"
             ? "training"
-            : "other";
+            : a.absence_type === "comp_time"
+              ? "compTime"
+              : "other";
     counts[bucket] += days;
   }
   return counts;
@@ -735,6 +774,12 @@ function buildDistribution(
       color: "#7C3AED",
     },
     {
+      key: "freizeitausgleich",
+      label: "Freizeitausgleich",
+      value: absenceDays.compTime,
+      color: "#D946EF",
+    },
+    {
       key: "sonstige",
       label: "Sonstige",
       value: absenceDays.other,
@@ -755,6 +800,7 @@ function buildWeeklyBalanceSeriesRange(
   targets: TargetsByDay,
   sessions: readonly StaffHistorySession[],
   absences: readonly StaffAbsenceRow[],
+  adjustments: readonly BalanceAdjustment[],
   from: Date,
   to: Date,
 ): TrendPoint[] {
@@ -762,6 +808,17 @@ function buildWeeklyBalanceSeriesRange(
   const sessionsByDate = new Map<string, StaffHistorySession>();
   for (const s of sessions) sessionsByDate.set(s.date.slice(0, 10), s);
   const creditByDate = indexAbsenceCreditByDay(targets, absences);
+  // Stundenkonto-Buchungen (#1420) als Stufen am Wirksamkeitstag — gespiegelt
+  // zum Server (addAdjustments): der Saldo-Verlauf muss nach einer Auszahlung
+  // oder einem Reset dieselbe Kurve zeigen wie die Kachel darueber.
+  const adjustmentByDate = new Map<string, number>();
+  for (const a of adjustments) {
+    const key = a.effectiveDate.slice(0, 10);
+    adjustmentByDate.set(
+      key,
+      (adjustmentByDate.get(key) ?? 0) + a.minutesDelta,
+    );
+  }
 
   const firstWeekStart = startOfWeek(from);
   const lastWeekStart = startOfWeek(to);
@@ -782,6 +839,7 @@ function buildWeeklyBalanceSeriesRange(
       targets,
       sessionsByDate,
       creditByDate,
+      adjustmentByDate,
       clippedStart,
       clippedEnd,
     );
@@ -798,11 +856,13 @@ function computeWeekDelta(
   targets: TargetsByDay,
   sessionsByDate: Map<string, StaffHistorySession>,
   creditByDate: ReadonlyMap<string, number>,
+  adjustmentByDate: ReadonlyMap<string, number>,
   weekStart: Date,
   weekEnd: Date,
 ): number {
   let soll = 0;
   let ist = 0;
+  let adjustment = 0;
   const dayCount =
     Math.floor((weekEnd.getTime() - weekStart.getTime()) / 86_400_000) + 1;
   for (let i = 0; i < dayCount; i++) {
@@ -816,8 +876,9 @@ function computeWeekDelta(
     } else {
       ist += creditByDate.get(key) ?? 0;
     }
+    adjustment += adjustmentByDate.get(key) ?? 0;
   }
-  return ist - soll;
+  return ist + adjustment - soll;
 }
 
 function isoWeekNumber(d: Date): number {

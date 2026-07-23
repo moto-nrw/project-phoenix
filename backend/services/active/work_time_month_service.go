@@ -46,6 +46,12 @@ type MonthSummary struct {
 	// saldo-relevant); nil = no shifts maintained in this month.
 	PlannedShiftMinutes *int `json:"planned_shift_minutes,omitempty"`
 
+	// AdjustmentMinutes is the signed sum of this month's Stundenkonto
+	// transactions (#1420: payout / comp-time grant / reset); Adjustments
+	// lists them so the Monatskarte can render one line per entry.
+	AdjustmentMinutes int              `json:"adjustment_minutes"`
+	Adjustments       []AdjustmentView `json:"adjustments,omitempty"`
+
 	// BalanceMinutes is this month's own saldo:
 	// actual + credited − target_to_date.
 	BalanceMinutes int `json:"balance_minutes"`
@@ -64,6 +70,22 @@ type WorkTimeMonthService interface {
 	// wired in the factory after construction, like
 	// WorkSessionService.SetStaffShiftRepo.
 	SetHolidayReader(reader HolidayDatesReader)
+	// SetAdjustmentReader injects the balance-adjustment reader (#1420) —
+	// same after-construction wiring; nil keeps the pre-adjustment behavior
+	// so existing unit fixtures stay valid.
+	SetAdjustmentReader(reader monthAdjustmentReader)
+}
+
+// AdjustmentView is one Stundenkonto transaction as the Monatskarte shows it
+// (#1420). MinutesDelta is signed (reductions negative).
+type AdjustmentView struct {
+	ID            int64         `json:"id"`
+	Type          string        `json:"type"`
+	MinutesDelta  int           `json:"minutes_delta"`
+	EffectiveDate timezone.Date `json:"effective_date"`
+	Note          string        `json:"note"`
+	DecidedBy     int64         `json:"decided_by"`
+	DecidedAt     time.Time     `json:"decided_at"`
 }
 
 // DailyTarget is the contractual Soll of one calendar day, resolved against
@@ -105,6 +127,11 @@ type monthAbsenceReader interface {
 	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffAbsence, error)
 }
 
+// monthAdjustmentReader is implemented by active.StaffBalanceAdjustmentRepository.
+type monthAdjustmentReader interface {
+	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffBalanceAdjustment, error)
+}
+
 // monthStaffReader is implemented by users.StaffRepository.
 type monthStaffReader interface {
 	FindByID(ctx context.Context, id any) (*userModels.Staff, error)
@@ -129,16 +156,17 @@ type HolidayDatesReader interface {
 }
 
 type workTimeMonthService struct {
-	sessionRepo   monthSessionReader
-	breakRepo     monthBreakReader
-	absenceRepo   monthAbsenceReader
-	staffRepo     monthStaffReader
-	scheduleRepo  monthScheduleReader
-	workModelRepo monthModelReader
-	shiftRepo     monthShiftReader
-	settings      monthSettingsResolver
-	holidayReader HolidayDatesReader
-	logger        *slog.Logger
+	sessionRepo    monthSessionReader
+	breakRepo      monthBreakReader
+	absenceRepo    monthAbsenceReader
+	staffRepo      monthStaffReader
+	scheduleRepo   monthScheduleReader
+	workModelRepo  monthModelReader
+	shiftRepo      monthShiftReader
+	settings       monthSettingsResolver
+	holidayReader  HolidayDatesReader
+	adjustmentRepo monthAdjustmentReader
+	logger         *slog.Logger
 
 	// todayFunc is a test hook; production uses timezone.TodayDate.
 	todayFunc func() timezone.Date
@@ -173,6 +201,13 @@ func NewWorkTimeMonthService(
 // unit fixtures stay valid.
 func (s *workTimeMonthService) SetHolidayReader(reader HolidayDatesReader) {
 	s.holidayReader = reader
+}
+
+// SetAdjustmentReader wires the Stundenkonto transaction reader (#1420). A
+// setter like SetHolidayReader: nil means no adjustments enter the balance,
+// so existing unit fixtures stay valid.
+func (s *workTimeMonthService) SetAdjustmentReader(reader monthAdjustmentReader) {
+	s.adjustmentRepo = reader
 }
 
 func (s *workTimeMonthService) today() timezone.Date {
@@ -290,6 +325,8 @@ type monthAggregates struct {
 	vacationDays     float64
 	hasShifts        bool
 	plannedShift     int
+	adjustment       int
+	adjustments      []*activeModels.StaffBalanceAdjustment
 }
 
 func (a *monthAggregates) creditedTotal() int {
@@ -297,7 +334,7 @@ func (a *monthAggregates) creditedTotal() int {
 }
 
 func (a *monthAggregates) balance() int {
-	return a.actual + a.creditedTotal() - a.targetToDate
+	return a.actual + a.creditedTotal() + a.adjustment - a.targetToDate
 }
 
 // dailyTargetResolver resolves the contractual Soll for single days: a
@@ -419,7 +456,36 @@ func (s *workTimeMonthService) computeAggregates(ctx context.Context, staffID in
 	if err := s.addPlannedShifts(ctx, staffID, first, last, aggregates); err != nil {
 		return nil, err
 	}
+	if err := s.addAdjustments(ctx, staffID, first, last, today, aggregates); err != nil {
+		return nil, err
+	}
 	return aggregates, nil
+}
+
+// addAdjustments folds the Stundenkonto transactions (#1420) into their
+// effective month. Future-dated adjustments are skipped like future targets
+// and credits — a grant scheduled for next week must not pre-empt today's
+// balance; the carry chain picks it up once the date arrives.
+func (s *workTimeMonthService) addAdjustments(ctx context.Context, staffID int64, first, last, today timezone.Date, aggregates map[monthKey]*monthAggregates) error {
+	if s.adjustmentRepo == nil {
+		return nil
+	}
+	adjustments, err := s.adjustmentRepo.GetByStaffAndDateRange(ctx, staffID, first, last)
+	if err != nil {
+		return fmt.Errorf("failed to load balance adjustments: %w", err)
+	}
+	for _, adjustment := range adjustments {
+		if adjustment.EffectiveDate.After(today) {
+			continue
+		}
+		agg, ok := aggregates[monthOf(adjustment.EffectiveDate)]
+		if !ok {
+			continue
+		}
+		agg.adjustment += adjustment.MinutesDelta
+		agg.adjustments = append(agg.adjustments, adjustment)
+	}
+	return nil
 }
 
 // addActualMinutes sums the net worked minutes per month, skipping sessions
@@ -551,6 +617,11 @@ func (s *workTimeMonthService) creditAbsenceDays(absence *activeModels.StaffAbse
 		case activeModels.AbsenceTypeVacation:
 			agg.creditedVacation += credit
 			agg.vacationDays += fraction
+		case activeModels.AbsenceTypeCompTime:
+			// Freizeitausgleich (#1420 5b) deliberately credits NOTHING: the
+			// day keeps its Soll, so the balance drops by the day's target.
+			// The day still counts as consumed (credited[d] above) so an
+			// overlapping vacation cannot re-credit it.
 		default:
 			agg.creditedOther += credit
 		}
@@ -624,11 +695,19 @@ func shiftNetMinutes(shift *scheduleModels.StaffShift) int {
 // different case — it falls back with a warning, matching both the frontend
 // and the fact that the settings API validates the date on write.
 func (s *workTimeMonthService) chainAnchor(ctx context.Context, key monthKey) (timezone.Date, error) {
+	return resolveAccountAnchor(ctx, s.settings, s.getLogger(), key)
+}
+
+// resolveAccountAnchor is the shared anchor resolution (see chainAnchor doc
+// above). Package-level so the balance-adjustment service (#1420) can reject
+// bookings dated before the account start — an adjustment before the anchor
+// never enters any carry chain and would silently not move the Stundenkonto.
+func resolveAccountAnchor(ctx context.Context, settings monthSettingsResolver, logger *slog.Logger, key monthKey) (timezone.Date, error) {
 	fallback := timezone.NewDate(key.Year, time.January, 1)
-	if s.settings == nil {
+	if settings == nil {
 		return fallback, nil
 	}
-	value, err := s.settings.ResolveString(ctx, configModels.KeyTimeTrackingAccountStartDate)
+	value, err := settings.ResolveString(ctx, configModels.KeyTimeTrackingAccountStartDate)
 	if err != nil {
 		return timezone.Date{}, fmt.Errorf("failed to resolve account start date setting: %w", err)
 	}
@@ -637,7 +716,7 @@ func (s *workTimeMonthService) chainAnchor(ctx context.Context, key monthKey) (t
 	}
 	start, err := timezone.ParseDate(value)
 	if err != nil {
-		s.getLogger().Warn("invalid account start date setting, using january fallback",
+		logger.Warn("invalid account start date setting, using january fallback",
 			"value", value,
 			"error", err.Error(),
 		)
@@ -715,6 +794,18 @@ func (s *workTimeMonthService) GetMonthSummary(ctx context.Context, staffID int6
 	if agg.hasShifts {
 		planned := agg.plannedShift
 		summary.PlannedShiftMinutes = &planned
+	}
+	summary.AdjustmentMinutes = agg.adjustment
+	for _, adjustment := range agg.adjustments {
+		summary.Adjustments = append(summary.Adjustments, AdjustmentView{
+			ID:            adjustment.ID,
+			Type:          adjustment.Type,
+			MinutesDelta:  adjustment.MinutesDelta,
+			EffectiveDate: adjustment.EffectiveDate,
+			Note:          adjustment.Note,
+			DecidedBy:     adjustment.DecidedBy,
+			DecidedAt:     adjustment.DecidedAt,
+		})
 	}
 	summary.ClosingBalanceMinutes = summary.CarryInMinutes + summary.BalanceMinutes
 	return summary, nil

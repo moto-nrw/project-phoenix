@@ -369,6 +369,21 @@ type StaffAbsenceAuditRepository interface {
 	Create(ctx context.Context, audit *StaffAbsenceAudit) error
 }
 
+// StaffBalanceAdjustmentRepository defines operations for Stundenkonto
+// correction transactions (#1420).
+type StaffBalanceAdjustmentRepository interface {
+	base.Repository[*StaffBalanceAdjustment]
+
+	// LockStaffBalanceWrites serializes balance-adjustment writes for one
+	// staff member inside the ambient tenant transaction. ResetBalance must
+	// acquire it before its read-compute-insert sequence.
+	LockStaffBalanceWrites(ctx context.Context, staffID int64) error
+
+	// GetByStaffAndDateRange returns adjustments whose effective_date lies in
+	// [from, to], ordered by effective_date.
+	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffBalanceAdjustment, error)
+}
+
 // StaffVacationQuotaRepository defines operations for managing per-staff yearly entitlement
 type StaffVacationQuotaRepository interface {
 	base.Repository[*StaffVacationQuota]
