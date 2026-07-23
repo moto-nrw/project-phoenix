@@ -1291,16 +1291,31 @@ export default function SlotListsPage() {
   ]);
 
   // A stashed export-drift warning stays applicable only as long as the user is
-  // still looking at the list that produced the drift. These inputs change ONLY
-  // by a deliberate user gesture (date, list target, source, pickup cohort, list
-  // kind) — never by the background options revalidation the 409 path fires, which
-  // touches listOptions/activeInstanceIds/slot pruning but none of these. So
-  // clearing the warning here preserves it through that refresh (which is the
-  // whole point) yet drops it the moment the user navigates to a different
-  // document, where "please re-export" would be stale (#1565 review pass 10).
+  // still looking at the SAME document that produced the drift. The dependency
+  // list is every user-controlled input that changes which document the export
+  // covers: not just date/target/source/pickup cohort/list kind, but also the
+  // grouping, the manual slot selection, and the group/class filters — each of
+  // those produces a different document and a fresh preview, after which the old
+  // "please re-export" notice is stale and must clear (#1565 review pass 12).
+  //
+  // Excluded on purpose is the background options revalidation the 409 path fires:
+  // it touches listOptions/activeInstanceIds (NOT these user inputs), so the
+  // warning still survives that refresh — the whole point of stashing it. Slot
+  // pruning can rewrite selectedSlotIds during that refresh, but only when a
+  // selected slot genuinely vanished, which is itself a real document change.
   useEffect(() => {
     pendingPreviewWarning.current = null;
-  }, [dateISO, target, source, pickupCohort, listKind]);
+  }, [
+    dateISO,
+    target,
+    source,
+    pickupCohort,
+    listKind,
+    groupBy,
+    selectedSlotIds,
+    selectedGroupIds,
+    selectedClasses,
+  ]);
 
   // We deliberately do NOT reconcile stale group/class URL filters against the
   // preview. result.groups / result.classes are derived from the preview rows,

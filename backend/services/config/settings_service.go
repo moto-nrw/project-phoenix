@@ -504,14 +504,9 @@ func (s *settingsService) validateSlotListCutoffPair(ctx context.Context, key st
 	// long=15:00) that 500s every pickup list, preview and export. The
 	// transaction-scoped advisory lock — held until the request tx commits after
 	// the upsert — forces the second writer to block, then read the first's
-	// committed value and reject. Best-effort: without an ambient transaction the
-	// xact lock is meaningless (the settings write path always has one, since the
-	// RLS-scoped repos require a tenant tx), so we skip it rather than fail.
-	if _, hasTx := modelBase.TxFromContext(ctx); hasTx {
-		lockKey := fmt.Sprintf("slot-list-cutoff:%d", tenant.FromContext(ctx))
-		if err := base.AcquireXactLock(ctx, s.db, lockKey); err != nil {
-			return fmt.Errorf("lock Ganztag cutoff pair: %w", err)
-		}
+	// committed value and reject.
+	if err := s.LockSlotListCutoffPair(ctx); err != nil {
+		return err
 	}
 	short, long := newVal, newVal
 	var err error
@@ -540,6 +535,26 @@ func (s *settingsService) validateSlotListCutoffPair(ctx context.Context, key st
 			Key:    key,
 			Reason: fmt.Sprintf("der lange Ganztag (%s) muss nach dem kurzen Ganztag (%s) liegen", long, short),
 		}
+	}
+	return nil
+}
+
+// LockSlotListCutoffPair takes the per-tenant transaction-scoped advisory lock
+// that guards the Ganztag pickup-cutoff pair. Both the pair validator on the
+// write path (validateSlotListCutoffPair) and the slot-list reader on the read
+// path (services/slotlists pickupBuckets) take it, so a concurrent lowering of
+// both cutoffs cannot interleave with a read and expose an inverted short/long
+// pair under READ COMMITTED (#1565 review). Best-effort: without an ambient
+// transaction the xact lock is meaningless — the settings read/write paths always
+// run inside a tenant tx (the RLS-scoped repos require one) — so it is skipped
+// rather than failing.
+func (s *settingsService) LockSlotListCutoffPair(ctx context.Context) error {
+	if _, hasTx := modelBase.TxFromContext(ctx); !hasTx {
+		return nil
+	}
+	lockKey := fmt.Sprintf("slot-list-cutoff:%d", tenant.FromContext(ctx))
+	if err := base.AcquireXactLock(ctx, s.db, lockKey); err != nil {
+		return fmt.Errorf("lock Ganztag cutoff pair: %w", err)
 	}
 	return nil
 }

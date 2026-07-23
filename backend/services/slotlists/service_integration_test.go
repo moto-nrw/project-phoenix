@@ -81,6 +81,20 @@ func (s stubSlotListSettings) ResolveString(_ context.Context, key string) (stri
 	if key == configModels.KeyStudentDataScope {
 		return configModels.StudentDataScopeAllStaff, nil
 	}
+	if v, ok := s[key]; ok {
+		return v, nil
+	}
+	// Model the registry defaults the real settings service returns for the
+	// Ganztag cutoffs when a tenant has no override, so tests that don't set them
+	// exercise the same non-empty values production sees. pickupBuckets now rejects
+	// an empty resolved cutoff (#1565 review pass 12), so an unmodelled empty here
+	// would spuriously fail.
+	switch key {
+	case configModels.KeySlotListShortDayCutoff:
+		return "14:30", nil
+	case configModels.KeySlotListLongDayCutoff:
+		return "16:00", nil
+	}
 	return s[key], nil
 }
 
@@ -92,6 +106,8 @@ func (s stubSlotListSettings) HasTenantOverride(_ context.Context, key string) (
 	return ok, nil
 }
 
+func (stubSlotListSettings) LockSlotListCutoffPair(context.Context) error { return nil }
+
 type failingSlotListSettings struct{}
 
 func (failingSlotListSettings) ResolveString(context.Context, string) (string, error) {
@@ -102,17 +118,31 @@ func (failingSlotListSettings) HasTenantOverride(context.Context, string) (bool,
 	return false, nil
 }
 
+func (failingSlotListSettings) LockSlotListCutoffPair(context.Context) error { return nil }
+
 type groupSupervisorOnlySlotListSettings struct{}
 
 func (groupSupervisorOnlySlotListSettings) ResolveString(_ context.Context, key string) (string, error) {
 	if key == configModels.KeyStudentDataScope {
 		return configModels.StudentDataScopeGroupSupervisorsOnly, nil
 	}
+	// The default read scope stub still needs valid cutoffs so a pickup list built
+	// under it does not fail before the read-scope logic runs.
+	switch key {
+	case configModels.KeySlotListShortDayCutoff:
+		return "14:30", nil
+	case configModels.KeySlotListLongDayCutoff:
+		return "16:00", nil
+	}
 	return "", nil
 }
 
 func (groupSupervisorOnlySlotListSettings) HasTenantOverride(_ context.Context, key string) (bool, error) {
 	return key == configModels.KeyStudentDataScope, nil
+}
+
+func (groupSupervisorOnlySlotListSettings) LockSlotListCutoffPair(context.Context) error {
+	return nil
 }
 
 type slotListUserContext struct {
@@ -143,6 +173,7 @@ func newTestServiceWithSettings(db *bun.DB, settings stubSlotListSettings) slotl
 func newTestServiceWithSettingsReader(db *bun.DB, settings interface {
 	ResolveString(context.Context, string) (string, error)
 	HasTenantOverride(context.Context, string) (bool, error)
+	LockSlotListCutoffPair(context.Context) error
 }) slotlists.Service {
 	return newTestServiceWithCustomRoomRepo(db, facilitiesRepo.NewRoomRepository(db), settings)
 }
@@ -152,6 +183,7 @@ func newTestServiceWithCustomRoomRepo(db *bun.DB, roomRepo interface {
 }, settings interface {
 	HasTenantOverride(context.Context, string) (bool, error)
 	ResolveString(context.Context, string) (string, error)
+	LockSlotListCutoffPair(context.Context) error
 }) slotlists.Service {
 	return newTestServiceWithCustomAccess(db, roomRepo, settings, slotListUserContext{currentStaff: &userModels.Staff{}})
 }
@@ -161,6 +193,7 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 }, settings interface {
 	HasTenantOverride(context.Context, string) (bool, error)
 	ResolveString(context.Context, string) (string, error)
+	LockSlotListCutoffPair(context.Context) error
 }, userCtx slotListUserContext) slotlists.Service {
 	return slotlists.NewService(slotlists.Dependencies{
 		InstanceRepo:        scheduleRepo.NewActivityInstanceRepository(db),
@@ -327,6 +360,83 @@ func TestBuildList_MensaReconciliation(t *testing.T) {
 	require.NotNil(t, walkInRow)
 	assert.Equal(t, "Ungeplant anwesend", walkInRow.StatusLabel)
 	assert.True(t, walkInRow.Unplanned)
+}
+
+// TestBuildList_ManualAbsenceOverridesStaleVisit proves a manual attendance
+// correction outranks stale visit evidence: an erroneous scan created a visit,
+// staff then corrected the roster row to absent (ManualStatusAt set), so the
+// child must render "Fehlt" — not "Anwesend" — in the Abgleich and must not
+// inflate the present counter (#1565 review pass 12 / P1). Without the manual
+// override in the merge this test fails: the visit forces Present=true.
+func TestBuildList_ManualAbsenceOverridesStaleVisit(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-ManRoom-%d", suffix))
+	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-ManAct-%d", suffix))
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	listKind := activitiesModels.ListKindMensa
+
+	instance := &scheduleModels.ActivityInstance{
+		Date:            listDate,
+		ActivityGroupID: &activity.ID,
+		Title:           fmt.Sprintf("Mensa-Man %d", suffix),
+		StartTime:       time.Date(1, 1, 1, 11, 30, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 13, 0, 0, 0, time.UTC),
+		RoomID:          room.ID,
+		Status:          scheduleModels.InstanceStatusActive,
+		ActiveGroupID:   &activeGroup.ID,
+		ListKind:        &listKind,
+	}
+	instance.SetTenantID(1)
+	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
+	require.NoError(t, err)
+
+	corrected := testpkg.CreateTestStudent(t, db, "SL-ManCorr", fmt.Sprintf("MC-%d", suffix), "3a")
+
+	// Roster row corrected to absent by hand: ManualStatusAt records the human
+	// decision. The erroneous scan's visit still exists (created below).
+	manualAt := atOn(listDate, 12, 0)
+	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	row := &scheduleModels.InstanceStudent{
+		InstanceID:     instance.ID,
+		StudentID:      corrected.ID,
+		Status:         scheduleModels.AttendanceStatusAbsent,
+		ManualStatusAt: &manualAt,
+	}
+	row.SetTenantID(1)
+	require.NoError(t, isRepo.Create(ctx, row))
+
+	entry := atOn(listDate, 11, 35)
+	exit := atOn(listDate, 12, 15)
+	visit := testpkg.CreateTestVisit(t, db, corrected.ID, activeGroup.ID, entry, &exit)
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID)
+		testpkg.CleanupActivityFixtures(t, db, corrected.ID)
+		testpkg.CleanupTableRecords(t, db, "active.groups", activeGroup.ID)
+		testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activity.ID, room.ID)
+	})
+
+	svc := newTestService(db)
+	result, err := svc.BuildList(ctx, slotlists.Params{
+		Date:   listDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+
+	correctedRow := rowByStudent(result.Rows, corrected.ID)
+	require.NotNil(t, correctedRow)
+	assert.False(t, correctedRow.Present, "manual absence must override the stale scan visit")
+	assert.Equal(t, "Fehlt", correctedRow.StatusLabel)
+	assert.Equal(t, 0, result.Counters.Present, "the stale visit must not inflate the present counter")
+	assert.Equal(t, 1, result.Counters.Missing)
 }
 
 // TestBuildList_VisitOutsideNominalWindowCountsPresent proves that a visit

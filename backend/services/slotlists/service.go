@@ -30,11 +30,6 @@ import (
 // confidentialityNote matches the wording of the other printed exports.
 const confidentialityNote = "Vertraulich, nur für berechtigte Personen. Nach Gebrauch sicher vernichten."
 
-const (
-	defaultShortDayCutoff = "14:30"
-	defaultLongDayCutoff  = "16:00"
-)
-
 const timeLayout = "15:04"
 
 // ErrPickupCohortPastDate is returned when a Ganztag pickup list is requested
@@ -144,6 +139,11 @@ type arrivalTimeReader interface {
 type settingsReader interface {
 	HasTenantOverride(ctx context.Context, key string) (bool, error)
 	ResolveString(ctx context.Context, key string) (string, error)
+	// LockSlotListCutoffPair acquires the advisory lock guarding the Ganztag
+	// pickup-cutoff pair so pickupBuckets observes both cutoffs from one
+	// consistent snapshot, never one cutoff from before and the sibling from after
+	// a concurrent two-write change (#1565 review pass 12).
+	LockSlotListCutoffPair(ctx context.Context) error
 }
 
 // Dependencies wires the narrow read interfaces the service needs.
@@ -244,38 +244,58 @@ type pickupBucketConfig struct {
 }
 
 func (s *service) pickupBuckets(ctx context.Context) (pickupBucketConfig, error) {
-	// s.settings is guaranteed non-nil (required by NewService). In production
-	// ResolveString returns the registry default for these registered keys, so
-	// the local constants below only cover a settings reader that yields an empty
-	// value; they never substitute for a missing dependency (#1565 review pass 1).
-	cfg := pickupBucketConfig{ShortCutoff: defaultShortDayCutoff, LongCutoff: defaultLongDayCutoff}
+	// s.settings is guaranteed non-nil (required by NewService). Hold the same
+	// advisory lock the settings writer takes before reading either cutoff, so the
+	// two ResolveString calls below observe one consistent pair. Without it they
+	// run as separate statements under READ COMMITTED, and an administrator lowering
+	// BOTH boundaries through two individually valid writes (e.g. 14:30/16:00 →
+	// 13:00/14:00) could commit between them and hand this reader the old short
+	// cutoff with the new long cutoff — an inverted pair (14:30/14:00) the ordering
+	// check below would 500 on, even though nothing invalid was ever persisted
+	// (#1565 review pass 12).
+	if err := s.settings.LockSlotListCutoffPair(ctx); err != nil {
+		return pickupBucketConfig{}, err
+	}
 	short, err := s.settings.ResolveString(ctx, configModel.KeySlotListShortDayCutoff)
 	if err != nil {
-		return cfg, fmt.Errorf("resolve short-day pickup cutoff: %w", err)
+		return pickupBucketConfig{}, fmt.Errorf("resolve short-day pickup cutoff: %w", err)
 	}
-	if short != "" {
-		normalized, err := normalizeHHMM(short)
-		if err != nil {
-			return cfg, fmt.Errorf("invalid short-day pickup cutoff %q", short)
-		}
-		cfg.ShortCutoff = normalized
+	shortCutoff, err := requirePickupCutoff(short, "short-day")
+	if err != nil {
+		return pickupBucketConfig{}, err
 	}
 
 	long, err := s.settings.ResolveString(ctx, configModel.KeySlotListLongDayCutoff)
 	if err != nil {
-		return cfg, fmt.Errorf("resolve long-day pickup cutoff: %w", err)
+		return pickupBucketConfig{}, fmt.Errorf("resolve long-day pickup cutoff: %w", err)
 	}
-	if long != "" {
-		normalized, err := normalizeHHMM(long)
-		if err != nil {
-			return cfg, fmt.Errorf("invalid long-day pickup cutoff %q", long)
-		}
-		cfg.LongCutoff = normalized
+	longCutoff, err := requirePickupCutoff(long, "long-day")
+	if err != nil {
+		return pickupBucketConfig{}, err
 	}
-	if cfg.LongCutoff <= cfg.ShortCutoff {
-		return cfg, fmt.Errorf("long-day pickup cutoff %s must be after short-day pickup cutoff %s", cfg.LongCutoff, cfg.ShortCutoff)
+
+	if longCutoff <= shortCutoff {
+		return pickupBucketConfig{}, fmt.Errorf("long-day pickup cutoff %s must be after short-day pickup cutoff %s", longCutoff, shortCutoff)
 	}
-	return cfg, nil
+	return pickupBucketConfig{ShortCutoff: shortCutoff, LongCutoff: longCutoff}, nil
+}
+
+// requirePickupCutoff normalizes a resolved Ganztag pickup cutoff and rejects an
+// empty or malformed value. The settings registry always yields a non-empty
+// default for these registered keys, so an empty resolved cutoff means the
+// tenant's stored configuration is corrupt — a migration or manual repair blanked
+// it. Fail fast rather than silently substitute a hardcoded default and build an
+// authoritative pickup cohort from values unrelated to the tenant's stored
+// configuration (#1565 review pass 12).
+func requirePickupCutoff(raw, label string) (string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return "", fmt.Errorf("%s pickup cutoff is not configured", label)
+	}
+	normalized, err := normalizeHHMM(raw)
+	if err != nil {
+		return "", fmt.Errorf("invalid %s pickup cutoff %q", label, raw)
+	}
+	return normalized, nil
 }
 
 type studentReadAccess struct {
@@ -930,9 +950,38 @@ type mergedEntry struct {
 // as present rows — its void plan is dropped so no planned no-show prints as
 // "Fehlt".
 func (s *service) collectSlotEntries(ctx context.Context, params Params, result *Result) ([]mergedEntry, error) {
-	instances, err := s.instanceRepo.FindByTenantAndDate(ctx, params.Date)
+	contexts, deferredInstances, err := s.collectSlotContexts(ctx, params, result)
 	if err != nil {
 		return nil, err
+	}
+	rosterByInstance, careDay, presentByGroup, err := s.loadSlotPresence(ctx, contexts, params.Date)
+	if err != nil {
+		return nil, err
+	}
+	entries := []mergedEntry{}
+	for _, p := range contexts {
+		entries = append(entries, s.mergeSlotInstance(p, rosterByInstance, careDay, presentByGroup, deferredInstances, result)...)
+	}
+	return entries, nil
+}
+
+// slotContext is one activity instance selected for row collection, with its
+// pre-resolved room name and printable slot label.
+type slotContext struct {
+	inst      *scheduleModel.ActivityInstance
+	slotLabel string
+	roomName  string
+}
+
+// collectSlotContexts runs the first pass over the date's instances: it publishes
+// every matching slot as selectable context on result.Slots, returns the
+// instances whose rosters the merge will actually read (selected, plus cancelled
+// / not-yet-started occurrences that may still hold documented presence), and the
+// set of deferred (not-yet-started reconciliation) occurrences.
+func (s *service) collectSlotContexts(ctx context.Context, params Params, result *Result) ([]slotContext, map[int64]struct{}, error) {
+	instances, err := s.instanceRepo.FindByTenantAndDate(ctx, params.Date)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// A non-nil set restricts data collection to the selected instances;
@@ -946,13 +995,6 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 		selected = int64StructSet(params.InstanceIDs)
 	}
 
-	// First pass: publish every matching slot as selectable context, and collect
-	// the instances whose rosters we will actually read (selected, not cancelled).
-	type slotContext struct {
-		inst      *scheduleModel.ActivityInstance
-		slotLabel string
-		roomName  string
-	}
 	roomCache := map[int64]string{}
 	process := make([]slotContext, 0, len(instances))
 	// deferredInstances flags reconciliation occurrences reached before their
@@ -964,54 +1006,13 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 		if !instanceMatchesListKind(inst, params.ListKind) {
 			continue
 		}
-		roomName, err := s.lookupRoomName(ctx, inst.RoomID, roomCache)
+		sc, deferred, err := s.buildSlotContext(ctx, inst, params, roomCache, result)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		listKind := ""
-		if inst.ListKind != nil {
-			listKind = *inst.ListKind
-		}
-		result.Slots = append(result.Slots, Slot{
-			InstanceID: inst.ID,
-			Title:      inst.Title,
-			TimeRange:  fmt.Sprintf("%s–%s", inst.StartTime.Format(timeLayout), inst.EndTime.Format(timeLayout)),
-			Status:     inst.Status,
-			ListKind:   listKind,
-			RoomName:   roomName,
-		})
-		cancelled := inst.Status == scheduleModel.InstanceStatusCancelled
-		// A cancelled or not-yet-started occurrence carries a void plan, but it may
-		// still hold documented attendance: InstanceService.Cancel keeps the visits
-		// recorded during a brief run, and a timetable PATCH can mark a child
-		// present (status=present) with no active group at all — before the slot
-		// starts, or on a cancelled slot that never ran. Both cases are resolved in
-		// the merge below (it suppresses the void plan yet retains the present
-		// rows), so route these occurrences into `process` instead of dropping them
-		// here, which would erase that attendance from Ist and Abgleich (#1565
-		// review pass 1 P2 / pass 2 P1). They stay selectable context in
-		// result.Slots (appended above) regardless.
-		//
-		// A reconciliation reaching an occurrence before its scheduled start, with
-		// no active group yet, has no live presence to merge against, so every
-		// planned child would collapse to Present=false and render as "Fehlt" — a
-		// safety-relevant false missing-child list before the activity begins. Flag
-		// it deferred so the merge suppresses those planned no-shows (while still
-		// surfacing any manually-present child) and the export summary does not
-		// count a slot that produced no rows. Gate strictly on occurrences that have
-		// NOT actually started: a slot Start()ed manually before its nominal time
-		// already carries an ActiveGroupID and real visits, so it stays on the
-		// normal path. Cancelled occurrences are handled by their own void-plan
-		// branch, not deferred here. This only ever fires for reconciliation on
-		// today — a future date is refused outright in BuildList; Plan/Ist are
-		// unaffected.
-		deferred := !cancelled &&
-			params.Source == SourceReconciliation && inst.ActiveGroupID == nil
-		if deferred {
-			if start, _ := instanceTimeRange(inst); !s.currentTime().Before(start) {
-				deferred = false
-			}
-		}
+		// deferredInstances is recorded before the selection gate — a non-selected
+		// deferred slot is never looked up, but keeping the order identical to the
+		// pre-split code avoids any behavioral surprise.
 		if deferred {
 			if deferredInstances == nil {
 				deferredInstances = map[int64]struct{}{}
@@ -1023,10 +1024,75 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 				continue
 			}
 		}
-		slotLabel := fmt.Sprintf("%s (%s–%s)", inst.Title, inst.StartTime.Format(timeLayout), inst.EndTime.Format(timeLayout))
-		process = append(process, slotContext{inst: inst, slotLabel: slotLabel, roomName: roomName})
+		process = append(process, sc)
 	}
+	return process, deferredInstances, nil
+}
 
+// buildSlotContext publishes one matching instance as selectable context on
+// result.Slots and returns its slotContext plus whether it is a deferred
+// (not-yet-started reconciliation) occurrence.
+func (s *service) buildSlotContext(ctx context.Context, inst *scheduleModel.ActivityInstance, params Params, roomCache map[int64]string, result *Result) (slotContext, bool, error) {
+	roomName, err := s.lookupRoomName(ctx, inst.RoomID, roomCache)
+	if err != nil {
+		return slotContext{}, false, err
+	}
+	listKind := ""
+	if inst.ListKind != nil {
+		listKind = *inst.ListKind
+	}
+	result.Slots = append(result.Slots, Slot{
+		InstanceID: inst.ID,
+		Title:      inst.Title,
+		TimeRange:  fmt.Sprintf("%s–%s", inst.StartTime.Format(timeLayout), inst.EndTime.Format(timeLayout)),
+		Status:     inst.Status,
+		ListKind:   listKind,
+		RoomName:   roomName,
+	})
+	cancelled := inst.Status == scheduleModel.InstanceStatusCancelled
+	// A cancelled or not-yet-started occurrence carries a void plan, but it may
+	// still hold documented attendance: InstanceService.Cancel keeps the visits
+	// recorded during a brief run, and a timetable PATCH can mark a child
+	// present (status=present) with no active group at all — before the slot
+	// starts, or on a cancelled slot that never ran. Both cases are resolved in
+	// the merge (it suppresses the void plan yet retains the present rows), so
+	// route these occurrences into `process` instead of dropping them here, which
+	// would erase that attendance from Ist and Abgleich (#1565 review pass 1 P2 /
+	// pass 2 P1). They stay selectable context in result.Slots (appended above)
+	// regardless.
+	//
+	// A reconciliation reaching an occurrence before its scheduled start, with
+	// no active group yet, has no live presence to merge against, so every
+	// planned child would collapse to Present=false and render as "Fehlt" — a
+	// safety-relevant false missing-child list before the activity begins. Flag
+	// it deferred so the merge suppresses those planned no-shows (while still
+	// surfacing any manually-present child) and the export summary does not
+	// count a slot that produced no rows. Gate strictly on occurrences that have
+	// NOT actually started: a slot Start()ed manually before its nominal time
+	// already carries an ActiveGroupID and real visits, so it stays on the
+	// normal path. Cancelled occurrences are handled by their own void-plan
+	// branch, not deferred here. This only ever fires for reconciliation on
+	// today — a future date is refused outright in BuildList; Plan/Ist are
+	// unaffected.
+	deferred := !cancelled &&
+		params.Source == SourceReconciliation && inst.ActiveGroupID == nil
+	if deferred {
+		if start, _ := instanceTimeRange(inst); !s.currentTime().Before(start) {
+			deferred = false
+		}
+	}
+	slotLabel := fmt.Sprintf("%s (%s–%s)", inst.Title, inst.StartTime.Format(timeLayout), inst.EndTime.Format(timeLayout))
+	return slotContext{inst: inst, slotLabel: slotLabel, roomName: roomName}, deferred, nil
+}
+
+// loadSlotPresence bulk-loads the rosters, the shared care-day verdict, and the
+// visit-derived presence for every instance the merge will process.
+func (s *service) loadSlotPresence(ctx context.Context, process []slotContext, date timezone.Date) (
+	map[int64][]*scheduleModel.InstanceStudent,
+	map[int64]scheduleSvc.CareDayStatus,
+	map[int64]map[int64]bool,
+	error,
+) {
 	// Bulk-load the rosters of every instance we will process, then resolve the
 	// date's care-day verdict once for all planned children. An assignment alone
 	// does not book a child into care on a given weekday (#1747): a whole-group
@@ -1042,344 +1108,411 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 	// keyed by group, not instance; instances without one (never started — e.g.
 	// most Plan requests) contribute nothing and cost no query.
 	presentByGroup := map[int64]map[int64]bool{}
-	if len(process) > 0 {
-		instanceIDs := make([]int64, 0, len(process))
-		activeGroupIDs := make([]int64, 0, len(process))
-		for _, p := range process {
-			instanceIDs = append(instanceIDs, p.inst.ID)
-			if p.inst.ActiveGroupID != nil {
-				activeGroupIDs = append(activeGroupIDs, *p.inst.ActiveGroupID)
-			}
-		}
-		rosterRows, err := s.instanceStudentRepo.FindByInstanceIDs(ctx, instanceIDs)
-		if err != nil {
-			return nil, err
-		}
-		studentIDSet := map[int64]struct{}{}
-		for _, row := range rosterRows {
-			rosterByInstance[row.InstanceID] = append(rosterByInstance[row.InstanceID], row)
-			studentIDSet[row.StudentID] = struct{}{}
-		}
-		studentIDs := make([]int64, 0, len(studentIDSet))
-		for id := range studentIDSet {
-			studentIDs = append(studentIDs, id)
-		}
-		careDay, err = s.careDayService.ResolveForDate(ctx, studentIDs, params.Date)
-		if err != nil {
-			return nil, fmt.Errorf("resolve care days: %w", err)
-		}
-		// Bulk-load every started slot's visits in one query rather than probing
-		// each instance individually inside the merge loop below — a historical
-		// day with many slots otherwise runs N sequential visit queries per
-		// preview/export/filter change.
-		//
-		// The instance↔active.group bridge is 1:1 (a UNIQUE partial index on
-		// schedule.activity_instances.active_group_id) and the active.group is
-		// created fresh when the occurrence is started, so every visit reachable
-		// through it is that occurrence's own attendance — it is deliberately NOT
-		// time-filtered against the planned window. Staff may Start an instance
-		// late, or start and complete it early: InstanceService.Start permits the
-		// transition regardless of the nominal StartTime/EndTime, which pushes
-		// those visits wholly outside the scheduled window. Comparing them to the
-		// planned times would drop documented attendance, omitting present
-		// children from Ist lists and printing attended children as "Fehlt" in the
-		// Abgleich (#1565 review pass 2).
-		visits, err := s.visitRepo.FindByActiveGroupIDs(ctx, activeGroupIDs)
-		if err != nil {
-			return nil, err
-		}
-		for _, visit := range visits {
-			if visit == nil {
-				continue
-			}
-			byStudent := presentByGroup[visit.ActiveGroupID]
-			if byStudent == nil {
-				byStudent = map[int64]bool{}
-				presentByGroup[visit.ActiveGroupID] = byStudent
-			}
-			byStudent[visit.StudentID] = true
+	if len(process) == 0 {
+		return rosterByInstance, careDay, presentByGroup, nil
+	}
+	instanceIDs := make([]int64, 0, len(process))
+	activeGroupIDs := make([]int64, 0, len(process))
+	for _, p := range process {
+		instanceIDs = append(instanceIDs, p.inst.ID)
+		if p.inst.ActiveGroupID != nil {
+			activeGroupIDs = append(activeGroupIDs, *p.inst.ActiveGroupID)
 		}
 	}
+	rosterRows, err := s.instanceStudentRepo.FindByInstanceIDs(ctx, instanceIDs)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	studentIDSet := map[int64]struct{}{}
+	for _, row := range rosterRows {
+		rosterByInstance[row.InstanceID] = append(rosterByInstance[row.InstanceID], row)
+		studentIDSet[row.StudentID] = struct{}{}
+	}
+	studentIDs := make([]int64, 0, len(studentIDSet))
+	for id := range studentIDSet {
+		studentIDs = append(studentIDs, id)
+	}
+	careDay, err = s.careDayService.ResolveForDate(ctx, studentIDs, date)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("resolve care days: %w", err)
+	}
+	// Bulk-load every started slot's visits in one query rather than probing
+	// each instance individually inside the merge loop below — a historical
+	// day with many slots otherwise runs N sequential visit queries per
+	// preview/export/filter change.
+	//
+	// The instance↔active.group bridge is 1:1 (a UNIQUE partial index on
+	// schedule.activity_instances.active_group_id) and the active.group is
+	// created fresh when the occurrence is started, so every visit reachable
+	// through it is that occurrence's own attendance — it is deliberately NOT
+	// time-filtered against the planned window. Staff may Start an instance
+	// late, or start and complete it early: InstanceService.Start permits the
+	// transition regardless of the nominal StartTime/EndTime, which pushes
+	// those visits wholly outside the scheduled window. Comparing them to the
+	// planned times would drop documented attendance, omitting present
+	// children from Ist lists and printing attended children as "Fehlt" in the
+	// Abgleich (#1565 review pass 2).
+	visits, err := s.visitRepo.FindByActiveGroupIDs(ctx, activeGroupIDs)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	for _, visit := range visits {
+		if visit == nil {
+			continue
+		}
+		byStudent := presentByGroup[visit.ActiveGroupID]
+		if byStudent == nil {
+			byStudent = map[int64]bool{}
+			presentByGroup[visit.ActiveGroupID] = byStudent
+		}
+		byStudent[visit.StudentID] = true
+	}
+	return rosterByInstance, careDay, presentByGroup, nil
+}
+
+// mergeSlotInstance merges one instance's roster (Plan) with its visit-derived
+// presence (Ist) into display entries and records the export "Enthalten"
+// accounting for void-plan slots.
+func (s *service) mergeSlotInstance(
+	p slotContext,
+	rosterByInstance map[int64][]*scheduleModel.InstanceStudent,
+	careDay map[int64]scheduleSvc.CareDayStatus,
+	presentByGroup map[int64]map[int64]bool,
+	deferredInstances map[int64]struct{},
+	result *Result,
+) []mergedEntry {
+	inst := p.inst
+	planned := rosterByInstance[inst.ID]
+	cancelled := inst.Status == scheduleModel.InstanceStatusCancelled
+	_, deferred := deferredInstances[inst.ID]
+	// A void plan: the occurrence was called off (cancelled), or a
+	// reconciliation reached it before its scheduled start with no active group
+	// yet (deferred). In neither case is a roster row a genuine expectation, so
+	// none may print as "Fehlt". The retention pass below keeps only the
+	// manually-present rows before the switch runs.
+	voidPlan := cancelled || deferred
+	// Presence was bulk-loaded above; a slot with no active group (never
+	// started) simply has no entry and yields a nil map (safe to index).
+	var presentSet map[int64]bool
+	if inst.ActiveGroupID != nil {
+		presentSet = presentByGroup[*inst.ActiveGroupID]
+	}
+	completed := inst.Status == scheduleModel.InstanceStatusCompleted
 
 	entries := []mergedEntry{}
-	for _, p := range process {
-		inst := p.inst
-		slotLabel := p.slotLabel
-		roomName := p.roomName
-		planned := rosterByInstance[inst.ID]
-		cancelled := inst.Status == scheduleModel.InstanceStatusCancelled
-		_, deferred := deferredInstances[inst.ID]
-		// A void plan: the occurrence was called off (cancelled), or a
-		// reconciliation reached it before its scheduled start with no active group
-		// yet (deferred). In neither case is a roster row a genuine expectation, so
-		// none may print as "Fehlt". The retention pass below keeps only the
-		// manually-present rows before the switch runs.
-		voidPlan := cancelled || deferred
-		// Presence was bulk-loaded above; a slot with no active group (never
-		// started) simply has no entry and yields a nil map (safe to index).
-		var presentSet map[int64]bool
-		if inst.ActiveGroupID != nil {
-			presentSet = presentByGroup[*inst.ActiveGroupID]
-		}
-		completed := inst.Status == scheduleModel.InstanceStatusCompleted
+	seenPlanned := make(map[int64]struct{}, len(planned))
+	retainedRows := false
+	if voidPlan {
+		retained, any := s.retainVoidPlanRows(p, planned, careDay, deferred, seenPlanned)
+		entries = append(entries, retained...)
+		retainedRows = any
+		planned = nil
+	}
+	entries = append(entries, s.classifyPlannedRows(p, planned, presentSet, completed, careDay, seenPlanned)...)
+	unseen, anyPresent := appendUnseenPresent(p, presentSet, seenPlanned)
+	entries = append(entries, unseen...)
+	if anyPresent {
+		retainedRows = true
+	}
+	recordVoidPlanAccounting(result, inst.ID, cancelled, deferred, retainedRows)
+	return entries
+}
 
-		seenPlanned := make(map[int64]struct{}, len(planned))
-		retainedRows := false
-		if voidPlan {
-			// A void plan (cancelled or not-yet-started) is never a source of "Fehlt":
-			// nilling `planned` below suppresses every roster row from the switch. Two
-			// kinds of row still carry real information that must survive that
-			// suppression:
-			//
-			//   - Present evidence. A timetable PATCH records status=present on the
-			//     roster row without ever attaching an active group, so such a child is
-			//     absent from the visit-derived presentSet below. Retain those rows as
-			//     unplanned-present evidence so documented attendance still surfaces in
-			//     Ist and Abgleich (#1565 review pass 1 P2 / pass 2 P1).
-			//
-			//   - A registered absence on a DEFERRED (not-yet-started) slot. A child
-			//     signed off sick/excused/class-trip (ApplyStatusDay stamps the row
-			//     absent with the substatus) or with a cancelled care day ("Kommt heute
-			//     nicht") is a valid all-day sign-off, not a not-yet-due no-show. Retain
-			//     it as "Abgemeldet" — mirroring the pickup-cohort reconciliation, which
-			//     defers only the unexplained would-be-"Fehlt" child and keeps registered
-			//     absences — so it shows in the Abgleich and the excused counter before
-			//     the slot's scheduled start (#1565 review pass 1 P2). A cancelled slot
-			//     is deliberately excluded: the whole occurrence was called off, so a
-			//     per-slot sign-off is moot and only present evidence is retained.
-			for _, row := range planned {
-				switch {
-				case row.Status == scheduleModel.AttendanceStatusPresent:
-					seenPlanned[row.StudentID] = struct{}{}
-					retainedRows = true
-					entries = append(entries, mergedEntry{
-						StudentID:  row.StudentID,
-						InstanceID: inst.ID,
-						SlotLabel:  slotLabel,
-						RoomName:   roomName,
-						Present:    true,
-					})
-				case deferred:
-					substatus, ok := voidPlanRegisteredAbsence(row, careDay[row.StudentID])
-					if !ok {
-						continue
-					}
-					seenPlanned[row.StudentID] = struct{}{}
-					retainedRows = true
-					substatusCopy := substatus
-					entries = append(entries, mergedEntry{
-						StudentID:        row.StudentID,
-						InstanceID:       inst.ID,
-						SlotLabel:        slotLabel,
-						RoomName:         roomName,
-						Planned:          true,
-						Present:          false,
-						PlannedStatus:    scheduleModel.AttendanceStatusAbsent,
-						PlannedSubstatus: &substatusCopy,
-					})
-				}
-			}
-			planned = nil
+// classifyPlannedRows classifies every roster row of a live (non-void) slot,
+// stamping each accounted-for student into seenPlanned so the presence sweep does
+// not re-add them.
+func (s *service) classifyPlannedRows(
+	p slotContext,
+	planned []*scheduleModel.InstanceStudent,
+	presentSet map[int64]bool,
+	completed bool,
+	careDay map[int64]scheduleSvc.CareDayStatus,
+	seenPlanned map[int64]struct{},
+) []mergedEntry {
+	entries := []mergedEntry{}
+	for _, row := range planned {
+		present := presentSet[row.StudentID] || row.Status == scheduleModel.AttendanceStatusPresent
+		// A manual attendance correction is a human decision that outranks stale
+		// visit evidence. UpdateAttendanceFields stamps ManualStatusAt whenever
+		// staff set the row's status by hand, so when an erroneous scan created a
+		// visit (row still in presentSet) and staff then corrected the roster to
+		// absent or expected, the visit must NOT force Present=true: trust the
+		// corrected row status alone. Without this the Ist/Abgleich lists and their
+		// counters would report the child "Anwesend" against the explicit human
+		// correction (#1565 review pass 12).
+		if row.ManualStatusAt != nil {
+			present = row.Status == scheduleModel.AttendanceStatusPresent
 		}
-		for _, row := range planned {
-			present := presentSet[row.StudentID] || row.Status == scheduleModel.AttendanceStatusPresent
-			// The canonical care-day verdict decides whether an assignment row
-			// is a genuine expectation on this date; it folds the frozen
-			// not_scheduled marker and the live care-plan derivation into the
-			// single answer every reader (planner, roster, cards) shares (#1747).
-			verdict := scheduleSvc.AttendanceRowCareDay(completed, row, careDay[row.StudentID])
-			switch {
-			case row.IsUnplanned:
-				// #1913: the row was created by an observed walk-in visit,
-				// not by planning. It is durable presence evidence, never a
-				// plan entry — otherwise the Abgleich would relabel the
-				// walk-in as "geplant & anwesend".
-				seenPlanned[row.StudentID] = struct{}{}
-				if present {
-					entries = append(entries, mergedEntry{
-						StudentID:  row.StudentID,
-						InstanceID: inst.ID,
-						SlotLabel:  slotLabel,
-						RoomName:   roomName,
-						Present:    true,
-					})
-				}
-			case !completed && row.ManualStatusAt == nil && careDay[row.StudentID] == scheduleSvc.CareDayNotScheduled:
-				// #1747/#1565 review: the care plan never booked this child into
-				// the OGS on this weekday. Key on the raw care-day verdict, not the
-				// status-gated `verdict` above, exactly as the cancellation branch
-				// below does: a real check-in flips the row to present and
-				// AttendanceRowCareDay then reports unknown (a real status tells its
-				// own story), so keying on `verdict` here would lose the non-booking
-				// and mislabel a bulk-assigned walk-in as "geplant & anwesend"
-				// instead of "ungeplant anwesend". The row may read Expected (the
-				// not_scheduled marker is only frozen when the block ends), already
-				// be present, or carry an absent status a broad sick/excused status
-				// day stamped onto a day the child was never scheduled. None of
-				// those is a genuine expectation, so none may print as
-				// planned/"Fehlt"/"Abgemeldet": drop it and leave the child unseen so
-				// a live visit still surfaces them as unplanned-present below (an
-				// absence on an unbooked day shows nowhere). A manual override
-				// (ManualStatusAt) still wins and is excluded here, and a signed-off
-				// (cancelled) booked day is handled next and stays "Abgemeldet".
-				//
-				// This RAW-verdict branch is confined to UNFINISHED occurrences
-				// (`!completed`): the live care-day derivation reads today's
-				// recurring arrival/pickup plan, which is not historized, so on a
-				// completed historical slot it may have drifted from what was true
-				// then. Ending the block already froze the authoritative verdict —
-				// not_scheduled onto the children it spared, real absences onto the
-				// booked no-shows — so a completed slot must trust that frozen state
-				// (handled by the Expected/!verdict.Expected() and default cases
-				// below), never the live plan. Without this gate a post-hoc care-plan
-				// edit could relabel a then-planned present child as unplanned, or
-				// make a then-planned absence vanish, making past Plan/Abgleich
-				// exports depend on today's schedule (#1565 review).
-				//
-				// Emit the present-only row directly rather than deferring to the
-				// present loop: on the slot path `present` can come from a timetable
-				// PATCH (row status) with no active-group visit, and the present loop
-				// only re-surfaces visit-derived presence — deferring would drop such
-				// a child entirely instead of showing "ungeplant anwesend". This
-				// mirrors the IsUnplanned branch above.
-				seenPlanned[row.StudentID] = struct{}{}
-				if present {
-					entries = append(entries, mergedEntry{
-						StudentID:  row.StudentID,
-						InstanceID: inst.ID,
-						SlotLabel:  slotLabel,
-						RoomName:   roomName,
-						Present:    true,
-					})
-				}
-			case row.ManualStatusAt == nil && careDay[row.StudentID] == scheduleSvc.CareDayCancelled:
-				// #1747/#1565 review: a "Kommt heute nicht" cancelled the booked
-				// day. The cancellation is care-plan evidence that outlives the
-				// row's attendance status, so key on the raw care-day verdict, not
-				// the status-gated `verdict` above: a real check-in flips the row to
-				// present and a completed block flips a no-show to absent, and for
-				// both AttendanceRowCareDay reports unknown (a real/finalized status
-				// tells its own story). Keying on `verdict` there would lose the
-				// cancellation entirely and mislabel the walk-in as "geplant &
-				// anwesend" or the no-show as an unexplained "Fehlt". A manual
-				// override (ManualStatusAt) still wins and is excluded here, exactly
-				// as AttendanceRowCareDay does.
-				//
-				// Unlike a genuine non-booking, the day WAS booked and the child
-				// signed off, so a no-show belongs on the list as "Abgemeldet" (the
-				// exact registered-absence shape the pickup path renders), never
-				// silently dropped like not_scheduled. If the child attended anyway,
-				// that is unplanned presence: emit the present-only row directly
-				// here rather than defer to the present loop below. On the slot path
-				// `present` can come from a timetable PATCH (row status) with no
-				// active-group visit, and that loop only re-surfaces visit-derived
-				// presence (presentSet) — deferring would drop such a child from
-				// both Ist and Abgleich entirely instead of showing "ungeplant
-				// anwesend" (#1565 review pass 2). This mirrors the IsUnplanned and
-				// not_scheduled branches, which emit their present-only row inline
-				// for the same reason.
-				seenPlanned[row.StudentID] = struct{}{}
-				if present {
-					entries = append(entries, mergedEntry{
-						StudentID:  row.StudentID,
-						InstanceID: inst.ID,
-						SlotLabel:  slotLabel,
-						RoomName:   roomName,
-						Present:    true,
-					})
-				} else {
-					cancelledSubstatus := string(scheduleSvc.CareDayCancelled)
-					entries = append(entries, mergedEntry{
-						StudentID:        row.StudentID,
-						InstanceID:       inst.ID,
-						SlotLabel:        slotLabel,
-						RoomName:         roomName,
-						Planned:          true,
-						Present:          false,
-						PlannedStatus:    scheduleModel.AttendanceStatusAbsent,
-						PlannedSubstatus: &cancelledSubstatus,
-					})
-				}
-			case row.Status == scheduleModel.AttendanceStatusExpected && !verdict.Expected():
-				// #1747 non-booking safety net for a COMPLETED block: ending the slot
-				// froze the not_scheduled marker into the row, so AttendanceRowCareDay
-				// keeps returning not_scheduled from that frozen flag even if the live
-				// care plan has since changed (reading the current plan on a finished
-				// day would let a later edit relabel it). The live-derivation
-				// non-booking on an active block is already handled by the raw
-				// care-day case above; here the frozen verdict is authoritative. Not a
-				// genuine expectation: skip, and leave the student unseen so a live
-				// visit can still surface them as unplanned below.
-				continue
-			case row.NotScheduled:
-				// Unbooked day the system decided anyway (checked in, or an
-				// absence written by a status day). The child was never
-				// planned for this slot; presence shows as unplanned, an
-				// absence on an unbooked day shows nowhere.
-				seenPlanned[row.StudentID] = struct{}{}
-				if present {
-					entries = append(entries, mergedEntry{
-						StudentID:  row.StudentID,
-						InstanceID: inst.ID,
-						SlotLabel:  slotLabel,
-						RoomName:   roomName,
-						Present:    true,
-					})
-				}
-			default:
-				seenPlanned[row.StudentID] = struct{}{}
-				entries = append(entries, mergedEntry{
-					StudentID:        row.StudentID,
-					InstanceID:       inst.ID,
-					SlotLabel:        slotLabel,
-					RoomName:         roomName,
-					Planned:          true,
-					Present:          present,
-					PlannedStatus:    row.Status,
-					PlannedSubstatus: row.Substatus,
-				})
-			}
+		// The canonical care-day verdict decides whether an assignment row
+		// is a genuine expectation on this date; it folds the frozen
+		// not_scheduled marker and the live care-plan derivation into the
+		// single answer every reader (planner, roster, cards) shares (#1747).
+		verdict := scheduleSvc.AttendanceRowCareDay(completed, row, careDay[row.StudentID])
+		emitted, markSeen := s.classifyPlannedRow(p, row, present, verdict, careDay[row.StudentID])
+		if markSeen {
+			seenPlanned[row.StudentID] = struct{}{}
 		}
-		for studentID, present := range presentSet {
-			if !present {
-				continue
-			}
-			if _, ok := seenPlanned[studentID]; ok {
-				continue
-			}
-			retainedRows = true
+		entries = append(entries, emitted...)
+	}
+	return entries
+}
+
+// appendUnseenPresent emits a present-only row for every student with visit
+// evidence that the planned classification did not already account for, and
+// reports whether any such row was produced (for the void-plan accounting).
+func appendUnseenPresent(p slotContext, presentSet map[int64]bool, seenPlanned map[int64]struct{}) ([]mergedEntry, bool) {
+	entries := []mergedEntry{}
+	anyPresent := false
+	for studentID, present := range presentSet {
+		if !present {
+			continue
+		}
+		if _, ok := seenPlanned[studentID]; ok {
+			continue
+		}
+		anyPresent = true
+		entries = append(entries, mergedEntry{
+			StudentID:  studentID,
+			InstanceID: p.inst.ID,
+			SlotLabel:  p.slotLabel,
+			RoomName:   p.roomName,
+			Present:    true,
+		})
+	}
+	return entries, anyPresent
+}
+
+// recordVoidPlanAccounting records the export "Enthalten" accounting for a
+// void-plan slot. A cancelled slot that retained any present child — from a
+// manual roster mark or a visit — counts as a contained Termin so the header does
+// not undercount; a deferred (not-yet-started) slot that retained no rows at all
+// is recorded so the summary does not count a slot the merge produced nothing
+// for. A deferred slot that DID retain a row — a present child or a "Abgemeldet"
+// registered absence — is deliberately left unrecorded: it contributed rows and
+// must count normally. cancelled and deferred are mutually exclusive (the first
+// pass never defers a cancelled slot) (#1565 review).
+func recordVoidPlanAccounting(result *Result, instanceID int64, cancelled, deferred, retainedRows bool) {
+	switch {
+	case cancelled && retainedRows:
+		if result.retainedCancelledSlots == nil {
+			result.retainedCancelledSlots = map[int64]struct{}{}
+		}
+		result.retainedCancelledSlots[instanceID] = struct{}{}
+	case deferred && !retainedRows:
+		if result.deferredSlots == nil {
+			result.deferredSlots = map[int64]struct{}{}
+		}
+		result.deferredSlots[instanceID] = struct{}{}
+	}
+}
+
+// retainVoidPlanRows keeps the roster rows that must survive a void plan
+// (cancelled or deferred slot): documented presence always, and — on a deferred
+// (not-yet-started) slot only — a registered all-day sign-off rendered
+// "Abgemeldet". It records every retained student in seenPlanned and reports
+// whether any row was kept (for the export "Enthalten" accounting).
+//
+// A void plan is never a source of "Fehlt": the caller nils `planned` after this
+// so no roster row reaches the switch. Two kinds of row still carry real
+// information that must survive that suppression:
+//
+//   - Present evidence. A timetable PATCH records status=present on the roster row
+//     without ever attaching an active group, so such a child is absent from the
+//     visit-derived presentSet. Retain those rows as unplanned-present evidence so
+//     documented attendance still surfaces in Ist and Abgleich (#1565 review
+//     pass 1 P2 / pass 2 P1).
+//
+//   - A registered absence on a DEFERRED (not-yet-started) slot. A child signed
+//     off sick/excused/class-trip (ApplyStatusDay stamps the row absent with the
+//     substatus) or with a cancelled care day ("Kommt heute nicht") is a valid
+//     all-day sign-off, not a not-yet-due no-show. Retain it as "Abgemeldet" —
+//     mirroring the pickup-cohort reconciliation, which defers only the unexplained
+//     would-be-"Fehlt" child and keeps registered absences — so it shows in the
+//     Abgleich and the excused counter before the slot's scheduled start (#1565
+//     review pass 1 P2). A cancelled slot is deliberately excluded: the whole
+//     occurrence was called off, so a per-slot sign-off is moot and only present
+//     evidence is retained.
+func (s *service) retainVoidPlanRows(
+	p slotContext,
+	planned []*scheduleModel.InstanceStudent,
+	careDay map[int64]scheduleSvc.CareDayStatus,
+	deferred bool,
+	seenPlanned map[int64]struct{},
+) ([]mergedEntry, bool) {
+	entries := []mergedEntry{}
+	retained := false
+	for _, row := range planned {
+		switch {
+		case row.Status == scheduleModel.AttendanceStatusPresent:
+			seenPlanned[row.StudentID] = struct{}{}
+			retained = true
 			entries = append(entries, mergedEntry{
-				StudentID:  studentID,
-				InstanceID: inst.ID,
-				SlotLabel:  slotLabel,
-				RoomName:   roomName,
+				StudentID:  row.StudentID,
+				InstanceID: p.inst.ID,
+				SlotLabel:  p.slotLabel,
+				RoomName:   p.roomName,
 				Present:    true,
 			})
-		}
-
-		// Export "Enthalten" accounting for void-plan slots. A cancelled slot that
-		// retained any present child — from a manual roster mark above or a visit
-		// here — counts as a contained Termin so the header does not undercount; a
-		// deferred (not-yet-started) slot that retained no rows at all is recorded so
-		// the summary does not count a slot the merge produced nothing for. A deferred
-		// slot that DID retain a row — a present child or a "Abgemeldet" registered
-		// absence — is deliberately left unrecorded here: it contributed rows and must
-		// count normally. cancelled and deferred are mutually exclusive (the first
-		// loop never defers a cancelled slot) (#1565 review).
-		switch {
-		case cancelled && retainedRows:
-			if result.retainedCancelledSlots == nil {
-				result.retainedCancelledSlots = map[int64]struct{}{}
+		case deferred:
+			substatus, ok := voidPlanRegisteredAbsence(row, careDay[row.StudentID])
+			if !ok {
+				continue
 			}
-			result.retainedCancelledSlots[inst.ID] = struct{}{}
-		case deferred && !retainedRows:
-			if result.deferredSlots == nil {
-				result.deferredSlots = map[int64]struct{}{}
-			}
-			result.deferredSlots[inst.ID] = struct{}{}
+			seenPlanned[row.StudentID] = struct{}{}
+			retained = true
+			substatusCopy := substatus
+			entries = append(entries, mergedEntry{
+				StudentID:        row.StudentID,
+				InstanceID:       p.inst.ID,
+				SlotLabel:        p.slotLabel,
+				RoomName:         p.roomName,
+				Planned:          true,
+				Present:          false,
+				PlannedStatus:    scheduleModel.AttendanceStatusAbsent,
+				PlannedSubstatus: &substatusCopy,
+			})
 		}
 	}
-	return entries, nil
+	return entries, retained
+}
+
+// classifyPlannedRow maps one roster row of a live (non-void) slot to its merged
+// entries and reports whether the student was accounted for (seenPlanned).
+// `present` is already corrected for a manual attendance override by the caller;
+// `verdict` is the status-gated care-day verdict and `rawCareDay` the raw
+// derivation the non-booking / cancellation branches key on.
+func (s *service) classifyPlannedRow(
+	p slotContext,
+	row *scheduleModel.InstanceStudent,
+	present bool,
+	verdict, rawCareDay scheduleSvc.CareDayStatus,
+) ([]mergedEntry, bool) {
+	inst := p.inst
+	// presentOnly emits a single unplanned-present row (or nothing when absent).
+	// Shared by the IsUnplanned, raw not_scheduled and cancelled-but-attended
+	// branches, which all surface documented presence as "ungeplant anwesend".
+	presentOnly := func() []mergedEntry {
+		if !present {
+			return nil
+		}
+		return []mergedEntry{{
+			StudentID:  row.StudentID,
+			InstanceID: inst.ID,
+			SlotLabel:  p.slotLabel,
+			RoomName:   p.roomName,
+			Present:    true,
+		}}
+	}
+	completed := inst.Status == scheduleModel.InstanceStatusCompleted
+	switch {
+	case row.IsUnplanned:
+		// #1913: the row was created by an observed walk-in visit, not by
+		// planning. It is durable presence evidence, never a plan entry —
+		// otherwise the Abgleich would relabel the walk-in as "geplant & anwesend".
+		return presentOnly(), true
+	case !completed && row.ManualStatusAt == nil && rawCareDay == scheduleSvc.CareDayNotScheduled:
+		// #1747/#1565 review: the care plan never booked this child into the OGS
+		// on this weekday. Key on the raw care-day verdict, not the status-gated
+		// `verdict`, exactly as the cancellation branch below does: a real check-in
+		// flips the row to present and AttendanceRowCareDay then reports unknown (a
+		// real status tells its own story), so keying on `verdict` here would lose
+		// the non-booking and mislabel a bulk-assigned walk-in as "geplant &
+		// anwesend" instead of "ungeplant anwesend". The row may read Expected (the
+		// not_scheduled marker is only frozen when the block ends), already be
+		// present, or carry an absent status a broad sick/excused status day
+		// stamped onto a day the child was never scheduled. None of those is a
+		// genuine expectation, so none may print as planned/"Fehlt"/"Abgemeldet":
+		// drop it and leave the child unseen so a live visit still surfaces them as
+		// unplanned-present below (an absence on an unbooked day shows nowhere). A
+		// manual override (ManualStatusAt) still wins and is excluded here, and a
+		// signed-off (cancelled) booked day is handled next and stays "Abgemeldet".
+		//
+		// This RAW-verdict branch is confined to UNFINISHED occurrences
+		// (`!completed`): the live care-day derivation reads today's recurring
+		// arrival/pickup plan, which is not historized, so on a completed
+		// historical slot it may have drifted from what was true then. Ending the
+		// block already froze the authoritative verdict — not_scheduled onto the
+		// children it spared, real absences onto the booked no-shows — so a
+		// completed slot must trust that frozen state (handled by the
+		// Expected/!verdict.Expected() and default cases below), never the live
+		// plan. Without this gate a post-hoc care-plan edit could relabel a
+		// then-planned present child as unplanned, or make a then-planned absence
+		// vanish, making past Plan/Abgleich exports depend on today's schedule
+		// (#1565 review).
+		//
+		// Emit the present-only row directly rather than deferring to the present
+		// loop: on the slot path `present` can come from a timetable PATCH (row
+		// status) with no active-group visit, and the present loop only re-surfaces
+		// visit-derived presence — deferring would drop such a child entirely
+		// instead of showing "ungeplant anwesend". This mirrors the IsUnplanned
+		// branch above.
+		return presentOnly(), true
+	case row.ManualStatusAt == nil && rawCareDay == scheduleSvc.CareDayCancelled:
+		// #1747/#1565 review: a "Kommt heute nicht" cancelled the booked day. The
+		// cancellation is care-plan evidence that outlives the row's attendance
+		// status, so key on the raw care-day verdict, not the status-gated
+		// `verdict`: a real check-in flips the row to present and a completed block
+		// flips a no-show to absent, and for both AttendanceRowCareDay reports
+		// unknown (a real/finalized status tells its own story). Keying on `verdict`
+		// there would lose the cancellation entirely and mislabel the walk-in as
+		// "geplant & anwesend" or the no-show as an unexplained "Fehlt". A manual
+		// override (ManualStatusAt) still wins and is excluded here, exactly as
+		// AttendanceRowCareDay does.
+		//
+		// Unlike a genuine non-booking, the day WAS booked and the child signed
+		// off, so a no-show belongs on the list as "Abgemeldet" (the exact
+		// registered-absence shape the pickup path renders), never silently dropped
+		// like not_scheduled. If the child attended anyway, that is unplanned
+		// presence: emit the present-only row directly here rather than defer to the
+		// present loop below. On the slot path `present` can come from a timetable
+		// PATCH (row status) with no active-group visit, and that loop only
+		// re-surfaces visit-derived presence (presentSet) — deferring would drop
+		// such a child from both Ist and Abgleich entirely instead of showing
+		// "ungeplant anwesend" (#1565 review pass 2). This mirrors the IsUnplanned
+		// and not_scheduled branches, which emit their present-only row inline for
+		// the same reason.
+		if present {
+			return presentOnly(), true
+		}
+		cancelledSubstatus := string(scheduleSvc.CareDayCancelled)
+		return []mergedEntry{{
+			StudentID:        row.StudentID,
+			InstanceID:       inst.ID,
+			SlotLabel:        p.slotLabel,
+			RoomName:         p.roomName,
+			Planned:          true,
+			Present:          false,
+			PlannedStatus:    scheduleModel.AttendanceStatusAbsent,
+			PlannedSubstatus: &cancelledSubstatus,
+		}}, true
+	case row.Status == scheduleModel.AttendanceStatusExpected && !verdict.Expected():
+		// #1747 non-booking safety net for a COMPLETED block: ending the slot
+		// froze the not_scheduled marker into the row, so AttendanceRowCareDay
+		// keeps returning not_scheduled from that frozen flag even if the live
+		// care plan has since changed (reading the current plan on a finished
+		// day would let a later edit relabel it). The live-derivation non-booking
+		// on an active block is already handled by the raw care-day case above;
+		// here the frozen verdict is authoritative. Not a genuine expectation:
+		// skip, and leave the student unseen so a live visit can still surface them
+		// as unplanned below.
+		return nil, false
+	case row.NotScheduled:
+		// Unbooked day the system decided anyway (checked in, or an absence
+		// written by a status day). The child was never planned for this slot;
+		// presence shows as unplanned, an absence on an unbooked day shows nowhere.
+		return presentOnly(), true
+	default:
+		return []mergedEntry{{
+			StudentID:        row.StudentID,
+			InstanceID:       inst.ID,
+			SlotLabel:        p.slotLabel,
+			RoomName:         p.roomName,
+			Planned:          true,
+			Present:          present,
+			PlannedStatus:    row.Status,
+			PlannedSubstatus: row.Substatus,
+		}}, true
+	}
 }
 
 func instanceMatchesListKind(inst *scheduleModel.ActivityInstance, listKind ListKind) bool {
