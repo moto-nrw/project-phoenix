@@ -132,7 +132,7 @@ export interface EnrollmentEditDraft {
   request_id: string;
   status_token: string;
   tenant_id: string;
-  tenant_slug: string;
+  tenant_subdomain: string;
   phase_id: string;
   guardian_first_name: string;
   guardian_last_name: string;

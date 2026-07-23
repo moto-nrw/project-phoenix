@@ -2010,7 +2010,7 @@ func TestInvitationCreateSuccess(t *testing.T) {
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
-	t.Run("accept invitation returns tenant_slug", func(t *testing.T) {
+	t.Run("accept invitation returns tenant_subdomain", func(t *testing.T) {
 		// Create a fresh invitation via the service
 		inviteeEmail := fmt.Sprintf("slug-test-%d@test.local", time.Now().UnixNano())
 		createBody := map[string]interface{}{
@@ -2043,15 +2043,15 @@ func TestInvitationCreateSuccess(t *testing.T) {
 		require.Equal(t, http.StatusCreated, acceptRR.Code,
 			"Expected 201 Created, got %d. Body: %s", acceptRR.Code, acceptRR.Body.String())
 
-		// Parse response and verify tenant_slug is present
+		// Parse response and verify tenant_subdomain is present
 		acceptResp := testutil.ParseJSONResponse(t, acceptRR.Body.Bytes())
 		acceptData := acceptResp["data"].(map[string]interface{})
 		assert.NotEmpty(t, acceptData["account_id"])
 		assert.Equal(t, inviteeEmail, acceptData["email"])
 
-		// tenant_slug should be the slug of the default school (tenant_id=1)
-		if slug, ok := acceptData["tenant_slug"].(string); ok {
-			assert.NotEmpty(t, slug, "tenant_slug should be non-empty")
+		// tenant_subdomain should be the subdomain of the invitation's school (#1977)
+		if subdomain, ok := acceptData["tenant_subdomain"].(string); ok {
+			assert.NotEmpty(t, subdomain, "tenant_subdomain should be non-empty")
 		}
 
 		// Cleanup

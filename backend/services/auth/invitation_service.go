@@ -951,10 +951,11 @@ func isNotFoundError(err error) bool {
 	return false
 }
 
-// GetTenantSlugForToken resolves the tenant slug from an invitation token.
+// GetTenantSubdomainForToken resolves the tenant subdomain from an invitation
+// token. Tenant routing resolves hosts by subdomain, not slug (#1977).
 // Best-effort: returns "" on any error so the accept response still succeeds.
-func (s *invitationService) GetTenantSlugForToken(ctx context.Context, token string) string {
-	var slug string
+func (s *invitationService) GetTenantSubdomainForToken(ctx context.Context, token string) string {
+	var subdomain string
 	_ = tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
 		invitation, err := s.invitationRepo.FindByToken(txCtx, token)
 		if err != nil {
@@ -970,8 +971,8 @@ func (s *invitationService) GetTenantSlugForToken(ctx context.Context, token str
 		if school == nil || school.IsDeleted() {
 			return nil
 		}
-		slug = school.Slug
+		subdomain = school.Subdomain
 		return nil
 	})
-	return slug
+	return subdomain
 }

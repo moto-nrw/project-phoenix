@@ -181,7 +181,10 @@ export function EnrollmentEditPage({ params }: Props) {
         </section>
       ) : null}
 
-      <TenantProvider tenantSlug={bootstrap.draft.tenant_slug} tenant={null}>
+      <TenantProvider
+        tenantSlug={bootstrap.draft.tenant_subdomain}
+        tenant={null}
+      >
         <EnrollmentForm
           phaseID={bootstrap.draft.phase_id}
           gradeLevelMax={bootstrap.grade_level_max}

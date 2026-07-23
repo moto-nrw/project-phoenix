@@ -98,7 +98,8 @@ export async function validateInvitation(
 }
 
 interface AcceptInvitationResult {
-  tenantSlug?: string;
+  /** Subdomain of the invitation's school — tenant hosts resolve by subdomain, not slug (#1977). */
+  tenantSubdomain?: string;
 }
 
 export async function acceptInvitation(
@@ -123,8 +124,10 @@ export async function acceptInvitation(
   const raw = (await response.json()) as Record<string, unknown>;
   const result = (raw.data ?? raw) as Record<string, unknown>;
   return {
-    tenantSlug:
-      typeof result.tenant_slug === "string" ? result.tenant_slug : undefined,
+    tenantSubdomain:
+      typeof result.tenant_subdomain === "string"
+        ? result.tenant_subdomain
+        : undefined,
   };
 }
 
