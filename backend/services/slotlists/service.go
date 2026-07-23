@@ -714,11 +714,64 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 	for _, ids := range kindInstanceIDs {
 		classifiedIDs = append(classifiedIDs, ids...)
 	}
+	// Visit-derived presence for the classified instances, mirroring the list
+	// builder's loadSlotPresence. The builder observes attendance through
+	// active.visits (presentByGroup), so classifyPlannedRow can emit a child who
+	// checked in on a CANCELLED care day as unplanned presence even when the
+	// deliberately best-effort attendance sync left the roster row Expected instead
+	// of flipping it to Present (visit created, sync failed — #1439/checkin). The
+	// roster-only Status==Present check below cannot see that visit-only presence,
+	// so it would miscount the child as a planned "Abgemeldet" row and overreport
+	// /options.list_kinds[].row_count versus what Plan preview/export render. Load
+	// the same visit evidence here and fold it into the presence signal (#1565
+	// review pass 2 P2).
+	activeGroupByInstance := make(map[int64]*int64, len(instances))
+	for _, inst := range instances {
+		activeGroupByInstance[inst.ID] = inst.ActiveGroupID
+	}
+	presentByGroup := map[int64]map[int64]bool{}
+	presentViaVisit := func(instanceID, studentID int64) bool {
+		activeGroupID := activeGroupByInstance[instanceID]
+		if activeGroupID == nil {
+			return false
+		}
+		byStudent := presentByGroup[*activeGroupID]
+		return byStudent != nil && byStudent[studentID]
+	}
 	plannedByInstance := map[int64]int{}
 	if len(classifiedIDs) > 0 {
 		rosterRows, err := s.instanceStudentRepo.FindByInstanceIDs(ctx, classifiedIDs)
 		if err != nil {
 			return nil, err
+		}
+		// Bulk-load the visits of every classified instance that has been started,
+		// exactly as loadSlotPresence does: presence is keyed by active-group ID
+		// (only a started occurrence carries one), and a nil visitRepo simply
+		// contributes no evidence.
+		if s.visitRepo != nil {
+			activeGroupIDs := make([]int64, 0, len(classifiedIDs))
+			for _, id := range classifiedIDs {
+				if activeGroupID := activeGroupByInstance[id]; activeGroupID != nil {
+					activeGroupIDs = append(activeGroupIDs, *activeGroupID)
+				}
+			}
+			if len(activeGroupIDs) > 0 {
+				visits, err := s.visitRepo.FindByActiveGroupIDs(ctx, activeGroupIDs)
+				if err != nil {
+					return nil, err
+				}
+				for _, visit := range visits {
+					if visit == nil {
+						continue
+					}
+					byStudent := presentByGroup[visit.ActiveGroupID]
+					if byStudent == nil {
+						byStudent = map[int64]bool{}
+						presentByGroup[visit.ActiveGroupID] = byStudent
+					}
+					byStudent[visit.StudentID] = true
+				}
+			}
 		}
 		for _, row := range rosterRows {
 			if row.IsUnplanned || row.NotScheduled {
@@ -744,21 +797,25 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 			}
 			// A cancelled care day the child ATTENDED anyway is unplanned presence,
 			// not a planned row: classifyPlannedRow's cancelled branch emits such a
-			// flipped-to-present row present-only (exactly like the IsUnplanned and
-			// not_scheduled branches), never the planned "Abgemeldet" shape. Once the
-			// check-in flips the row to present, AttendanceRowCareDay reports unknown
-			// (a real status tells its own story), so the generic increment below
-			// would miscount it as planned and overreport /options versus the Plan
-			// preview and export. Key on the RAW cancellation verdict (a manual
-			// override still wins and is excluded), mirroring classifyPlannedRow. A
-			// cancelled NO-SHOW keeps its Expected/absent status and still counts below
-			// as the "Abgemeldet" planned row it prints as (#1565 review pass 1). The
-			// roster-only count cannot observe a visit that left the row status
-			// untouched, but the concrete drift this guards is the flipped-to-present
-			// row the review found.
+			// present child present-only (exactly like the IsUnplanned and
+			// not_scheduled branches), never the planned "Abgemeldet" shape, so the
+			// generic increment below would miscount it as planned and overreport
+			// /options versus the Plan preview and export. Key on the RAW cancellation
+			// verdict (a manual override still wins and is excluded), mirroring
+			// classifyPlannedRow. Presence is derived exactly as classifyPlannedRows
+			// does — `presentSet[student] || row.Status == Present` — so a normal
+			// check-in that flipped the row to Present AND a check-in whose row status
+			// never updated (the best-effort attendance sync failed but the visit
+			// exists) are both recognized as unplanned presence. Without the visit
+			// leg, a visit-only presence would count as planned here while the builder
+			// classifies it unplanned, so the signatures diverge (#1565 review pass 2
+			// P2). A cancelled NO-SHOW keeps its Expected/absent status, has no visit,
+			// and still counts below as the "Abgemeldet" planned row it prints as
+			// (#1565 review pass 1).
 			if row.ManualStatusAt == nil &&
 				careDays[row.StudentID] == scheduleSvc.CareDayCancelled &&
-				row.Status == scheduleModel.AttendanceStatusPresent {
+				(row.Status == scheduleModel.AttendanceStatusPresent ||
+					presentViaVisit(row.InstanceID, row.StudentID)) {
 				continue
 			}
 			verdict := scheduleSvc.AttendanceRowCareDay(completed, row, careDays[row.StudentID])

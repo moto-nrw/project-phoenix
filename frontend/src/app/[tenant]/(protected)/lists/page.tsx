@@ -1504,7 +1504,23 @@ export default function SlotListsPage() {
         // and that already has its own fresh load). Guarding on the date rather than
         // the full request identity lets a mid-export list switch still receive the
         // fresh active-slot set instead of the stale one.
-        if (refreshedOptions && dateISORef.current === dateISO) {
+        //
+        // Also require that this preflight's generation is STILL the newest
+        // committed one. The no-drift path below advances the shared marker to
+        // exportOptionsGeneration when it stages `fresh`; but if a focus/visibility
+        // revalidation STARTED after this preflight, it carries a higher generation
+        // and can commit a newer /options payload while the preview or export awaits
+        // — advancing the marker past exportOptionsGeneration. Installing the older
+        // staged snapshot then, purely because the date still matches, would roll
+        // that newer payload back (e.g. a cancellation the newer refresh committed
+        // reappears) and leave the page on stale active IDs until yet another
+        // refresh. When a newer request has won, keep its snapshot and skip the
+        // stale install (#1565 review pass 2 P2 follow-up 2).
+        if (
+          refreshedOptions &&
+          dateISORef.current === dateISO &&
+          optionsCommittedGenerationRef.current === exportOptionsGeneration
+        ) {
           setListOptions(refreshedOptions);
         }
         refreshedOptions = null;
@@ -1649,6 +1665,12 @@ export default function SlotListsPage() {
       } catch (err: unknown) {
         printTarget?.close();
         setIsExporting(false);
+        // The no-drift path already advanced the committed marker to this
+        // preflight's generation and staged `fresh`; install it before bailing so
+        // listOptions is not stranded on the previous snapshot while the advanced
+        // marker drops older in-flight refreshes (its own guard skips the install
+        // if a newer refresh has since won) (#1565 review pass 2 P2).
+        commitRefreshedOptions();
         logger.error("slot_list_preview_revalidate_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
@@ -1693,6 +1715,11 @@ export default function SlotListsPage() {
         printTarget?.close();
         setIsExporting(false);
         setResult(freshPreview);
+        // Same stranding guard as the other early-exit paths: the no-drift path
+        // advanced the committed marker and staged `fresh`, so install it here too
+        // rather than leaving listOptions behind the advanced marker (#1565 review
+        // pass 2 P2).
+        commitRefreshedOptions();
         setError(
           "Die Liste hat sich seit dem Laden geändert. Bitte prüfen und erneut exportieren.",
         );
@@ -1727,14 +1754,10 @@ export default function SlotListsPage() {
           () => requestRef.current === request,
         );
         // The file has been handed out, so the request it was built from can no
-        // longer be disrupted by a resulting state change: install any options
-        // snapshot the no-drift preflight staged. This brings listOptions up to the
-        // newest whole-day state — e.g. a slot cancelled in a DIFFERENT list_kind
-        // while this list was exported, which the document-scoped drift check
-        // correctly ignored — so a later switch to the affected list derives its
-        // active-slot set from fresh data instead of the stale, generation-locked
-        // snapshot (#1565 review pass 2 P2 follow-up).
-        commitRefreshedOptions();
+        // longer be disrupted by a resulting state change. Installing the staged
+        // options snapshot happens in the `finally` below, which runs for this
+        // success path and for every early-exit export outcome alike — see the note
+        // there (#1565 review pass 2 P2 follow-up).
       } catch (err: unknown) {
         // The selection changed during the export round-trip, so exportSlotList
         // refused to hand out the now-stale file (and already closed the print
@@ -1777,6 +1800,20 @@ export default function SlotListsPage() {
         );
       } finally {
         setIsExporting(false);
+        // Install the options snapshot the no-drift preflight staged, on EVERY
+        // terminal outcome of the export round-trip — a clean success, a
+        // superseded/aborted handoff (SlotListExportSupersededError), a 409 drift
+        // refusal, or a generic failure. The no-drift path advanced the shared
+        // committed-generation marker to exportOptionsGeneration when it staged
+        // `fresh`; returning here without installing would strand listOptions on the
+        // previous snapshot while that advanced marker drops older in-flight
+        // refreshes, so a slot cancelled in a DIFFERENT list_kind (which the
+        // document-scoped drift check correctly ignored) would stay selectable and
+        // re-send its stale active IDs until the next focus refresh.
+        // commitRefreshedOptions is a no-op once the snapshot is installed or was
+        // never staged, and its own guard skips the install if a newer refresh has
+        // since won (#1565 review pass 1 P2 / pass 2 P2).
+        commitRefreshedOptions();
       }
     },
     [

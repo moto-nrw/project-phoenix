@@ -2237,6 +2237,130 @@ func TestListOptions_CancelledCareDayAttendedExcludedFromPlannedCount(t *testing
 		"options planned count must exclude the attended cancellation and count only the Abgemeldet no-show")
 }
 
+// TestListOptions_CancelledCareDayAttendedViaVisitOnlyExcludedFromPlannedCount
+// guards the #1565 review pass 2 P2 fix: the check-in attendance sync is
+// deliberately best-effort, so a child can hold a visit in active.visits while
+// their roster row is still Expected (the sync that flips the row to Present
+// failed). On a CANCELLED care day the list builder still classifies that child
+// as unplanned presence — it reads the visit through presentByGroup — so
+// /options must NOT count them as a planned "Abgemeldet" row either. The earlier
+// fix keyed only on the row status (Status==Present); this proves the count also
+// honours the visit-only presence the builder sees, so the option RowCount
+// matches preview/export. A cancelled no-show with neither a visit nor a Present
+// status still counts as the Abgemeldet row it prints as.
+func TestListOptions_CancelledCareDayAttendedViaVisitOnlyExcludedFromPlannedCount(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-CxvRoom-%d", suffix))
+	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-CxvAct-%d", suffix))
+	staff := testpkg.CreateTestStaff(t, db, "SL-CxvStaff", fmt.Sprintf("CXV-%d", suffix))
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	listKind := activitiesModels.ListKindMensa
+	instance := &scheduleModels.ActivityInstance{
+		Date:            listDate,
+		ActivityGroupID: &activity.ID,
+		Title:           fmt.Sprintf("Mensa %d", suffix),
+		StartTime:       time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 13, 0, 0, 0, time.UTC),
+		RoomID:          room.ID,
+		Status:          scheduleModels.InstanceStatusActive, // live: no_show not yet finalized
+		ActiveGroupID:   &activeGroup.ID,                     // started, so visits are reachable
+		ListKind:        &listKind,
+	}
+	instance.SetTenantID(1)
+	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
+	require.NoError(t, err)
+
+	attended := testpkg.CreateTestStudent(t, db, "SL-CxvAtt", fmt.Sprintf("CXVA-%d", suffix), "5a")
+	noShow := testpkg.CreateTestStudent(t, db, "SL-CxvNo", fmt.Sprintf("CXVN-%d", suffix), "5a")
+
+	// A timeless "Kommt heute nicht" pickup exception on listDate makes the
+	// care-day verdict CareDayCancelled for both children.
+	var excIDs []int64
+	for _, sid := range []int64{attended.ID, noShow.ID} {
+		exc := &scheduleModels.StudentPickupException{
+			StudentID: sid, ExceptionDate: listDate, PickupTime: nil, CreatedBy: staff.ID,
+		}
+		exc.SetTenantID(1)
+		_, err = db.NewInsert().Model(exc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
+		require.NoError(t, err)
+		excIDs = append(excIDs, exc.ID)
+	}
+
+	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	// Both rows are still Expected: attended checked in but the best-effort sync
+	// left the row status untouched, and noShow never showed. The ONLY difference
+	// is the visit below.
+	attendedRow := &scheduleModels.InstanceStudent{
+		InstanceID: instance.ID,
+		StudentID:  attended.ID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+	}
+	attendedRow.SetTenantID(1)
+	require.NoError(t, isRepo.Create(ctx, attendedRow))
+	noShowRow := &scheduleModels.InstanceStudent{
+		InstanceID: instance.ID,
+		StudentID:  noShow.ID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+	}
+	noShowRow.SetTenantID(1)
+	require.NoError(t, isRepo.Create(ctx, noShowRow))
+
+	// attended has visit evidence in the active group; noShow does not.
+	entry := atOn(listDate, 12, 15)
+	exit := atOn(listDate, 13, 0)
+	visit := testpkg.CreateTestVisit(t, db, attended.ID, activeGroup.ID, entry, &exit)
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", attendedRow.ID, noShowRow.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_exceptions", excIDs...)
+		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID)
+		testpkg.CleanupTableRecords(t, db, "active.groups", activeGroup.ID)
+		testpkg.CleanupActivityFixtures(t, db, attended.ID, staff.ID)
+		testpkg.CleanupActivityFixtures(t, db, noShow.ID)
+		testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activity.ID, room.ID)
+	})
+
+	svc := newTestService(db)
+
+	// The generated list: attended is unplanned presence (the builder reads the
+	// visit), noShow is the Abgemeldet planned row.
+	result, err := svc.BuildList(ctx, slotlists.Params{
+		Date:   listDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+	attendedResult := rowByStudent(result.Rows, attended.ID)
+	require.NotNil(t, attendedResult, "an attended cancellation stays on the reconciliation list")
+	assert.True(t, attendedResult.Present, "the visit records physical presence")
+	assert.True(t, attendedResult.Unplanned, "attendance on a cancelled care day is unplanned presence")
+	assert.False(t, attendedResult.Planned, "an attended cancellation is not a planned row")
+	noShowResult := rowByStudent(result.Rows, noShow.ID)
+	require.NotNil(t, noShowResult, "a cancelled no-show stays on the reconciliation list")
+	assert.True(t, noShowResult.Excused, "a cancelled no-show is a registered sign-off")
+	assert.Equal(t, "Abgemeldet (entschuldigt)", noShowResult.StatusLabel)
+
+	// /options must count exactly the one planned ("Abgemeldet") row the list
+	// renders — never the visit-only attended cancellation the list shows as
+	// unplanned. Without the visit leg in the count this would report 2.
+	options, err := svc.ListOptions(ctx, listDate)
+	require.NoError(t, err)
+	var mensaOption *slotlists.ListKindOption
+	for i := range options.ListKinds {
+		if options.ListKinds[i].Kind == slotlists.ListKindMensa {
+			mensaOption = &options.ListKinds[i]
+		}
+	}
+	require.NotNil(t, mensaOption, "the Mensa list kind is available")
+	assert.Equal(t, 1, mensaOption.RowCount,
+		"options planned count must exclude the visit-only attended cancellation and count only the Abgemeldet no-show")
+}
+
 // A broad sick/excused status day stamps every expected roster row of the day
 // as absent — including days the care plan never booked the child into care. On
 // such a not-scheduled day the row (status=absent, owned by the status day via
