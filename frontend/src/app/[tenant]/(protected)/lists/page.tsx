@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -399,6 +399,51 @@ function sameStringList(a: string[] | null, b: string[] | null): boolean {
   return a.every((value, index) => value === b[index]);
 }
 
+// Unordered membership equality — the backend treats instance_ids as a set, so a
+// mere reordering of /options slots is not a meaningful change. Used to decide
+// whether a since-loaded options refresh actually altered the selectable set.
+function sameStringSet(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const set = new Set(a);
+  return b.every((value) => set.has(value));
+}
+
+// A stable content signature of an options payload, order-independent. A
+// background revalidation only swaps in fresh options (and thus re-fires the
+// preview) when this signature changes, so tabbing back to an unchanged page
+// costs one silent fetch and no redundant preview/BuildList churn (#1565 review
+// pass 2 — stale one-time /options snapshot).
+function optionsSignature(options: SlotListOptionsResult): string {
+  const slots = options.slots
+    .map((slot) => `${slot.instance_id}:${slot.status}`)
+    .sort()
+    .join(",");
+  const cohorts = options.pickup_cohorts
+    .map(
+      (cohort) =>
+        `${cohort.cohort}:${cohort.available ? 1 : 0}:${cohort.row_count}`,
+    )
+    .sort()
+    .join(",");
+  const kinds = options.list_kinds
+    .map(
+      (kind) =>
+        `${kind.kind}:${kind.available ? 1 : 0}:${kind.slot_count}:${kind.row_count}`,
+    )
+    .sort()
+    .join(",");
+  return `${slots}|${cohorts}|${kinds}`;
+}
+
+// The active (non-cancelled) instance IDs of an options payload — the same
+// derivation activeInstanceIds performs on listOptions, extracted so the
+// pre-export guard can recompute it against a freshly fetched payload.
+function activeInstanceIdsOf(options: SlotListOptionsResult): string[] {
+  return options.slots
+    .filter((slot) => slot.status !== CANCELLED_SLOT_STATUS)
+    .map((slot) => slot.instance_id);
+}
+
 function defaultSelectionOption(): SelectionOption {
   const option = SELECTION_OPTIONS[0];
   if (!option) {
@@ -565,12 +610,7 @@ export default function SlotListsPage() {
   // (omit → backend "all") avoids a circular dependency with the preview result
   // that selectableSlotIds falls back to (#1565 review).
   const activeInstanceIds = useMemo<string[] | null>(
-    () =>
-      listOptions
-        ? listOptions.slots
-            .filter((slot) => slot.status !== CANCELLED_SLOT_STATUS)
-            .map((slot) => slot.instance_id)
-        : null,
+    () => (listOptions ? activeInstanceIdsOf(listOptions) : null),
     [listOptions],
   );
 
@@ -849,6 +889,64 @@ export default function SlotListsPage() {
     };
   }, [authStatus, dateISO, timetableDisabled]);
 
+  // The current date, mirrored into a ref so a background /options revalidation
+  // that resolves after the user has moved to another day can detect the switch
+  // and drop its now-irrelevant result instead of overwriting the new date's
+  // options.
+  const dateISORef = useRef(dateISO);
+  useEffect(() => {
+    dateISORef.current = dateISO;
+  }, [dateISO]);
+
+  // The /options snapshot is otherwise fetched only when the date changes, so a
+  // page left open across the day would keep sending a stale active-slot set to
+  // every preview and export — omitting a slot added since load and retaining a
+  // slot cancelled since load (#1565 review pass 2). Revalidate quietly whenever
+  // the tab/window regains focus (the realistic "edited the plan elsewhere, came
+  // back here" path). This is a BACKGROUND refresh: it never nulls listOptions
+  // (which would flash the spinner and disable the slot controls) and only swaps
+  // in the fresh payload when its content signature actually changed — feeding
+  // activeInstanceIds, which re-fires the preview and prunes now-cancelled manual
+  // selections. A failed refresh is non-fatal: the last-known options stay, and
+  // the pre-export guard still revalidates before any list leaves the building.
+  const revalidateOptions = useCallback(() => {
+    if (authStatus !== "authenticated" || timetableDisabled) return;
+    const requestedDate = dateISO;
+    fetchSlotListOptions(requestedDate)
+      .then((fresh) => {
+        if (requestedDate !== dateISORef.current) return; // date moved on
+        setOptionsError(null);
+        setListOptions((prev) => {
+          // The date-change effect owns the initial load (prev === null while it
+          // runs, or after an /options failure). Don't race it — leave recovery
+          // to that effect and skip until real options exist.
+          if (!prev) return prev;
+          return optionsSignature(prev) === optionsSignature(fresh)
+            ? prev
+            : fresh;
+        });
+      })
+      .catch((err: unknown) => {
+        logger.warn("slot_list_options_revalidate_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+  }, [authStatus, dateISO, timetableDisabled]);
+
+  useEffect(() => {
+    if (authStatus !== "authenticated" || timetableDisabled) return;
+    const onFocus = () => revalidateOptions();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") revalidateOptions();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [authStatus, timetableDisabled, revalidateOptions]);
+
   useEffect(() => {
     if (authStatus !== "authenticated" || timetableDisabled) return;
     // A corrupted id filter in the URL must not run a silently-widened query.
@@ -985,6 +1083,45 @@ export default function SlotListsPage() {
       // Never export a silently-widened list from a corrupted filter link. The
       // buttons are disabled while no result exists; this is defense in depth.
       if (filterLinkInvalid) return;
+
+      // An export is the one non-idempotent, hand-it-out action here, so before
+      // it fires validate the active-slot set against a FRESH /options read —
+      // never the possibly-hours-old snapshot the current request was built from
+      // (#1565 review pass 2). Recompute the exact instance_ids the request would
+      // carry under the fresh set (explicit manual subset intersected, otherwise
+      // the whole active set) and, if it no longer matches what request.instance_ids
+      // holds, refuse the export: swap in the fresh options (which re-renders the
+      // preview and prunes now-cancelled selections) and ask the user to re-check
+      // and export again, rather than print a stale list. Pickup cohorts carry no
+      // instance_ids, so they skip this guard.
+      if (target === "slots") {
+        let fresh: SlotListOptionsResult;
+        try {
+          fresh = await fetchSlotListOptions(dateISO);
+        } catch (err: unknown) {
+          logger.error("slot_list_options_revalidate_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          setError(
+            "Die Angebote konnten vor dem Export nicht überprüft werden. Bitte versuchen Sie es erneut.",
+          );
+          return;
+        }
+        const freshActive = activeInstanceIdsOf(fresh);
+        const effective =
+          isManualSlotSelection && selectedSlotIds !== null
+            ? selectedSlotIds.filter((id) => freshActive.includes(id))
+            : freshActive;
+        if (!sameStringSet(effective, request.instance_ids ?? [])) {
+          setOptionsError(null);
+          setListOptions(fresh);
+          setError(
+            "Die Angebote für diesen Tag haben sich seit dem Laden geändert. Die Vorschau wurde aktualisiert. Bitte prüfen und erneut exportieren.",
+          );
+          return;
+        }
+      }
+
       setIsExporting(true);
       setError(null);
       try {
@@ -1000,7 +1137,15 @@ export default function SlotListsPage() {
         setIsExporting(false);
       }
     },
-    [request, awaitingActiveSlots, filterLinkInvalid],
+    [
+      request,
+      awaitingActiveSlots,
+      filterLinkInvalid,
+      target,
+      dateISO,
+      isManualSlotSelection,
+      selectedSlotIds,
+    ],
   );
 
   // Standard filter row, rendered via the shared DesktopFilters component.
