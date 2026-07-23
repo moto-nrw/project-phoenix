@@ -108,20 +108,26 @@ const SELECTION_OPTIONS: SelectionOption[] = [
     description: "Über Listenart zugeordnet",
     icon: Utensils,
   },
+  // The Ganztag pickup boundaries are tenant-configurable (config.setting_values
+  // slot_list_*_day_cutoff), so these label/description strings are only neutral
+  // placeholders shown before the date's /options response arrives. Once it does,
+  // the render sources the concrete boundary from pickup_cohorts[].label — never
+  // these defaults — so a school on non-default cutoffs never sees a wrong time
+  // (#1565 review pass 1).
   {
     id: "short_day",
     target: "pickup_cohort",
     pickupCohort: "short_day",
-    label: "Ganztag bis 14:30",
-    description: "Abholung bis 14:30 Uhr",
+    label: "Ganztag (frühe Abholung)",
+    description: "Frühere Abholzeit",
     icon: Clock3,
   },
   {
     id: "long_day",
     target: "pickup_cohort",
     pickupCohort: "long_day",
-    label: "Ganztag bis 16:00",
-    description: "Abholung nach 14:30 Uhr",
+    label: "Ganztag (späte Abholung)",
+    description: "Spätere Abholzeit",
     icon: Clock4,
   },
   {
@@ -1564,6 +1570,20 @@ export default function SlotListsPage() {
             ? "Die Angebote für diesen Tag haben sich seit dem Laden geändert. Bitte prüfen und erneut exportieren."
             : "Die Abholzeiten für diesen Tag haben sich seit dem Laden geändert. Bitte prüfen und erneut exportieren.";
         return;
+      }
+
+      // No drift: `fresh` equals the installed options, so nothing is
+      // reinstalled. Still commit this preflight's generation (guarded against a
+      // newer request that already won) — the drift branch above only advances
+      // the marker when it installs. Without committing here, this preflight's
+      // /options read (the newest started) leaves the shared marker behind an
+      // older focus/visibility revalidation that started earlier but resolves
+      // later; that stale sibling would then pass its own `generation <=
+      // committed` check and overwrite this fresh snapshot, rolling active slot
+      // IDs or cutoff metadata back and re-firing a stale preview / repeated
+      // export refusal until the next refresh (#1565 review pass 2 P2).
+      if (exportOptionsGeneration > optionsCommittedGenerationRef.current) {
+        optionsCommittedGenerationRef.current = exportOptionsGeneration;
       }
 
       // The options guard above only sees slot/cohort METADATA. Roster membership
