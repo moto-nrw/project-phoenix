@@ -609,6 +609,65 @@ describe("useGlobalSSE — companion announcements", () => {
     }
   });
 
+  it("refreshes the detail header's pickup/arrival slots on student_updated", () => {
+    renderHook(() => useGlobalSSE());
+
+    // A parent care-exception submit or delete rewrites that day's pickup AND
+    // arrival override but announces only student_updated; an approved care
+    // request rewrites the weekly pickup plan under an arrival-named event.
+    // Both header caches disable focus revalidation, so this is their only
+    // live path for those writes.
+    fireSSE(makeEvent("student_updated", { student_id: "s1" }));
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const matchers = mockMutate.mock.calls
+      .map(([matcher]) => matcher)
+      .filter(
+        (matcher): matcher is (key: unknown) => boolean =>
+          typeof matcher === "function",
+      );
+    for (const key of ["t1:pickup-data-s1", "t1:arrival-data-s1"]) {
+      expect(
+        matchers.some((matcher) => matcher(key)),
+        `student_updated must invalidate ${key}`,
+      ).toBe(true);
+    }
+  });
+
+  it("does not revalidate another child whose id merely starts with the event's", () => {
+    renderHook(() => useGlobalSSE());
+
+    // Ids are plain integers, so "1" is a prefix of "10", "11", "100". Matching
+    // on includes() alone made one child's check-in refetch every such
+    // sibling's detail and care-plan caches.
+    fireSSE(makeEvent("student_checkin", { student_id: "1" }, "grp1"));
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const matchers = mockMutate.mock.calls
+      .map(([matcher]) => matcher)
+      .filter(
+        (matcher): matcher is (key: unknown) => boolean =>
+          typeof matcher === "function",
+      );
+    const matchesAny = (key: string) =>
+      matchers.some((matcher) => matcher(key));
+
+    // The event's own child still revalidates, terminal id and segment id alike.
+    expect(matchesAny("t1:student-detail-1")).toBe(true);
+    expect(matchesAny("t1:care-plan-day-1-2026-07-22")).toBe(true);
+    expect(matchesAny("t1:care-plan-week-1-2026-07-20-2026-07-24")).toBe(true);
+    // Different children that share the id prefix must be left alone.
+    expect(matchesAny("t1:student-detail-10")).toBe(false);
+    expect(matchesAny("t1:care-plan-day-10-2026-07-22")).toBe(false);
+    expect(matchesAny("t1:care-plan-week-100-2026-07-20-2026-07-24")).toBe(
+      false,
+    );
+  });
+
   it("marks reminders stale on pickup_schedule_changed", () => {
     // "Abholung in 10 Min" / "überfällig" rows come from the effective pickup
     // time, so a Gehzeit edit adds, drops or re-times them. The bell and

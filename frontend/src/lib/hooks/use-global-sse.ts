@@ -38,6 +38,46 @@ const logger = createLogger({ component: "GlobalSSE" });
 
 const DEBOUNCE_MS = 500;
 
+// Per-student SWR keys carry the id as a segment: "student-detail-<id>",
+// "care-plan-day-<id>-<date>", "care-plan-week-<id>-<from>-<to>". useSWRAuth
+// prefixes the whole thing with the tenant slug ("<slug>:student-detail-7").
+const STUDENT_SCOPED_KEY_PREFIXES = [
+  "student-detail-",
+  "care-plan-day-",
+  "care-plan-week-",
+] as const;
+
+/**
+ * Whether an SWR cache key belongs to exactly this student.
+ *
+ * A plain `key.includes("care-plan-day-" + id)` matches every id that merely
+ * STARTS with it, so an event for child 1 also revalidated the cached plans of
+ * children 10, 11 and 100 — silent extra requests that grow with the school,
+ * and worse on a morning check-in burst where several such events land at once.
+ * The id must therefore end the key or be followed by "-", and the prefix must
+ * start the key or sit right after the tenant separator.
+ */
+function keyTargetsStudent(key: string, studentId: string): boolean {
+  return STUDENT_SCOPED_KEY_PREFIXES.some((prefix) => {
+    const needle = `${prefix}${studentId}`;
+    for (
+      let at = key.indexOf(needle);
+      at !== -1;
+      at = key.indexOf(needle, at + 1)
+    ) {
+      const before = at === 0 ? undefined : key[at - 1];
+      const after = key[at + needle.length];
+      if (
+        (before === undefined || before === ":") &&
+        (after === undefined || after === "-")
+      ) {
+        return true;
+      }
+    }
+    return false;
+  });
+}
+
 /**
  * Global SSE hook that maintains a single connection for the entire app.
  *
@@ -155,16 +195,13 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
-    // Invalidate specific student detail caches
+    // Invalidate specific student detail caches. keyTargetsStudent covers
+    // student-detail-* plus care-plan-* — the per-child Betreuungsplan day/week
+    // view, whose timeline shows the attendance a check-in/out just changed —
+    // and matches the id as a whole segment, never as a prefix of a longer id.
     for (const studentId of pendingStudentIds.current) {
       mutate(
-        (key) =>
-          typeof key === "string" &&
-          // care-plan-* is the per-child Betreuungsplan day/week view; a
-          // check-in/out changes that child's attendance on the timeline.
-          (key.includes(`student-detail-${studentId}`) ||
-            key.includes(`care-plan-day-${studentId}`) ||
-            key.includes(`care-plan-week-${studentId}`)),
+        (key) => typeof key === "string" && keyTargetsStudent(key, studentId),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -180,7 +217,18 @@ export function useGlobalSSE(): SSEHookState {
           (key.includes("student-detail-") ||
             key.includes("student-status-days-") ||
             key.includes("care-plan-day-") ||
-            key.includes("care-plan-week-")),
+            key.includes("care-plan-week-") ||
+            // The staff detail header's "Heutige Abholung"/arrival slots. Parent
+            // care-exception writes (submit AND delete) change the pickup and
+            // arrival override for a day but announce ONLY student_updated —
+            // no pickup_schedule_changed, no arrival_schedule_changed
+            // (services/parent/parent_write_service.go). An approved care
+            // request is the mirror gap: it emits arrival_schedule_changed but
+            // also rewrites the weekly PICKUP plan. Both keys disable focus
+            // revalidation, so without them an open detail page keeps showing
+            // the superseded time until a manual reload.
+            key.includes("pickup-data-") ||
+            key.includes("arrival-data-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
