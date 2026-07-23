@@ -1516,12 +1516,18 @@ export default function SlotListsPage() {
         printTarget?.close();
         setIsExporting(false);
         setOptionsError(null);
+        // Stash the drift warning instead of setting it directly. setListOptions
+        // installs fresh options, which re-derives activeInstanceIds -> request
+        // and immediately reruns the preview effect; that effect opens with
+        // setError(null), so a message set here would be wiped by the very
+        // refresh this branch triggers, flashing for a frame or never showing at
+        // all. Stash it exactly like the 409 path so the refreshed preview
+        // reapplies it once the fresh content lands (#1565 review pass 13).
         setListOptions(fresh);
-        setError(
+        pendingPreviewWarning.current =
           target === "slots"
             ? "Die Angebote für diesen Tag haben sich seit dem Laden geändert. Bitte prüfen und erneut exportieren."
-            : "Die Abholzeiten für diesen Tag haben sich seit dem Laden geändert. Bitte prüfen und erneut exportieren.",
-        );
+            : "Die Abholzeiten für diesen Tag haben sich seit dem Laden geändert. Bitte prüfen und erneut exportieren.";
         return;
       }
 
