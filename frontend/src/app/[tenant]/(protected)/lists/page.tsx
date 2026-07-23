@@ -463,21 +463,21 @@ function optionsSignature(options: SlotListOptionsResult): string {
         slot.room_name ?? "",
       ]),
     )
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
     .join(",");
   const cohorts = options.pickup_cohorts
     .map(
       (cohort) =>
         `${cohort.cohort}:${cohort.available ? 1 : 0}:${cohort.row_count}`,
     )
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
     .join(",");
   const kinds = options.list_kinds
     .map(
       (kind) =>
         `${kind.kind}:${kind.available ? 1 : 0}:${kind.slot_count}:${kind.row_count}`,
     )
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
     .join(",");
   return `${slots}|${cohorts}|${kinds}`;
 }
@@ -510,7 +510,7 @@ function pickupCohortsSignature(options: SlotListOptionsResult): string {
         cohort.row_count,
       ]),
     )
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
     .join(",");
 }
 
@@ -551,7 +551,7 @@ function slotDocumentSignature(
         slot.room_name ?? "",
       ]),
     )
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
     .join(",");
 }
 

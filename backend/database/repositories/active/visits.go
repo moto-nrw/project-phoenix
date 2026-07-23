@@ -91,7 +91,7 @@ func (r *VisitRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupI
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&visits).
 		ModelTableExpr(tableExprActiveVisitsAsVisit).
-		Where(`"visit".active_group_id IN (?)`, bun.In(activeGroupIDs))
+		Where(`"visit".active_group_id IN (?)`, bun.List(activeGroupIDs))
 
 	query = base.WithTenantFilter(ctx, query, "visit")
 
