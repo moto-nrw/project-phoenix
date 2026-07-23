@@ -1027,29 +1027,60 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 		completed := inst.Status == scheduleModel.InstanceStatusCompleted
 
 		seenPlanned := make(map[int64]struct{}, len(planned))
-		retainedPresent := false
+		retainedRows := false
 		if voidPlan {
-			// A timetable PATCH records presence as status=present on the roster row
-			// without ever attaching an active group, so such a child is absent from
-			// the visit-derived presentSet below. Retain exactly those rows as
-			// unplanned-present evidence and suppress the rest of the void plan (by
-			// nilling `planned` so the switch below processes nothing), so a
-			// called-off or not-yet-started slot never prints a planned no-show as
-			// "Fehlt" yet still surfaces documented attendance in Ist and Abgleich
-			// (#1565 review pass 1 P2 / pass 2 P1).
+			// A void plan (cancelled or not-yet-started) is never a source of "Fehlt":
+			// nilling `planned` below suppresses every roster row from the switch. Two
+			// kinds of row still carry real information that must survive that
+			// suppression:
+			//
+			//   - Present evidence. A timetable PATCH records status=present on the
+			//     roster row without ever attaching an active group, so such a child is
+			//     absent from the visit-derived presentSet below. Retain those rows as
+			//     unplanned-present evidence so documented attendance still surfaces in
+			//     Ist and Abgleich (#1565 review pass 1 P2 / pass 2 P1).
+			//
+			//   - A registered absence on a DEFERRED (not-yet-started) slot. A child
+			//     signed off sick/excused/class-trip (ApplyStatusDay stamps the row
+			//     absent with the substatus) or with a cancelled care day ("Kommt heute
+			//     nicht") is a valid all-day sign-off, not a not-yet-due no-show. Retain
+			//     it as "Abgemeldet" — mirroring the pickup-cohort reconciliation, which
+			//     defers only the unexplained would-be-"Fehlt" child and keeps registered
+			//     absences — so it shows in the Abgleich and the excused counter before
+			//     the slot's scheduled start (#1565 review pass 1 P2). A cancelled slot
+			//     is deliberately excluded: the whole occurrence was called off, so a
+			//     per-slot sign-off is moot and only present evidence is retained.
 			for _, row := range planned {
-				if row.Status != scheduleModel.AttendanceStatusPresent {
-					continue
+				switch {
+				case row.Status == scheduleModel.AttendanceStatusPresent:
+					seenPlanned[row.StudentID] = struct{}{}
+					retainedRows = true
+					entries = append(entries, mergedEntry{
+						StudentID:  row.StudentID,
+						InstanceID: inst.ID,
+						SlotLabel:  slotLabel,
+						RoomName:   roomName,
+						Present:    true,
+					})
+				case deferred:
+					substatus, ok := voidPlanRegisteredAbsence(row, careDay[row.StudentID])
+					if !ok {
+						continue
+					}
+					seenPlanned[row.StudentID] = struct{}{}
+					retainedRows = true
+					substatusCopy := substatus
+					entries = append(entries, mergedEntry{
+						StudentID:        row.StudentID,
+						InstanceID:       inst.ID,
+						SlotLabel:        slotLabel,
+						RoomName:         roomName,
+						Planned:          true,
+						Present:          false,
+						PlannedStatus:    scheduleModel.AttendanceStatusAbsent,
+						PlannedSubstatus: &substatusCopy,
+					})
 				}
-				seenPlanned[row.StudentID] = struct{}{}
-				retainedPresent = true
-				entries = append(entries, mergedEntry{
-					StudentID:  row.StudentID,
-					InstanceID: inst.ID,
-					SlotLabel:  slotLabel,
-					RoomName:   roomName,
-					Present:    true,
-				})
 			}
 			planned = nil
 		}
@@ -1219,7 +1250,7 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 			if _, ok := seenPlanned[studentID]; ok {
 				continue
 			}
-			retainedPresent = true
+			retainedRows = true
 			entries = append(entries, mergedEntry{
 				StudentID:  studentID,
 				InstanceID: inst.ID,
@@ -1232,19 +1263,19 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 		// Export "Enthalten" accounting for void-plan slots. A cancelled slot that
 		// retained any present child — from a manual roster mark above or a visit
 		// here — counts as a contained Termin so the header does not undercount; a
-		// deferred (not-yet-started) slot that retained none is recorded so the
-		// summary does not count a slot the merge produced no rows for. A deferred
-		// slot that DID retain a present child is deliberately left unrecorded here:
-		// it contributed rows and must count normally. cancelled and deferred are
-		// mutually exclusive (the first loop never defers a cancelled slot) (#1565
-		// review).
+		// deferred (not-yet-started) slot that retained no rows at all is recorded so
+		// the summary does not count a slot the merge produced nothing for. A deferred
+		// slot that DID retain a row — a present child or a "Abgemeldet" registered
+		// absence — is deliberately left unrecorded here: it contributed rows and must
+		// count normally. cancelled and deferred are mutually exclusive (the first
+		// loop never defers a cancelled slot) (#1565 review).
 		switch {
-		case cancelled && retainedPresent:
+		case cancelled && retainedRows:
 			if result.retainedCancelledSlots == nil {
 				result.retainedCancelledSlots = map[int64]struct{}{}
 			}
 			result.retainedCancelledSlots[inst.ID] = struct{}{}
-		case deferred && !retainedPresent:
+		case deferred && !retainedRows:
 			if result.deferredSlots == nil {
 				result.deferredSlots = map[int64]struct{}{}
 			}
@@ -1762,6 +1793,42 @@ func signedOffAbsence(entry mergedEntry) bool {
 	default:
 		return false
 	}
+}
+
+// voidPlanRegisteredAbsence reports whether a deferred (not-yet-started) slot's
+// roster row is a registered all-day sign-off that must survive the void plan as
+// "Abgemeldet" rather than be suppressed like an unexplained not-yet-due no-show.
+// It returns the substatus to stamp on the retained entry. Two shapes qualify,
+// exactly the ones the normal merge and the pickup cohort render as "Abgemeldet":
+//
+//   - A status-day sick/excused/class-trip stamp on the row itself: ApplyStatusDay
+//     writes status=absent plus the substatus (class trip → "field_trip") and a
+//     student_status_day_id, so the evidence rides the row even before the slot
+//     starts.
+//   - A cancelled care day ("Kommt heute nicht"), which lives in the timeless
+//     arrival/pickup exceptions rather than on the row. A manual override
+//     (ManualStatusAt) still wins and is excluded here, exactly as the normal
+//     merge's cancelled-care-day branch treats it.
+//
+// Anything else — an expected no-show, a lifecycle absent without a sign-off
+// substatus, a not_scheduled non-booking — is not a registered absence and stays
+// suppressed so the deferred slot never prints a not-yet-due child as "Fehlt".
+func voidPlanRegisteredAbsence(row *scheduleModel.InstanceStudent, careDay scheduleSvc.CareDayStatus) (string, bool) {
+	if row == nil {
+		return "", false
+	}
+	if row.Status == scheduleModel.AttendanceStatusAbsent && row.Substatus != nil {
+		switch *row.Substatus {
+		case scheduleModel.AttendanceSubstatusSick,
+			scheduleModel.AttendanceSubstatusExcused,
+			scheduleModel.AttendanceSubstatusFieldTrip:
+			return *row.Substatus, true
+		}
+	}
+	if row.ManualStatusAt == nil && careDay == scheduleSvc.CareDayCancelled {
+		return string(scheduleSvc.CareDayCancelled), true
+	}
+	return "", false
 }
 
 func statusLabel(entry mergedEntry, source Source) string {

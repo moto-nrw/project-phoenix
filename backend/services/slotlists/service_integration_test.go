@@ -2239,6 +2239,98 @@ func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 	assert.Equal(t, 1, reconStarted.Counters.Missing)
 }
 
+// A slot reconciliation generated before the slot's scheduled start defers the
+// unexplained no-show (no false "Fehlt"), but a child already signed off
+// sick/excused carries a registered absence on the roster row (ApplyStatusDay
+// stamps it absent + substatus) that is a valid all-day sign-off — not a
+// not-yet-due no-show. The deferred void plan must keep it as "Abgemeldet" and
+// count it as Excused, mirroring the pickup-cohort reconciliation, instead of
+// discarding the row until the slot's start (#1565 review pass 1 P2).
+func TestBuildList_SlotReconciliationKeepsRegisteredAbsenceBeforeStart(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-RegAbsRoom-%d", suffix))
+	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-RegAbsAct-%d", suffix))
+	mensa := activitiesModels.ListKindMensa
+
+	// pickupNow is 12:00; this occurrence starts at 15:00 → not yet started, so
+	// the reconciliation reaches it deferred (no active group yet).
+	future := &scheduleModels.ActivityInstance{
+		Date:            pickupDate,
+		ActivityGroupID: &activity.ID,
+		Title:           fmt.Sprintf("Mensa-Future %d", suffix),
+		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:          room.ID,
+		Status:          scheduleModels.InstanceStatusPlanned,
+		ListKind:        &mensa,
+	}
+	future.SetTenantID(1)
+	_, err := db.NewInsert().Model(future).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
+	require.NoError(t, err)
+
+	excused := testpkg.CreateTestStudent(t, db, "SL-RegAbsExcused", fmt.Sprintf("RE-%d", suffix), "3a")
+	notYetDue := testpkg.CreateTestStudent(t, db, "SL-RegAbsExpected", fmt.Sprintf("RP-%d", suffix), "3a")
+
+	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	var isIDs []int64
+	excusedSubstatus := scheduleModels.AttendanceSubstatusExcused
+	for _, sc := range []struct {
+		studentID int64
+		status    string
+		substatus *string
+	}{
+		// Signed off excused: absent + substatus, exactly what ApplyStatusDay writes.
+		{studentID: excused.ID, status: scheduleModels.AttendanceStatusAbsent, substatus: &excusedSubstatus},
+		// A plain expected child with no sign-off — the not-yet-due no-show that must
+		// still be deferred.
+		{studentID: notYetDue.ID, status: scheduleModels.AttendanceStatusExpected},
+	} {
+		row := &scheduleModels.InstanceStudent{
+			InstanceID: future.ID,
+			StudentID:  sc.studentID,
+			Status:     sc.status,
+			Substatus:  sc.substatus,
+		}
+		row.SetTenantID(1)
+		require.NoError(t, isRepo.Create(ctx, row))
+		isIDs = append(isIDs, row.ID)
+	}
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", isIDs...)
+		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", future.ID)
+		testpkg.CleanupActivityFixtures(t, db, excused.ID)
+		testpkg.CleanupActivityFixtures(t, db, notYetDue.ID)
+		testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activity.ID, room.ID)
+	})
+
+	svc := newTestService(db)
+	recon, err := svc.BuildList(ctx, slotlists.Params{
+		Date:   pickupDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+
+	// The registered absence survives the deferred void plan as "Abgemeldet".
+	excusedRow := rowByStudent(recon.Rows, excused.ID)
+	require.NotNil(t, excusedRow, "a signed-off child must still show before the slot starts")
+	assert.True(t, excusedRow.Excused)
+	assert.Equal(t, "Abgemeldet (entschuldigt)", excusedRow.StatusLabel)
+
+	// The unexplained not-yet-due no-show is still deferred — no false "Fehlt".
+	assert.Nil(t, rowByStudent(recon.Rows, notYetDue.ID),
+		"a not-yet-due no-show must not print before the slot starts")
+
+	assert.Equal(t, 1, recon.Counters.Excused, "the sign-off counts as Abgemeldet before start")
+	assert.Equal(t, 0, recon.Counters.Missing, "no missing-child count before the slot has started")
+}
+
 // TestBuildList_PickupReconciliationCancelledButPresentIsUnplanned proves the
 // pickup path agrees with the slot path (#1565 review): a child whose care day
 // was signed off ("Kommt heute nicht") but who attends anyway is unplanned
