@@ -985,9 +985,22 @@ export default function SlotListsPage() {
             // date-load effect never reruns (#1565 review pass 4).
             return recoveringFromFailure ? fresh : prev;
           }
-          return optionsSignature(prev) === optionsSignature(fresh)
-            ? prev
-            : fresh;
+          // Reinstall on ANY change a downstream reader renders, INCLUDING a
+          // pickup cutoff moved without re-bucketing any child. optionsSignature
+          // keys cohorts on availability + row_count only, so a label-only cutoff
+          // change ("Ganztag bis 14:30" -> "bis 14:00", same row_count) slips past
+          // it — listOptions is not reinstalled, the pickup preview never re-fires,
+          // and its cohort header stays on the old cutoff until an export attempt
+          // trips the pickupCohortsSignature drift guard. Fold the cohort-label
+          // signature in here so focus revalidation reinstalls on a label-only
+          // change too, re-firing the preview so the visible cohort matches what an
+          // export would produce (#1565 review pass 1). Slot export drift keeps
+          // comparing optionsSignature alone — a pickup-cutoff change must not
+          // spuriously block an unrelated slot-list export.
+          const unchanged =
+            optionsSignature(prev) === optionsSignature(fresh) &&
+            pickupCohortsSignature(prev) === pickupCohortsSignature(fresh);
+          return unchanged ? prev : fresh;
         });
       })
       .catch((err: unknown) => {
