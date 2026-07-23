@@ -2,7 +2,6 @@ package active
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"testing"
 	"time"
@@ -60,7 +59,7 @@ func newRecordingBalanceAdjustmentService(
 		repo,
 		monthService,
 		&wtmMockSettings{accountStart: "2026-06-01"},
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		slog.New(slog.DiscardHandler),
 	)
 }
 
