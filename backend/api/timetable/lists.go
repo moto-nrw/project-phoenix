@@ -35,6 +35,11 @@ type slotListRequest struct {
 	GroupIDs     []string `json:"group_ids,omitempty"`
 	Classes      []string `json:"classes,omitempty"`
 	GroupBy      string   `json:"group_by,omitempty"`
+	// ExpectedSignature is the content hash of the preview the client verified
+	// (Result.signature). On export the backend refuses with 409 when its fresh
+	// build no longer matches, so a downloaded file never differs from the
+	// approved preview (#1565 review pass 2). Preview requests omit it.
+	ExpectedSignature string `json:"expected_signature,omitempty"`
 }
 
 type slotListOptionsRequest struct {
@@ -89,16 +94,17 @@ func (rs *Resource) parseSlotListParams(w http.ResponseWriter, r *http.Request, 
 		return slotlists.Params{}, false
 	}
 	return slotlists.Params{
-		Date:           date,
-		Target:         target,
-		PickupCohort:   pickupCohort,
-		Source:         source,
-		ListKind:       listKind,
-		InstanceIDs:    instanceIDs,
-		InstanceIDsSet: req.InstanceIDs != nil,
-		GroupIDs:       groupIDs,
-		Classes:        req.Classes,
-		GroupBy:        groupBy,
+		Date:              date,
+		Target:            target,
+		PickupCohort:      pickupCohort,
+		Source:            source,
+		ListKind:          listKind,
+		InstanceIDs:       instanceIDs,
+		InstanceIDsSet:    req.InstanceIDs != nil,
+		GroupIDs:          groupIDs,
+		Classes:           req.Classes,
+		GroupBy:           groupBy,
+		ExpectedSignature: req.ExpectedSignature,
 	}, true
 }
 
@@ -203,6 +209,10 @@ func (rs *Resource) exportSlotList(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, slotlists.ErrPickupCohortPastDate) ||
 			errors.Is(err, slotlists.ErrReconciliationFutureDate) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		if errors.Is(err, slotlists.ErrListDrifted) {
+			common.RenderError(w, r, common.ErrorConflict(err))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("render slot list failed", err))

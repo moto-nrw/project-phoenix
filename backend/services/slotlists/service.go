@@ -2,11 +2,14 @@ package slotlists
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -52,6 +55,15 @@ var ErrPickupCohortPastDate = errors.New("Ganztag-Listen sind nur für heute und
 // and Ist lists stay available for future dates; only the merge is refused. The
 // handler maps this to HTTP 400.
 var ErrReconciliationFutureDate = errors.New("Ein Abgleich ist nur für heute und vergangene Tage möglich, nicht für künftige Tage")
+
+// ErrListDrifted is returned by RenderList when the freshly rebuilt list no
+// longer matches the content signature the client verified in its preview
+// (Params.ExpectedSignature). Live attendance, roster or plan data changed
+// between the client's preview verification and this export render, so honoring
+// the export would hand out a file the user never reviewed. The handler maps
+// this to HTTP 409 so the client can refresh the preview and ask the user to
+// re-check before exporting again (#1565 review pass 2).
+var ErrListDrifted = errors.New("Die Liste hat sich seit der Vorschau geändert. Bitte erneut prüfen und exportieren.") //nolint:staticcheck // ST1005: user-facing German message
 
 // Service builds slot lists for preview (JSON) and export (PDF/XLSX).
 type Service interface {
@@ -518,7 +530,43 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 	})
 	result.Rows = rows
 	result.Counters = countRows(rows, params.Source)
+	result.Signature = listSignature(result)
 	return result, nil
+}
+
+// listSignature is a stable content hash of the rendered list: its label,
+// provenance, counters and every row's identity, placement and status. Rows are
+// already sorted deterministically by BuildList, so a positional walk is stable
+// across two builds of the same unchanged data. Unit/record separators (0x1f /
+// 0x1e) delimit fields so no value can be confused with a boundary. See the
+// Result.Signature doc for how the export drift guard uses it (#1565 review
+// pass 2).
+func listSignature(r *Result) string {
+	var b strings.Builder
+	b.WriteString(r.ListLabel)
+	b.WriteByte('\x1e')
+	b.WriteString(r.Provenance)
+	b.WriteByte('\x1e')
+	fmt.Fprintf(&b, "%d\x1f%d\x1f%d\x1f%d\x1f%d\x1e",
+		r.Counters.Planned, r.Counters.Present, r.Counters.Missing,
+		r.Counters.Excused, r.Counters.Unplanned)
+	for _, row := range r.Rows {
+		fmt.Fprintf(&b,
+			"%d\x1f%s\x1f%s\x1f%s\x1f%s\x1f%d\x1f%s\x1f%s\x1f%s\x1f%s\x1f%t\x1f%t\x1f%t\x1f%t\x1f%s\x1e",
+			row.StudentID, row.Name, row.SchoolClass, row.GroupName,
+			groupIDSignatureField(row.GroupID), row.InstanceID, row.Slot,
+			row.RoomName, row.PickupTime, row.StatusLabel, row.Planned,
+			row.Present, row.Unplanned, row.Excused, row.GroupTitle)
+	}
+	sum := sha256.Sum256([]byte(b.String()))
+	return hex.EncodeToString(sum[:])
+}
+
+func groupIDSignatureField(id *int64) string {
+	if id == nil {
+		return ""
+	}
+	return strconv.FormatInt(*id, 10)
 }
 
 func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*OptionsResult, error) {
@@ -1928,6 +1976,15 @@ func (s *service) RenderList(ctx context.Context, params Params, format listexpo
 	result, err := s.BuildList(ctx, params)
 	if err != nil {
 		return listexport.File{}, err
+	}
+
+	// Atomic drift guard: the client echoes the content signature of the preview
+	// it verified. If this fresh build no longer matches, live data changed
+	// between the client's verification and this render — refuse rather than hand
+	// out a file that differs from the approved preview (#1565 review pass 2). An
+	// empty ExpectedSignature (older client or a direct render) skips the guard.
+	if params.ExpectedSignature != "" && result.Signature != params.ExpectedSignature {
+		return listexport.File{}, ErrListDrifted
 	}
 
 	pickupBased := params.Target == TargetPickupCohort

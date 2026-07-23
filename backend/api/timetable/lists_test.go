@@ -183,3 +183,43 @@ func TestExportSlotListReportsRenderErrors(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Equal(t, listexport.FormatXLSX, mock.lastFormat)
 }
+
+func TestExportSlotListMapsDriftToConflict(t *testing.T) {
+	mock := &mockSlotListsService{renderErr: slotlists.ErrListDrifted}
+	rs := NewResource(Dependencies{SlotListsService: mock})
+	router := slotListTestRouter(rs.exportSlotList, "/export")
+
+	w := slotListPost(t, router, "/export", map[string]any{
+		"date":               "2030-09-04",
+		"target":             "slots",
+		"source":             "planned",
+		"expected_signature": "stale-hash",
+	})
+
+	// A drift refusal must surface as 409 (client refreshes and re-checks), not
+	// a 500 that reads as a server fault (#1565 review pass 2).
+	require.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), "seit der Vorschau geändert")
+}
+
+func TestExportSlotListForwardsExpectedSignature(t *testing.T) {
+	mock := &mockSlotListsService{
+		renderFile: listexport.File{
+			Data:        []byte("%PDF test"),
+			ContentType: "application/pdf",
+			Filename:    "tagesliste.pdf",
+		},
+	}
+	rs := NewResource(Dependencies{SlotListsService: mock})
+	router := slotListTestRouter(rs.exportSlotList, "/export")
+
+	w := slotListPost(t, router, "/export", map[string]any{
+		"date":               "2030-09-04",
+		"target":             "slots",
+		"source":             "planned",
+		"expected_signature": "abc123",
+	})
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "abc123", mock.lastParams.ExpectedSignature)
+}

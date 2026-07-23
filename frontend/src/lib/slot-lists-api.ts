@@ -29,6 +29,12 @@ export interface SlotListRequest {
   classes?: string[];
   /** Section the preview/export. Omit/"" = one flat list. */
   group_by?: SlotListGroupBy;
+  /**
+   * Content hash (SlotListResult.signature) of the preview the user reviewed.
+   * Export-only: the backend refuses with 409 when its fresh rebuild no longer
+   * matches, so a downloaded file never differs from the approved preview.
+   */
+  expected_signature?: string;
 }
 
 interface SlotListSlot {
@@ -88,6 +94,12 @@ export interface SlotListResult {
   classes: string[];
   counters: SlotListCounters;
   rows: SlotListRow[];
+  /**
+   * Backend content hash of this rendered list. Echoed back as an export's
+   * expected_signature so the backend can refuse (409) an export whose fresh
+   * rebuild no longer matches the reviewed preview (#1565 review pass 2).
+   */
+  signature: string;
 }
 
 interface SlotListPickupCohortOption {
@@ -173,11 +185,27 @@ export async function fetchSlotListPreview(
 
 export type SlotListExportMode = "download" | "print";
 
+/**
+ * Error thrown by exportSlotList for a non-OK export response. Carries the HTTP
+ * status so callers can branch on the backend's 409 drift refusal (the fresh
+ * build no longer matches the reviewed preview) without string-matching the
+ * message (#1565 review pass 2).
+ */
+export class SlotListExportError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "SlotListExportError";
+    this.status = status;
+  }
+}
+
 export async function exportSlotList(
   request: SlotListRequest,
   format: SlotListFormat,
   mode: SlotListExportMode,
   preOpenedPrintTarget?: Window | null,
+  expectedSignature?: string,
 ): Promise<void> {
   // The print tab must open synchronously while the click's transient user
   // activation is still valid: after `await fetch` popup blockers (Safari,
@@ -200,10 +228,17 @@ export async function exportSlotList(
     const response = await fetch("/api/timetable/lists/export", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...request, format }),
+      body: JSON.stringify({
+        ...request,
+        format,
+        expected_signature: expectedSignature,
+      }),
     });
     if (!response.ok) {
-      throw new Error(await readErrorMessage(response));
+      throw new SlotListExportError(
+        response.status,
+        await readErrorMessage(response),
+      );
     }
 
     const blob = await response.blob();
@@ -267,10 +302,37 @@ function filenameFromDisposition(response: Response): string | null {
 
 async function readErrorMessage(response: Response): Promise<string> {
   try {
-    const payload = (await response.json()) as { error?: string };
-    if (payload.error) return payload.error;
+    const payload = (await response.json()) as {
+      error?: string;
+      message?: string;
+    };
+    const raw = payload.error ?? payload.message;
+    if (raw) return unwrapBackendMessage(raw);
   } catch {
     // fall through to generic message
   }
   return "Die Liste konnte nicht geladen werden.";
+}
+
+// The proxy layers forward a backend error in one of a few shapes: the clean
+// German sentence, the raw backend JSON body (`{"status":"error","error":"…"}`)
+// when a route bypasses the shared JSON wrapper (the export download route), or
+// the legacy `API error (400): {…}` envelope. Peel all of them back to the
+// backend's human sentence so a refusal (e.g. a past Ganztag date or a future
+// reconciliation) never surfaces an internal prefix or serialized JSON to the
+// user (#1565 review pass 2). A plain sentence with no embedded object is
+// returned untouched.
+function unwrapBackendMessage(raw: string): string {
+  const trimmed = raw.trim();
+  const jsonStart = trimmed.indexOf("{");
+  if (jsonStart === -1) return trimmed;
+  try {
+    const nested = JSON.parse(trimmed.slice(jsonStart)) as {
+      error?: string;
+      message?: string;
+    };
+    return nested.error ?? nested.message ?? trimmed;
+  } catch {
+    return trimmed;
+  }
 }

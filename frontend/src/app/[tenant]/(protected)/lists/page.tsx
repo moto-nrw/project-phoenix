@@ -46,6 +46,7 @@ import {
   fetchSlotListOptions,
   fetchSlotListPreview,
   groupByOptionsFor,
+  SlotListExportError,
   SLOT_LIST_KIND_LABELS,
   SLOT_LIST_GROUP_BY_LABELS,
   SLOT_LIST_SOURCE_LABELS,
@@ -1068,6 +1069,15 @@ export default function SlotListsPage() {
     optionsErrorRef.current = optionsError;
   }, [optionsError]);
 
+  // A monotonic id stamped on each background revalidation. focus and
+  // visibilitychange can both fire on the same return-to-tab, launching two
+  // concurrent /options requests for the SAME date; the date-only guard below
+  // would then let whichever RESOLVES last win — so an earlier request that read
+  // the pre-edit schedule could clobber the newer one and roll the preview back
+  // to stale slots/cutoffs. Only the newest revalidation (highest id) may write
+  // state; any superseded response is dropped regardless of resolution order.
+  const revalidateGenerationRef = useRef(0);
+
   // The /options snapshot is otherwise fetched only when the date changes, so a
   // page left open across the day would keep sending a stale active-slot set to
   // every preview and export — omitting a slot added since load and retaining a
@@ -1082,8 +1092,12 @@ export default function SlotListsPage() {
   const revalidateOptions = useCallback(() => {
     if (authStatus !== "authenticated" || timetableDisabled) return;
     const requestedDate = dateISO;
+    const generation = ++revalidateGenerationRef.current;
     fetchSlotListOptions(requestedDate)
       .then((fresh) => {
+        // A newer revalidation started while this one was in flight — its result
+        // supersedes ours no matter which network round-trip finished first.
+        if (generation !== revalidateGenerationRef.current) return;
         if (requestedDate !== dateISORef.current) return; // date moved on
         // Read the failure flag BEFORE clearing it: prev === null means either
         // the initial load is still running (no error yet) or it FAILED. Only in
@@ -1306,6 +1320,16 @@ export default function SlotListsPage() {
         }
       }
 
+      // Lock the export action and every list control NOW, before the two async
+      // revalidation round-trips below. Left unlocked, the buttons stay enabled
+      // and the date/source/filter controls stay interactive throughout
+      // preflight, so a double-click launches duplicate downloads/print tabs and
+      // changing the date, source or filters mid-preflight lets a callback export
+      // its captured stale request after the UI has moved to another list (#1565
+      // review pass 6). Every bail-out path below clears it again.
+      setIsExporting(true);
+      setError(null);
+
       // An export is the one non-idempotent, hand-it-out action here, so before
       // it fires validate against a FRESH /options read — never the possibly-
       // hours-old snapshot the current request/preview was built from (#1565
@@ -1330,6 +1354,7 @@ export default function SlotListsPage() {
         fresh = await fetchSlotListOptions(dateISO);
       } catch (err: unknown) {
         printTarget?.close();
+        setIsExporting(false);
         logger.error("slot_list_options_revalidate_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
@@ -1388,6 +1413,7 @@ export default function SlotListsPage() {
       }
       if (drift) {
         printTarget?.close();
+        setIsExporting(false);
         setOptionsError(null);
         setListOptions(fresh);
         setError(
@@ -1411,6 +1437,7 @@ export default function SlotListsPage() {
         freshPreview = await fetchSlotListPreview(request);
       } catch (err: unknown) {
         printTarget?.close();
+        setIsExporting(false);
         logger.error("slot_list_preview_revalidate_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
@@ -1424,6 +1451,7 @@ export default function SlotListsPage() {
         resultSignature(freshPreview) !== resultSignature(result)
       ) {
         printTarget?.close();
+        setIsExporting(false);
         setResult(freshPreview);
         setError(
           "Die Liste hat sich seit dem Laden geändert. Bitte prüfen und erneut exportieren.",
@@ -1431,11 +1459,33 @@ export default function SlotListsPage() {
         return;
       }
 
-      setIsExporting(true);
-      setError(null);
       try {
-        await exportSlotList(request, format, mode, printTarget);
+        // Pass the verified preview's backend signature. The client-side guards
+        // above cannot close the last window: the export endpoint rebuilds the
+        // list in its OWN request AFTER this check, so a check-in/out, roster or
+        // status change between freshPreview and that rebuild would still hand
+        // out a file the user never saw. The backend re-derives, recomputes the
+        // signature and refuses with 409 on any mismatch — so the downloaded file
+        // is guaranteed to match the approved preview (#1565 review pass 2).
+        await exportSlotList(
+          request,
+          format,
+          mode,
+          printTarget,
+          freshPreview.signature,
+        );
       } catch (err: unknown) {
+        // 409 = the backend's atomic drift refusal (its rebuild no longer matches
+        // the verified signature). Refresh the preview so the user sees the new
+        // content and re-checks, rather than silently failing. exportSlotList
+        // already closed the print tab on this rejection.
+        if (err instanceof SlotListExportError && err.status === 409) {
+          setPreviewNonce((n) => n + 1);
+          setError(
+            "Die Liste hat sich seit dem Laden geändert. Bitte prüfen und erneut exportieren.",
+          );
+          return;
+        }
         logger.error("slot_list_export_failed", {
           error: err instanceof Error ? err.message : String(err),
         });

@@ -203,6 +203,12 @@ type Params struct {
 	// GroupBy sections the preview/export. Empty = one flat list. Invalid
 	// combinations (see GroupBy.ValidFor) are rejected at the API boundary.
 	GroupBy GroupBy
+	// ExpectedSignature is the content hash (Result.Signature) of the preview
+	// the client reviewed. When set, RenderList refuses (ErrListDrifted) if its
+	// fresh build no longer matches it, so an export never differs from the
+	// approved preview (#1565 review pass 2). Empty on preview requests and on
+	// older clients — the guard is then skipped for backward compatibility.
+	ExpectedSignature string
 }
 
 // Slot is one activity instance on the selected date, returned so the UI can
@@ -284,6 +290,14 @@ type Result struct {
 	Classes      []string      `json:"classes"`
 	Counters     Counters      `json:"counters"`
 	Rows         []Row         `json:"rows"`
+	// Signature is a stable content hash of the rendered list (label,
+	// provenance, counters and every row). The export endpoint re-derives the
+	// list in a second request after the client verified this preview, so live
+	// attendance/roster changes in that window would otherwise hand out a file
+	// the user never reviewed. The client echoes this value back as the export
+	// request's expected_signature; RenderList refuses (ErrListDrifted) when its
+	// own fresh build no longer matches (#1565 review pass 2).
+	Signature string `json:"signature"`
 	// deferredSlots holds instance IDs that appear in Slots as selectable context
 	// but were deliberately excluded from the merge (a reconciliation slot that
 	// has not started yet — see collectSlotEntries). Unexported so it never
