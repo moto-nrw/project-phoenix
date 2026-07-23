@@ -574,6 +574,24 @@ describe("TimeTrackingService", () => {
       );
       expect(result).toEqual([]);
     });
+
+    it("fetches questioned absences without a date range", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "",
+        data: [{ ...backendAbsence, status: "question" }],
+      });
+
+      const result = await timeTrackingService.getQuestionedAbsences();
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/time-tracking/absences?status=question",
+        expect.objectContaining({ method: "GET" }),
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0]!.status).toBe("question");
+      expect(result[0]!.id).toBe("7");
+    });
   });
 
   describe("createAbsence", () => {

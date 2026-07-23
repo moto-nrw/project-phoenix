@@ -947,6 +947,77 @@ func TestAbsGetAbsencesForRange_RepoError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to get absences")
 }
 
+func TestAbsListAbsences_ByStatus(t *testing.T) {
+	svc, absRepo, _ := absSetupService()
+	staffID := int64(100)
+
+	absRepo.listFunc = func(_ context.Context, options *base.QueryOptions) ([]*activeModels.StaffAbsence, error) {
+		filteredStaffID, ok := options.Filter.Get("staff_id")
+		require.True(t, ok)
+		assert.Equal(t, staffID, filteredStaffID)
+		status, ok := options.Filter.Get("status")
+		require.True(t, ok)
+		assert.Equal(t, activeModels.AbsenceStatusQuestion, status)
+		require.NotNil(t, options.Sorting)
+		require.Len(t, options.Sorting.Fields, 1)
+		assert.Equal(t, "requested_at", options.Sorting.Fields[0].Field)
+		assert.Equal(t, base.SortDesc, options.Sorting.Fields[0].Direction)
+
+		return []*activeModels.StaffAbsence{{
+			Model:     base.Model{ID: 17},
+			StaffID:   staffID,
+			Status:    activeModels.AbsenceStatusQuestion,
+			DateStart: timezone.NewDate(2027, 7, 10),
+			DateEnd:   timezone.NewDate(2027, 7, 11),
+		}}, nil
+	}
+
+	results, err := svc.ListAbsences(context.Background(), staffID, StaffAbsenceListFilter{
+		Status: activeModels.AbsenceStatusQuestion,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, int64(17), results[0].ID)
+	assert.Equal(t, 2, results[0].DurationDays)
+}
+
+func TestAbsListAbsences_RejectsInvalidFilters(t *testing.T) {
+	svc, _, _ := absSetupService()
+	from := timezone.NewDate(2026, 1, 1)
+
+	tests := []struct {
+		name   string
+		filter StaffAbsenceListFilter
+		errMsg string
+	}{
+		{
+			name:   "empty",
+			filter: StaffAbsenceListFilter{},
+			errMsg: "absence list filter is required",
+		},
+		{
+			name:   "incomplete date range",
+			filter: StaffAbsenceListFilter{From: &from},
+			errMsg: "from and to must be provided together",
+		},
+		{
+			name:   "unknown status",
+			filter: StaffAbsenceListFilter{Status: "unknown"},
+			errMsg: "invalid absence status",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			results, err := svc.ListAbsences(context.Background(), 100, tc.filter)
+			require.Error(t, err)
+			assert.Nil(t, results)
+			assert.EqualError(t, err, tc.errMsg)
+		})
+	}
+}
+
 // ============================================================================
 // HasAbsenceOnDate Tests
 // ============================================================================

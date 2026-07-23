@@ -199,6 +199,7 @@ type mockStaffAbsenceService struct {
 	updateAbsenceFn     func(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, req activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error)
 	deleteAbsenceFn     func(ctx context.Context, staffID int64, absenceID int64) error
 	getAbsencesForRange func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeSvc.StaffAbsenceResponse, error)
+	listAbsencesFn      func(ctx context.Context, staffID int64, filter activeSvc.StaffAbsenceListFilter) ([]*activeSvc.StaffAbsenceResponse, error)
 	hasAbsenceOnDateFn  func(ctx context.Context, staffID int64, date timezone.Date) (bool, *activeModels.StaffAbsence, error)
 	resubmitAbsenceFn   func(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64, note string) (*activeSvc.StaffAbsenceResponse, error)
 }
@@ -236,6 +237,15 @@ func (m *mockStaffAbsenceService) SetShiftPlanSyncer(activeSvc.ShiftPlanSyncer) 
 func (m *mockStaffAbsenceService) GetAbsencesForRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeSvc.StaffAbsenceResponse, error) {
 	if m.getAbsencesForRange != nil {
 		return m.getAbsencesForRange(ctx, staffID, from, to)
+	}
+	return nil, nil
+}
+func (m *mockStaffAbsenceService) ListAbsences(ctx context.Context, staffID int64, filter activeSvc.StaffAbsenceListFilter) ([]*activeSvc.StaffAbsenceResponse, error) {
+	if m.listAbsencesFn != nil {
+		return m.listAbsencesFn(ctx, staffID, filter)
+	}
+	if m.getAbsencesForRange != nil && filter.From != nil && filter.To != nil && filter.Status == "" {
+		return m.getAbsencesForRange(ctx, staffID, *filter.From, *filter.To)
 	}
 	return nil, nil
 }
@@ -1266,6 +1276,53 @@ func TestListAbsences_MissingDates(t *testing.T) {
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/absences", nil)
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.listAbsences(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestListAbsences_StatusOnly(t *testing.T) {
+	absSvc := &mockStaffAbsenceService{
+		listAbsencesFn: func(_ context.Context, staffID int64, filter activeSvc.StaffAbsenceListFilter) ([]*activeSvc.StaffAbsenceResponse, error) {
+			assert.Equal(t, int64(100), staffID)
+			assert.Nil(t, filter.From)
+			assert.Nil(t, filter.To)
+			assert.Equal(t, activeModels.AbsenceStatusQuestion, filter.Status)
+			return []*activeSvc.StaffAbsenceResponse{}, nil
+		},
+	}
+	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), nil)
+
+	r := httptest.NewRequest(http.MethodGet, "/absences?status=question", nil)
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.listAbsences(w, r)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestListAbsences_IncompleteDateRange(t *testing.T) {
+	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
+
+	r := httptest.NewRequest(http.MethodGet, "/absences?from=2026-01-01&status=question", nil)
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.listAbsences(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestListAbsences_InvalidStatus(t *testing.T) {
+	absSvc := &mockStaffAbsenceService{
+		listAbsencesFn: func(_ context.Context, _ int64, _ activeSvc.StaffAbsenceListFilter) ([]*activeSvc.StaffAbsenceResponse, error) {
+			return nil, errors.New("invalid absence status")
+		},
+	}
+	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), nil)
+
+	r := httptest.NewRequest(http.MethodGet, "/absences?status=unknown", nil)
 	r = withClaims(r, validClaims())
 	w := httptest.NewRecorder()
 

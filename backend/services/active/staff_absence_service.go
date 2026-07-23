@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -40,6 +42,14 @@ const maxSickAbsenceRangeDays = 366
 type StaffAbsenceResponse struct {
 	*activeModels.StaffAbsence
 	DurationDays int `json:"duration_days"`
+}
+
+// StaffAbsenceListFilter selects a staff member's absences by overlapping date
+// range, status, or both. From and To must either both be set or both be nil.
+type StaffAbsenceListFilter struct {
+	From   *timezone.Date
+	To     *timezone.Date
+	Status string
 }
 
 // RequestVacationRequest is what the MA submits via "Urlaub beantragen".
@@ -87,6 +97,7 @@ type StaffAbsenceService interface {
 	// after the schedule services exist; mirrors SetStaffShiftRepo).
 	SetShiftPlanSyncer(syncer ShiftPlanSyncer)
 	GetAbsencesForRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAbsenceResponse, error)
+	ListAbsences(ctx context.Context, staffID int64, filter StaffAbsenceListFilter) ([]*StaffAbsenceResponse, error)
 	HasAbsenceOnDate(ctx context.Context, staffID int64, date timezone.Date) (bool, *activeModels.StaffAbsence, error)
 
 	// GetTodayAbsenceMap returns staff ID -> absence type for today (issue
@@ -624,7 +635,53 @@ func (s *staffAbsenceService) DeleteAbsenceFor(ctx context.Context, subjectStaff
 	return nil
 }
 
-// GetAbsencesForRange returns absences for a staff member in a date range
+// ListAbsences returns a staff member's absences for a date range, status, or
+// both. The generic repository filter keeps tenant scoping in one place.
+func (s *staffAbsenceService) ListAbsences(ctx context.Context, staffID int64, filter StaffAbsenceListFilter) ([]*StaffAbsenceResponse, error) {
+	if (filter.From == nil) != (filter.To == nil) {
+		return nil, fmt.Errorf("from and to must be provided together")
+	}
+	if filter.From == nil && filter.Status == "" {
+		return nil, fmt.Errorf("absence list filter is required")
+	}
+	if filter.Status != "" && !slices.Contains(activeModels.ValidAbsenceStatuses, filter.Status) {
+		return nil, fmt.Errorf("invalid absence status")
+	}
+
+	options := modelBase.NewQueryOptions()
+	options.Filter.Equal("staff_id", staffID)
+	if filter.From != nil && filter.To != nil {
+		options.Filter.
+			LessThanOrEqual("date_start", *filter.To).
+			GreaterThanOrEqual("date_end", *filter.From)
+	}
+	if filter.Status != "" {
+		options.Filter.Equal("status", filter.Status)
+	}
+
+	sorting := &modelBase.Sorting{}
+	if filter.From != nil {
+		sorting.AddField("date_start", modelBase.SortAsc)
+	} else {
+		sorting.AddField("requested_at", modelBase.SortDesc)
+	}
+	options.Sorting = sorting
+
+	absences, err := s.absenceRepo.List(ctx, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get absences: %w", err)
+	}
+
+	responses := make([]*StaffAbsenceResponse, len(absences))
+	for i, a := range absences {
+		responses[i] = toAbsenceResponse(a)
+	}
+
+	return responses, nil
+}
+
+// GetAbsencesForRange preserves the range-only service contract used by staff
+// detail views.
 func (s *staffAbsenceService) GetAbsencesForRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAbsenceResponse, error) {
 	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
 	if err != nil {

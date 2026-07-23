@@ -10,7 +10,9 @@ import { LeaveRequestsCard } from "./leave-requests-card";
 const mocks = vi.hoisted(() => ({
   cancelAbsence: vi.fn(),
   getAbsences: vi.fn(),
+  getQuestionedAbsences: vi.fn(),
   getVacationQuota: vi.fn(),
+  resubmitAbsence: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
 }));
@@ -50,8 +52,9 @@ vi.mock("~/lib/time-tracking-api", () => ({
   timeTrackingService: {
     cancelAbsence: mocks.cancelAbsence,
     getAbsences: mocks.getAbsences,
+    getQuestionedAbsences: mocks.getQuestionedAbsences,
     getVacationQuota: mocks.getVacationQuota,
-    resubmitAbsence: vi.fn(),
+    resubmitAbsence: mocks.resubmitAbsence,
   },
 }));
 
@@ -88,11 +91,14 @@ describe("LeaveRequestsCard resubmitted requests", () => {
   beforeEach(() => {
     mocks.cancelAbsence.mockReset();
     mocks.getAbsences.mockReset();
+    mocks.getQuestionedAbsences.mockReset();
     mocks.getVacationQuota.mockReset();
+    mocks.resubmitAbsence.mockReset();
     mocks.toastError.mockReset();
     mocks.toastSuccess.mockReset();
     mocks.cancelAbsence.mockResolvedValue(undefined);
     mocks.getAbsences.mockResolvedValue([resubmittedVacation()]);
+    mocks.getQuestionedAbsences.mockResolvedValue([]);
     mocks.getVacationQuota.mockResolvedValue({
       staff_id: 42,
       year: 2027,
@@ -123,5 +129,56 @@ describe("LeaveRequestsCard resubmitted requests", () => {
       expect(listener).toHaveBeenCalledTimes(1);
     });
     window.removeEventListener(ABSENCES_REFRESH_EVENT, listener);
+  });
+
+  it("keeps old and cross-year questions outside the eight-request limit", async () => {
+    const currentYear = new Date().getFullYear();
+    const oldQuestion: StaffAbsence = {
+      ...resubmittedVacation(),
+      id: "question-old",
+      dateStart: `${currentYear}-02-10`,
+      dateEnd: `${currentYear}-02-11`,
+      note: "Alte Rückfrage",
+      status: "question",
+      requestedAt: `${currentYear}-01-01T08:00:00Z`,
+    };
+    const crossYearQuestion: StaffAbsence = {
+      ...oldQuestion,
+      id: "question-next-year",
+      dateStart: `${currentYear + 1}-02-10`,
+      dateEnd: `${currentYear + 1}-02-11`,
+      note: "Rückfrage im Folgejahr",
+      requestedAt: `${currentYear}-01-02T08:00:00Z`,
+    };
+    const recentRequests = Array.from({ length: 9 }, (_, index) => ({
+      ...resubmittedVacation(),
+      id: `recent-${index}`,
+      dateStart: `${currentYear}-07-${String(index + 1).padStart(2, "0")}`,
+      dateEnd: `${currentYear}-07-${String(index + 1).padStart(2, "0")}`,
+      note: `Neuer Antrag ${index + 1}`,
+      decisionNote: "",
+      requestedAt: `${currentYear}-06-${String(index + 1).padStart(2, "0")}T08:00:00Z`,
+    }));
+    mocks.getAbsences.mockResolvedValue([...recentRequests, oldQuestion]);
+    mocks.getQuestionedAbsences.mockResolvedValue([
+      oldQuestion,
+      crossYearQuestion,
+    ]);
+
+    render(<LeaveRequestsCard />);
+
+    expect(await screen.findByText("Rückfragen")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Alte Rückfrage")).toBeInTheDocument();
+    expect(
+      screen.getByDisplayValue("Rückfrage im Folgejahr"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", {
+        name: "Antwort senden & erneut einreichen",
+      }),
+    ).toHaveLength(2);
+    expect(screen.getAllByRole("listitem")).toHaveLength(10);
+    expect(screen.queryByText("Neuer Antrag 1")).not.toBeInTheDocument();
+    expect(screen.getByText("Neuer Antrag 9")).toBeInTheDocument();
   });
 });

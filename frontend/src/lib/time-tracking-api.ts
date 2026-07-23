@@ -339,6 +339,16 @@ class TimeTrackingService {
     return (result.data ?? []).map((a) => mapStaffAbsenceResponse(a as never));
   }
 
+  async getQuestionedAbsences(): Promise<StaffAbsence[]> {
+    const params = new URLSearchParams({ status: "question" });
+    const result = await this.request<StaffAbsence[]>(
+      `/absences?${params}`,
+      "GET",
+      "Failed to get questioned absences",
+    );
+    return (result.data ?? []).map((a) => mapStaffAbsenceResponse(a as never));
+  }
+
   async createAbsence(req: CreateAbsenceRequest): Promise<StaffAbsence> {
     const result = await this.request<StaffAbsence>(
       "/absences",

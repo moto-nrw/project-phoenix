@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { DateRange, Matcher } from "react-day-picker";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -98,7 +98,7 @@ function questionedVacation(): StaffAbsence {
 
 describe("VacationRequestModal questioned absences", () => {
   beforeEach(() => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(2027, 6, 1, 10, 0, 0));
     mocks.calendarProps = null;
     mocks.requestVacation.mockReset();
@@ -180,12 +180,12 @@ describe("VacationRequestModal questioned absences", () => {
         to: new Date(2027, 6, 6),
       });
     });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Antrag senden" }));
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Antrag senden" }));
 
-    expect(mocks.requestVacation).toHaveBeenCalledTimes(1);
-    expect(listener).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(mocks.requestVacation).toHaveBeenCalledTimes(1);
+      expect(listener).toHaveBeenCalledTimes(1);
+    });
     window.removeEventListener(ABSENCES_REFRESH_EVENT, listener);
   });
 });

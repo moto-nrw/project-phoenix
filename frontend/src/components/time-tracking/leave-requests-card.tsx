@@ -59,6 +59,9 @@ export function LeaveRequestsCard() {
   const [modalOpen, setModalOpen] = useState(false);
   const [quota, setQuota] = useState<VacationQuotaSummary | null>(null);
   const [vacations, setVacations] = useState<StaffAbsence[]>([]);
+  const [questionedVacations, setQuestionedVacations] = useState<
+    StaffAbsence[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
 
@@ -69,12 +72,18 @@ export function LeaveRequestsCard() {
     try {
       const yearStart = `${year}-01-01`;
       const yearEnd = `${year}-12-31`;
-      const [q, abs] = await Promise.all([
+      const [q, abs, questions] = await Promise.all([
         timeTrackingService.getVacationQuota(year),
         timeTrackingService.getAbsences(yearStart, yearEnd),
+        timeTrackingService.getQuestionedAbsences(),
       ]);
       setQuota(q);
       setVacations(abs.filter((a) => a.absenceType === "vacation"));
+      setQuestionedVacations(
+        questions.filter(
+          (a) => a.absenceType === "vacation" && a.status === "question",
+        ),
+      );
     } catch (err) {
       logger.error("load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -90,7 +99,7 @@ export function LeaveRequestsCard() {
 
   const counts = useMemo(() => {
     const reserved = vacations.filter((v) => v.status === "requested").length;
-    const question = vacations.filter((v) => v.status === "question").length;
+    const question = questionedVacations.length;
     const approved = vacations.filter(
       (v) =>
         (v.status === "approved" || v.status === "reported") &&
@@ -98,7 +107,43 @@ export function LeaveRequestsCard() {
     ).length;
     const declined = vacations.filter((v) => v.status === "declined").length;
     return { reserved, question, approved, declined };
-  }, [vacations]);
+  }, [questionedVacations.length, vacations]);
+
+  const recentVacations = useMemo(
+    () =>
+      vacations
+        .filter((vacation) => vacation.status !== "question")
+        .sort(
+          (a, b) =>
+            new Date(b.requestedAt ?? b.dateStart).getTime() -
+            new Date(a.requestedAt ?? a.dateStart).getTime(),
+        )
+        .slice(0, 8),
+    [vacations],
+  );
+
+  const sortedQuestionedVacations = useMemo(
+    () =>
+      questionedVacations.slice().sort(
+        (a, b) =>
+          new Date(b.requestedAt ?? b.dateStart).getTime() -
+          new Date(a.requestedAt ?? a.dateStart).getTime(),
+      ),
+    [questionedVacations],
+  );
+
+  const blockingVacations = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          [...vacations, ...questionedVacations].map((vacation) => [
+            vacation.id,
+            vacation,
+          ]),
+        ).values(),
+      ),
+    [questionedVacations, vacations],
+  );
 
   const [cancelTarget, setCancelTarget] = useState<StaffAbsence | null>(null);
   const [cancelSubmitting, setCancelSubmitting] = useState(false);
@@ -106,6 +151,11 @@ export function LeaveRequestsCard() {
   const handleCancel = (absence: StaffAbsence) => {
     setCancelTarget(absence);
   };
+
+  const handleResubmitted = useCallback(() => {
+    dispatchAbsencesRefresh();
+    void loadAll();
+  }, [loadAll]);
 
   const confirmCancel = async () => {
     if (!cancelTarget) return;
@@ -194,83 +244,40 @@ export function LeaveRequestsCard() {
           </button>
         </div>
 
-        {vacations.length > 0 && (
+        {sortedQuestionedVacations.length > 0 && (
+          <div className="mt-5 border-t border-gray-100 pt-5">
+            <h3 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+              Rückfragen
+            </h3>
+            <ul className="space-y-2">
+              {sortedQuestionedVacations.map((vacation) => (
+                <AbsenceRequestItem
+                  key={vacation.id}
+                  absence={vacation}
+                  currentTimestamp={currentTimestamp}
+                  onCancel={handleCancel}
+                  onResubmitted={handleResubmitted}
+                  showResubmit
+                />
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {recentVacations.length > 0 && (
           <div className="mt-5 border-t border-gray-100 pt-5">
             <h3 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
               Meine Anträge
             </h3>
             <ul className="space-y-2">
-              {vacations
-                .slice()
-                .sort(
-                  (a, b) =>
-                    new Date(b.requestedAt ?? b.dateStart).getTime() -
-                    new Date(a.requestedAt ?? a.dateStart).getTime(),
-                )
-                .slice(0, 8)
-                .map((v) => {
-                  const meta = statusMeta(v.status);
-                  const isQuestioned = v.status === "question";
-                  const cancelable =
-                    v.status === "requested" ||
-                    isQuestioned ||
-                    (v.status === "approved" &&
-                      new Date(v.dateStart).getTime() > currentTimestamp);
-                  return (
-                    <li
-                      key={v.id}
-                      className="rounded-xl border border-gray-100 bg-white px-4 py-3"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-800">
-                            {formatRange(v.dateStart, v.dateEnd)}
-                            <span className="ml-2 text-xs text-gray-500">
-                              · {formatDayCount(dayCountFor(v))}
-                            </span>
-                          </p>
-                          {v.note && (
-                            <p className="mt-0.5 truncate text-xs text-gray-500">
-                              {v.note}
-                            </p>
-                          )}
-                          {v.decisionNote && (
-                            <p className="mt-0.5 text-xs text-gray-500">
-                              <span className="font-medium">
-                                {decisionNoteLabel(v.status)}
-                              </span>{" "}
-                              {v.decisionNote}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <StatusDotBadge
-                            label={meta.label}
-                            color={meta.color}
-                          />
-                          {cancelable && (
-                            <button
-                              type="button"
-                              onClick={() => handleCancel(v)}
-                              className="text-xs font-medium text-red-600 hover:text-red-700"
-                            >
-                              Stornieren
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      {isQuestioned && (
-                        <ResubmitAbsenceForm
-                          absence={v}
-                          onResubmitted={() => {
-                            dispatchAbsencesRefresh();
-                            loadAll();
-                          }}
-                        />
-                      )}
-                    </li>
-                  );
-                })}
+              {recentVacations.map((vacation) => (
+                <AbsenceRequestItem
+                  key={vacation.id}
+                  absence={vacation}
+                  currentTimestamp={currentTimestamp}
+                  onCancel={handleCancel}
+                />
+              ))}
             </ul>
           </div>
         )}
@@ -283,7 +290,7 @@ export function LeaveRequestsCard() {
           loadAll();
         }}
         remainingDays={remainingDays}
-        existingVacations={vacations}
+        existingVacations={blockingVacations}
       />
 
       <ConfirmationModal
@@ -309,6 +316,73 @@ export function LeaveRequestsCard() {
         )}
       </ConfirmationModal>
     </>
+  );
+}
+
+function AbsenceRequestItem({
+  absence,
+  currentTimestamp,
+  onCancel,
+  onResubmitted,
+  showResubmit = false,
+}: {
+  readonly absence: StaffAbsence;
+  readonly currentTimestamp: number;
+  readonly onCancel: (absence: StaffAbsence) => void;
+  readonly onResubmitted?: () => void;
+  readonly showResubmit?: boolean;
+}) {
+  const meta = statusMeta(absence.status);
+  const cancelable =
+    absence.status === "requested" ||
+    absence.status === "question" ||
+    (absence.status === "approved" &&
+      new Date(absence.dateStart).getTime() > currentTimestamp);
+
+  return (
+    <li className="rounded-xl border border-gray-100 bg-white px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-gray-800">
+            {formatRange(absence.dateStart, absence.dateEnd)}
+            <span className="ml-2 text-xs text-gray-500">
+              · {formatDayCount(dayCountFor(absence))}
+            </span>
+          </p>
+          {absence.note && (
+            <p className="mt-0.5 truncate text-xs text-gray-500">
+              {absence.note}
+            </p>
+          )}
+          {absence.decisionNote && (
+            <p className="mt-0.5 text-xs text-gray-500">
+              <span className="font-medium">
+                {decisionNoteLabel(absence.status)}
+              </span>{" "}
+              {absence.decisionNote}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <StatusDotBadge label={meta.label} color={meta.color} />
+          {cancelable && (
+            <button
+              type="button"
+              onClick={() => onCancel(absence)}
+              className="text-xs font-medium text-red-600 hover:text-red-700"
+            >
+              Stornieren
+            </button>
+          )}
+        </div>
+      </div>
+      {showResubmit && onResubmitted && (
+        <ResubmitAbsenceForm
+          absence={absence}
+          onResubmitted={onResubmitted}
+        />
+      )}
+    </li>
   );
 }
 
