@@ -52,7 +52,9 @@ const mockTenant: TenantInfo = {
   tenantId: 1,
   slug: "demo-school",
   name: "Demo School",
-  subdomain: "demo",
+  // The provider's tenantSlug prop is the URL segment, which is the
+  // school's SUBDOMAIN — keep the fixture consistent with that (#1975).
+  subdomain: "demo-school",
   organizationId: 10,
   organizationName: "Org A",
   settings: {},
@@ -262,6 +264,71 @@ describe("TenantProvider — cross-tab settings sync", () => {
     expect(mockResolveTenant).toHaveBeenCalledWith("demo-school");
   });
 
+  it("applies refetched values when the slug column differs from the subdomain (#1975)", async () => {
+    // slug and subdomain are independent columns (prod example: slug
+    // "ogs-burbach", subdomain "burbach"). The URL segment is the
+    // subdomain, so the freshness guard must compare subdomain — a
+    // slug compare silently dropped every settings refresh for such
+    // schools.
+    const divergentTenant: TenantInfo = {
+      ...mockTenant,
+      slug: "ogs-demo-school",
+      subdomain: "demo-school",
+    };
+    mockResolveTenant.mockResolvedValue({
+      ...divergentTenant,
+      studentPhotosEnabled: true,
+    });
+
+    const observed: { value: TenantInfo | null } = { value: null };
+    function Probe() {
+      observed.value = useTenantSafe()?.tenant ?? null;
+      return null;
+    }
+
+    render(
+      <TenantProvider tenantSlug="demo-school" tenant={divergentTenant}>
+        <Probe />
+      </TenantProvider>,
+    );
+
+    act(() => {
+      for (const handler of broadcastHandlers) handler();
+    });
+
+    await waitFor(() => {
+      expect(observed.value?.studentPhotosEnabled).toBe(true);
+    });
+  });
+
+  it("ignores refetched values for a different subdomain", async () => {
+    mockResolveTenant.mockResolvedValue({
+      ...mockTenant,
+      subdomain: "other-school",
+      studentPhotosEnabled: true,
+    });
+
+    const observed: { value: TenantInfo | null } = { value: null };
+    function Probe() {
+      observed.value = useTenantSafe()?.tenant ?? null;
+      return null;
+    }
+
+    render(
+      <TenantProvider tenantSlug="demo-school" tenant={mockTenant}>
+        <Probe />
+      </TenantProvider>,
+    );
+
+    await act(async () => {
+      for (const handler of broadcastHandlers) handler();
+      await Promise.resolve();
+    });
+
+    expect(mockResolveTenant).toHaveBeenCalledWith("demo-school");
+    expect(observed.value).toEqual(mockTenant);
+  });
+
   it("ignores stale resolveTenant responses that finish out of order", async () => {
     // Bursting refetches (visibilitychange + SSE + BroadcastChannel
     // landing in the same tick) used to last-writer-wins on whichever
@@ -342,8 +409,18 @@ describe("TenantProvider — cross-tab settings sync", () => {
     // returns. Without the slug guard + monotonic counter, A's response
     // would land last and overwrite B's context, leaving the new tab
     // showing School A's metadata under School B's URL.
-    const tenantA: TenantInfo = { ...mockTenant, slug: "school-a", name: "A" };
-    const tenantB: TenantInfo = { ...mockTenant, slug: "school-b", name: "B" };
+    const tenantA: TenantInfo = {
+      ...mockTenant,
+      slug: "school-a",
+      subdomain: "school-a",
+      name: "A",
+    };
+    const tenantB: TenantInfo = {
+      ...mockTenant,
+      slug: "school-b",
+      subdomain: "school-b",
+      name: "B",
+    };
 
     let resolveForA: (v: TenantInfo) => void = () => {};
     let resolveForB: (v: TenantInfo) => void = () => {};
@@ -416,8 +493,18 @@ describe("TenantProvider — cross-tab settings sync", () => {
     //   fresh.slug === requestedSlug (both "school-a", captured at refetch time)
     // → setTenant(A) wins and overwrites B's server-provided context.
     // The cleanup-counter-bump prevents this.
-    const tenantA: TenantInfo = { ...mockTenant, slug: "school-a", name: "A" };
-    const tenantB: TenantInfo = { ...mockTenant, slug: "school-b", name: "B" };
+    const tenantA: TenantInfo = {
+      ...mockTenant,
+      slug: "school-a",
+      subdomain: "school-a",
+      name: "A",
+    };
+    const tenantB: TenantInfo = {
+      ...mockTenant,
+      slug: "school-b",
+      subdomain: "school-b",
+      name: "B",
+    };
 
     let resolveForA: (v: TenantInfo) => void = () => {};
     const aPromise = new Promise<TenantInfo>((r) => (resolveForA = r));

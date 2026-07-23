@@ -325,7 +325,7 @@ async function parseErrorMessage(response: Response): Promise<string> {
  * 4. Clear session cache for fresh token resolution
  */
 export async function performTenantSwitch(
-  slug: string,
+  subdomain: string,
   signIn: (
     provider: string,
     options: Record<string, unknown>,
@@ -336,7 +336,7 @@ export async function performTenantSwitch(
     opts: { revalidate: boolean },
   ) => Promise<unknown>,
 ): Promise<SwitchTenantResponse> {
-  const tokens = await switchTenant(slug);
+  const tokens = await switchTenant(subdomain);
 
   await signIn("credentials", {
     redirect: false,
@@ -355,13 +355,17 @@ export async function performTenantSwitch(
 /**
  * Switch the current session to a different tenant.
  * Returns new JWT tokens scoped to the target tenant.
+ *
+ * Takes the tenant SUBDOMAIN, not the slug column: the backend resolves the
+ * wire field `tenant_slug` via FindBySubdomain (same as login), so passing
+ * the slug 404s for schools where slug != subdomain (#1975).
  */
 export async function switchTenant(
-  slug: string,
+  subdomain: string,
 ): Promise<SwitchTenantResponse> {
   const response = await sessionFetch("/api/auth/switch-tenant", {
     method: "POST",
-    body: JSON.stringify({ tenant_slug: slug }),
+    body: JSON.stringify({ tenant_slug: subdomain }),
   });
   if (!response.ok) {
     const message = await parseErrorMessage(response);
