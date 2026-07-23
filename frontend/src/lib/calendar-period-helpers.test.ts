@@ -6,6 +6,8 @@ import type {
 } from "./calendar-period-helpers";
 import {
   findPeriodForDate,
+  weekCycleLabel,
+  weekCycleSlotLetter,
   formatPeriodUsage,
   mapPeriodsForDates,
   mapPeriodWarnings,
@@ -159,6 +161,35 @@ describe("calendar-period-helpers", () => {
           "2026-05-04",
         ),
       ).toBeNull();
+    });
+  });
+
+  describe("weekCycleSlotLetter", () => {
+    it("maps 1-based slots to letters and falls back to numbers", () => {
+      expect(weekCycleSlotLetter(1)).toBe("A");
+      expect(weekCycleSlotLetter(2)).toBe("B");
+      expect(weekCycleSlotLetter(3)).toBe("C");
+      expect(weekCycleSlotLetter(4)).toBe("D");
+      expect(weekCycleSlotLetter(26)).toBe("Z");
+      expect(weekCycleSlotLetter(27)).toBe("27");
+    });
+  });
+
+  describe("weekCycleLabel", () => {
+    it("labels the actual cycle length", () => {
+      expect(weekCycleLabel(2)).toBe("A/B-Wochen");
+      expect(weekCycleLabel(3)).toBe("A/B/C-Wochen");
+      expect(weekCycleLabel(4)).toBe("A/B/C/D-Wochen");
+    });
+
+    it("renders unsupported long cycles without enumerating every slot", () => {
+      expect(weekCycleLabel(5)).toBe("5-Wochen-Zyklus");
+      expect(weekCycleLabel(32_767)).toBe("32767-Wochen-Zyklus");
+    });
+
+    it("returns null for weekly repetition", () => {
+      expect(weekCycleLabel(1)).toBeNull();
+      expect(weekCycleLabel(0)).toBeNull();
     });
   });
 

@@ -26,11 +26,11 @@
  * statt erfundener Null) überleben wörtlich.
  */
 
-import { CalendarOff } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
+import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
 import { CoverageIndicator } from "~/components/ui/coverage-indicator";
 import {
@@ -54,12 +54,10 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
+import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
 import { createLogger } from "~/lib/logger";
-import {
-  SETTINGS_SCHEMA_SWR_KEY,
-  fetchSettingsSchema,
-} from "~/lib/settings-api";
+import { getSettingValue } from "~/lib/settings-api";
 import { staffService } from "~/lib/staff-api";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { timetableService } from "~/lib/timetable-api";
@@ -163,16 +161,13 @@ function VertretungContent() {
   // Route-Gate wie in der alten View: Settings-Schema -> timetable.enabled.
   // fetchSettingsSchema liefert null, wenn der Nutzer keine Settings lesen darf;
   // die Seite rendert dann normal (bewusster Default, wie /timetables).
-  const { data: settingsSchema, isLoading: settingsSchemaLoading } = useSWRAuth(
-    status === "authenticated" ? SETTINGS_SCHEMA_SWR_KEY : null,
-    fetchSettingsSchema,
-    { revalidateOnFocus: false, revalidateOnReconnect: false },
-  );
+  const { data: settingsSchema, isLoading: settingsSchemaLoading } =
+    useSettingsSchema(status === "authenticated", {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    });
   const timetableDisabled =
-    settingsSchema?.tabs
-      .flatMap((tab) => tab.categories)
-      .flatMap((category) => category.items)
-      .find((item) => item.key === "timetable.enabled")?.value === false;
+    getSettingValue(settingsSchema, "timetable.enabled") === false;
 
   // Fetch-Fehler erhalten, damit "Keine Termine"/Null-Lücken nie so gerendert
   // werden, als hätte ein fehlgeschlagener Request Erfolg gehabt. SWR-Retries
@@ -552,31 +547,14 @@ function VertretungContent() {
   );
 }
 
-/**
- * Rendered when the tenant setting `timetable.enabled` resolves to false. Die
- * Sidebar blendet den Nav-Eintrag für deaktivierte Schulen bereits aus; dieser
- * Guard deckt die direkte Navigation ab (kein Redirect, keine Schleifen).
- * Inhaltlich unverändert aus der alten vertretungsplan-view.tsx übernommen.
- */
 function VertretungDisabledState() {
   return (
-    <div
-      className="flex flex-col gap-4"
-      data-testid="vertretung-disabled-state"
-    >
-      <h1 className="text-lg font-semibold text-gray-900">Vertretung</h1>
-      <div className={`${timetableSurface} p-10 text-center`}>
-        <CalendarOff className="mx-auto h-10 w-10 text-gray-300" aria-hidden />
-        <h2 className="mt-4 text-base font-semibold text-gray-900">
-          Vertretung ist deaktiviert
-        </h2>
-        <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-gray-600">
-          Die Vertretung gehört zum Betreuungsplan, der für diese Schule
-          ausgeschaltet ist. Er kann in den Einstellungen unter „Betrieb“ wieder
-          aktiviert werden.
-        </p>
-      </div>
-    </div>
+    <PlanningDisabledState
+      pageTitle="Vertretung"
+      heading="Vertretung ist deaktiviert"
+      description="Die Vertretung gehört zum Betreuungsplan, der für diese Schule ausgeschaltet ist. Er kann in den Einstellungen unter „Betrieb“ wieder aktiviert werden."
+      testId="vertretung-disabled-state"
+    />
   );
 }
 

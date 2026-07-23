@@ -72,6 +72,8 @@ func TestAppointmentValidateAllowsAllDayAndMultiDayTimeOrder(t *testing.T) {
 	require.NoError(t, multiDay.Validate())
 }
 
+func intPtr(n int) *int { return &n }
+
 func TestRecurrenceRuleValidate(t *testing.T) {
 	count := 2
 	endsOn := timezone.NewDate(2026, 2, 1)
@@ -87,6 +89,8 @@ func TestRecurrenceRuleValidate(t *testing.T) {
 		{name: "invalid interval", rule: RecurrenceRule{AppointmentID: 1, Frequency: RecurrenceFrequencyDaily}, wantErr: "interval_count must be positive"},
 		{name: "two end modes", rule: RecurrenceRule{AppointmentID: 1, Frequency: RecurrenceFrequencyWeekly, IntervalCount: 1, EndsOn: &endsOn, OccurrenceCount: &count}, wantErr: "only one recurrence end mode is allowed"},
 		{name: "invalid count", rule: RecurrenceRule{AppointmentID: 1, Frequency: RecurrenceFrequencyWeekly, IntervalCount: 1, OccurrenceCount: new(int)}, wantErr: "occurrence_count must be positive"},
+		{name: "count at max is allowed", rule: RecurrenceRule{AppointmentID: 1, Frequency: RecurrenceFrequencyDaily, IntervalCount: 1, OccurrenceCount: intPtr(MaxRecurrenceOccurrenceCount)}},
+		{name: "count over max", rule: RecurrenceRule{AppointmentID: 1, Frequency: RecurrenceFrequencyDaily, IntervalCount: 1, OccurrenceCount: intPtr(MaxRecurrenceOccurrenceCount + 1)}, wantErr: "occurrence_count exceeds the maximum of 366"},
 		{name: "valid weekdays", rule: RecurrenceRule{AppointmentID: 1, Frequency: RecurrenceFrequencyWeekly, IntervalCount: 1, Weekdays: []string{"monday", "Friday"}}},
 		{name: "invalid weekday", rule: RecurrenceRule{AppointmentID: 1, Frequency: RecurrenceFrequencyWeekly, IntervalCount: 1, Weekdays: []string{"foo"}}, wantErr: "weekdays must be valid day names (monday–sunday)"},
 		{name: "valid month days", rule: RecurrenceRule{AppointmentID: 1, Frequency: RecurrenceFrequencyMonthly, IntervalCount: 1, MonthDays: []int{1, 15, 31}}},
@@ -104,6 +108,29 @@ func TestRecurrenceRuleValidate(t *testing.T) {
 			require.EqualError(t, err, tt.wantErr)
 		})
 	}
+}
+
+func TestRecurrenceRuleValidateDeduplicates(t *testing.T) {
+	// Duplicate (and mixed-case) weekdays normalise to a single lowercase entry —
+	// otherwise the occurrence expansion emits the date twice and exhausts
+	// occurrence_count early, and the RRULE exports an invalid BYDAY=MO,MO.
+	weekly := RecurrenceRule{
+		AppointmentID: 1,
+		Frequency:     RecurrenceFrequencyWeekly,
+		IntervalCount: 1,
+		Weekdays:      []string{"Monday", "monday", " MONDAY ", "wednesday"},
+	}
+	require.NoError(t, weekly.Validate())
+	require.Equal(t, []string{"monday", "wednesday"}, weekly.Weekdays)
+
+	monthly := RecurrenceRule{
+		AppointmentID: 1,
+		Frequency:     RecurrenceFrequencyMonthly,
+		IntervalCount: 1,
+		MonthDays:     []int{5, 5, 20, 5},
+	}
+	require.NoError(t, monthly.Validate())
+	require.Equal(t, []int{5, 20}, monthly.MonthDays)
 }
 
 func TestAppointmentRecipientValidate(t *testing.T) {

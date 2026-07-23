@@ -2,8 +2,16 @@
 
 import { useState, useCallback, useEffect } from "react";
 
+import { isPlanningPath } from "~/lib/planning-navigation";
+
 type AccordionSection =
-  "groups" | "supervisions" | "database" | "enrollments" | "eltern" | null;
+  | "groups"
+  | "supervisions"
+  | "database"
+  | "planning"
+  | "enrollments"
+  | "eltern"
+  | null;
 
 // Paths that belong to the enrollments accordion. Centralized so the
 // sidebar's render code and the auto-expand logic stay in sync.
@@ -47,6 +55,7 @@ function sectionFromPathname(
   if (pathname.startsWith("/ogs-groups")) return "groups";
   if (pathname.startsWith("/active-supervisions")) return "supervisions";
   if (pathname.startsWith("/database")) return "database";
+  if (isPlanningPath(pathname)) return "planning";
   if (isEnrollmentPath(pathname)) return "enrollments";
   if (isElternPath(pathname)) return "eltern";
 
@@ -55,6 +64,7 @@ function sectionFromPathname(
     if (fromParam.startsWith("/ogs-groups")) return "groups";
     if (fromParam.startsWith("/active-supervisions")) return "supervisions";
     if (fromParam.startsWith("/database")) return "database";
+    if (isPlanningPath(fromParam)) return "planning";
     if (isEnrollmentPath(fromParam)) return "enrollments";
     if (isElternPath(fromParam)) return "eltern";
   }
@@ -89,6 +99,7 @@ export function useSidebarAccordion(
       stored === "groups" ||
       stored === "supervisions" ||
       stored === "database" ||
+      stored === "planning" ||
       stored === "enrollments" ||
       stored === "eltern"
     ) {

@@ -274,6 +274,88 @@ describe("TenantSwitcher", () => {
     expect(screen.getByText("Org Beta")).toBeInTheDocument();
   });
 
+  // Regression tests for #1975: slug and subdomain are independent columns
+  // and can differ (prod example: slug "ogs-burbach", subdomain "burbach").
+  // The switch contract is subdomain-based.
+
+  it("sends the subdomain, not the slug, when they differ (#1975)", async () => {
+    const divergentTenantB = {
+      ...tenantB,
+      slug: "ogs-school-b",
+      subdomain: "school-b",
+    };
+    mockListAvailableTenants.mockResolvedValue([tenantA, divergentTenantB]);
+
+    render(<TenantSwitcher />);
+
+    await waitFor(() => {
+      expect(screen.getByText("School A")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("School A"));
+    fireEvent.click(screen.getByText("School B"));
+
+    await waitFor(() => {
+      expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
+        "school-b",
+        mockSignIn,
+        mockMutate,
+      );
+    });
+
+    expect(window.location.href).toBe(
+      "http://school-b.localhost:3000/dashboard",
+    );
+  });
+
+  it("matches the current tenant by subdomain when slug differs (#1975)", async () => {
+    const divergentTenantA = {
+      ...tenantA,
+      slug: "ogs-school-a",
+      subdomain: "school-a",
+    };
+    mockListAvailableTenants.mockResolvedValue([divergentTenantA, tenantB]);
+
+    render(<TenantSwitcher />);
+
+    // currentSlug (URL) is "school-a" — must match via subdomain, so the
+    // trigger shows the school name, not the raw slug fallback.
+    await waitFor(() => {
+      expect(screen.getByText("School A")).toBeInTheDocument();
+    });
+
+    // The current tenant must not appear as a switch target.
+    fireEvent.click(screen.getByText("School A"));
+    expect(screen.getAllByText("School A")).toHaveLength(1);
+    expect(screen.getByText("School B")).toBeInTheDocument();
+  });
+
+  it("shows a visible error message when switching fails", async () => {
+    mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
+    mockPerformTenantSwitch.mockRejectedValue(new Error("switch failed"));
+
+    render(<TenantSwitcher />);
+
+    await waitFor(() => {
+      expect(screen.getByText("School A")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("School A"));
+    fireEvent.click(screen.getByText("School B"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Wechsel zu School B fehlgeschlagen/),
+      ).toBeInTheDocument();
+    });
+
+    // Re-opening the dropdown clears the error.
+    fireEvent.click(screen.getByText("School A"));
+    expect(
+      screen.queryByText(/Wechsel zu School B fehlgeschlagen/),
+    ).not.toBeInTheDocument();
+  });
+
   it("logs error when listing tenants fails", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(vi.fn());
     mockListAvailableTenants.mockRejectedValue(new Error("fetch failed"));

@@ -63,7 +63,7 @@ func setupTestContext(t *testing.T) *testContext {
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:           svc.Users,
 		GuardianService:         svc.Guardian,
-		StudentService:          userService.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent),
+		StudentService:          userService.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion),
 		EducationService:        svc.Education,
 		UserContextService:      svc.UserContext,
 		ActiveService:           svc.Active,

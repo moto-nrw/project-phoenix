@@ -28,6 +28,11 @@ export interface ApiErrorResponse {
   // Forwarded through the proxy so codes like reopen_status_conflict can
   // carry identifying fields (session_id, existing_status, …) to the UI.
   details?: Record<string, unknown>;
+  // Top-level conflict list of the companion-plan 409 (student PUT). The
+  // browser's CompanionPlanConflictError reads it to build the confirmation it
+  // re-sends as confirmed_companion_extensions — dropping it here would make
+  // "Ergänzen und speichern" loop on the same 409 forever.
+  conflicts?: unknown[];
 }
 
 /**
@@ -42,6 +47,7 @@ interface BackendErrorPayload {
   message?: string;
   code?: string;
   details?: Record<string, unknown>;
+  conflicts?: unknown[];
 }
 
 /**
@@ -425,6 +431,9 @@ function buildApiErrorResponse(errorMessage: string): ApiErrorResponse {
   }
   if (parsed?.details) {
     response.details = parsed.details;
+  }
+  if (Array.isArray(parsed?.conflicts)) {
+    response.conflicts = parsed.conflicts;
   }
 
   return response;

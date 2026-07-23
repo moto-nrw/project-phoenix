@@ -55,6 +55,7 @@ func (r *AppointmentRepository) ListVisibleForStaff(ctx context.Context, staffID
 			  AND ar.recipient_type = ?
 			  AND ar.staff_id = ?
 		))`, staffID, calModels.RecipientTypeStaff, staffID).
+		Where(`"appointment".deleted_at IS NULL`).
 		OrderExpr(`"appointment".start_date ASC, "appointment".start_time ASC, "appointment".id ASC`)
 
 	query = applyAppointmentWindow(query, from, to)
@@ -92,6 +93,7 @@ func (r *AppointmentRepository) ListVisibleForGuardianProfiles(ctx context.Conte
 			      AND ars.student_id IN (?)
 			  )
 			)`, calModels.RecipientTypeGuardianProfile, bun.List(guardianProfileIDs), bun.List(studentIDs)).
+		Where(`"appointment".deleted_at IS NULL`).
 		OrderExpr(`"appointment".start_date ASC, "appointment".start_time ASC, "appointment".id ASC`)
 
 	query = applyAppointmentWindow(query, from, to)
@@ -105,12 +107,59 @@ func (r *AppointmentRepository) ListVisibleForGuardianProfiles(ctx context.Conte
 	return rows, nil
 }
 
+// ListCancellationTombstonesForGuardianProfiles mirrors the guardian visibility
+// join of ListVisibleForGuardianProfiles but returns cancelled OR soft-deleted
+// rows whose cancellation/deletion happened on/after `since`, with NO event-date
+// window — the subscription feed re-exports these as STATUS:CANCELLED so a
+// long-offline subscriber still receives the cancellation and purges the event,
+// even when the appointment's own date has aged out of the lookback window.
+func (r *AppointmentRepository) ListCancellationTombstonesForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, since time.Time) ([]*calModels.Appointment, error) {
+	if len(guardianProfileIDs) == 0 || len(studentIDs) == 0 {
+		return []*calModels.Appointment{}, nil
+	}
+
+	var rows []*calModels.Appointment
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableExprAppointmentsAsAppointment).
+		Where(`(
+			("appointment".deleted_at IS NOT NULL AND "appointment".deleted_at >= ?)
+			OR ("appointment".cancelled_at IS NOT NULL AND "appointment".cancelled_at >= ?)
+		)`, since, since).
+		Where(`EXISTS (
+			SELECT 1
+			FROM calendar.appointment_recipients ar
+			WHERE ar.appointment_id = "appointment".id
+			  AND ar.tenant_id = "appointment".tenant_id
+			  AND ar.recipient_type = ?
+			  AND ar.guardian_profile_id IN (?)
+			  AND EXISTS (
+			    SELECT 1
+			    FROM calendar.appointment_recipient_students ars
+			    WHERE ars.recipient_id = ar.id
+			      AND ars.tenant_id = ar.tenant_id
+			      AND ars.student_id IN (?)
+			  )
+			)`, calModels.RecipientTypeGuardianProfile, bun.List(guardianProfileIDs), bun.List(studentIDs)).
+		OrderExpr(`"appointment".start_date ASC, "appointment".start_time ASC, "appointment".id ASC`)
+
+	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("list cancellation guardian calendar tombstones: %w", err)
+	}
+	return rows, nil
+}
+
 func (r *AppointmentRepository) ListOrganizedByStaff(ctx context.Context, staffID int64, from, to timezone.Date) ([]*calModels.Appointment, error) {
 	var rows []*calModels.Appointment
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
 		ModelTableExpr(tableExprAppointmentsAsAppointment).
 		Where(`"appointment".organizer_staff_id = ?`, staffID).
+		Where(`"appointment".deleted_at IS NULL`).
 		OrderExpr(`"appointment".start_date ASC, "appointment".start_time ASC, "appointment".id ASC`)
 
 	query = applyAppointmentWindow(query, from, to)
@@ -122,6 +171,138 @@ func (r *AppointmentRepository) ListOrganizedByStaff(ctx context.Context, staffI
 		return nil, fmt.Errorf("list organized calendar appointments: %w", err)
 	}
 	return rows, nil
+}
+
+// Update overrides the generic repository Update. The appointment carries two
+// TIME columns (start_time/end_time) modeled as time.Time; bun's full-model
+// UPDATE re-binds those as year-0 timestamptz literals, which PostgreSQL rejects
+// ("date/time field value out of range") even though the equivalent INSERT
+// coerces them fine. We set the wall-clock columns as HH:MM:SS strings so there
+// is no date/year to shift, mirroring the explicit-column TIME update used
+// elsewhere in the codebase.
+func (r *AppointmentRepository) Update(ctx context.Context, appointment *calModels.Appointment) error {
+	appointment.UpdatedAt = time.Now()
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		TableExpr(tableExprAppointmentsAsAppointment).
+		Set(`title = ?`, appointment.Title).
+		Set(`description = ?`, appointment.Description).
+		Set(`location = ?`, appointment.Location).
+		Set(`start_date = ?`, appointment.StartDate).
+		Set(`end_date = ?`, appointment.EndDate).
+		Set(`start_time = ?`, timezone.WallClock(appointment.StartTime).Format("15:04:05")).
+		Set(`end_time = ?`, timezone.WallClock(appointment.EndTime).Format("15:04:05")).
+		Set(`all_day = ?`, appointment.AllDay).
+		Set(`delivery_mode = ?`, appointment.DeliveryMode).
+		Set(`overview_visibility = ?`, appointment.OverviewVisibility).
+		Set(`updated_at = ?`, appointment.UpdatedAt).
+		// Every persisted edit bumps the revision so the iCalendar SEQUENCE
+		// advances and subscribers treat the event as a newer version.
+		Set(`revision = revision + 1`).
+		// Deliberately NOT setting cancelled_at/deleted_at/notify_guardians: those
+		// columns are owned by Cancel()/SoftDelete()/create. A content edit carries
+		// whatever the caller loaded, so writing them here would let an edit that
+		// started before a concurrent cancellation reactivate the appointment.
+		Where(`"appointment".id = ?`, appointment.ID).
+		// Guard the edit against a concurrent lifecycle transition: an edit that
+		// began before a cancel/delete must not update a terminal appointment,
+		// replace its recurrence, or fire an "updated" notice. A cancelled/deleted
+		// row matches zero rows and is reported as a conflict.
+		Where(`"appointment".cancelled_at IS NULL`).
+		Where(`"appointment".deleted_at IS NULL`)
+
+	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
+		q = q.Where(where, val)
+	}
+
+	result, err := q.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("update appointment: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("update appointment: rows affected: %w", err)
+	}
+	if affected == 0 {
+		return calModels.ErrAppointmentLifecycleConflict
+	}
+	return nil
+}
+
+// BumpRevision advances the appointment's revision (and updated_at) without
+// touching any other field. Used when a change that alters the exported
+// calendar lives in a child table (a single-occurrence cancellation override),
+// so subscribers still see a newer SEQUENCE and honour the new EXDATE.
+func (r *AppointmentRepository) BumpRevision(ctx context.Context, appointmentID int64) error {
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		TableExpr(tableExprAppointmentsAsAppointment).
+		Set(`revision = revision + 1`).
+		Set(`updated_at = ?`, time.Now()).
+		Where(`"appointment".id = ?`, appointmentID)
+	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
+		q = q.Where(where, val)
+	}
+	if _, err := q.Exec(ctx); err != nil {
+		return fmt.Errorf("bump appointment revision: %w", err)
+	}
+	return nil
+}
+
+// Cancel marks the appointment cancelled (cancelled_at=now) and bumps the
+// revision, in a single conditional statement so a concurrent lifecycle change
+// cannot race it. The guard is `cancelled_at IS NULL AND deleted_at IS NULL`:
+//   - cancelled_at IS NULL makes concurrent cancels idempotent (only the first
+//     transitions);
+//   - deleted_at IS NULL stops a cancel from transitioning (and mailing) an
+//     appointment a concurrent delete already removed silently — a delete that
+//     lands between the caller's load and this update matches zero rows here.
+//
+// Unlike SoftDelete the appointment stays visible in interactive calendars
+// (rendered "Abgesagt"). It returns whether THIS call performed the transition
+// (rows affected == 1); only the transitioning caller fires the guardian notice.
+func (r *AppointmentRepository) Cancel(ctx context.Context, appointmentID int64) (bool, error) {
+	now := time.Now()
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		TableExpr(tableExprAppointmentsAsAppointment).
+		Set(`cancelled_at = ?`, now).
+		Set(`revision = revision + 1`).
+		Set(`updated_at = ?`, now).
+		Where(`"appointment".id = ?`, appointmentID).
+		Where(`"appointment".cancelled_at IS NULL`).
+		Where(`"appointment".deleted_at IS NULL`)
+	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
+		q = q.Where(where, val)
+	}
+	result, err := q.Exec(ctx)
+	if err != nil {
+		return false, fmt.Errorf("cancel appointment: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("cancel appointment: rows affected: %w", err)
+	}
+	return affected > 0, nil
+}
+
+// SoftDelete marks the appointment deleted (deleted_at=now) and bumps the
+// revision so the feed re-exports it as STATUS:CANCELLED with a newer SEQUENCE.
+// Interactive queries filter deleted_at IS NULL, so the row disappears from
+// every staff/parent calendar while remaining a durable feed tombstone.
+func (r *AppointmentRepository) SoftDelete(ctx context.Context, appointmentID int64) error {
+	now := time.Now()
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		TableExpr(tableExprAppointmentsAsAppointment).
+		Set(`deleted_at = ?`, now).
+		Set(`revision = revision + 1`).
+		Set(`updated_at = ?`, now).
+		Where(`"appointment".id = ?`, appointmentID).
+		Where(`"appointment".deleted_at IS NULL`)
+	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
+		q = q.Where(where, val)
+	}
+	if _, err := q.Exec(ctx); err != nil {
+		return fmt.Errorf("soft-delete appointment: %w", err)
+	}
+	return nil
 }
 
 func applyAppointmentWindow(query *bun.SelectQuery, from, to timezone.Date) *bun.SelectQuery {
@@ -417,6 +598,63 @@ func NewAppointmentOccurrenceOverrideRepository(db *bun.DB) calModels.Appointmen
 	repo := base.NewRepository[*calModels.AppointmentOccurrenceOverride](db, tableAppointmentOverrides, "AppointmentOccurrenceOverride")
 	repo.TenantScoped = true
 	return &AppointmentOccurrenceOverrideRepository{Repository: repo}
+}
+
+func (r *AppointmentOccurrenceOverrideRepository) FindCancelledByAppointmentIDs(ctx context.Context, appointmentIDs []int64) ([]*calModels.AppointmentOccurrenceOverride, error) {
+	if len(appointmentIDs) == 0 {
+		return []*calModels.AppointmentOccurrenceOverride{}, nil
+	}
+	var rows []*calModels.AppointmentOccurrenceOverride
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(`calendar.appointment_occurrence_overrides AS "appointment_occurrence_override"`).
+		Where(`"appointment_occurrence_override".appointment_id IN (?)`, bun.List(appointmentIDs)).
+		Where(`"appointment_occurrence_override".cancelled = ?`, true).
+		OrderExpr(`"appointment_occurrence_override".occurrence_date ASC, "appointment_occurrence_override".id ASC`)
+	if where, val, ok := base.TenantWhere(ctx, "appointment_occurrence_override"); ok {
+		query = query.Where(where, val)
+	}
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("find cancelled calendar occurrence overrides: %w", err)
+	}
+	return rows, nil
+}
+
+// CancelOccurrence marks the occurrence cancelled via an INSERT ... ON CONFLICT
+// DO UPDATE, so concurrent cancellations of the same occurrence converge on
+// cancelled=true instead of one violating the unique constraint and returning a
+// 500.
+func (r *AppointmentOccurrenceOverrideRepository) CancelOccurrence(ctx context.Context, appointmentID int64, occurrenceDate timezone.Date) error {
+	override := &calModels.AppointmentOccurrenceOverride{
+		AppointmentID:  appointmentID,
+		OccurrenceDate: occurrenceDate,
+		Cancelled:      true,
+	}
+	base.EnsureTenantID(ctx, override)
+	if _, err := base.GetDB(ctx, r.DB).NewInsert().
+		Model(override).
+		ModelTableExpr(`calendar.appointment_occurrence_overrides`).
+		On("CONFLICT (tenant_id, appointment_id, occurrence_date) DO UPDATE").
+		Set("cancelled = EXCLUDED.cancelled").
+		Set("updated_at = NOW()").
+		Exec(ctx); err != nil {
+		return fmt.Errorf("cancel calendar occurrence: %w", err)
+	}
+	return nil
+}
+
+func (r *AppointmentOccurrenceOverrideRepository) DeleteByAppointmentID(ctx context.Context, appointmentID int64) error {
+	query := base.GetDB(ctx, r.DB).NewDelete().
+		Model((*calModels.AppointmentOccurrenceOverride)(nil)).
+		ModelTableExpr(`calendar.appointment_occurrence_overrides AS "appointment_occurrence_override"`).
+		Where(`"appointment_occurrence_override".appointment_id = ?`, appointmentID)
+	if where, val, ok := base.TenantWhere(ctx, "appointment_occurrence_override"); ok {
+		query = query.Where(where, val)
+	}
+	if _, err := query.Exec(ctx); err != nil {
+		return fmt.Errorf("delete calendar occurrence overrides: %w", err)
+	}
+	return nil
 }
 
 func (r *AppointmentOccurrenceOverrideRepository) FindByAppointmentIDsAndOccurrenceDates(ctx context.Context, appointmentIDs []int64, occurrenceDates []timezone.Date) ([]*calModels.AppointmentOccurrenceOverride, error) {

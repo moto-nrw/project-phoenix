@@ -291,8 +291,18 @@ type WorkSessionRepository interface {
 	// GetCurrentByStaffID returns the active (not checked out) session for a staff member
 	GetCurrentByStaffID(ctx context.Context, staffID int64) (*WorkSession, error)
 
-	// GetCurrentByStaffIDForUpdate returns and locks the active session row for a staff member.
-	GetCurrentByStaffIDForUpdate(ctx context.Context, staffID int64) (*WorkSession, error)
+	// GetLatestOpenByStaffID returns the most recent not-checked-out session of
+	// a staff member across all days. Callers that must not lose sight of a
+	// session opened before midnight use this instead of GetCurrentByStaffID.
+	GetLatestOpenByStaffID(ctx context.Context, staffID int64) (*WorkSession, error)
+
+	// GetOpenByStaffAndDate returns the not-checked-out session of a staff
+	// member on an explicit calendar day, for callers that must not re-derive
+	// "today" while the request is running.
+	GetOpenByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*WorkSession, error)
+
+	// GetOpenByStaffAndDateForUpdate is GetOpenByStaffAndDate with a row lock.
+	GetOpenByStaffAndDateForUpdate(ctx context.Context, staffID int64, date timezone.Date) (*WorkSession, error)
 
 	// LockOpenByIDForUpdate returns and locks an open session row by ID.
 	LockOpenByIDForUpdate(ctx context.Context, id int64) (*WorkSession, error)
@@ -339,12 +349,13 @@ type StaffAbsenceRepository interface {
 	// Priority order when multiple absences exist: sick > training > vacation > other
 	GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error)
 
-	// ListByStatus returns all absences with the given status (used for inbox view)
-	ListByStatus(ctx context.Context, status string) ([]*StaffAbsence, error)
+	// ListByStatuses returns all absences whose status is in the given set,
+	// ordered by requested_at (used for the /staff inbox: requested + question)
+	ListByStatuses(ctx context.Context, statuses []string) ([]*StaffAbsence, error)
 
 	// DeleteNonHistoricalByStaffID hard-deletes absences that are still pending
-	// ('requested') or not yet over (date_end >= from). Past decided absences
-	// stay as history. Used by staff offboarding.
+	// ('requested' or 'question') or not yet over (date_end >= from). Past
+	// decided absences stay as history. Used by staff offboarding.
 	DeleteNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error)
 
 	// Generic query helpers promoted from the embedded base repository.

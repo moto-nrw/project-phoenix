@@ -3,7 +3,9 @@
 import { getSession } from "next-auth/react";
 import { buildApiError } from "./auth-api";
 import type {
+  BackendClosingDayRange,
   BackendDailyTarget,
+  BackendHoliday,
   BackendMonthSummary,
   MonthSummary,
   StaffAbsence,
@@ -14,8 +16,10 @@ import type {
   WorkSessionHistory,
 } from "./time-tracking-helpers";
 import {
+  mapClosingDaysResponse,
   mapDailyTargetsResponse,
   mapHistoryResponse,
+  mapHolidaysResponse,
   mapMonthSummaryResponse,
   mapStaffAbsenceResponse,
   mapWorkSessionResponse,
@@ -236,6 +240,38 @@ class TimeTrackingService {
     return mapDailyTargetsResponse(result.data);
   }
 
+  // Gesetzliche Feiertage des Tenants (#1418 3a), keyed YYYY-MM-DD → Name.
+  // Tenant-global (Bundesland-Setting), daher kein Staff-Parameter — die
+  // Admin-Detailansicht nutzt denselben Endpunkt.
+  async getHolidays(
+    from: string,
+    to: string,
+  ): Promise<ReadonlyMap<string, string>> {
+    const params = new URLSearchParams({ from, to });
+    const result = await this.request<BackendHoliday[] | null>(
+      `/holidays?${params}`,
+      "GET",
+      "Failed to get holidays",
+    );
+    return mapHolidaysResponse(result.data);
+  }
+
+  // OGS-Schließtage des Tenants (#1418 3b), keyed YYYY-MM-DD → Grund.
+  // Tenant-global wie die Feiertage; das Backend liefert Zeiträume, der
+  // Mapper expandiert sie tageweise.
+  async getClosingDays(
+    from: string,
+    to: string,
+  ): Promise<ReadonlyMap<string, string>> {
+    const params = new URLSearchParams({ from, to });
+    const result = await this.request<BackendClosingDayRange[] | null>(
+      `/closing-days?${params}`,
+      "GET",
+      "Failed to get closing days",
+    );
+    return mapClosingDaysResponse(result.data, from, to);
+  }
+
   async updateSession(
     id: string,
     updates: UpdateSessionRequest,
@@ -303,6 +339,16 @@ class TimeTrackingService {
     return (result.data ?? []).map((a) => mapStaffAbsenceResponse(a as never));
   }
 
+  async getQuestionedAbsences(): Promise<StaffAbsence[]> {
+    const params = new URLSearchParams({ status: "question" });
+    const result = await this.request<StaffAbsence[]>(
+      `/absences?${params}`,
+      "GET",
+      "Failed to get questioned absences",
+    );
+    return (result.data ?? []).map((a) => mapStaffAbsenceResponse(a as never));
+  }
+
   async createAbsence(req: CreateAbsenceRequest): Promise<StaffAbsence> {
     const result = await this.request<StaffAbsence>(
       "/absences",
@@ -349,6 +395,17 @@ class TimeTrackingService {
       `/absences/${id}/cancel`,
       "POST",
       "Antrag konnte nicht storniert werden",
+    );
+  }
+
+  // Answer to a Rückfrage (#1419): amend the own note and move the absence
+  // back to "requested" for another decision round.
+  async resubmitAbsence(id: string, note: string): Promise<void> {
+    await this.request(
+      `/absences/${id}/resubmit`,
+      "POST",
+      "Antrag konnte nicht erneut eingereicht werden",
+      { note },
     );
   }
 

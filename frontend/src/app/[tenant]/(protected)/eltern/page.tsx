@@ -2,7 +2,6 @@
 
 import { Suspense } from "react";
 import { useSession } from "next-auth/react";
-import useSWR from "swr";
 import {
   ChefHat,
   ClipboardList,
@@ -17,10 +16,8 @@ import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWith
 import { Loading } from "~/components/ui/loading";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { hasPermission, hasRole } from "~/lib/auth-utils";
-import {
-  SETTINGS_SCHEMA_SWR_KEY,
-  fetchSettingsSchema,
-} from "~/lib/settings-api";
+import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
+import { getSettingValue } from "~/lib/settings-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 interface ElternCard {
@@ -44,25 +41,16 @@ function ElternContent() {
   // be 403'd on. The feature flags live in the settings schema; only fetch it
   // for callers the backend lets read config (admins + config:read holders).
   const canReadConfig = userIsAdmin || hasPermission(session, "config:read");
-  const { data: settingsSchema } = useSWR(
-    canReadConfig ? SETTINGS_SCHEMA_SWR_KEY : null,
-    fetchSettingsSchema,
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      shouldRetryOnError: false,
-    },
-  );
+  const { data: settingsSchema } = useSettingsSchema(canReadConfig, {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    shouldRetryOnError: false,
+  });
 
-  const settingsItems = settingsSchema?.tabs
-    .flatMap((tab) => tab.categories)
-    .flatMap((category) => category.items);
   const parentNewsEnabled =
-    settingsItems?.find((item) => item.key === "operations.parent_news_enabled")
-      ?.value === true;
+    getSettingValue(settingsSchema, "operations.parent_news_enabled") === true;
   const mealPlanEnabled =
-    settingsItems?.find((item) => item.key === "operations.meal_plan_enabled")
-      ?.value === true;
+    getSettingValue(settingsSchema, "operations.meal_plan_enabled") === true;
   // Elternmitteilungen authoring is admin-only in v1 (admin:* wildcard guards
   // every /api/parent-announcements route). Same rule as the sidebar entry.
   const canAnnounce = hasPermission(session, "admin:*");

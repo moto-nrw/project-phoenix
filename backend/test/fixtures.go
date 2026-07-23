@@ -2796,6 +2796,53 @@ func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date timezone.Date, r
 	return row
 }
 
+// StaffShiftOpts controls optional fields for CreateTestStaffShift.
+type StaffShiftOpts struct {
+	StartHHMM   string // default "08:00"
+	EndHHMM     string // default "16:00"
+	Notes       string
+	Cancelled   bool
+	ShiftTypeID *int64
+}
+
+// CreateTestStaffShift inserts a Dienstplan shift (schedule.staff_shifts) for
+// the staff member on the given date, tenant 1. created_by is stamped with the
+// staff's own id. Cleanup: CleanupTableRecords(t, db, "schedule.staff_shifts", row.ID).
+func CreateTestStaffShift(tb testing.TB, db *bun.DB, staffID int64, date timezone.Date, opts StaffShiftOpts) *schedule.StaffShift {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	startHHMM := opts.StartHHMM
+	if startHHMM == "" {
+		startHHMM = "08:00"
+	}
+	endHHMM := opts.EndHHMM
+	if endHHMM == "" {
+		endHHMM = "16:00"
+	}
+
+	row := &schedule.StaffShift{
+		StaffID:     staffID,
+		Date:        date,
+		StartTime:   parseTimeHHMM(tb, startHHMM),
+		EndTime:     parseTimeHHMM(tb, endHHMM),
+		Notes:       opts.Notes,
+		Cancelled:   opts.Cancelled,
+		ShiftTypeID: opts.ShiftTypeID,
+		CreatedBy:   staffID,
+	}
+	row.SetTenantID(1)
+
+	_, err := db.NewInsert().
+		Model(row).
+		ModelTableExpr(`schedule.staff_shifts`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test staff shift")
+	return row
+}
+
 // InstanceStudentOpts controls optional fields for CreateTestInstanceStudent.
 type InstanceStudentOpts struct {
 	// NotScheduled sets the #1747 non-booking marker ending a block stamps on

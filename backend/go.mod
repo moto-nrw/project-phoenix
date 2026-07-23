@@ -28,6 +28,7 @@ require (
 	github.com/uptrace/bun/driver/pgdriver v1.2.18
 	github.com/uudashr/gocognit v1.2.1
 	github.com/vanng822/go-premailer v1.34.0
+	github.com/wlbr/feiertage v1.20.1
 	github.com/wneessen/go-mail v0.8.1
 	github.com/xuri/excelize/v2 v2.11.0
 	golang.org/x/crypto v0.54.0

@@ -19,6 +19,10 @@ import type {
   BackendEnrichedInstance,
   BackendGapInstance,
   BackendGapsResponse,
+  BackendMoveStaffResponse,
+  BackendStaffPoolResponse,
+  MoveStaffResponse,
+  StaffPoolResponse,
   BackendDeviationHistoryResponse,
   BackendApplyDeviationsResponse,
   BackendInstanceStatusResult,
@@ -562,6 +566,8 @@ const DEVIATION_EVENT_LABELS: Record<string, string> = {
   deviation_dropped_by_edit: "Abweichung durch Bearbeitung entfernt",
   sick_reported: "Krankmeldung",
   sick_cleared: "Krankmeldung zurückgenommen",
+  staff_moved: "Person verschoben",
+  shift_moved: "Schicht verschoben",
 };
 
 export function deviationEventLabel(eventType: string): string {
@@ -749,6 +755,63 @@ export function mapShiftCoverageCheckResult(
     })),
     coverageWarningCount:
       raw.coverage_warning_count ?? raw.coverage_warnings?.length ?? 0,
+  };
+}
+
+/** #1884 Personalpool: Backend-Snake-Case auf das Frontend-Modell abbilden. */
+export function mapStaffPool(raw: BackendStaffPoolResponse): StaffPoolResponse {
+  return {
+    instanceId: String(raw.instance_id),
+    title: raw.title,
+    date: raw.date,
+    startTime: raw.start_time,
+    endTime: raw.end_time,
+    dienstplanInUse: raw.dienstplan_in_use,
+    entries: (raw.entries ?? []).map((entry) => ({
+      staffId: String(entry.staff_id),
+      displayName: entry.display_name,
+      category: entry.category,
+      onShift: entry.on_shift,
+      coversWindow: entry.covers_window,
+      shiftWindows: entry.shift_windows ?? [],
+      absenceReason: entry.absence_reason ?? undefined,
+      assignments: (entry.assignments ?? []).map((assignment) => ({
+        instanceId: String(assignment.instance_id),
+        title: assignment.title,
+        startTime: assignment.start_time,
+        endTime: assignment.end_time,
+        isSubstitute: assignment.is_substitute,
+      })),
+    })),
+  };
+}
+
+/** #1884: Antwort des atomaren Personal-Moves abbilden. */
+export function mapMoveStaff(raw: BackendMoveStaffResponse): MoveStaffResponse {
+  return {
+    targetInstanceId: String(raw.target_instance_id),
+    sourceInstanceId:
+      raw.source_instance_id != null
+        ? String(raw.source_instance_id)
+        : undefined,
+    action: raw.action,
+    timeConflicts: (raw.time_conflicts ?? []).map((conflict) => ({
+      instanceId: String(conflict.instance_id),
+      title: conflict.title,
+      date: conflict.date,
+      startTime: conflict.start_time,
+      endTime: conflict.end_time,
+    })),
+    coverageWarnings: (raw.coverage_warnings ?? []).map((warning) => ({
+      staffId: String(warning.staff_id),
+      staffName: warning.staff_name,
+      date: warning.date,
+      startTime: warning.start_time,
+      endTime: warning.end_time,
+      uncoveredStartTime: warning.uncovered_start_time,
+      uncoveredEndTime: warning.uncovered_end_time,
+      message: warning.message,
+    })),
   };
 }
 

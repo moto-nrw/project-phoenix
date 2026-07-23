@@ -105,12 +105,12 @@ DO NOT touch: the trigger pill button (bordered pill with the green status dot),
 DO NOT convert the full-row clickable <button> targets (the instance rows) — leave them semantic.`,
   },
   {
-    path: `${DIR}/instance-detail-slide-over.tsx`,
-    label: 'instance-detail-slide-over',
+    path: `${DIR}/instance-detail-modal.tsx`,
+    label: 'instance-detail-modal',
     instructions: `FIXES:
 1. The "Spontan" badge and the activity-type badge: change bare "rounded" → "rounded-full".
-2. FOOTER BUTTONS: in SlideOverFooter, every action button currently using size="sm" (the outline/ghost cancel and the primary/lifecycle/danger actions) → change to size="md" (Flo's footer height). Keep each button's variant and all other props.
-DO NOT touch the SlideOverClose button (it uses asChild and forwards a DOM element) or the IconActionButton helper / lifecycle icon buttons — leave those as-is.`,
+2. FOOTER BUTTONS: in the Modal footer content, every action button currently using size="sm" (the outline/ghost cancel and the primary/lifecycle/danger actions) → change to size="md" (Flo's footer height). Keep each button's variant and all other props.
+DO NOT touch the kit Modal's own close button (it lives in ui/modal.tsx) or the IconActionButton helper / lifecycle icon buttons — leave those as-is.`,
   },
   {
     path: `${DIR}/timetable-event-modal.tsx`,

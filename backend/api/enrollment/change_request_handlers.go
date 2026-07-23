@@ -12,8 +12,11 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type ChangeRequestResponse struct {
@@ -256,7 +259,7 @@ func (rs *Resource) reviewChangeRequest(w http.ResponseWriter, r *http.Request, 
 		return reviewErr
 	})
 	if err != nil {
-		mapChangeRequestError(w, r, err)
+		mapChangeRequestWriteError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, toChangeRequestResponse(agg, true, true), "Change request reviewed")
@@ -313,6 +316,24 @@ func toChangeRequestResponse(agg *enrollmentService.ChangeRequestAggregate, incl
 	return resp
 }
 
+// mapChangeRequestWriteError is mapChangeRequestError for the handlers that
+// MUTATE (approve/reject, admin data correction).
+//
+// runInTenantTx only REUSES the transaction TenantTxMiddleware opened for the
+// request (tenant/tx.go), so returning an error from the closure rolls nothing
+// back, and the middleware commits on every response below 500. Both flows
+// write before their last validation can fail: applyApprovedChange updates the
+// guardian and child rows before SyncApprovedChildData rebuilds the departure
+// plan, and that rebuild is what raises the companion sentinels (400/409). Left
+// alone, a refused review would answer 400 and still commit the guardian,
+// contact, schedule, and child writes while the change request stays pending.
+// A refused write must leave nothing behind, for the same reason updateStudent
+// marks the rollback itself.
+func mapChangeRequestWriteError(w http.ResponseWriter, r *http.Request, err error) {
+	tenant.MarkRollback(r.Context())
+	mapChangeRequestError(w, r, err)
+}
+
 func mapChangeRequestError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, enrollmentService.ErrRequestNotFound),
@@ -326,6 +347,17 @@ func mapChangeRequestError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, enrollmentService.ErrChangeRequestInvalidStatus),
 		errors.Is(err, enrollmentService.ErrChangeRequestInvalidData):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	// Approving a change (or correcting child data) replaces the student's
+	// departure plan through StudentRepository.Update, which reconciles the
+	// "läuft mit" links and can refuse with the two companion sentinels. Both
+	// are expected, user-actionable refusals — map them to the same status +
+	// wire code the student PUT answers with, and render the bare sentinel so
+	// the client shows its clean German instruction instead of the wrapped
+	// sync context (#1694).
+	case errors.Is(err, userModels.ErrCompanionWouldLoseDeparture):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(userModels.ErrCompanionWouldLoseDeparture, studentsAPI.CodeCompanionWouldLoseDeparture))
+	case errors.Is(err, userModels.ErrCompanionLockBusy):
+		common.RenderError(w, r, common.ErrorConflictWithCode(userModels.ErrCompanionLockBusy, studentsAPI.CodeCompanionLockBusy))
 	default:
 		mapEditError(w, r, err)
 	}

@@ -1622,6 +1622,23 @@ function OwnZeiterfassungSection({
   const monthNumber = monthAnchor.getMonth() + 1;
   const isCurrentMonth =
     monthYear === today.getFullYear() && monthNumber === today.getMonth() + 1;
+  // Gesetzliche Feiertage im sichtbaren Zeitraum (#1418 3a): eigenes Badge
+  // in der Tabelle + Feiertagsarbeit-Warnung. Das Soll dieser Tage liefert
+  // der Server bereits als 0; ein Fetch-Fehler lässt die Markierung weg,
+  // ohne die Tabelle zu blockieren.
+  const { data: tableHolidays } = useSWRAuth(
+    `time-tracking-holidays-${visibleFromKey}-${visibleToKey}`,
+    () => timeTrackingService.getHolidays(visibleFromKey, visibleToKey),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+  // OGS-Schließtage im sichtbaren Zeitraum (#1418 3b): eigenes Badge in der
+  // Tabelle, Soll kommt bereits als 0 vom Server.
+  const { data: tableClosingDays } = useSWRAuth(
+    `time-tracking-closing-days-${visibleFromKey}-${visibleToKey}`,
+    () => timeTrackingService.getClosingDays(visibleFromKey, visibleToKey),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
   const {
     data: monthSummary,
     isLoading: monthSummaryLoading,
@@ -1634,7 +1651,11 @@ function OwnZeiterfassungSection({
     { refreshInterval: isCurrentMonth ? OPEN_MONTH_REFRESH_MS : 0 },
   );
 
-  const { data: timeTrackingConfig } = useSWRAuth(
+  const {
+    data: timeTrackingConfig,
+    isLoading: timeTrackingConfigLoading,
+    error: timeTrackingConfigError,
+  } = useSWRAuth(
     "time-tracking-config",
     () => timeTrackingService.getConfig(),
     { revalidateOnFocus: false },
@@ -1863,6 +1884,14 @@ function OwnZeiterfassungSection({
             dailyTargets={dailyTargets}
             dailyTargetsError={dailyTargetsError != null}
             dailyTargetsPending={dailyTargetsLoading}
+            holidays={tableHolidays}
+            closingDays={tableClosingDays}
+            accountStartDate={timeTrackingConfig?.accountStartDate ?? null}
+            accountStartDatePending={timeTrackingConfigLoading}
+            accountStartDateError={
+              timeTrackingConfig === undefined &&
+              timeTrackingConfigError != null
+            }
             today={today}
             isAdminView={ownStaffId !== null}
             onEditDay={(date) => handleEdit(date)}

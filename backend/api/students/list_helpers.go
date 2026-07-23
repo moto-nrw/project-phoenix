@@ -28,6 +28,7 @@ type studentListParams struct {
 	page                int
 	pageSize            int
 	includePickupTimes  bool
+	includeCompanions   bool
 	includeArrivalTimes bool
 	dayStatus           string
 	// date is the optional planning day (YYYY-MM-DD) the day-planning fields,
@@ -101,6 +102,7 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 
 	// Parse optional includes
 	params.includePickupTimes = r.URL.Query().Get("include_pickup_times") == "true"
+	params.includeCompanions = r.URL.Query().Get("include_companions") == "true"
 	params.includeArrivalTimes = r.URL.Query().Get("include_arrival_times") == "true"
 	params.dayStatus = parseDayStatusParam(r.URL.Query().Get("day_status"))
 	params.date = r.URL.Query().Get("date")

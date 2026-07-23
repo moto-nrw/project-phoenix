@@ -24,11 +24,14 @@ const (
 )
 
 // AbsenceStatus constants. `reported` = admin-direct entry (skips approval),
-// `requested` = vacation request pending approval, `approved`/`declined` =
-// post-decision terminal states, `canceled` = MA withdrew before decision.
+// `requested` = vacation request pending approval, `question` = Rückfrage from
+// the Leitung awaiting the staff member's amended resubmit, `approved`/
+// `declined` = post-decision terminal states, `canceled` = MA withdrew before
+// decision.
 const (
 	AbsenceStatusReported  = "reported"
 	AbsenceStatusRequested = "requested"
+	AbsenceStatusQuestion  = "question"
 	AbsenceStatusApproved  = "approved"
 	AbsenceStatusDeclined  = "declined"
 	AbsenceStatusCanceled  = "canceled"
@@ -46,6 +49,7 @@ var ValidAbsenceTypes = []string{
 var ValidAbsenceStatuses = []string{
 	AbsenceStatusReported,
 	AbsenceStatusRequested,
+	AbsenceStatusQuestion,
 	AbsenceStatusApproved,
 	AbsenceStatusDeclined,
 	AbsenceStatusCanceled,

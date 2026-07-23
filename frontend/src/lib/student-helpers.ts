@@ -1,6 +1,10 @@
 // lib/student-helpers.ts
 // Type definitions and helper functions for students
 
+import type {
+  CompanionExtensionConfirmation,
+  StudentCompanion,
+} from "./student-companion-api";
 import {
   LOCATION_STATUSES,
   parseLocation,
@@ -194,6 +198,45 @@ export function normalizeAllowedDepartureModes(
   return out;
 }
 
+/**
+ * Stable identity of a departure plan, equal exactly when
+ * allowedDepartureModesEqual is (both read the normalized plan, so missing days
+ * and unordered mode arrays produce the same string).
+ *
+ * Needed where a plan has to be COMPARED AGAINST ITS OWN EARLIER SELF across an
+ * async boundary rather than against another value: the companion refresh hook
+ * remembers what a running save submitted, and a plan edited while that save is
+ * in flight must not be mistaken for the one it carried (#1694).
+ */
+export function allowedDepartureModesFingerprint(
+  value?: AllowedDepartureModes | null,
+): string {
+  const normalized = normalizeAllowedDepartureModes(value);
+  return DEPARTURE_WEEKDAYS.map(
+    (day) => `${day.key}:${(normalized[day.key] ?? []).join(",")}`,
+  ).join("|");
+}
+
+/** Semantic equality of two departure plans: same modes on every weekday after
+ *  normalization, so shape noise (missing days, duplicate or unordered mode
+ *  arrays) does not read as a change. Used for dirty checks and for deciding
+ *  whether a save can have touched the Laufgemeinschaft links (#1694). */
+export function allowedDepartureModesEqual(
+  a?: AllowedDepartureModes | null,
+  b?: AllowedDepartureModes | null,
+): boolean {
+  const left = normalizeAllowedDepartureModes(a);
+  const right = normalizeAllowedDepartureModes(b);
+  return DEPARTURE_WEEKDAYS.every((day) => {
+    const leftModes = left[day.key] ?? [];
+    const rightModes = right[day.key] ?? [];
+    return (
+      leftModes.length === rightModes.length &&
+      leftModes.every((mode, idx) => mode === rightModes[idx])
+    );
+  });
+}
+
 /** Reports whether any weekday allows the accompanied ("Mit anderem Kind")
  *  departure mode. Reads the unified allowed_departure_modes when present and
  *  falls back to the exclusive departure_days, so it works on every form shape
@@ -202,13 +245,22 @@ export function allowedModesIncludeAccompanied(
   allowed?: AllowedDepartureModes | null,
   departureDays?: DepartureDays | null,
 ): boolean {
-  for (const day of DEPARTURE_WEEKDAYS) {
-    if (allowed?.[day.key]?.includes("accompanied")) return true;
-  }
-  for (const day of DEPARTURE_WEEKDAYS) {
-    if (departureDays?.[day.key] === "accompanied") return true;
-  }
-  return false;
+  return accompaniedWeekdayKeys(allowed, departureDays).length > 0;
+}
+
+/** The weekdays on which the plan allows the accompanied ("Mit anderem Kind")
+ *  departure mode, in Mon..Fri order. The "mit wem" requirement is checked PER
+ *  DAY — a Monday link answers nothing for an accompanied Tuesday — so callers
+ *  validating companion coverage need the days, not just a boolean (#1694). */
+export function accompaniedWeekdayKeys(
+  allowed?: AllowedDepartureModes | null,
+  departureDays?: DepartureDays | null,
+): DepartureDayKey[] {
+  return DEPARTURE_WEEKDAYS.filter(
+    (day) =>
+      (allowed?.[day.key]?.includes("accompanied") ?? false) ||
+      departureDays?.[day.key] === "accompanied",
+  ).map((day) => day.key);
 }
 
 /** Folds the legacy bus/pickup maps into the unified map. Pickup wins on a
@@ -427,6 +479,26 @@ export interface BackendStudent {
   scheduled_checkout?: ScheduledCheckoutInfo;
   extra_info?: string;
   departure_companion_note?: string;
+  companion_student_ids?: number[];
+  /** Write-only: the complete "läuft mit" list submitted with the plan. The id
+   *  stays the string the frontend holds — the backend accepts a quoted
+   *  decimal, which is exact for every int64. */
+  companions?: { companion_student_id: string; weekdays: string[] }[];
+  /**
+   * Write-only: fingerprint of the list the client loaded before it built
+   * `companions`. The backend compares it against the stored links under the
+   * child's row lock and refuses a replacement built on a snapshot someone else
+   * has since replaced (409 `companions_changed`) instead of deleting their
+   * links.
+   */
+  companions_fingerprint?: string;
+  /** Write-only: confirms widening a linked child's own departure plan. */
+  extend_companion_plans?: boolean;
+  /** Write-only: the children and weekdays that confirmation actually covered. */
+  confirmed_companion_extensions?: {
+    companion_student_id: string;
+    weekdays: string[];
+  }[];
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -575,6 +647,23 @@ export interface Student {
   extra_info?: string;
   // Free-text "mit wem" for the accompanied departure mode (#1694)
   departure_companion_note?: string;
+  /** Children this child walks home with on the shown day (Laufgemeinschaft).
+   *  Only present when the list was fetched with include_companions. Backend
+   *  int64 ids, carried as strings per the type-mapping rule. */
+  companion_student_ids?: string[];
+  /** The child's Laufgemeinschaft. Loaded from the companions endpoint and
+   *  submitted back with the departure plan it belongs to; omitting it leaves
+   *  the stored links untouched. */
+  companions?: StudentCompanion[];
+  /** Write-only: fingerprint of the LOADED list, so the backend can refuse a
+   *  replacement built on a snapshot someone else has since replaced instead of
+   *  deleting their links (409 `companions_changed`). */
+  companions_fingerprint?: string;
+  /** Write-only: confirms widening a linked child's own departure plan. */
+  extend_companion_plans?: boolean;
+  /** Write-only: the children and weekdays that confirmation actually covered.
+   *  Without them the backend treats the confirmation as unanswered. */
+  confirmed_companion_extensions?: CompanionExtensionConfirmation[];
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -671,6 +760,9 @@ export function mapStudentResponse(
     custom_users_id: undefined, // Not provided by backend
     extra_info: backendStudent.extra_info,
     departure_companion_note: backendStudent.departure_companion_note,
+    // Backend int64 ids → strings at the mapping boundary (type-mapping rule);
+    // ids above Number.MAX_SAFE_INTEGER must never live as JS numbers.
+    companion_student_ids: backendStudent.companion_student_ids?.map(String),
     birthday: backendStudent.birthday,
     health_info: backendStudent.health_info,
     supervisor_notes: backendStudent.supervisor_notes,
@@ -749,6 +841,10 @@ export function prepareStudentForBackend(
     health_info?: string;
     supervisor_notes?: string;
     pickup_status?: string;
+    companions?: { companion_student_id: string; weekdays: string[] }[];
+    companions_fingerprint?: string;
+    extend_companion_plans?: boolean;
+    confirmed_companion_extensions?: CompanionExtensionConfirmation[];
   },
 ): Partial<BackendStudent> {
   return {
@@ -794,6 +890,35 @@ export function prepareStudentForBackend(
     address_postal_code: student.address_postal_code,
     extra_info: student.extra_info,
     departure_companion_note: student.departure_companion_note,
+    // Laufgemeinschaft ("läuft mit"). Only sent when the caller actually
+    // edited it — an omitted key leaves the stored links untouched, while []
+    // clears them.
+    // The id travels as the string the frontend holds: the backend accepts a
+    // quoted decimal for exactly this reason. Converting to a JS number would
+    // round an id beyond Number.MAX_SAFE_INTEGER to a DIFFERENT child's id.
+    companions: student.companions?.map((companion) => ({
+      companion_student_id: companion.companion_student_id,
+      weekdays: companion.weekdays,
+    })),
+    // The fingerprint of the list the form LOADED, so the backend can refuse a
+    // write built on a snapshot someone else has since replaced instead of
+    // silently deleting their links.
+    //
+    // Sent WITHOUT a list too: the departure plan removes links on its own (the
+    // backend trims every weekday the new plan no longer allows), and the forms
+    // resubmit their whole plan on every save — so a plan that rode along on a
+    // stale load deletes a fresh edge exactly like a stale list would. The
+    // backend refuses such a removal unless this claim matches what is stored.
+    companions_fingerprint: student.companions_fingerprint,
+    extend_companion_plans: student.extend_companion_plans,
+    // What the user confirmed, not just that they confirmed something: the
+    // backend refuses to widen a conflict these entries do not cover.
+    confirmed_companion_extensions: student.confirmed_companion_extensions?.map(
+      (entry) => ({
+        companion_student_id: entry.companion_student_id,
+        weekdays: entry.weekdays,
+      }),
+    ),
     // Convert empty string to undefined for date fields (Go backend expects null or valid date)
     birthday:
       student.birthday && student.birthday.trim() !== ""
@@ -878,6 +1003,22 @@ export interface BackendUpdateRequest {
   sick_reason?: string;
   excused?: boolean;
   photo_consent_given?: boolean;
+  /** Laufgemeinschaft: the child's complete "läuft mit" list. Omit to leave
+   *  the links untouched; [] clears them. */
+  companions?: { companion_student_id: string; weekdays: string[] }[];
+  /** Fingerprint of the companion list the client loaded before building
+   *  `companions`. Mandatory whenever `companions` is present (including []) —
+   *  the backend rejects the update without it. Build it with
+   *  `companionsFingerprint()`. */
+  companions_fingerprint?: string;
+  /** Confirms widening a linked child's own departure plan (answer to the 409
+   *  conflict). */
+  extend_companion_plans?: boolean;
+  /** The children and weekdays that confirmation covered. */
+  confirmed_companion_extensions?: {
+    companion_student_id: string;
+    weekdays: string[];
+  }[];
 }
 
 // Map privacy consent from backend to frontend

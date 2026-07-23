@@ -30,7 +30,9 @@ vi.mock("~/contexts/ToastContext", () => ({
 
 // Mock invitation-api
 const { mockAcceptInvitation } = vi.hoisted(() => ({
-  mockAcceptInvitation: vi.fn().mockResolvedValue({ tenantSlug: "ogs-1" }),
+  mockAcceptInvitation: vi
+    .fn()
+    .mockResolvedValue({ tenantSubdomain: "burbach" }),
 }));
 vi.mock("~/lib/invitation-api", () => ({
   acceptInvitation: mockAcceptInvitation,
@@ -53,7 +55,9 @@ describe("InvitationAcceptForm", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAcceptInvitation.mockResolvedValue({ tenantSlug: "ogs-1" });
+    // Divergent slug/subdomain school (#1977): the redirect must use the
+    // subdomain ("burbach"), never the slug ("ogs-burbach").
+    mockAcceptInvitation.mockResolvedValue({ tenantSubdomain: "burbach" });
   });
 
   it("renders the form with invitation details", async () => {
@@ -441,7 +445,7 @@ describe("InvitationAcceptForm", () => {
       // Wait for redirect to happen (1.5s timeout + buffer)
       await waitFor(
         () => {
-          expect(mockLocation.href).toBe("http://ogs-1.localhost:3000/");
+          expect(mockLocation.href).toBe("http://burbach.localhost:3000/");
         },
         { timeout: 3000 },
       );
@@ -455,8 +459,8 @@ describe("InvitationAcceptForm", () => {
     }
   });
 
-  it("falls back to router.push when no tenant slug", async () => {
-    mockAcceptInvitation.mockResolvedValueOnce({ tenantSlug: undefined });
+  it("falls back to router.push when no tenant subdomain", async () => {
+    mockAcceptInvitation.mockResolvedValueOnce({ tenantSubdomain: undefined });
 
     render(
       <InvitationAcceptForm token="test-token" invitation={mockInvitation} />,
@@ -591,7 +595,7 @@ describe("InvitationAcceptForm", () => {
       fireEvent.click(screen.getByRole("button", { name: /Zur Anmeldung/i }));
 
       await waitFor(() => {
-        expect(mockLocation.href).toBe("http://ogs-1.localhost:3000/");
+        expect(mockLocation.href).toBe("http://burbach.localhost:3000/");
       });
     } finally {
       process.env.NEXT_PUBLIC_TENANT_DOMAIN = originalEnv;

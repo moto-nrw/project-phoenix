@@ -55,6 +55,9 @@ func (m *mockWorkSessionService) CheckIn(ctx context.Context, staffID int64, sta
 	}
 	return &activeModels.WorkSession{}, nil
 }
+func (m *mockWorkSessionService) CheckInOn(ctx context.Context, staffID int64, _ timezone.Date, status, source, reason string) (*activeModels.WorkSession, error) {
+	return m.CheckIn(ctx, staffID, status, source, reason)
+}
 func (m *mockWorkSessionService) CheckOut(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error) {
 	if m.checkOutFn != nil {
 		return m.checkOutFn(ctx, staffID, reason)
@@ -73,6 +76,18 @@ func (m *mockWorkSessionService) EndBreak(ctx context.Context, staffID int64) (*
 	}
 	return &activeModels.WorkSession{}, nil
 }
+func (m *mockWorkSessionService) CheckOutOn(ctx context.Context, staffID int64, _ timezone.Date, reason string) (*activeModels.WorkSession, error) {
+	return m.CheckOut(ctx, staffID, reason)
+}
+
+func (m *mockWorkSessionService) StartBreakOn(ctx context.Context, staffID int64, _ timezone.Date, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
+	return m.StartBreak(ctx, staffID, plannedDurationMinutes)
+}
+
+func (m *mockWorkSessionService) EndBreakOn(ctx context.Context, staffID int64, _ timezone.Date) (*activeModels.WorkSession, error) {
+	return m.EndBreak(ctx, staffID)
+}
+
 func (m *mockWorkSessionService) GetSessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error) {
 	if m.getSessionBreaksFn != nil {
 		return m.getSessionBreaksFn(ctx, staffID, sessionID)
@@ -90,6 +105,9 @@ func (m *mockWorkSessionService) GetCurrentSession(ctx context.Context, staffID 
 		return m.getCurrentSessionFn(ctx, staffID)
 	}
 	return nil, nil
+}
+func (m *mockWorkSessionService) GetLatestOpenSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+	return m.GetCurrentSession(ctx, staffID)
 }
 func (m *mockWorkSessionService) GetHistory(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error) {
 	if m.getHistoryFn != nil {
@@ -181,7 +199,9 @@ type mockStaffAbsenceService struct {
 	updateAbsenceFn     func(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, req activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error)
 	deleteAbsenceFn     func(ctx context.Context, staffID int64, absenceID int64) error
 	getAbsencesForRange func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeSvc.StaffAbsenceResponse, error)
+	listAbsencesFn      func(ctx context.Context, staffID int64, filter activeSvc.StaffAbsenceListFilter) ([]*activeSvc.StaffAbsenceResponse, error)
 	hasAbsenceOnDateFn  func(ctx context.Context, staffID int64, date timezone.Date) (bool, *activeModels.StaffAbsence, error)
+	resubmitAbsenceFn   func(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64, note string) (*activeSvc.StaffAbsenceResponse, error)
 }
 
 func (m *mockStaffAbsenceService) CreateAbsence(ctx context.Context, staffID int64, req activeSvc.CreateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
@@ -220,6 +240,15 @@ func (m *mockStaffAbsenceService) GetAbsencesForRange(ctx context.Context, staff
 	}
 	return nil, nil
 }
+func (m *mockStaffAbsenceService) ListAbsences(ctx context.Context, staffID int64, filter activeSvc.StaffAbsenceListFilter) ([]*activeSvc.StaffAbsenceResponse, error) {
+	if m.listAbsencesFn != nil {
+		return m.listAbsencesFn(ctx, staffID, filter)
+	}
+	if m.getAbsencesForRange != nil && filter.From != nil && filter.To != nil && filter.Status == "" {
+		return m.getAbsencesForRange(ctx, staffID, *filter.From, *filter.To)
+	}
+	return nil, nil
+}
 func (m *mockStaffAbsenceService) GetTodayAbsenceMap(_ context.Context) (map[int64]string, error) {
 	return nil, nil
 }
@@ -242,6 +271,17 @@ func (m *mockStaffAbsenceService) ApproveAbsence(_ context.Context, _ int64, _ i
 func (m *mockStaffAbsenceService) DenyAbsence(_ context.Context, _ int64, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {
 	return nil, nil
 }
+func (m *mockStaffAbsenceService) QuestionAbsence(_ context.Context, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {
+	return nil, nil
+}
+
+func (m *mockStaffAbsenceService) ResubmitAbsence(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64, note string) (*activeSvc.StaffAbsenceResponse, error) {
+	if m.resubmitAbsenceFn != nil {
+		return m.resubmitAbsenceFn(ctx, staffID, actorAccountID, absenceID, note)
+	}
+	return &activeSvc.StaffAbsenceResponse{}, nil
+}
+
 func (m *mockStaffAbsenceService) CancelAbsence(_ context.Context, _ int64, _ int64, _ int64) error {
 	return nil
 }
@@ -1243,6 +1283,53 @@ func TestListAbsences_MissingDates(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestListAbsences_StatusOnly(t *testing.T) {
+	absSvc := &mockStaffAbsenceService{
+		listAbsencesFn: func(_ context.Context, staffID int64, filter activeSvc.StaffAbsenceListFilter) ([]*activeSvc.StaffAbsenceResponse, error) {
+			assert.Equal(t, int64(100), staffID)
+			assert.Nil(t, filter.From)
+			assert.Nil(t, filter.To)
+			assert.Equal(t, activeModels.AbsenceStatusQuestion, filter.Status)
+			return []*activeSvc.StaffAbsenceResponse{}, nil
+		},
+	}
+	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), nil)
+
+	r := httptest.NewRequest(http.MethodGet, "/absences?status=question", nil)
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.listAbsences(w, r)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestListAbsences_IncompleteDateRange(t *testing.T) {
+	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
+
+	r := httptest.NewRequest(http.MethodGet, "/absences?from=2026-01-01&status=question", nil)
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.listAbsences(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestListAbsences_InvalidStatus(t *testing.T) {
+	absSvc := &mockStaffAbsenceService{
+		listAbsencesFn: func(_ context.Context, _ int64, _ activeSvc.StaffAbsenceListFilter) ([]*activeSvc.StaffAbsenceResponse, error) {
+			return nil, errors.New("invalid absence status")
+		},
+	}
+	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), nil)
+
+	r := httptest.NewRequest(http.MethodGet, "/absences?status=unknown", nil)
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.listAbsences(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestListAbsences_ServiceError(t *testing.T) {
 	absSvc := &mockStaffAbsenceService{
 		getAbsencesForRange: func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeSvc.StaffAbsenceResponse, error) {
@@ -1847,4 +1934,76 @@ func TestCheckOut_MalformedBodyRejected(t *testing.T) {
 	rs.checkOut(w, r)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.False(t, called, "a malformed body must not reach the service")
+}
+
+// --- resubmitAbsence (#1419 Rückfrage answer) ---
+
+func TestResubmitAbsence_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	absSvc := &mockStaffAbsenceService{
+		resubmitAbsenceFn: func(_ context.Context, staffID int64, actorAccountID int64, absenceID int64, note string) (*activeSvc.StaffAbsenceResponse, error) {
+			assert.Equal(t, int64(100), staffID)
+			assert.Equal(t, int64(validClaims().ID), actorAccountID)
+			assert.Equal(t, int64(77), absenceID)
+			assert.Equal(t, "Vertretung geklärt", note)
+			return &activeSvc.StaffAbsenceResponse{}, nil
+		},
+	}
+	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"note":"Vertretung geklärt"}`)
+	r := httptest.NewRequest(http.MethodPost, "/absences/77/resubmit", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	r = withChiParam(r, "id", "77")
+	w := httptest.NewRecorder()
+
+	rs.resubmitAbsence(w, r)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestResubmitAbsence_NotOwn(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	absSvc := &mockStaffAbsenceService{
+		resubmitAbsenceFn: func(_ context.Context, _ int64, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {
+			return nil, errors.New("can only resubmit own absences")
+		},
+	}
+	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"note":"x"}`)
+	r := httptest.NewRequest(http.MethodPost, "/absences/77/resubmit", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	r = withChiParam(r, "id", "77")
+	w := httptest.NewRecorder()
+
+	rs.resubmitAbsence(w, r)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestResubmitAbsence_WrongStatus(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	absSvc := &mockStaffAbsenceService{
+		resubmitAbsenceFn: func(_ context.Context, _ int64, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {
+			return nil, errors.New("only absences with a question can be resubmitted")
+		},
+	}
+	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"note":"x"}`)
+	r := httptest.NewRequest(http.MethodPost, "/absences/77/resubmit", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	r = withChiParam(r, "id", "77")
+	w := httptest.NewRecorder()
+
+	rs.resubmitAbsence(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }

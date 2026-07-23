@@ -64,9 +64,11 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
     () => staffScheduleService.getSchedule(staffId),
   );
 
-  const { data: timeTrackingConfig } = useSWRAuth("time-tracking-config", () =>
-    timeTrackingService.getConfig(),
-  );
+  const {
+    data: timeTrackingConfig,
+    isLoading: timeTrackingConfigLoading,
+    error: timeTrackingConfigError,
+  } = useSWRAuth("time-tracking-config", () => timeTrackingService.getConfig());
 
   // Week, month and Stundenkonto all come from the server-computed model: only
   // the backend resolves each day against the schedule that was valid on that
@@ -143,6 +145,23 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
         visibleFromKey,
         visibleToKey,
       ),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
+  // Gesetzliche Feiertage im sichtbaren Zeitraum (#1418 3a). Tenant-global
+  // (Bundesland-Setting), daher derselbe Endpunkt wie die MA-Sicht; die
+  // Route akzeptiert time_tracking:own ODER :manage.
+  const { data: tableHolidays } = useSWRAuth(
+    `time-tracking-holidays-${visibleFromKey}-${visibleToKey}`,
+    () => timeTrackingService.getHolidays(visibleFromKey, visibleToKey),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
+  // OGS-Schließtage im sichtbaren Zeitraum (#1418 3b), analog zu den
+  // Feiertagen tenant-global über denselben Endpunkt-Pfad.
+  const { data: tableClosingDays } = useSWRAuth(
+    `time-tracking-closing-days-${visibleFromKey}-${visibleToKey}`,
+    () => timeTrackingService.getClosingDays(visibleFromKey, visibleToKey),
     { keepPreviousData: true, revalidateOnFocus: false },
   );
 
@@ -289,6 +308,14 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
               dailyTargets={dailyTargets}
               dailyTargetsError={dailyTargetsError != null}
               dailyTargetsPending={dailyTargetsLoading}
+              holidays={tableHolidays}
+              closingDays={tableClosingDays}
+              accountStartDate={timeTrackingConfig?.accountStartDate ?? null}
+              accountStartDatePending={timeTrackingConfigLoading}
+              accountStartDateError={
+                timeTrackingConfig === undefined &&
+                timeTrackingConfigError != null
+              }
               today={today}
               isAdminView
               plannedShifts={visibleShifts ?? []}

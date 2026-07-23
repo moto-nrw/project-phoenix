@@ -32,7 +32,23 @@ const (
 	DeviationEventDroppedByReplan = "deviation_dropped_by_replan"
 	// A planned-instance roster edit discarded existing deviation flags.
 	DeviationEventDroppedByEdit = "deviation_dropped_by_edit"
+	// A staff member was moved between two same-day blocks in one atomic save
+	// (#1884). Anchored on the TARGET instance; old_value names the source
+	// block, new_value the target. An assign-from-pool (no source block) omits
+	// old_value.
+	DeviationEventStaffMoved = "staff_moved"
+	// A Dienstplan shift was moved to another person and/or slot (#1884).
+	// Anchored via StaffShiftID (no activity slot exists for a shift);
+	// old_value/new_value carry {staff_id, date, start_time, end_time}.
+	DeviationEventShiftMoved = "shift_moved"
 )
+
+// ShiftScopedDeviationEventTypes lists the event types that belong to the
+// Dienstplan, never the Betreuungsplan slot history. The StaffShiftID anchor
+// alone cannot mark that scope durably: its FK is ON DELETE SET NULL, so
+// deleting the shift would otherwise leak the event into slot-history reads.
+// Extend this list whenever a new shift-anchored event type is added.
+var ShiftScopedDeviationEventTypes = []string{DeviationEventShiftMoved}
 
 // DeviationEvent is one append-only entry in the planning Änderungsprotokoll
 // (#1886). Rows are never updated or deleted by application code; only the
@@ -54,6 +70,12 @@ type DeviationEvent struct {
 	StartTime time.Time `bun:"start_time,notnull" json:"start_time"`
 
 	InstanceID *int64 `bun:"instance_id" json:"instance_id,omitempty"`
+
+	// StaffShiftID anchors events on a schedule.staff_shifts row (#1884 shift
+	// moves). A shift is not an activity slot, so neither ActivityGroupID nor
+	// InstanceID can identify it; shift-anchored rows are excluded from the
+	// slot-scoped Betreuungsplan history read.
+	StaffShiftID *int64 `bun:"staff_shift_id" json:"staff_shift_id,omitempty"`
 
 	SubjectStaffID *int64 `bun:"subject_staff_id" json:"subject_staff_id,omitempty"`
 	RelatedStaffID *int64 `bun:"related_staff_id" json:"related_staff_id,omitempty"`
@@ -84,8 +106,10 @@ func (e *DeviationEvent) GetUpdatedAt() time.Time {
 
 // Validate checks the minimal invariants before an insert.
 func (e *DeviationEvent) Validate() error {
-	if (e.ActivityGroupID == nil || *e.ActivityGroupID <= 0) && (e.InstanceID == nil || *e.InstanceID <= 0) {
-		return errors.New("activity_group_id or instance_id is required")
+	if (e.ActivityGroupID == nil || *e.ActivityGroupID <= 0) &&
+		(e.InstanceID == nil || *e.InstanceID <= 0) &&
+		(e.StaffShiftID == nil || *e.StaffShiftID <= 0) {
+		return errors.New("activity_group_id, instance_id or staff_shift_id is required")
 	}
 	if e.OccurrenceDate.IsZero() {
 		return errors.New("occurrence_date is required")

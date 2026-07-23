@@ -8,6 +8,14 @@ type SSEEventType =
   // instead of one student_checkout per student — see backend issue #848.
   | "bulk_student_checkout"
   | "student_updated"
+  // Tenant-wide signal that a child's Laufgemeinschaft ("läuft mit",
+  // users.student_companions) may have changed: a submitted companion list, or
+  // a departure-plan write, which trims the links on a weekday the new plan no
+  // longer allows. Separate from student_updated because the links are
+  // symmetric and the editing forms hold a draft — reacting to every student
+  // write would discard or block an edit for a rename or a photo upload. See
+  // backend/realtime/events.go EventStudentCompanionsChanged.
+  | "student_companions_changed"
   | "activity_start"
   | "activity_end"
   | "activity_update"

@@ -148,8 +148,10 @@ vi.mock("~/lib/calendar-period-api", () => ({
   },
 }));
 
-vi.mock("~/lib/settings-api", () => ({
-  SETTINGS_SCHEMA_SWR_KEY: "settings-schema",
+// Nur den Netzwerk-Fetcher mocken; getSettingValue & Co. bleiben die echten
+// Implementierungen, damit die Tests nicht gegen eine driftende Kopie laufen.
+vi.mock("~/lib/settings-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/settings-api")>()),
   fetchSettingsSchema: vi.fn(),
 }));
 
@@ -318,8 +320,8 @@ vi.mock("~/components/timetable/template-list", () => ({
   ),
 }));
 
-vi.mock("~/components/timetable/instance-detail-slide-over", () => ({
-  InstanceDetailSlideOver: ({
+vi.mock("~/components/timetable/instance-detail-modal", () => ({
+  InstanceDetailModal: ({
     instance,
     onClose,
     onLifecycleAction,
@@ -328,6 +330,7 @@ vi.mock("~/components/timetable/instance-detail-slide-over", () => ({
     onEdit,
     onRepeat,
     onAttendancePatch,
+    canManageStaffPool,
   }: {
     instance: { id: string } | null;
     onClose: () => void;
@@ -347,9 +350,13 @@ vi.mock("~/components/timetable/instance-detail-slide-over", () => ({
       studentId: string,
       body: { status: "present" },
     ) => Promise<void>;
+    canManageStaffPool: boolean;
   }) =>
     instance ? (
       <div>
+        <span data-testid="detail-can-manage-pool">
+          {String(canManageStaffPool)}
+        </span>
         <button type="button" onClick={onClose}>
           detail-close
         </button>
@@ -766,6 +773,32 @@ describe("BetreuungsplanView", () => {
     // Kein Alt-URL-Parameter überlebt.
     expect(urlParams().has("week")).toBe(false);
     expect(urlParams().has("month")).toBe(false);
+  });
+
+  it("passes schedules:manage to the staff-pool controls", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:manage"] } },
+    });
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByRole("button", { name: "week-grid" }));
+    expect(screen.getByTestId("detail-can-manage-pool")).toHaveTextContent(
+      "true",
+    );
+  });
+
+  it("keeps staff-pool controls read-only without schedules:manage", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:read"] } },
+    });
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByRole("button", { name: "week-grid" }));
+    expect(screen.getByTestId("detail-can-manage-pool")).toHaveTextContent(
+      "false",
+    );
   });
 
   it("falls back to the week for an unknown view value", () => {

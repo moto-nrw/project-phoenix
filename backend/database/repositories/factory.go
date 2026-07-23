@@ -74,6 +74,7 @@ type Factory struct {
 	Guest               userModels.GuestRepository
 	Profile             userModels.ProfileRepository
 	StudentGuardian     userModels.StudentGuardianRepository
+	StudentCompanion    userModels.StudentCompanionRepository
 	GuardianProfile     userModels.GuardianProfileRepository
 	GuardianPhoneNumber userModels.GuardianPhoneNumberRepository
 	PrivacyConsent      userModels.PrivacyConsentRepository
@@ -103,6 +104,7 @@ type Factory struct {
 	StaffShiftSeriesException scheduleModels.StaffShiftSeriesExceptionRepository
 	ShiftType                 scheduleModels.ShiftTypeRepository
 	CalendarPeriod            scheduleModels.CalendarPeriodRepository
+	ClosingDay                scheduleModels.ClosingDayRepository
 	ActivityInstance          scheduleModels.ActivityInstanceRepository
 	InstanceStaff             scheduleModels.InstanceStaffRepository
 	InstanceStudent           scheduleModels.InstanceStudentRepository
@@ -259,6 +261,7 @@ func NewFactory(db *bun.DB) *Factory {
 		Guest:               users.NewGuestRepository(db),
 		Profile:             users.NewProfileRepository(db),
 		StudentGuardian:     users.NewStudentGuardianRepository(db),
+		StudentCompanion:    users.NewStudentCompanionRepository(db),
 		GuardianProfile:     users.NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
 		PrivacyConsent:      users.NewPrivacyConsentRepository(db),
@@ -288,6 +291,7 @@ func NewFactory(db *bun.DB) *Factory {
 		StaffShiftSeriesException: schedule.NewStaffShiftSeriesExceptionRepository(db),
 		ShiftType:                 schedule.NewShiftTypeRepository(db),
 		CalendarPeriod:            schedule.NewCalendarPeriodRepository(db),
+		ClosingDay:                schedule.NewClosingDayRepository(db),
 		ActivityInstance:          schedule.NewActivityInstanceRepository(db),
 		InstanceStaff:             schedule.NewInstanceStaffRepository(db),
 		InstanceStudent:           schedule.NewInstanceStudentRepository(db),

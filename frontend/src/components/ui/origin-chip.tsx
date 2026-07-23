@@ -13,7 +13,7 @@ interface OriginChipProps {
 /**
  * OriginChip names the data source of a figure ("Herkunfts-Chip"). It is
  * deliberately dosed: the planning redesign allows it at exactly three
- * spots — the Betreuungsplan header, the InstanceDetailSlideOver, and the
+ * spots — the Betreuungsplan header, the InstanceDetailModal, and the
  * Soll value of the time-tracking surfaces (docs/planung-redesign/docs/
  * 04-designsprache.md section 6.2). Do not scatter it across arbitrary
  * figures.

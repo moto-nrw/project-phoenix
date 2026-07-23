@@ -245,7 +245,9 @@ export default function StaffDetailContent() {
         `${year}-01-01`,
         `${year}-12-31`,
       );
-      return rows.filter((r) => r.status === "requested").length;
+      return rows.filter(
+        (r) => r.status === "requested" || r.status === "question",
+      ).length;
     },
   );
   const pendingCount = pendingForStaff ?? 0;

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import { InstanceDetailSlideOver } from "./instance-detail-slide-over";
+import { InstanceDetailModal } from "./instance-detail-modal";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 
 function makeInstance(
@@ -45,8 +45,8 @@ const studentNames = new Map<string, string>([
 ]);
 
 const meta = {
-  title: "components/timetable/InstanceDetailSlideOver",
-  component: InstanceDetailSlideOver,
+  title: "components/timetable/InstanceDetailModal",
+  component: InstanceDetailModal,
   args: {
     instance: makeInstance(),
     onClose: () => undefined,
@@ -55,7 +55,7 @@ const meta = {
     studentNames,
     editDeferred: true,
   },
-} satisfies Meta<typeof InstanceDetailSlideOver>;
+} satisfies Meta<typeof InstanceDetailModal>;
 
 export default meta;
 

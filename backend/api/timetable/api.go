@@ -95,6 +95,7 @@ type Resource struct {
 // site.
 type Dependencies struct {
 	CalendarPeriodService  scheduleSvc.CalendarPeriodService
+	ClosingDayService      scheduleSvc.ClosingDayService
 	MaterializationService scheduleSvc.MaterializationService
 	InstanceService        scheduleSvc.InstanceService
 	OperationsService      scheduleSvc.TimetableOperationsService
@@ -132,6 +133,15 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/{id}", rs.getPeriod)
 			r.With(authorize.RequiresPermission(permissions.SchedulesUpdate), withTx).Put("/{id}", rs.updatePeriod)
 			r.With(authorize.RequiresPermission(permissions.SchedulesDelete), withTx).Delete("/{id}", rs.deletePeriod)
+		})
+
+		// OGS-Schließtage (#1418 3b): closure ranges maintained on the same
+		// admin page as the calendar periods, hence the same permissions.
+		r.Route("/closing-days", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/", rs.listClosingDays)
+			r.With(authorize.RequiresPermission(permissions.SchedulesCreate), withTx).Post("/", rs.createClosingDay)
+			r.With(authorize.RequiresPermission(permissions.SchedulesUpdate), withTx).Put("/{id}", rs.updateClosingDay)
+			r.With(authorize.RequiresPermission(permissions.SchedulesDelete), withTx).Delete("/{id}", rs.deleteClosingDay)
 		})
 
 		// WP-B8: manual materialization. Admin-only — reuses SchedulesManage
@@ -183,6 +193,13 @@ func (rs *Resource) Router() chi.Router {
 				// tx so a mid-save failure never commits partial state.
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Post("/{id}/deviations", rs.applyDeviations)
+				// #1884 Personalpool: who is available / already planned in this
+				// block's window (read), and the atomic move of one person onto
+				// this block — from another block or from the free pool (write).
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/{id}/staff-pool", rs.getStaffPool)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Post("/{id}/move-staff", rs.moveStaff)
 
 			// WP-B10: three-field attendance PATCH. Gated on SchedulesManage
 			// like the lifecycle routes. Path params are {instance_id} and

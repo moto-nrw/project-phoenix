@@ -10,6 +10,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/applog"
+	appmiddleware "github.com/moto-nrw/project-phoenix/middleware"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -64,13 +65,35 @@ var serveCmd = &cobra.Command{
 }
 
 func scrubSentryEvent(event *sentry.Event) *sentry.Event {
-	if event == nil || event.Request == nil {
+	if event == nil {
 		return event
 	}
-	event.Request.Data = ""
-	for _, key := range []string{"X-Staff-PIN", "X-Staff-Id", "X-Device-Key"} {
-		if _, ok := event.Request.Headers[key]; ok {
-			event.Request.Headers[key] = "[filtered]"
+	// The public /public/calendar/{token} feed authenticates purely by the token
+	// in its URL. Sentry's HTTP integration captures that URL (and the derived
+	// transaction name / breadcrumbs), so a failing feed request would otherwise
+	// ship a replayable capability token to Sentry. Redact it everywhere the SDK
+	// may have recorded the path.
+	event.Message = appmiddleware.RedactFeedToken(event.Message)
+	event.Transaction = appmiddleware.RedactFeedToken(event.Transaction)
+	for _, bc := range event.Breadcrumbs {
+		if bc == nil {
+			continue
+		}
+		bc.Message = appmiddleware.RedactFeedToken(bc.Message)
+		for key, value := range bc.Data {
+			if s, ok := value.(string); ok {
+				bc.Data[key] = appmiddleware.RedactFeedToken(s)
+			}
+		}
+	}
+	if event.Request != nil {
+		event.Request.URL = appmiddleware.RedactFeedToken(event.Request.URL)
+		event.Request.QueryString = appmiddleware.RedactFeedToken(event.Request.QueryString)
+		event.Request.Data = ""
+		for _, key := range []string{"X-Staff-PIN", "X-Staff-Id", "X-Device-Key"} {
+			if _, ok := event.Request.Headers[key]; ok {
+				event.Request.Headers[key] = "[filtered]"
+			}
 		}
 	}
 	return event

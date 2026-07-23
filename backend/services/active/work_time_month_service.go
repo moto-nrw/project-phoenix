@@ -60,6 +60,10 @@ type MonthSummary struct {
 type WorkTimeMonthService interface {
 	GetMonthSummary(ctx context.Context, staffID int64, year, month int) (*MonthSummary, error)
 	GetDailyTargets(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyTarget, error)
+	// SetHolidayReader injects the public-holiday resolver (#1418 3a) —
+	// wired in the factory after construction, like
+	// WorkSessionService.SetStaffShiftRepo.
+	SetHolidayReader(reader HolidayDatesReader)
 }
 
 // DailyTarget is the contractual Soll of one calendar day, resolved against
@@ -117,6 +121,13 @@ type monthModelReader interface {
 	FindByID(ctx context.Context, id int64) (*configModels.WorkTimeModel, error)
 }
 
+// HolidayDatesReader is implemented by schedule.HolidayService. Public
+// holidays zero the Soll of their day (#1418 3a). Exported because the
+// factory injects it across service boundaries (month + session service).
+type HolidayDatesReader interface {
+	HolidayDates(ctx context.Context, from, to timezone.Date) (map[timezone.Date]bool, error)
+}
+
 type workTimeMonthService struct {
 	sessionRepo   monthSessionReader
 	breakRepo     monthBreakReader
@@ -126,6 +137,7 @@ type workTimeMonthService struct {
 	workModelRepo monthModelReader
 	shiftRepo     monthShiftReader
 	settings      monthSettingsResolver
+	holidayReader HolidayDatesReader
 	logger        *slog.Logger
 
 	// todayFunc is a test hook; production uses timezone.TodayDate.
@@ -154,6 +166,13 @@ func NewWorkTimeMonthService(
 		settings:      settings,
 		logger:        logger,
 	}
+}
+
+// SetHolidayReader wires the public-holiday resolver (#1418 3a). A setter
+// like SetStaffShiftRepo: nil keeps the pre-holiday behavior, so existing
+// unit fixtures stay valid.
+func (s *workTimeMonthService) SetHolidayReader(reader HolidayDatesReader) {
+	s.holidayReader = reader
 }
 
 func (s *workTimeMonthService) today() timezone.Date {
@@ -289,9 +308,16 @@ type dailyTargetResolver struct {
 	staffAnchor *timezone.Date
 	model       *configModels.WorkTimeModel
 	modelAnchor timezone.Date
+	holidays    map[timezone.Date]bool
 }
 
 func (r *dailyTargetResolver) targetFor(d timezone.Date) int {
+	// Public holidays zero the Soll regardless of the schedule (§2 EntgFG:
+	// the contractual hours of that day simply fall away, #1418 3a). This
+	// also keeps absence credits at 0 on holidays — no double counting.
+	if r.holidays[d] {
+		return 0
+	}
 	if len(r.entries) > 0 {
 		target, _ := configModels.DailyTargetFromSchedule(r.entries, r.staffAnchor, d)
 		return target
@@ -305,6 +331,14 @@ func (r *dailyTargetResolver) targetFor(d timezone.Date) int {
 
 func (s *workTimeMonthService) buildTargetResolver(ctx context.Context, staffID int64, from, to timezone.Date) (*dailyTargetResolver, error) {
 	resolver := &dailyTargetResolver{}
+
+	if s.holidayReader != nil {
+		holidaySet, err := s.holidayReader.HolidayDates(ctx, from, to)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load public holidays: %w", err)
+		}
+		resolver.holidays = holidaySet
+	}
 
 	staff, err := s.staffRepo.FindByID(ctx, staffID)
 	if err != nil {

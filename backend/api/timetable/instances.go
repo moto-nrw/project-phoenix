@@ -136,7 +136,7 @@ func (rs *Resource) cancelInstance(w http.ResponseWriter, r *http.Request) {
 		reason = trimReason(body.Reason)
 	}
 
-	instance, err := rs.InstanceService.Cancel(r.Context(), id, reason, resolveActorAccountID(r.Context()))
+	instance, err := rs.InstanceService.Cancel(r.Context(), id, reason, jwt.ActorAccountIDFromCtx(r.Context()))
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return

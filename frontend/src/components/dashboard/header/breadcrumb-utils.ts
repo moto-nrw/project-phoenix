@@ -117,7 +117,7 @@ function getMainRouteTitle(pathname: string): string {
     "/rooms": "Räume",
     "/activities": "Aktivitäten",
     "/reminders": "Erinnerungen",
-    "/substitutions": "Übergaben",
+    "/substitutions": "Gruppenzugriff",
     "/calendar-periods": "Kalenderzeiträume",
     // Die drei Planungsbereiche (Planung-Redesign, docs/planung-redesign/
     // docs/03 Abschnitt 5); die Redirect-Frames behalten Einträge, damit

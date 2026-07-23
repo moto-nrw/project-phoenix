@@ -15,6 +15,7 @@ const {
   resetSettingValue,
   revealSettingValue,
   applyOptimisticSchemaUpdate,
+  getSettingValue,
   SETTINGS_SCHEMA_SWR_KEY,
 } = await import("./settings-api");
 
@@ -212,10 +213,46 @@ describe("resetSettingValue", () => {
 
 describe("SETTINGS_SCHEMA_SWR_KEY", () => {
   it("is the literal string used by every SWR consumer", () => {
-    // The key is a string constant rather than a hash so cross-component
-    // mutate() calls hit the same cache entry. Locking the value keeps
-    // the bridge / sidebar / mobile-bottom-nav in sync.
+    // The shared base key is tenant-prefixed by useSWRAuth/useTenantMutate.
+    // Locking the value keeps all readers and invalidation paths in sync.
     expect(SETTINGS_SCHEMA_SWR_KEY).toBe("settings-schema");
+  });
+});
+
+describe("getSettingValue", () => {
+  const schema = {
+    tabs: [
+      {
+        categories: [
+          {
+            items: [
+              { key: "timetable.enabled", value: false },
+              { key: "operations.meal_plan_enabled", value: true },
+            ],
+          },
+        ],
+      },
+    ],
+  } as NonNullable<SchemaForTest>;
+
+  it("returns true and false values without treating false as missing", () => {
+    expect(getSettingValue(schema, "timetable.enabled")).toBe(false);
+    expect(getSettingValue(schema, "operations.meal_plan_enabled")).toBe(true);
+  });
+
+  it("returns undefined for missing schemas and keys", () => {
+    expect(getSettingValue(null, "timetable.enabled")).toBeUndefined();
+    expect(getSettingValue(schema, "missing.key")).toBeUndefined();
+  });
+
+  it("ignores malformed nested API collections", () => {
+    const malformedSchema = {
+      tabs: [{ categories: null }, { categories: [{ items: null }] }],
+    } as unknown as NonNullable<SchemaForTest>;
+
+    expect(
+      getSettingValue(malformedSchema, "timetable.enabled"),
+    ).toBeUndefined();
   });
 });
 
@@ -227,9 +264,7 @@ describe("applyOptimisticSchemaUpdate", () => {
       value: unknown;
       default: unknown;
       depends_on:
-        | { key: string; condition: string; value: unknown }
-        | null
-        | undefined;
+        { key: string; condition: string; value: unknown } | null | undefined;
     }> = {},
   ) {
     return {

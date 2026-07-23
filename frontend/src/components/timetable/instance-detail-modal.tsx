@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * InstanceDetailSlideOver — right-side slide-over showing the full state
- * of a clicked instance plus lifecycle action buttons.
+ * InstanceDetailModal — centered modal showing the full state of a
+ * clicked instance plus lifecycle action buttons (#1956).
  *
  * Shows the operational state of one timetable instance: lifecycle,
  * assigned staff, children, attendance state, and admin corrections.
@@ -26,14 +26,14 @@ import {
   TriangleAlert,
   UserCheck,
   UserCog,
+  UserPlus,
   Users,
   X,
 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
-import { useModal } from "~/components/dashboard/modal-context";
 import { ChoiceModal } from "~/components/ui/choice-modal";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { OriginChip } from "~/components/ui/origin-chip";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -41,16 +41,7 @@ import {
   useAttendanceWebEnabled,
   useShowTimetableCounts,
 } from "~/lib/tenant-context";
-import {
-  SlideOver,
-  SlideOverCloseButton,
-  SlideOverContent,
-  SlideOverDescription,
-  SlideOverFooter,
-  SlideOverHeader,
-  SlideOverTitle,
-} from "~/components/ui/slide-over";
-import { parseISODate } from "~/lib/date-helpers";
+import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
 import {
   getActivityTypeBadge,
   getGermanWeekdayLong,
@@ -106,7 +97,7 @@ const CONFIRM_DIALOGS: Record<
   },
 };
 
-interface InstanceDetailSlideOverProps {
+interface InstanceDetailModalProps {
   instance: EnrichedInstance | null;
   onClose: () => void;
   onLifecycleAction: (action: LifecycleAction) => Promise<void>;
@@ -126,6 +117,25 @@ interface InstanceDetailSlideOverProps {
    * disabled with a tooltip. Default true until backend PUT/POST land.
    */
   editDeferred?: boolean;
+  /**
+   * Blendet das Detail-Modal aus, solange ein anderes Overlay (z.B. der
+   * Termin-Editor) offen ist: beide portalen auf denselben festen z-index,
+   * und das Kit-Modal lauscht dokumentweit auf Escape — gestapelt würde es
+   * den Editor verdecken und bei Escape mitschließen. Die Auswahl
+   * (?block=…) bleibt bestehen, das Modal erscheint danach wieder.
+   */
+  suspended?: boolean;
+  /**
+   * Öffnet den Personalpool (#1884) für diesen Block. Nur sichtbar für
+   * geplante/laufende Blöcke ab heute — vergangene Blöcke sind Historie.
+   */
+  onOpenPool?: (instance: EnrichedInstance) => void;
+  /**
+   * Controls whether the pool opener describes a write action. View-only users
+   * may still inspect the schedules:read pool, but cannot move or assign staff.
+   * Defaults false so a missing permission prop never exposes mutation chrome.
+   */
+  canManageStaffPool?: boolean;
 }
 
 const EMPTY_STAFF_NAMES = new Map<string, string>();
@@ -140,7 +150,7 @@ function germanFullDate(iso: string): string {
 }
 
 /**
- * Regeltermin-Herkunftstext für den OriginChip im Slide-Over
+ * Regeltermin-Herkunftstext für den OriginChip im Detail-Modal
  * (docs/planung-redesign/docs/06-betreuungsplan.md Abschnitt 3.2: "aus
  * Regeltermin {Titel}, montags 12:00"). Die Instanz trägt keinen separaten
  * Template-Titel — materialisierte Instanzen erben den Titel des
@@ -259,8 +269,8 @@ function studentsForInstance(
 function attendancePatchForInstance(
   attendanceWebEnabled: boolean,
   instance: EnrichedInstance | null,
-  onAttendancePatch: InstanceDetailSlideOverProps["onAttendancePatch"],
-): InstanceDetailSlideOverProps["onAttendancePatch"] {
+  onAttendancePatch: InstanceDetailModalProps["onAttendancePatch"],
+): InstanceDetailModalProps["onAttendancePatch"] {
   if (!attendanceWebEnabled || !instance) return undefined;
   if (instance.status === "cancelled") return undefined;
   return onAttendancePatch;
@@ -300,9 +310,13 @@ function ActivityTypeBadge({
 function AssignedStaffSection({
   instance,
   staffNames,
+  onOpenPool,
+  canManageStaffPool,
 }: Readonly<{
   instance: EnrichedInstance;
   staffNames: Map<string, string>;
+  onOpenPool?: (instance: EnrichedInstance) => void;
+  canManageStaffPool: boolean;
 }>) {
   return (
     <Section title="Personal">
@@ -323,6 +337,24 @@ function AssignedStaffSection({
             />
           ))}
         </div>
+      )}
+      {onOpenPool && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="compact"
+          onClick={() => onOpenPool(instance)}
+          className="border border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            {canManageStaffPool ? (
+              <UserPlus className="h-3.5 w-3.5" />
+            ) : (
+              <Users className="h-3.5 w-3.5" />
+            )}
+            {canManageStaffPool ? "Person hinzuziehen" : "Personalpool ansehen"}
+          </span>
+        </Button>
       )}
     </Section>
   );
@@ -346,7 +378,7 @@ function InstanceStudentsSection({
     body: AttendancePatchBody,
   ) => Promise<void>;
   instance: EnrichedInstance;
-  onAttendancePatch?: InstanceDetailSlideOverProps["onAttendancePatch"];
+  onAttendancePatch?: InstanceDetailModalProps["onAttendancePatch"];
   pendingStudentId: string | null;
   studentNames: Map<string, string>;
   students: InstanceStudentSummary[];
@@ -396,7 +428,7 @@ function InstanceStudentsSection({
   );
 }
 
-export function InstanceDetailSlideOver({
+export function InstanceDetailModal({
   instance,
   onClose,
   onLifecycleAction,
@@ -408,10 +440,12 @@ export function InstanceDetailSlideOver({
   studentNames = EMPTY_STUDENT_NAMES,
   onAttendancePatch,
   editDeferred = true,
-}: InstanceDetailSlideOverProps) {
+  suspended = false,
+  onOpenPool,
+  canManageStaffPool = false,
+}: InstanceDetailModalProps) {
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const showTimetableCounts = useShowTimetableCounts();
-  const { isModalOpen } = useModal();
   // Tenant-bewusster Pfad: im Path-Routing-Modus muss /vertretung den
   // /{slug}-Präfix tragen, sonst führt der Link ins Leere.
   const tenantPath = useTenantAwarePath();
@@ -426,6 +460,12 @@ export function InstanceDetailSlideOver({
     null,
   );
   const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
+  // Personalpool (#1884) nur für bearbeitbare Blöcke ab heute — vergangene
+  // Blöcke sind Historie (gleiche Regel wie das Backend erzwingt).
+  const poolAvailable =
+    instance !== null &&
+    (instance.status === "planned" || instance.status === "active") &&
+    instance.date >= berlinTodayISO();
   const students = useMemo(() => studentsForInstance(instance), [instance]);
   // Same split the header counts use (#1747): an assignment row still reads
   // "expected" when the care plan does not place the child here today, so it
@@ -538,292 +578,278 @@ export function InstanceDetailSlideOver({
     }
   };
 
-  const open = instance !== null;
   const attendancePatch = attendancePatchForInstance(
     attendanceWebEnabled,
     instance,
     onAttendancePatch,
   );
 
-  return (
-    <SlideOver
-      open={open}
-      onOpenChange={(o) => {
-        if (!o) onClose();
-      }}
-    >
-      {instance && (
-        <SlideOverContent
-          // The confirmation modal portals to document.body and therefore
-          // lives outside the drawer's DOM. Without these guards Vaul's
-          // DismissableLayer treats every click inside the open modal as an
-          // outside-click and closes the slide-over, unmounting the modal
-          // before its buttons can fire. See issue #1358.
-          onInteractOutside={(event) => {
-            if (isModalOpen || pendingConfirm !== null || deleteScopeOpen) {
-              event.preventDefault();
-            }
-          }}
-          onEscapeKeyDown={(event) => {
-            if (isModalOpen || pendingConfirm !== null || deleteScopeOpen) {
-              event.preventDefault();
-            }
-          }}
-        >
-          <SlideOverHeader>
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <SlideOverTitle>{instance.title}</SlideOverTitle>
-                  <StatusBadge status={instance.status} />
-                  {instance.isSpontaneous && (
-                    <span
-                      className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-gray-600 uppercase"
-                      title="Dieser Termin wurde spontan gestartet und war nicht geplant."
-                    >
-                      Spontan gestartet
-                    </span>
-                  )}
-                  <ActivityTypeBadge activityType={instance.activityType} />
-                </div>
-                <SlideOverDescription>
-                  {germanFullDate(instance.date)} • {instance.startTime} –{" "}
-                  {instance.endTime}
-                </SlideOverDescription>
-                {instance.activityGroupId && (
-                  <OriginChip
-                    label={regelterminOriginLabel(instance)}
-                    className="mt-1.5"
-                  />
-                )}
-              </div>
-              <SlideOverCloseButton />
-            </div>
-          </SlideOverHeader>
+  if (!instance) return null;
 
-          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-            {instance.conflictWarnings.length > 0 && (
-              <div className={timetableDangerPanel}>
-                <div className="flex items-center gap-2 text-xs font-bold text-[#CC2626]">
-                  <TriangleAlert className="h-4 w-4" />
-                  {instance.conflictWarnings.length} Konflikt(e)
-                </div>
-                <ul className="mt-1 space-y-0.5 text-xs text-[#CC2626]">
-                  {instance.conflictWarnings.map((warning) => (
-                    <li key={warning.message}>• {warning.message}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <StatsRow instance={instance} />
-
-            <Section title="Details">
-              <Row icon={<Timer className="h-4 w-4" />} label="Zeit">
-                {instance.startTime} – {instance.endTime}
-              </Row>
-              <Row icon={<DoorOpen className="h-4 w-4" />} label="Raum">
-                {instance.roomName || `Raum #${instance.roomId}`}
-              </Row>
-              <Row
-                icon={<UserCheck className="h-4 w-4" />}
-                label={`Personal (${instance.staffCount})`}
-              >
-                {instance.staffCount === 0
-                  ? "Niemand zugeordnet"
-                  : `${instance.staffCount - instance.absentStaffCount} aktiv${
-                      instance.absentStaffCount > 0
-                        ? `, ${instance.absentStaffCount} abwesend`
-                        : ""
-                    }`}
-              </Row>
-              {showTimetableCounts ? (
-                <Row icon={<Users className="h-4 w-4" />} label="Kinder">
-                  {instance.expectedStudentsCount +
-                    instance.presentStudentsCount}{" "}
-                  eingetragen
-                  {instance.presentStudentsCount > 0
-                    ? ` • ${instance.presentStudentsCount} anwesend`
-                    : ""}
-                  {/* Names the gap between the assignment list and the care
-                      plan (#1747) instead of leaving a smaller number
-                      unexplained. */}
-                  {instance.notScheduledStudentsCount > 0
-                    ? ` • ${instance.notScheduledStudentsCount} heute nicht eingeplant`
-                    : ""}
-                </Row>
-              ) : null}
-              {instance.seriesNotes && (
-                <Row icon={<Repeat className="h-4 w-4" />} label="Wochennotiz">
-                  <span className="whitespace-pre-line">
-                    {instance.seriesNotes}
-                  </span>
-                </Row>
-              )}
-              {instance.notes && (
-                <Row
-                  icon={<StickyNote className="h-4 w-4" />}
-                  label={instance.seriesNotes ? "Tagesnotiz" : "Notiz"}
-                >
-                  <span className="whitespace-pre-line">{instance.notes}</span>
-                </Row>
-              )}
-            </Section>
-
-            <AssignedStaffSection instance={instance} staffNames={staffNames} />
-
-            <InstanceStudentsSection
-              groupedStudents={groupedStudents}
-              handleAttendancePatch={handleAttendancePatch}
-              instance={instance}
-              onAttendancePatch={attendancePatch}
-              pendingStudentId={pendingStudentId}
-              studentNames={studentNames}
-              students={students}
-            />
-          </div>
-
-          <SlideOverFooter>
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Sprung in den Vertretungs-Bereich bei einer Störung des Blocks
+  const footer = (
+    <div className="flex w-full flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Sprung in den Vertretungs-Bereich bei einer Störung des Blocks
                   (offene Lücke oder eingetragene Abwesenheit) —
                   docs/planung-redesign/docs/07-vertretung.md Abschnitt 6. Nutzt
                   nur bereits geladene Instanzdaten, kein zusätzlicher Abruf. */}
-              {(instance.status === "planned" ||
-                instance.status === "active") &&
-                (instance.staff.some((row) => row.isAbsent) ||
-                  (instance.requiredStaffCount > 0 &&
-                    instance.assignedStaffCount <
-                      instance.requiredStaffCount)) && (
-                  <Link
-                    href={tenantPath(
-                      `/vertretung?d=${instance.date}&block=${instance.id}`,
-                    )}
-                    className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                  >
-                    <UserCog className="h-4 w-4" />
-                    Vertretung bearbeiten
-                  </Link>
-                )}
-              {instance.status === "planned" && !editDeferred && onEdit && (
-                <Button
-                  variant="outline"
-                  size="md"
-                  type="button"
-                  onClick={() => onEdit(instance)}
-                  disabled={pendingAction !== null}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Pencil className="h-4 w-4" />
-                    Bearbeiten
-                  </span>
-                </Button>
+        {(instance.status === "planned" || instance.status === "active") &&
+          (instance.staff.some((row) => row.isAbsent) ||
+            (instance.requiredStaffCount > 0 &&
+              instance.assignedStaffCount < instance.requiredStaffCount)) && (
+            <Link
+              href={tenantPath(
+                `/vertretung?d=${instance.date}&block=${instance.id}`,
               )}
-              {instance.status === "planned" &&
-                !instance.activityGroupId &&
-                onRepeat && (
-                  <Button
-                    variant="outline"
-                    size="md"
-                    type="button"
-                    onClick={() => onRepeat(instance)}
-                    disabled={pendingAction !== null}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <Repeat className="h-4 w-4" />
-                      Wiederholen
-                    </span>
-                  </Button>
-                )}
-              {instance.status === "active" && attendanceWebEnabled && (
-                <Button
-                  variant="primary"
-                  size="md"
-                  type="button"
-                  onClick={() => setPendingConfirm("complete")}
-                  isLoading={pendingAction === "complete"}
-                  loadingText="Beende …"
-                  disabled={pendingAction !== null}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            >
+              <UserCog className="h-4 w-4" />
+              Vertretung bearbeiten
+            </Link>
+          )}
+        {instance.status === "planned" && !editDeferred && onEdit && (
+          <Button
+            variant="outline"
+            size="md"
+            type="button"
+            onClick={() => onEdit(instance)}
+            disabled={pendingAction !== null}
+          >
+            <span className="inline-flex items-center gap-2">
+              <Pencil className="h-4 w-4" />
+              Bearbeiten
+            </span>
+          </Button>
+        )}
+        {instance.status === "planned" &&
+          !instance.activityGroupId &&
+          onRepeat && (
+            <Button
+              variant="outline"
+              size="md"
+              type="button"
+              onClick={() => onRepeat(instance)}
+              disabled={pendingAction !== null}
+            >
+              <span className="inline-flex items-center gap-2">
+                <Repeat className="h-4 w-4" />
+                Wiederholen
+              </span>
+            </Button>
+          )}
+        {instance.status === "active" && attendanceWebEnabled && (
+          <Button
+            variant="primary"
+            size="md"
+            type="button"
+            onClick={() => setPendingConfirm("complete")}
+            isLoading={pendingAction === "complete"}
+            loadingText="Beende …"
+            disabled={pendingAction !== null}
+          >
+            <span className="inline-flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4" />
+              Beenden
+            </span>
+          </Button>
+        )}
+        {(instance.status === "planned" ||
+          (instance.status === "active" && attendanceWebEnabled)) && (
+          <Button
+            variant="outline_danger"
+            size="md"
+            type="button"
+            onClick={() => setPendingConfirm("cancel")}
+            isLoading={pendingAction === "cancel"}
+            loadingText="Sage ab …"
+            disabled={pendingAction !== null}
+          >
+            <span className="inline-flex items-center gap-2">
+              <CircleX className="h-4 w-4" />
+              Absagen
+            </span>
+          </Button>
+        )}
+        {instance.status === "planned" && onDeleteCancelled && (
+          <Button
+            variant="outline_danger"
+            size="md"
+            type="button"
+            onClick={openDeleteFlow}
+            isLoading={pendingDelete}
+            loadingText="Lösche …"
+            disabled={pendingAction !== null || pendingDelete}
+          >
+            <span className="inline-flex items-center gap-2">
+              <Trash2 className="h-4 w-4" />
+              Löschen
+            </span>
+          </Button>
+        )}
+        {instance.status === "completed" && (
+          <span className="inline-flex items-center gap-2 text-xs text-gray-500">
+            <CheckCircle2 className="h-4 w-4" />
+            Diese Aktivität ist bereits abgeschlossen.
+          </span>
+        )}
+        {instance.status === "cancelled" && (
+          <>
+            <span className="inline-flex items-center gap-2 text-xs text-gray-500">
+              <CircleX className="h-4 w-4" />
+              Diese Aktivität wurde abgesagt.
+            </span>
+            {onDeleteCancelled && (
+              <Button
+                variant="outline_danger"
+                size="md"
+                type="button"
+                onClick={openDeleteFlow}
+                isLoading={pendingDelete}
+                loadingText="Lösche …"
+                disabled={pendingAction !== null || pendingDelete}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Trash2 className="h-4 w-4" />
+                  Löschen
+                </span>
+              </Button>
+            )}
+          </>
+        )}
+      </div>
+      {editDeferred && (
+        <div className="flex items-center justify-end gap-2 text-xs text-gray-400">
+          <Pencil className="h-3.5 w-3.5" />
+          <span>Bearbeiten kommt im nächsten Update</span>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <>
+      {/* Confirmation-/ChoiceModal teilen sich mit dem Detail-Modal denselben
+          fixen z-index. Solange eines offen ist, wird das Detail-Modal
+          ausgeblendet statt gestapelt (gleiches Muster wie
+          staff/shift-move-dialog.tsx). */}
+      <Modal
+        isOpen={pendingConfirm === null && !deleteScopeOpen && !suspended}
+        onClose={onClose}
+        title={instance.title}
+        closeLabel="Schließen"
+        widthClass="mx-4 w-[calc(100%-2rem)] max-w-3xl"
+        footer={footer}
+      >
+        <div className="space-y-5">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge status={instance.status} />
+              {instance.isSpontaneous && (
+                <span
+                  className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-gray-600 uppercase"
+                  title="Dieser Termin wurde spontan gestartet und war nicht geplant."
                 >
-                  <span className="inline-flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4" />
-                    Beenden
-                  </span>
-                </Button>
-              )}
-              {(instance.status === "planned" ||
-                (instance.status === "active" && attendanceWebEnabled)) && (
-                <Button
-                  variant="outline_danger"
-                  size="md"
-                  type="button"
-                  onClick={() => setPendingConfirm("cancel")}
-                  isLoading={pendingAction === "cancel"}
-                  loadingText="Sage ab …"
-                  disabled={pendingAction !== null}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <CircleX className="h-4 w-4" />
-                    Absagen
-                  </span>
-                </Button>
-              )}
-              {instance.status === "planned" && onDeleteCancelled && (
-                <Button
-                  variant="outline_danger"
-                  size="md"
-                  type="button"
-                  onClick={openDeleteFlow}
-                  isLoading={pendingDelete}
-                  loadingText="Lösche …"
-                  disabled={pendingAction !== null || pendingDelete}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Trash2 className="h-4 w-4" />
-                    Löschen
-                  </span>
-                </Button>
-              )}
-              {instance.status === "completed" && (
-                <span className="inline-flex items-center gap-2 text-xs text-gray-500">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Diese Aktivität ist bereits abgeschlossen.
+                  Spontan gestartet
                 </span>
               )}
-              {instance.status === "cancelled" && (
-                <>
-                  <span className="inline-flex items-center gap-2 text-xs text-gray-500">
-                    <CircleX className="h-4 w-4" />
-                    Diese Aktivität wurde abgesagt.
-                  </span>
-                  {onDeleteCancelled && (
-                    <Button
-                      variant="outline_danger"
-                      size="md"
-                      type="button"
-                      onClick={openDeleteFlow}
-                      isLoading={pendingDelete}
-                      loadingText="Lösche …"
-                      disabled={pendingAction !== null || pendingDelete}
-                    >
-                      <span className="inline-flex items-center gap-2">
-                        <Trash2 className="h-4 w-4" />
-                        Löschen
-                      </span>
-                    </Button>
-                  )}
-                </>
-              )}
+              <ActivityTypeBadge activityType={instance.activityType} />
             </div>
-            {editDeferred && (
-              <div className="flex items-center justify-end gap-2 text-xs text-gray-400">
-                <Pencil className="h-3.5 w-3.5" />
-                <span>Bearbeiten kommt im nächsten Update</span>
-              </div>
+            <p className="text-sm text-gray-500">
+              {germanFullDate(instance.date)} • {instance.startTime} –{" "}
+              {instance.endTime}
+            </p>
+            {instance.activityGroupId && (
+              <OriginChip
+                label={regelterminOriginLabel(instance)}
+                className="mt-1.5"
+              />
             )}
-          </SlideOverFooter>
-        </SlideOverContent>
-      )}
+          </div>
+          {instance.conflictWarnings.length > 0 && (
+            <div className={timetableDangerPanel}>
+              <div className="flex items-center gap-2 text-xs font-bold text-[#CC2626]">
+                <TriangleAlert className="h-4 w-4" />
+                {instance.conflictWarnings.length} Konflikt(e)
+              </div>
+              <ul className="mt-1 space-y-0.5 text-xs text-[#CC2626]">
+                {instance.conflictWarnings.map((warning) => (
+                  <li key={warning.message}>• {warning.message}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <StatsRow instance={instance} />
+
+          <Section title="Details">
+            <Row icon={<Timer className="h-4 w-4" />} label="Zeit">
+              {instance.startTime} – {instance.endTime}
+            </Row>
+            <Row icon={<DoorOpen className="h-4 w-4" />} label="Raum">
+              {instance.roomName || `Raum #${instance.roomId}`}
+            </Row>
+            <Row
+              icon={<UserCheck className="h-4 w-4" />}
+              label={`Personal (${instance.staffCount})`}
+            >
+              {instance.staffCount === 0
+                ? "Niemand zugeordnet"
+                : `${instance.staffCount - instance.absentStaffCount} aktiv${
+                    instance.absentStaffCount > 0
+                      ? `, ${instance.absentStaffCount} abwesend`
+                      : ""
+                  }`}
+            </Row>
+            {showTimetableCounts ? (
+              <Row icon={<Users className="h-4 w-4" />} label="Kinder">
+                {instance.expectedStudentsCount + instance.presentStudentsCount}{" "}
+                eingetragen
+                {instance.presentStudentsCount > 0
+                  ? ` • ${instance.presentStudentsCount} anwesend`
+                  : ""}
+                {/* Names the gap between the assignment list and the care
+                      plan (#1747) instead of leaving a smaller number
+                      unexplained. */}
+                {instance.notScheduledStudentsCount > 0
+                  ? ` • ${instance.notScheduledStudentsCount} heute nicht eingeplant`
+                  : ""}
+              </Row>
+            ) : null}
+            {instance.seriesNotes && (
+              <Row icon={<Repeat className="h-4 w-4" />} label="Wochennotiz">
+                <span className="whitespace-pre-line">
+                  {instance.seriesNotes}
+                </span>
+              </Row>
+            )}
+            {instance.notes && (
+              <Row
+                icon={<StickyNote className="h-4 w-4" />}
+                label={instance.seriesNotes ? "Tagesnotiz" : "Notiz"}
+              >
+                <span className="whitespace-pre-line">{instance.notes}</span>
+              </Row>
+            )}
+          </Section>
+
+          <AssignedStaffSection
+            instance={instance}
+            staffNames={staffNames}
+            onOpenPool={poolAvailable ? onOpenPool : undefined}
+            canManageStaffPool={canManageStaffPool}
+          />
+
+          <InstanceStudentsSection
+            groupedStudents={groupedStudents}
+            handleAttendancePatch={handleAttendancePatch}
+            instance={instance}
+            onAttendancePatch={attendancePatch}
+            pendingStudentId={pendingStudentId}
+            studentNames={studentNames}
+            students={students}
+          />
+        </div>
+      </Modal>
       {pendingConfirm && (
         <ConfirmationModal
           isOpen
@@ -849,31 +875,29 @@ export function InstanceDetailSlideOver({
           </p>
         </ConfirmationModal>
       )}
-      {instance && (
-        <ChoiceModal
-          isOpen={deleteScopeOpen}
-          onClose={() => setDeleteScopeOpen(false)}
-          title="Wiederholenden Termin löschen"
-          description={`Der Termin am ${germanFullDate(instance.date)} gehört zu einem Regeltermin.`}
-          options={[
-            {
-              value: "single",
-              label: "Nur diese Woche",
-              description:
-                "Löscht nur diesen einen Termin und verhindert, dass er erneut eingetragen wird; der Regeltermin bleibt bestehen.",
-            },
-            {
-              value: "following",
-              label: "Ab jetzt dauerhaft",
-              description:
-                "Beendet den Regeltermin ab diesem Datum; frühere Termine bleiben erhalten.",
-            },
-          ]}
-          onSelect={handleDeleteScopeSelect}
-          isBusy={pendingDeleteScope !== null}
-        />
-      )}
-    </SlideOver>
+      <ChoiceModal
+        isOpen={deleteScopeOpen}
+        onClose={() => setDeleteScopeOpen(false)}
+        title="Wiederholenden Termin löschen"
+        description={`Der Termin am ${germanFullDate(instance.date)} gehört zu einem Regeltermin.`}
+        options={[
+          {
+            value: "single",
+            label: "Nur diese Woche",
+            description:
+              "Löscht nur diesen einen Termin und verhindert, dass er erneut eingetragen wird; der Regeltermin bleibt bestehen.",
+          },
+          {
+            value: "following",
+            label: "Ab jetzt dauerhaft",
+            description:
+              "Beendet den Regeltermin ab diesem Datum; frühere Termine bleiben erhalten.",
+          },
+        ]}
+        onSelect={handleDeleteScopeSelect}
+        isBusy={pendingDeleteScope !== null}
+      />
+    </>
   );
 }
 
@@ -897,7 +921,7 @@ function StudentGroup({
   students: InstanceStudentSummary[];
   studentNames: Map<string, string>;
   pendingStudentId: string | null;
-  onAttendancePatch?: InstanceDetailSlideOverProps["onAttendancePatch"];
+  onAttendancePatch?: InstanceDetailModalProps["onAttendancePatch"];
   instanceStatus: InstanceStatus;
   handleAttendancePatch: (
     studentId: string,

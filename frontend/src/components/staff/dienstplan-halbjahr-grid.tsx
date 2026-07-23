@@ -477,8 +477,12 @@ export function DienstplanHalbjahrGrid({
     error: periodsError,
     isLoading: periodsLoading,
     mutate: mutatePeriods,
-  } = useSWRAuth<CalendarPeriod[]>("dienstplan-calendar-periods", () =>
-    calendarPeriodService.list(),
+  } = useSWRAuth<CalendarPeriod[]>(
+    // Gleicher SWR-Key wie Dienstplan-Kontextzeile und Betreuungsplan: nach
+    // Anlegen/Bearbeiten/Löschen eines Zeitraums genügt ein mutate auf diesen
+    // Key, damit auch die Halbjahres-Sicht frische Spalten zeigt.
+    "database-calendar-periods-list",
+    () => calendarPeriodService.list(),
   );
 
   if (periodsLoading || (!periods && !periodsError)) {

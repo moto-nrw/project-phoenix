@@ -411,8 +411,26 @@ export function DatabaseForm<T = Record<string, unknown>>({
       return;
     }
 
+    const submitData = { ...formData };
+    // The student proxy writes the Datenschutz pair BEFORE the student PUT, so
+    // whatever this payload carries is stored even when the rest of the save is
+    // refused. While editing, the two fields are echoes of the separately
+    // fetched server consent unless the user touched them — resubmitting that
+    // copy would overwrite a change somebody else made since it was fetched.
+    // Both go or both stay: the proxy's consent PUT upserts the pair, so a lone
+    // field resets the other to its default. On create there is nothing to echo
+    // (no privacyStudentId), and the values travel as before.
+    if (
+      privacyStudentId &&
+      !dirtyPrivacyFieldsRef.current.has("privacy_consent_accepted") &&
+      !dirtyPrivacyFieldsRef.current.has("data_retention_days")
+    ) {
+      delete submitData.privacy_consent_accepted;
+      delete submitData.data_retention_days;
+    }
+
     try {
-      await onSubmit(formData as T);
+      await onSubmit(submitData as T);
     } catch (err) {
       logger.error("failed to submit form", {
         error: err instanceof Error ? err.message : String(err),

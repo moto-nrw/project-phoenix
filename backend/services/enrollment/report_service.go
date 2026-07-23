@@ -186,8 +186,12 @@ type ReportServiceConfig struct {
 	DataAccessLogRepo        auditModels.DataAccessLogRepository
 	StudentRepo              userModels.StudentRepository
 	StudentGuardianRepo      userModels.StudentGuardianRepository
-	PersonRepo               userModels.PersonRepository
-	EducationGroupRepo       educationModels.GroupRepository
+	// StudentCompanionRepo supplies the "läuft mit" links the class roster
+	// prints next to an accompanied departure. Optional: an unconfigured repo
+	// only costs the names in that one column, never the report.
+	StudentCompanionRepo userModels.StudentCompanionRepository
+	PersonRepo           userModels.PersonRepository
+	EducationGroupRepo   educationModels.GroupRepository
 }
 
 type reportService struct {
@@ -412,6 +416,10 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 	if err != nil {
 		return nil, err
 	}
+	companions, err := s.classRosterCompanions(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
 	persons, err := s.PersonRepo.FindByIDs(ctx, classRosterPersonIDs(students))
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: load persons: %w", err)
@@ -481,7 +489,7 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 			continue
 		}
 		person := persons[student.PersonID]
-		row, err := classRosterRow(student, person, classRosterGroupName(student, groups), enrollmentsByStudent[student.ID], offeringByID, schemas, studentGuardianContacts[student.ID])
+		row, err := classRosterRow(student, person, classRosterGroupName(student, groups), enrollmentsByStudent[student.ID], offeringByID, schemas, studentGuardianContacts[student.ID], companions[student.ID])
 		if err != nil {
 			return nil, err
 		}
@@ -991,6 +999,7 @@ func classRosterRow(
 	offeringByID map[int64]*enrollmentModels.CareOffering,
 	schemas map[int64]*enrollmentModels.FormSchema,
 	studentGuardians []ClassRosterGuardian,
+	companions []userModels.CompanionLink,
 ) (ClassRosterRow, error) {
 	studentContactGuardians := classRosterStudentGuardians(student, studentGuardians)
 	row := ClassRosterRow{
@@ -1008,7 +1017,7 @@ func classRosterRow(
 		row.FirstName = person.FirstName
 		row.LastName = person.LastName
 	}
-	row.Departure = classRosterDepartureFromStudent(student)
+	row.Departure = classRosterDepartureFromStudent(student, companions)
 	if enrollment == nil || enrollment.request == nil || enrollment.child == nil {
 		return row, nil
 	}
@@ -1021,7 +1030,7 @@ func classRosterRow(
 	if err != nil {
 		return row, fmt.Errorf("class roster report: child %d arrival schedule: %w", enrollment.child.ID, err)
 	}
-	departure, err := classRosterDeparture(enrollment.request, enrollment.child, schemas, student)
+	departure, err := classRosterDeparture(enrollment.request, enrollment.child, schemas, student, companions)
 	if err != nil {
 		return row, fmt.Errorf("class roster report: child %d departure: %w", enrollment.child.ID, err)
 	}
@@ -1042,6 +1051,19 @@ func classRosterRow(
 		row.Guardians = studentContactGuardians
 	}
 	return row, nil
+}
+
+// classRosterCompanions loads the "läuft mit" links of every listed child, so
+// an accompanied departure names the children it means.
+func (s *reportService) classRosterCompanions(ctx context.Context, studentIDs []int64) (map[int64][]userModels.CompanionLink, error) {
+	if s.StudentCompanionRepo == nil || len(studentIDs) == 0 {
+		return map[int64][]userModels.CompanionLink{}, nil
+	}
+	links, err := s.StudentCompanionRepo.ListLinksForStudents(ctx, studentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("class roster report: load departure companions: %w", err)
+	}
+	return links, nil
 }
 
 func (s *reportService) classRosterStudentGuardianContacts(ctx context.Context, studentIDs []int64) (map[int64][]ClassRosterGuardian, error) {
@@ -1273,15 +1295,18 @@ func classRosterEnrollmentSummary(offerings []CareUsageRowOffering) string {
 	return "Angemeldet: " + strings.Join(names, ", ")
 }
 
-func classRosterDeparture(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*enrollmentModels.FormSchema, student *userModels.Student) (string, error) {
+func classRosterDeparture(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*enrollmentModels.FormSchema, student *userModels.Student, companions []userModels.CompanionLink) (string, error) {
 	allowed, fallback, note, ok, err := classRosterDepartureFromPhase(req, child, schemas)
 	if err != nil {
 		return "", err
 	}
 	if ok {
-		return classRosterFormatDeparture(allowed, fallback, note), nil
+		// The phase form answered the plan, but the "läuft mit" links belong to
+		// the CHILD and are the current, structured answer to "mit wem" either
+		// way — the roster prints both sources.
+		return classRosterFormatDeparture(allowed, fallback, note, companions), nil
 	}
-	return classRosterDepartureFromStudent(student), nil
+	return classRosterDepartureFromStudent(student, companions), nil
 }
 
 func classRosterDepartureFromPhase(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*enrollmentModels.FormSchema) (userModels.AllowedDepartureModes, userModels.DepartureDays, *string, bool, error) {
@@ -1406,14 +1431,27 @@ func classRosterCompanionNote(child *enrollmentModels.RequestChild) *string {
 	return &note
 }
 
-func classRosterDepartureFromStudent(student *userModels.Student) string {
+func classRosterDepartureFromStudent(student *userModels.Student, companions []userModels.CompanionLink) string {
 	if student == nil {
 		return "Geht alleine"
 	}
-	return classRosterFormatDeparture(student.AllowedDepartureModes, student.DepartureDays, student.DepartureCompanionNote)
+	return classRosterFormatDeparture(student.AllowedDepartureModes, student.DepartureDays, student.DepartureCompanionNote, companions)
 }
 
-func classRosterFormatDeparture(allowed userModels.AllowedDepartureModes, fallback userModels.DepartureDays, companionNote *string) string {
+// classRosterFormatDeparture renders the plan plus the "mit wem" detail.
+//
+// Both sources travel: a child whose Laufgemeinschaft answers "mit wem" needs
+// no free-text note (the note requirement is satisfied per weekday by a link),
+// so a roster built from the note alone would print "Mit anderem Kind" with no
+// name on the sheet staff carry to the door.
+//
+// The links are printed only for the weekdays the rendered plan actually allows
+// "Anderes Kind". They are the CURRENT links of the live child, while the plan
+// may come from the approved enrollment phase — a plan that says Monday
+// accompanied and Tuesday bus, next to a link the child gained on Tuesday since,
+// would contradict itself on the same line. Filtering is the honest reading: a
+// day the printed plan does not allow has no "mit wem" to print.
+func classRosterFormatDeparture(allowed userModels.AllowedDepartureModes, fallback userModels.DepartureDays, companionNote *string, companions []userModels.CompanionLink) string {
 	modeLabels := map[userModels.DepartureMode]string{
 		userModels.DepartureAlone:       "zu Fuß",
 		userModels.DepartureBus:         "Bus",
@@ -1447,10 +1485,21 @@ func classRosterFormatDeparture(allowed userModels.AllowedDepartureModes, fallba
 	if len(parts) > 0 {
 		summary = strings.Join(parts, ", ")
 	}
-	if companionNote == nil || strings.TrimSpace(*companionNote) == "" || !allowed.HasMode(userModels.DepartureAccompanied) {
+	details := make([]string, 0, 2)
+	// Read off `allowed` alone: the summary above is rendered from it, and the
+	// exclusive fallback was already folded into it when it was empty. Passing
+	// the fallback here as well could admit a day the summary never printed.
+	onPlan := userModels.FilterCompanionLinksToDays(companions, userModels.AccompaniedWeekdays(allowed, nil))
+	if linked := userModels.FormatCompanionLinks(onPlan); linked != "" {
+		details = append(details, linked)
+	}
+	if companionNote != nil && strings.TrimSpace(*companionNote) != "" {
+		details = append(details, strings.TrimSpace(*companionNote))
+	}
+	if len(details) == 0 || !allowed.HasMode(userModels.DepartureAccompanied) {
 		return summary
 	}
-	return summary + " (mit: " + strings.TrimSpace(*companionNote) + ")"
+	return summary + " (mit: " + strings.Join(details, "; ") + ")"
 }
 
 func careUsagePickupByDay(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*enrollmentModels.FormSchema) (map[string]string, error) {

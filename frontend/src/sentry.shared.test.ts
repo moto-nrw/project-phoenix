@@ -154,4 +154,45 @@ describe("scrubEvent", () => {
 
     expect(result).toBe(event);
   });
+
+  it("redacts the calendar-feed token from url, transaction, path and breadcrumbs", () => {
+    const event = makeEvent({
+      request: { url: "https://parents.test/api/calendar-feed/secret-token" },
+      transaction: "GET /api/calendar-feed/secret-token",
+      contexts: { nextjs: { request_path: "/api/calendar-feed/secret-token" } },
+      breadcrumbs: [
+        {
+          message: "fetch /public/calendar/backend-token",
+          data: {
+            url: "http://server:8080/public/calendar/backend-token?x=1",
+          },
+        },
+      ],
+    });
+
+    const result = scrubEvent(event);
+    if (result === null) throw new Error("expected event to be kept");
+
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain("secret-token");
+    expect(serialized).not.toContain("backend-token");
+    expect(result.request?.url).toBe(
+      "https://parents.test/api/calendar-feed/[REDACTED]",
+    );
+    expect(result.transaction).toBe("GET /api/calendar-feed/[REDACTED]");
+    expect(result.contexts?.nextjs?.request_path).toBe(
+      "/api/calendar-feed/[REDACTED]",
+    );
+    expect(result.breadcrumbs?.[0]?.data?.url).toBe(
+      "http://server:8080/public/calendar/[REDACTED]?x=1",
+    );
+  });
+
+  it("leaves non-feed URLs untouched", () => {
+    const event = makeEvent({
+      request: { url: "https://parents.test/api/children/5" },
+    });
+    const result = scrubEvent(event);
+    expect(result?.request?.url).toBe("https://parents.test/api/children/5");
+  });
 });

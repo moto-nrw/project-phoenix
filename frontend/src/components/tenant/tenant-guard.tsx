@@ -52,6 +52,9 @@ export function TenantGuard({
   const sessionError = session?.error;
   const urlTenantId = tenant?.tenantId;
   const urlSlug = tenant?.slug;
+  // The backend resolves switch targets by subdomain, not by the slug
+  // column — the two can differ (#1975).
+  const urlSubdomain = tenant?.subdomain;
 
   // Auth.js can still report "authenticated" after the JWT callback has
   // stripped token/roles because refresh failed. Do not render tenant UI in
@@ -162,19 +165,19 @@ export function TenantGuard({
 
     void (async () => {
       try {
-        await performTenantSwitch(urlSlug!, signIn, mutate);
+        await performTenantSwitch(urlSubdomain!, signIn, mutate);
 
         // Refetch session to trigger re-render with new tenant
         await update();
 
         logger.info("tenant_auto_switched", {
           from_tenant_id: sessionTenantId,
-          to_slug: urlSlug,
+          to_slug: urlSubdomain,
         });
       } catch (err) {
         logger.error("tenant_auto_switch_failed", {
           error: err instanceof Error ? err.message : String(err),
-          target_slug: urlSlug,
+          target_slug: urlSubdomain,
         });
 
         if (err instanceof TenantSwitchError && err.code === "access_denied") {
@@ -189,6 +192,7 @@ export function TenantGuard({
     sessionTenantId,
     urlTenantId,
     urlSlug,
+    urlSubdomain,
     update,
     sessionToken,
     sessionError,

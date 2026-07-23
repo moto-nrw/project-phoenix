@@ -2,6 +2,22 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { PersonalInfoFormModal } from "./personal-info-form-modal";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
+import type { StudentCompanion } from "~/lib/student-companion-api";
+import { CompanionPlanConflictError } from "~/lib/api";
+
+const { fetchStudentCompanionsMock } = vi.hoisted(() => ({
+  // Unreachable by default, exactly like the un-mocked network call these
+  // tests used to make: the stored links stay unknown, which is the state
+  // every suite below assumes.
+  fetchStudentCompanionsMock: vi.fn<
+    (studentId: string) => Promise<StudentCompanion[]>
+  >(() => Promise.reject(new Error("companions unavailable"))),
+}));
+
+vi.mock("~/lib/student-companion-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/student-companion-api")>()),
+  fetchStudentCompanions: fetchStudentCompanionsMock,
+}));
 
 // Mock FormModal
 vi.mock("~/components/ui/form-modal", () => ({
@@ -292,6 +308,41 @@ describe("PersonalInfoFormModal", () => {
       });
     });
 
+    // The stranded-companion refusal is user-actionable: it says which child's
+    // Heimweg has to be filled in before the link can be removed. The generic
+    // save-failed toast would leave that instruction unread and the user with
+    // no way to resolve the refusal.
+    it("keeps the backend message when a link would strand the other child", async () => {
+      const { CompanionDepartureRefusedError } = await import("~/lib/api");
+      mockOnSave.mockRejectedValue(
+        new CompanionDepartureRefusedError(
+          JSON.stringify({
+            status: "error",
+            error:
+              "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
+            code: "companion_would_lose_departure",
+          }),
+        ),
+      );
+
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent()}
+          onSave={mockOnSave}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Speichern"));
+
+      await waitFor(() => {
+        expect(mockToast.error).toHaveBeenCalledWith(
+          "Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.",
+        );
+      });
+    });
+
     it("shows loading state while saving", async () => {
       mockOnSave.mockImplementation(
         () => new Promise((resolve) => setTimeout(resolve, 100)),
@@ -445,6 +496,129 @@ describe("PersonalInfoFormModal", () => {
     });
   });
 
+  describe("Laufgemeinschaft editability", () => {
+    // The submitted companion list REPLACES the stored one. Editing it before
+    // the stored links are on screen would either be overwritten the moment
+    // the fetch resolves, or — after a failed load — be dropped without a word,
+    // because the save deliberately sends no companion list it never read.
+    // So the picker only appears once the load succeeded.
+    const accompaniedStudentProps = {
+      allowed_departure_modes: { mon: ["accompanied"] },
+    } as unknown as Partial<ExtendedStudent>;
+
+    it("offers the picker once the stored links are loaded", async () => {
+      fetchStudentCompanionsMock.mockResolvedValue([
+        { companion_student_id: "42", first_name: "Lina", weekdays: ["mon"] },
+      ]);
+
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent(accompaniedStudentProps)}
+          onSave={mockOnSave}
+        />,
+      );
+
+      expect(
+        await screen.findByRole("button", { name: /Kind hinzufügen/ }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Lina")).toBeInTheDocument();
+    });
+
+    it("keeps the picker read-only while the companions are still loading", async () => {
+      let resolveCompanions: (companions: StudentCompanion[]) => void = () =>
+        undefined;
+      fetchStudentCompanionsMock.mockImplementation(
+        () =>
+          new Promise<StudentCompanion[]>((resolve) => {
+            resolveCompanions = resolve;
+          }),
+      );
+
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent(accompaniedStudentProps)}
+          onSave={mockOnSave}
+        />,
+      );
+
+      // The accompanied day IS selected, so the only reason the picker is
+      // missing is the pending load.
+      expect(
+        screen.getByRole("checkbox", { name: "Montag: Anderes Kind" }),
+      ).toBeChecked();
+      expect(
+        screen.queryByRole("button", { name: /Kind hinzufügen/ }),
+      ).not.toBeInTheDocument();
+
+      resolveCompanions([]);
+
+      expect(
+        await screen.findByRole("button", { name: /Kind hinzufügen/ }),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps the picker read-only after the companions failed to load", async () => {
+      fetchStudentCompanionsMock.mockRejectedValue(new Error("500"));
+
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent(accompaniedStudentProps)}
+          onSave={mockOnSave}
+        />,
+      );
+
+      // The user is told why the section is missing instead of being handed an
+      // empty list that would look like "no links exist".
+      expect(
+        await screen.findByText(/Laufgemeinschaft konnte nicht geladen werden/),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Kind hinzufügen/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    // Taking the last accompanied day away hides the picker, so a list left in
+    // the draft would ride along on the save with nobody able to see or edit
+    // it — and the backend refuses a list on a plan that allows the mode on no
+    // day at all, an error about a control that is no longer on screen.
+    it("clears the linked children when the last accompanied day is removed", async () => {
+      mockOnSave.mockResolvedValue(undefined);
+      fetchStudentCompanionsMock.mockResolvedValue([
+        { companion_student_id: "42", first_name: "Lina", weekdays: ["mon"] },
+      ]);
+
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent(accompaniedStudentProps)}
+          onSave={mockOnSave}
+        />,
+      );
+
+      await screen.findByRole("button", { name: /Kind hinzufügen/ });
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: "Montag: Anderes Kind" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      await waitFor(() => {
+        expect(mockOnSave).toHaveBeenCalledWith(
+          expect.objectContaining({
+            companions: [],
+            allowed_departure_modes: {},
+          }),
+        );
+      });
+    });
+  });
+
   describe("Textarea inputs", () => {
     it("displays health info in textarea", () => {
       render(
@@ -478,6 +652,66 @@ describe("PersonalInfoFormModal", () => {
       fireEvent.change(textarea, { target: { value: "Neue Info" } });
 
       expect(textarea.value).toBe("Neue Info");
+    });
+  });
+});
+
+// A companion-plan 409 is a question ("may we widen the linked child's own
+// Heimweg?"), and the answer decides whether a write lands on a DIFFERENT
+// child. Dismissing it must leave nothing behind that a later save carries.
+describe("PersonalInfoFormModal — companion plan conflicts", () => {
+  const student: ExtendedStudent = {
+    id: "123",
+    name: "Max Mustermann",
+    first_name: "Max",
+    second_name: "Mustermann",
+    school_class: "3a",
+    current_location: "Raum 1",
+    bus: false,
+    birthday: "2015-05-15",
+    buskind: false,
+    sick: false,
+    pickup_status: "Wird abgeholt",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("drops the conflicts when the question is dismissed", async () => {
+    const onSave = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new CompanionPlanConflictError(
+          JSON.stringify({
+            error:
+              "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+            conflicts: [{ student_id: 42, weekdays: ["mon", "tue"] }],
+          }),
+        ),
+      )
+      .mockResolvedValue(undefined);
+
+    render(
+      <PersonalInfoFormModal
+        isOpen={true}
+        onClose={vi.fn()}
+        student={student}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByRole("button", { name: "Ergänzen und speichern" });
+
+    // The banner's "Abbrechen" sits above the footer's — dismissing the
+    // question, not the modal.
+    fireEvent.click(screen.getAllByRole("button", { name: "Abbrechen" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    expect(onSave.mock.calls[1]![0]).toMatchObject({
+      confirmed_companion_extensions: [],
     });
   });
 });

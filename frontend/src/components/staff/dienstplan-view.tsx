@@ -6,6 +6,9 @@ import { useSession } from "next-auth/react";
 
 import { Settings2 } from "lucide-react";
 
+import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
+import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
+import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
 import { DienstplanHalbjahrGrid } from "~/components/staff/dienstplan-halbjahr-grid";
 import { DienstplanResourceGrid } from "~/components/staff/dienstplan-resource-grid";
 import {
@@ -19,18 +22,23 @@ import { Button } from "~/components/ui/button";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
+import { calendarPeriodService } from "~/lib/calendar-period-api";
+import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useDienstplanData } from "~/lib/hooks/use-dienstplan-data";
+import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
 import { formatCalendarDate } from "~/lib/localized-date-format";
 import { createLogger } from "~/lib/logger";
+import { getSettingValue } from "~/lib/settings-api";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
 import { startOfWeek } from "~/lib/staff-metrics-helpers";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { getWeekNumber } from "~/lib/time-tracking-helpers";
+import { firstSchoolDayInPeriod } from "~/lib/timetable-helpers";
 import { userContextService } from "~/lib/usercontext-api";
 
 import {
@@ -102,17 +110,56 @@ function DienstplanContent() {
   const [modal, setModal] = useState<ModalState | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
   const [sickModal, setSickModal] = useState<StaffScheduleStaff | null>(null);
+  const [periodModalOpen, setPeriodModalOpen] = useState(false);
+  const [editingPeriod, setEditingPeriod] = useState<CalendarPeriod | null>(
+    null,
+  );
 
   // Montag der Woche, die `d` enthält.
   const weekAnchor = useMemo(() => startOfWeek(parseISODate(dayISO)), [dayISO]);
 
-  const weekDays = useMemo(() => {
-    return Array.from({ length: 5 }, (_, i) => {
-      const d = new Date(weekAnchor);
-      d.setDate(d.getDate() + i);
-      return toISODate(d);
+  // Kalenderzeiträume für die Zeitraum-Anzeige in der Kontextzeile (#1946).
+  // Gleicher SWR-Key wie der Betreuungsplan, damit beide Ansichten denselben
+  // Cache teilen. Der Endpoint verlangt schedules:read; die Ansicht selbst
+  // ist admin-only, darum ist der Key zusätzlich auf canEdit gegated — sonst
+  // feuerte der Request bei Direktaufruf durch Nicht-Admins noch vor dem
+  // Redirect und liefe in einen 403.
+  const {
+    data: periods,
+    isLoading: periodsLoading,
+    mutate: mutatePeriods,
+  } = useSWRAuth(
+    sessionStatus === "authenticated" && canEdit
+      ? "database-calendar-periods-list"
+      : null,
+    () => calendarPeriodService.list(),
+  );
+
+  // Route-Gate wie Betreuungsplan/Vertretung: Settings-Schema ->
+  // timetable.enabled. fetchSettingsSchema liefert null, wenn der Nutzer keine
+  // Settings lesen darf; die Seite rendert dann normal (gleiche Graceful-
+  // Default-Logik wie die Sidebar).
+  const { data: settingsSchema, isLoading: settingsSchemaLoading } =
+    useSettingsSchema(sessionStatus === "authenticated", {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
     });
-  }, [weekAnchor]);
+  const timetableDisabled =
+    getSettingValue(settingsSchema, "timetable.enabled") === false;
+
+  // Mo–Fr als Date-Objekte für den PeriodSwitcherDropdown.
+  const weekDayDates = useMemo(
+    () =>
+      Array.from({ length: 5 }, (_, i) => {
+        const d = new Date(weekAnchor);
+        d.setDate(d.getDate() + i);
+        return d;
+      }),
+    [weekAnchor],
+  );
+
+  // Dieselben fünf Tage als ISO-Strings für Grid und Datenabruf.
+  const weekDays = useMemo(() => weekDayDates.map(toISODate), [weekDayDates]);
 
   const weekFrom = weekDays[0] ?? "";
   const weekTo = weekDays[4] ?? "";
@@ -200,8 +247,14 @@ function DienstplanContent() {
     redirect(tenantPath("/staff"));
   }
 
-  if (sessionStatus === "loading") {
+  // Solange das Settings-Schema lädt, ist noch nicht entscheidbar, ob das
+  // Feature aktiv ist — Skeleton statt kurz aufblitzender Seite.
+  if (sessionStatus === "loading" || settingsSchemaLoading) {
     return <DienstplanPageSkeleton />;
+  }
+
+  if (timetableDisabled) {
+    return <DienstplanDisabledState />;
   }
 
   // Leerzustand "keine Mitarbeitenden" (docs/05 Abschnitt 4) — geteilt zwischen
@@ -356,7 +409,33 @@ function DienstplanContent() {
             Schichtarten verwalten
           </Button>
         }
-      />
+      >
+        {/* Zeitraum-Anzeige (#1946): gleicher Switcher wie im Betreuungsplan,
+            damit der aktive Kalenderzeitraum an einer einheitlichen Stelle
+            sichtbar, wechselbar und verwaltbar ist. */}
+        <PeriodSwitcherDropdown
+          periods={periods ?? []}
+          weekDays={weekDayDates}
+          isLoading={periodsLoading}
+          onCreate={() => {
+            setEditingPeriod(null);
+            setPeriodModalOpen(true);
+          }}
+          onEdit={(period) => {
+            setEditingPeriod(period);
+            setPeriodModalOpen(true);
+          }}
+          onSelect={(period) =>
+            updateUrlParams({
+              d: firstSchoolDayInPeriod(
+                period.startDate,
+                period.endDate,
+                period.startDate,
+              ),
+            })
+          }
+        />
+      </PlanningContextBar>
 
       {content}
 
@@ -373,6 +452,21 @@ function DienstplanContent() {
           existingReplacements={modal.replacements}
           onClose={() => setModal(null)}
           onSaved={refreshAfterPlanMutation}
+        />
+      )}
+      {periodModalOpen && (
+        <CalendarPeriodModal
+          isOpen
+          initial={editingPeriod}
+          onClose={() => setPeriodModalOpen(false)}
+          onSaved={() => {
+            setPeriodModalOpen(false);
+            void mutatePeriods();
+          }}
+          onDeleted={() => {
+            setPeriodModalOpen(false);
+            void mutatePeriods();
+          }}
         />
       )}
       <ShiftTypeManageModal
@@ -404,6 +498,17 @@ function DienstplanContent() {
         />
       )}
     </div>
+  );
+}
+
+function DienstplanDisabledState() {
+  return (
+    <PlanningDisabledState
+      pageTitle="Dienstplan"
+      heading="Dienstplan ist deaktiviert"
+      description="Der Dienstplan gehört zum Planungsbereich, der für diese Schule ausgeschaltet ist. Er kann in den Einstellungen unter „Betrieb“ wieder aktiviert werden."
+      testId="dienstplan-disabled-state"
+    />
   );
 }
 

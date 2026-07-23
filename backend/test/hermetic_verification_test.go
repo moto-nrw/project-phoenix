@@ -173,6 +173,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"api/iot/config_test.go",                                 // Uses mock settings service for unit testing config endpoint
 		"enrich_pickup_times_test.go",                            // Uses mock PickupScheduleService for unit testing enrichment
 		"api/timetable/api_test.go",                              // Uses mock CalendarPeriodService for unit testing handlers
+		"api/timetable/closing_days_test.go",                     // Uses mock ClosingDayService for unit testing handlers; int64 literals are fake IDs, not DB rows
 		"api/timetable/instances_test.go",                        // Uses mock InstanceService + PersonService for unit testing handlers
 		"api/timetable/understaffed_test.go",                     // Uses mock InstanceService for unit testing the acknowledge-understaffed handler (no DB); int64 literals are fake instance IDs, not DB rows
 		"api/timetable/instance_students_unit_test.go",           // Uses fake repo for unit testing attendance PATCH handler
@@ -298,12 +299,15 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"setupTestContext",               // Indirect setup via shared helper (calls SetupAPITest)
 		"newScenario",                    // E2E timetable flows — shared_setup.go wraps SetupAPITest
 		"setupRolloverTest",              // services/enrollment rollover integration tests — wraps SetupTestDB
+		"setupDecisionTest",              // services/enrollment decision integration tests — wraps setupRolloverTest
 		"setupCareTest",                  // services/enrollment care-offering integration tests — wraps SetupTestDB
 		"setupAutoApproveIntegrationEnv", // services/enrollment auto-approve integration tests — wraps setupRolloverTest
 		"setupGuardianInvitationTest",    // services/auth guardian invitation + related-accounts tests — wraps SetupTestDB
 		"makeScenario",                   // services/schedule materialization/split integration tests — wraps SetupTestDB
+		"makeMoveSetup",                  // services/schedule staff-pool/move tests (#1884) — wraps SetupTestDB
 		"buildDevSetup",                  // api/timetable deviations/protocol tests — wraps SetupTestDB
 		"setupCheckinServiceTest",        // services/iot/checkin CheckinService tests — wraps SetupAPITest (issue #575 B8)
+		"setupAbsenceAdminTest",          // api/staff absence question tests (#1419) — wraps setupTestContext
 	}
 
 	// Patterns indicating mock-based testing (legitimate alternative)

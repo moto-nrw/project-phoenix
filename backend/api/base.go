@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -50,6 +51,7 @@ import (
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
+	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 
 	announcementAPI "github.com/moto-nrw/project-phoenix/api/announcement"
 	messagingAPI "github.com/moto-nrw/project-phoenix/api/messaging"
@@ -181,7 +183,11 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *o
 	if httpMetrics != nil {
 		router.Use(httpMetrics.Middleware)
 	}
-	router.Use(slogchi.NewWithConfig(logger, slogchi.Config{
+	// Redact the parent calendar-feed token (the sole credential for the public
+	// /public/calendar/{token} feed) from the per-request "path" attribute so it
+	// never lands in access logs.
+	requestLogger := slog.New(customMiddleware.NewFeedTokenRedactor(logger.Handler()))
+	router.Use(slogchi.NewWithConfig(requestLogger, slogchi.Config{
 		DefaultLevel:     slog.LevelInfo,
 		ClientErrorLevel: slog.LevelWarn,
 		ServerErrorLevel: slog.LevelError,
@@ -465,6 +471,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:            api.Services.IoT,
 		CheckinService:        api.Services.Checkin,
+		StaffClockService:     api.Services.StaffClock,
 		UsersService:          api.Services.Users,
 		ActiveService:         api.Services.Active,
 		ActivitiesService:     api.Services.Activities,
@@ -488,8 +495,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Database = databaseAPI.NewResource(api.Services.Database, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, api.Services.StaffShifts, api.Services.StaffAssignments, api.Services.WorkTimeMonth, db)
+	api.TimeTracking.HolidayService = api.Services.Holidays
+	api.TimeTracking.ClosingDayService = api.Services.ClosingDays
 	api.Timetable = timetableAPI.NewResource(timetableAPI.Dependencies{
 		CalendarPeriodService:  api.Services.CalendarPeriod,
+		ClosingDayService:      api.Services.ClosingDays,
 		MaterializationService: api.Services.Materialization,
 		InstanceService:        api.Services.Instance,
 		OperationsService:      api.Services.TimetableOperations,
@@ -633,6 +643,11 @@ func (a *API) registerPublicRoutes() {
 		apiCommon.ServeFile(w, r, "public/uploads/enrollment-form-legal-documents", filename, "public, max-age=86400")
 	})
 
+	// Public parent calendar subscription feed (no auth — the token in the URL
+	// is the capability). Calendar apps (Apple/Google/Outlook) poll this to keep
+	// the parent's Termine in sync.
+	a.Router.Get("/public/calendar/{token}", a.servePublicCalendarFeed)
+
 	a.Router.With(observability.MetricsAuthMiddleware(a.metricsBearerToken)).Handle("/internal/metrics", observability.MetricsHandler())
 }
 
@@ -771,4 +786,31 @@ func (a *API) registerTenantRoutes() {
 
 		// Add other resource routes here as they are implemented
 	})
+}
+
+// servePublicCalendarFeed serves the parent iCalendar subscription feed. There
+// is no auth — the token in the URL is the capability; the service resolves the
+// account by token and aggregates across the parent's tenants.
+func (a *API) servePublicCalendarFeed(w http.ResponseWriter, r *http.Request) {
+	if a.Services.Calendar == nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	token := chi.URLParam(r, "token")
+	filename, content, err := a.Services.Calendar.ParentCalendarFeedByToken(r.Context(), token)
+	if err != nil {
+		if errors.Is(err, calendarService.ErrNotFound) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		slog.Error("calendar feed failed",
+			"error", err.Error(),
+		)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
+	w.Header().Set("Content-Disposition", "inline; filename=\""+filename+"\"")
+	w.Header().Set("Cache-Control", "private, max-age=3600")
+	_, _ = w.Write([]byte(content))
 }

@@ -264,6 +264,42 @@ describe("SubstitutionSlideOver", () => {
       expect(screen.queryByText("Personal")).not.toBeInTheDocument();
     });
 
+    it("beschreibt einen Personal-Move mit Quelle und Ziel (#1884)", () => {
+      mockHistory([
+        makeEvent({
+          eventType: "staff_moved",
+          subjectStaffId: "11",
+          subjectStaffName: "Anna Alt",
+          oldValue: { from_instance_id: 189, from_title: "Schulhof" },
+          newValue: { to_instance_id: 190, to_title: "Mensa" },
+        }),
+      ]);
+      renderEditor({ initialTab: "verlauf" });
+      expect(screen.getByText("Person verschoben")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Anna Alt wurde von „Schulhof“ nach „Mensa“ verschoben.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("beschreibt eine Pool-Zuweisung ohne Quellblock (#1884)", () => {
+      mockHistory([
+        makeEvent({
+          eventType: "staff_moved",
+          subjectStaffId: "12",
+          subjectStaffName: "Bernd Neu",
+          newValue: { to_instance_id: 190, to_title: "Mensa" },
+        }),
+      ]);
+      renderEditor({ initialTab: "verlauf" });
+      expect(
+        screen.getByText(
+          "Bernd Neu wurde „Mensa“ aus dem Personalpool zugewiesen.",
+        ),
+      ).toBeInTheDocument();
+    });
+
     it("wechselt per Reiterklick vom Bearbeiten- zum Verlaufs-Reiter", () => {
       mockHistory([
         makeEvent({ eventType: "absence", subjectStaffName: "Anna Alt" }),

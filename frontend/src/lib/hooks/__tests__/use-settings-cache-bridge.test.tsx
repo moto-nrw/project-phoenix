@@ -41,7 +41,7 @@ describe("useSettingsCacheBridge", () => {
     expect(subscribers).toHaveLength(1);
     subscribers[0]!();
 
-    expect(mockMutate).toHaveBeenCalledWith("settings-schema");
+    expect(mockMutate).toHaveBeenCalledWith("test-tenant:settings-schema");
   });
 
   it("invalidates the schema SWR cache on phoenix:tenant-settings-stale", () => {
@@ -49,7 +49,7 @@ describe("useSettingsCacheBridge", () => {
 
     window.dispatchEvent(new Event("phoenix:tenant-settings-stale"));
 
-    expect(mockMutate).toHaveBeenCalledWith("settings-schema");
+    expect(mockMutate).toHaveBeenCalledWith("test-tenant:settings-schema");
   });
 
   it("unsubscribes the broadcast handler on unmount", () => {

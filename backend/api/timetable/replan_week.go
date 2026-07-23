@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 )
 
 // replanWeekRequest mirrors materializeRequest: both date fields optional,
@@ -72,7 +73,7 @@ func (rs *Resource) replanWeek(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := rs.InstanceService.ReplanWeek(r.Context(), from, to, req.ActivityGroupID, resolveActorAccountID(r.Context()))
+	result, err := rs.InstanceService.ReplanWeek(r.Context(), from, to, req.ActivityGroupID, jwt.ActorAccountIDFromCtx(r.Context()))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("replan week failed", err))
 		return

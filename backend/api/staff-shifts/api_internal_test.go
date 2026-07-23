@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -62,6 +63,9 @@ func (f *fakeShiftService) ApplyCancellation(ctx context.Context, input schedule
 }
 
 func (f *fakeShiftService) SetSeriesExceptionRepo(scheduleModel.StaffShiftSeriesExceptionRepository) {
+}
+
+func (f *fakeShiftService) SetDeviationEventRepo(auditModel.DeviationEventRepository) {
 }
 
 // shiftTestResource wires a Resource whose editorStaffID resolves to staff id 42.

@@ -1,14 +1,10 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import useSWR, { mutate } from "swr";
 import { createLogger } from "~/lib/logger";
 import {
-  SETTINGS_SCHEMA_SWR_KEY,
   applyOptimisticSchemaUpdate,
-  fetchSettingsSchema,
   setSettingValue,
   resetSettingValue,
 } from "~/lib/settings-api";
@@ -22,6 +18,7 @@ import { PersonalizationTab } from "./personalization-tab";
 import { EnrollmentLinkPanel } from "./enrollment-link-panel";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useTenantMutate } from "~/lib/swr/hooks";
+import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 
 // Settings whose value affects the supervision context (sidebar / mobile nav)
 // and therefore require an immediate re-fetch after save/reset instead of
@@ -98,19 +95,6 @@ interface SettingsContentProps {
   readonly highlightKey?: string | null;
 }
 
-// useSettingsSchemaSWR is the single read path. The bridge mounted in the
-// protected layout invalidates SETTINGS_SCHEMA_SWR_KEY on cross-tab
-// BroadcastChannel notifications and SSE tenant_settings_changed events;
-// every consumer (this page, sidebar, mobile bottom nav, timetable day
-// hours) sees the same fresh data without per-component subscriptions.
-function useSettingsSchemaSWR() {
-  const { status: sessionStatus } = useSession();
-  return useSWR<SettingsSchema | null>(
-    sessionStatus === "authenticated" ? SETTINGS_SCHEMA_SWR_KEY : null,
-    fetchSettingsSchema,
-  );
-}
-
 function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
   const { refresh: refreshSupervision } = useOptionalSupervision();
   const router = useRouter();
@@ -120,7 +104,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
     error: fetchError,
     isLoading,
     mutate: revalidate,
-  } = useSettingsSchemaSWR();
+  } = useSettingsSchema();
   const [saveError, setSaveError] = useState<string | null>(null);
 
   // Reminders settings decide whether the header reminders bell shows at all.
@@ -137,14 +121,16 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
     [tenantMutate],
   );
 
-  const applyOptimistic = useCallback((key: string, value: unknown) => {
-    void mutate(
-      SETTINGS_SCHEMA_SWR_KEY,
-      (current?: SettingsSchema | null) =>
-        current ? applyOptimisticSchemaUpdate(current, key, value) : current,
-      { revalidate: true },
-    );
-  }, []);
+  const applyOptimistic = useCallback(
+    (key: string, value: unknown) => {
+      void revalidate(
+        (current?: SettingsSchema | null) =>
+          current ? applyOptimisticSchemaUpdate(current, key, value) : current,
+        { revalidate: true },
+      );
+    },
+    [revalidate],
+  );
 
   const handleSave = useCallback(
     async (key: string, value: unknown): Promise<string | null> => {
@@ -192,20 +178,20 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
       notifySettingsChanged();
       // Reset has no optimistic value — bridge mutate() picks up the
       // registry default on revalidation.
-      void mutate(SETTINGS_SCHEMA_SWR_KEY);
+      void revalidate();
       if (SUPERVISION_AFFECTING_KEYS.has(key)) {
         void refreshSupervision({ force: true });
       }
       revalidateRemindersIfNeeded(key);
       return null;
     },
-    [refreshSupervision, revalidateRemindersIfNeeded, router],
+    [refreshSupervision, revalidate, revalidateRemindersIfNeeded, router],
   );
 
   const handleSchemaRefresh = useCallback(() => {
     notifySettingsChanged();
-    void mutate(SETTINGS_SCHEMA_SWR_KEY);
-  }, []);
+    void revalidate();
+  }, [revalidate]);
 
   if (isLoading && !schema) {
     return <SettingsSkeleton />;
@@ -294,11 +280,7 @@ export function useSettingsTabs(): {
   renderTab: (tabId: string) => React.ReactNode;
 } | null {
   const searchParams = useSearchParams();
-  const {
-    data: schema,
-    error: schemaError,
-    isLoading,
-  } = useSettingsSchemaSWR();
+  const { data: schema, error: schemaError, isLoading } = useSettingsSchema();
 
   if (isLoading) {
     return null;

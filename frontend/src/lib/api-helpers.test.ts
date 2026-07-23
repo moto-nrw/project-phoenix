@@ -259,6 +259,34 @@ describe("handleApiError", () => {
     });
   });
 
+  // The companion-plan 409 of the student PUT carries its confirmable
+  // conflicts as a TOP-LEVEL `conflicts` array, not under `details`. The
+  // browser's CompanionPlanConflictError parses exactly that field to build
+  // the confirmation it re-sends — dropping it here leaves the confirmation
+  // empty and "Ergänzen und speichern" loops on the same 409 forever.
+  it("forwards the top-level conflicts array of a companion-plan 409", async () => {
+    const backendJson = JSON.stringify({
+      conflicts: [{ student_id: 42, weekdays: ["mon", "tue"] }],
+      message:
+        "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+    });
+    const error = new Error(`API error (409): ${backendJson}`);
+
+    const response = handleApiError(error);
+    const body = (await response.json()) as {
+      error: string;
+      conflicts?: unknown[];
+    };
+
+    expect(response.status).toBe(409);
+    expect(body.conflicts).toEqual([
+      { student_id: 42, weekdays: ["mon", "tue"] },
+    ]);
+    expect(body.error).toBe(
+      "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+    );
+  });
+
   it("omits details field when backend JSON has no details", async () => {
     const backendJson = JSON.stringify({
       status: "error",

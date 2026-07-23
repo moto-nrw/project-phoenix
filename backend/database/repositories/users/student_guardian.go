@@ -111,6 +111,29 @@ func (r *StudentGuardianRepository) FindByStudentID(ctx context.Context, student
 	return relationships, nil
 }
 
+// FindByStudentIDs retrieves relationships for many students in a single query.
+func (r *StudentGuardianRepository) FindByStudentIDs(ctx context.Context, studentIDs []int64) ([]*users.StudentGuardian, error) {
+	if len(studentIDs) == 0 {
+		return []*users.StudentGuardian{}, nil
+	}
+	var relationships []*users.StudentGuardian
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&relationships).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+		Where(`"student_guardian".student_id IN (?)`, bun.List(studentIDs))
+
+	query = base.WithTenantFilter(ctx, query, "student_guardian")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student IDs",
+			Err: err,
+		}
+	}
+
+	return relationships, nil
+}
+
 // FindByGuardianProfileID retrieves relationships by guardian profile ID
 func (r *StudentGuardianRepository) FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian

@@ -107,7 +107,7 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
     icon: LayoutDashboard,
     points: [
       "Kindersuche, Aufsicht, Räume, Mitarbeiter",
-      "Vertretungen, Betreuungsplan, Zeiterfassung",
+      "Planung: Betreuungsplan, Dienstplan und Vertretung",
       "Datenverwaltung, Anmeldungen, Feedback, Einstellungen",
     ],
   },
@@ -467,6 +467,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Für aktuelle Klassenlisten im Filter `Klasse` den Klassenverband wählen und über `Exportieren` die Vorlage `Klassenliste` ausgeben. Ohne Klassenfilter erzeugt die Option `Nach Klassen getrennt` alle Klassenlisten auf einmal: jede Klasse erhält eine eigene Überschrift, im PDF beginnt jede Klasse auf einer neuen Seite. Phasebezogene Listen für Klassenlehrkräfte erstellst du in der jeweiligen `Anmeldephase`.",
           "Die Vorlage `Tagesliste` enthält den `Tagesstatus`, damit `Krank`, `Entschuldigt` und `Klassenfahrt` direkt auf der Liste stehen.",
           "Die Vorlage `Geburtstagsliste` gibt die Geburtstage der gefilterten Kinder nach Kalender sortiert aus, voreingestellt für den aktuellen Monat. Alle Listen der Schule gebündelt findest du unter `Datenverwaltung` -> `Exporte`.",
+          "Über `Gruppieren` die Liste nach `Status`, `Raum`, `Ankunftszeit`, `Gehzeit`, `Abholregelung` oder `Laufgemeinschaft` bündeln. `Nach Laufgemeinschaft` zeigt die Kinder blockweise so, wie sie gemeinsam nach Hause gehen; Kinder ohne Verknüpfung stehen gesammelt am Ende unter `Ohne Laufgemeinschaft`.",
           "Auf jeder Karte rechts die `Aktivitäts-Indikatoren` ablesen: ein grüner Haken bedeutet, das Kind war heute schon im genannten Bereich (z. B. `Mensa`, `Hausaufgaben`), ein grauer Kreis steht für noch ausstehend.",
           "Ein Kind öffnen, um Details, Raum und Zeiten zu sehen.",
         ],
@@ -489,7 +490,7 @@ export const appChapters: readonly GuideChapter[] = [
           "In der `Kindersuche` auf die Karte des Kindes klicken.",
           "Im Kopfbereich den aktuellen Aufenthalt (z. B. `OGS-Raum 1 seit 12:00 Uhr`) sowie `Heutige Ankunft` und `Heutige Abholung` ablesen.",
           "Über `Krank melden` das Kind als krank und über `Entschuldigen` als entschuldigt markieren. Die seltene Aktion `Klassenfahrt` liegt im Drei-Punkte-Menü der Aktionsleiste; dort einen Zeitraum und optional einen Hinweis erfassen.",
-          "Tab `Stammdaten`: Name, Klasse, Gruppe, Geburtstag, Adresse, Gesundheitsinformationen, Notizen, Foto und Datenschutz ansehen und über `Bearbeiten` ändern. Wenn das Kind über eine Online-Anmeldung übernommen wurde, stehen dort auch kindbezogene Zusatzantworten aus dem Anmeldeformular zur Ansicht.",
+          "Tab `Stammdaten`: Name, Klasse, Gruppe, Geburtstag, Adresse, Gesundheitsinformationen, Notizen, Foto und Datenschutz ansehen und über `Bearbeiten` ändern. Unter `Erlaubte Heimwege` legen Sie je Wochentag fest, wie das Kind nach Hause kommt. Sobald an einem Tag `Anderes Kind` erlaubt ist, erscheint direkt darunter `Mit welchem Kind?`: dort verknüpfen Sie die Kinder, mit denen es gemeinsam geht (Laufgemeinschaft). Angeboten werden nur die Tage, an denen `Anderes Kind` erlaubt ist. Die Verknüpfung gilt immer für beide Kinder: Wer bei Lina eingetragen ist, hat Lina automatisch auch auf seiner eigenen Karte stehen. Erlaubt der Heimweg des anderen Kindes diese Tage noch nicht, fragt die App nach und ergänzt `Anderes Kind` dort auf Wunsch; bestehende Heimwege bleiben erhalten. Das Textfeld darunter ist nur für Begleitung durch eine Person, die kein Kind der Schule ist. Wenn das Kind über eine Online-Anmeldung übernommen wurde, stehen dort auch kindbezogene Zusatzantworten aus dem Anmeldeformular zur Ansicht.",
           "Tab `Nachrichten`: die Unterhaltung mit einer Bezugsperson zu diesem Kind ansehen und über `Neue Nachricht` der Bezugsperson schreiben. Pro Kind und Bezugsperson gibt es eine fortlaufende Unterhaltung (wie ein Chat, ohne Betreff). Ungelesene Eltern-Nachrichten sind mit einem roten Abzeichen markiert; geschrieben und beantwortet wird im Chat-Fenster.",
           "Tab `Erziehungsberechtigte`: Bezugspersonen mit Kontaktdaten, Abholberechtigung und Notfallkontakten pflegen. Pro Person zeigt ein Status, ob sie ein Konto für das Elternportal hat (`Konto aktiv`, `Einladung offen` oder `Kein Konto`); mit `Einladen` laden Sie eine bereits hinterlegte Bezugsperson zum Elternportal ein, ohne die Daten erneut einzugeben.",
           "Tab `Betreuungszeiten`: die wöchentlichen Ankunfts- und Abholzeiten je Wochentag verwalten und einzelne Tage anpassen. Hat ein Elternteil über das Elternportal eine Ankunfts- oder Abholzeit für einen Tag geändert, ist dieser Tag mit `Von Eltern` markiert; beim Ändern oder Entfernen dieser Zeit fragt die App zur Sicherheit nach, damit die Angabe der Eltern nicht versehentlich überschrieben wird.",
@@ -627,9 +628,9 @@ export const appChapters: readonly GuideChapter[] = [
   },
   {
     id: "raeume-team-vertretung",
-    title: "Räume, Team und Vertretung",
+    title: "Räume, Team und Gruppenzugriff",
     description:
-      "Den Überblick über Angebote, Räume und das Team behalten und kurzfristige Vertretungen organisieren.",
+      "Den Überblick über Angebote, Räume und das Team behalten und kurzfristigen Gruppenzugriff organisieren.",
     icon: Building2,
     tone: "blue",
     steps: [
@@ -672,6 +673,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Zeigt den Status des Teams: wer anwesend ist, in welchem Raum, im Homeoffice oder abwesend.",
         steps: [
           "`Mitarbeiter` öffnen.",
+          "Mit Genehmigungsrecht erscheinen offene Urlaubs- und Abwesenheitsanträge oben im Bereich `Eingehende Anfragen`: pro Antrag Person, Art, Zeitraum, Tage und Notiz prüfen und direkt `Genehmigen`, `Ablehnen` (mit Begründung) oder eine `Rückfrage` mit Notiz an die Person stellen. Die Tabs filtern nach Art (`Alle`, `Urlaub`, `Krank`, `Fortbildung`, `Sonstige`).",
+          "Offene Anträge sind zusätzlich sichtbar als Zähler am Menüpunkt `Mitarbeiter` in der Seitenleiste und als kleines `Anfragen`-Badge auf der Karte der jeweiligen Person.",
           "Nach Name suchen.",
           "Nach Status filtern, zum Beispiel `Anwesend`, `Abwesend`, `Im Raum`, `Homeoffice` oder `Krank/Urlaub`.",
           "Bei Karten mit Raumangabe die aktuelle Aufsicht direkt in der Liste prüfen.",
@@ -695,7 +698,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Eine Zeile mit Änderungshistorie aufklappen, um geplante gegen tatsächliche Zeit zu sehen. Wurde beim Stempeln eine Abweichung begründet, erscheint sie dort als `Abweichung` mit geplanter Zeit, Ist-Zeit und Grund.",
           "Bei einem Arbeitstag das Stift-Symbol nutzen, um Zeiten nachzutragen oder zu korrigieren. Eine Begründung ist erforderlich und landet im Audit-Log.",
           "Im Reiter `Arbeitszeitmodell` eine Vorlage zuweisen oder ein eigenes Modell mit 1 bis 4 Wochen Rotation pflegen. Pro Arbeitstag kann optional eine Startzeit hinterlegt werden.",
-          "Im Reiter `Abwesenheiten` Urlaubsanspruch und offene Anträge prüfen, genehmigen oder mit Begründung ablehnen.",
+          "Im Reiter `Abwesenheiten` Urlaubsanspruch und offene Anträge prüfen, genehmigen, mit Begründung ablehnen oder eine `Rückfrage` mit Notiz stellen. Die Person sieht die Rückfrage in ihrer Zeiterfassung, kann ihre Antwort ergänzen und den Antrag erneut einreichen.",
           "Über `Krank melden` im Reiter `Abwesenheiten` eine Krankmeldung für die Person eintragen; sie storniert reguläre Schichten und markiert Betreuungsblöcke als abwesend. Bereits eingetragene Vertretungsschichten bleiben bestehen und müssen manuell geprüft werden. Ein halber Krankheitstag gilt immer für ein einzelnes Datum und ändert Dienst- und Betreuungsplan nicht automatisch. Beim Löschen der Krankmeldung werden nur Schichten und Blöcke ohne eingetragenen Ersatz automatisch wiederhergestellt.",
         ],
         callout: {
@@ -709,20 +712,25 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "vertretungen",
-        title: "Vertretungen",
+        title: "Gruppenzugriff",
         icon: Repeat,
         summary:
-          "Weist verfügbare Fachkräfte einer OGS-Gruppe für einen Zeitraum zu (nur für Admins).",
+          "Gewährt verfügbaren Fachkräften vorübergehend Zugriff auf eine OGS-Gruppe, etwa wenn jemand kurzfristig einspringt (nur für Admins, nur bei Arbeit mit festen Gruppen).",
         steps: [
-          "`Vertretungen` öffnen.",
+          "`Gruppenzugriff` öffnen.",
           "Filter `Verfügbar` wählen und eine Person auswählen.",
-          "`Vertretung zuweisen` öffnen.",
+          "`Zugriff gewähren` öffnen.",
           "`OGS-Gruppe` und `Anzahl der Tage` festlegen.",
           "Mit `Zuweisen` speichern.",
           "Nach Ende im aktiven Eintrag auf `Beenden` klicken.",
         ],
+        callout: {
+          title: "Zugriff ist keine Vertretungsplanung",
+          body: "Gruppenzugriff regelt nur, wer die Kinder einer fremden Gruppe sehen und betreuen darf. Wer Personalausfälle in geplanten Betreuungsblöcken organisiert, nutzt dafür den Bereich `Planung` -> `Vertretung`. Bei offener Betreuung ohne feste Gruppen wird dieser Bereich nicht angezeigt.",
+          tone: "blue",
+        },
         screenshot:
-          "Vertretungen mit verfügbaren Fachkräften und Dialog Vertretung zuweisen.",
+          "Gruppenzugriff mit verfügbaren Fachkräften und Dialog Zugriff gewähren.",
         image: "/help/screens/vertretungen.webp",
       },
     ],
@@ -742,7 +750,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Legt Halbjahre, Ferien und Sonderzeiträume als gemeinsame Basis für Anmeldung und Betreuungsplan an (nur für Admins).",
         steps: [
-          "`Betreuungsplan` in der Seitenleiste öffnen und oben den Zeitraum-Chip anklicken; `Zeiträume verwalten` führt zur Verwaltungsseite.",
+          "In der Seitenleiste den Bereich `Planung` aufklappen und `Kalenderzeiträume` öffnen. Alternativ führt der Zeitraum-Chip oben im Betreuungsplan oder Dienstplan über `Zeiträume verwalten` zur selben Seite.",
           "`Halbjahr anlegen` klicken: Name, Art und Start-/Enddatum des nächsten Halbjahres sind bereits vorausgefüllt und lassen sich anpassen.",
           "Für Ferien oder Sonderzeiträume `Zeitraum anlegen` nutzen und die Art entsprechend wählen.",
           "Nur aktive Zeiträume legen Termine aus Regelterminen des Betreuungsplans an.",
@@ -750,6 +758,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Beim Anlegen einer `Anmeldephase` kann der Zeitraum ausgewählt werden; Beginn und Ende der Phase werden daraus übernommen.",
           "Die Verknüpfung geht auch andersherum: Beim Bearbeiten eines Zeitraums lassen sich unter `Verknüpfte Anmeldephasen` Phasen direkt an- und abwählen.",
           "Die Spalte `Verwendung` zeigt, welche Anmeldephasen und Regeltermine auf einen Zeitraum verweisen.",
+          "Im Abschnitt `Schließtage` darunter die OGS-Schließtage pflegen (z. B. pädagogische Tage, Weihnachtswoche, Sommerschließung): `Schließtag anlegen` klicken, Zeitraum und Grund eintragen. Für einen einzelnen Tag dasselbe Datum in `Von` und `Bis` wählen. An Schließtagen gilt in der Zeiterfassung für alle Mitarbeitenden Soll = 0, genau wie an gesetzlichen Feiertagen.",
         ],
         callout: {
           title: "Betreuungsplan ohne Planungszeitraum",
@@ -767,7 +776,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Plant Termine, Regeltermine, Räume, Personal und erwartete Kinder im Voraus (nur für Admins).",
         steps: [
-          "`Betreuungsplan` in der Seitenleiste öffnen. Oben zwischen den Ansichten `Woche`, `Monat` und `Serien` wechseln; die Pfeile und `Heute` navigieren durch Woche oder Monat, die Serienansicht zeigt stattdessen die Liste aller Regeltermine des sichtbaren Planungszeitraums.",
+          "In der Seitenleiste den Bereich `Planung` aufklappen und `Betreuungsplan` öffnen. Oben zwischen den Ansichten `Woche`, `Monat` und `Serien` wechseln; die Pfeile und `Heute` navigieren durch Woche oder Monat, die Serienansicht zeigt stattdessen die Liste aller Regeltermine des sichtbaren Planungszeitraums.",
           "Der `Zeitraum`-Chip in der Kontextzeile zeigt den Planungszeitraum des sichtbaren Datums; ein Klick öffnet eine Liste zum Umspringen, `Zeiträume verwalten` führt zur Verwaltungsseite. Der Chip `Bedarf: …` daneben zeigt, welche Anmeldephase den Bedarf des Zeitraums liefert.",
           "Der Lücken-Chip in der Kontextzeile zählt offene Personal-Lücken des sichtbaren Zeitraums; ein Klick öffnet eine Sprungliste mit Uhrzeit, Titel und Soll/Ist je Lücke, die direkt zum betroffenen Termin springt.",
           "In der Wochenansicht eine freie Zelle am gewünschten Tag und zur gewünschten Uhrzeit anklicken (beim Überfahren erscheint `+ Termin`). Das Formular öffnet sich als dreistufiger Assistent mit den Schritten `Termin`, `Wiederholung` und `Personal und Kinder`.",
@@ -787,10 +796,11 @@ export const appChapters: readonly GuideChapter[] = [
           "Die Zahlen für erwartete und anwesende Kinder werden nur angezeigt, wenn `Erwartete Kinderzahl anzeigen` unter `Einstellungen` -> `Betrieb` aktiviert ist. Die Kinderliste und Planungslogik bleiben auch bei ausgeblendeten Zahlen erhalten.",
           "In der Wochenansicht lässt sich über das kleine Menü `Zeilenhöhe` in der Kontextzeile die Zeilenhöhe des Rasters zwischen `Kompakt`, `Normal` und `Komfortabel` umschalten.",
           "Öffnen Sie einen Termin, der eine Abwesenheit oder eine offene Personal-Lücke hat, zeigt der Termin-Editor unten `Vertretung bearbeiten`; der Link springt direkt zur Tagesansicht des Vertretungsplans für diesen Termin.",
+          "Über `Person hinzuziehen` im Abschnitt `Personal` der Termin-Detailansicht öffnet sich der Personalpool: Er zeigt für das Zeitfenster des Termins, wer laut Dienstplan frei im Dienst ist, wer zeitgleich auf einem anderen Block eingeplant ist, wer bereits hier zugeordnet ist und wer abwesend ist. Mit `Hierher verschieben` wechselt eine Person in einem Schritt von ihrem bisherigen Block auf diesen Termin (z. B. `Mensa nimmt eine Person vom Schulhof`); mit `Zuweisen` kommt eine freie Person dazu. Entnahme und Zuordnung werden zusammen gespeichert, der Vorgang erscheint als `Person verschoben` im Änderungsprotokoll, und Hinweise zu Unterbesetzung oder fehlender Schichtabdeckung erscheinen direkt nach dem Speichern.",
         ],
         callout: {
           title: "Betreuungsplan bei Bedarf abschalten",
-          body: "Der Betreuungsplan ist standardmäßig sichtbar. Einrichtungen, die ihn nicht nutzen, schalten ihn unter `Einstellungen` -> `Betrieb` mit `Betreuungsplan aktivieren` aus; die Seiten Betreuungsplan und Vertretung zeigen danach einen Hinweis, dass die Funktion deaktiviert ist.",
+          body: "Der Betreuungsplan ist standardmäßig sichtbar. Einrichtungen, die ihn nicht nutzen, schalten ihn unter `Einstellungen` -> `Betrieb` mit `Betreuungsplan aktivieren` aus; Betreuungsplan, Dienstplan und Vertretung verschwinden dann aus dem Bereich `Planung` in der Seitenleiste und zeigen bei direktem Aufruf einen Hinweis, dass die Funktion deaktiviert ist. Die `Kalenderzeiträume` bleiben erreichbar, weil die Anmeldephasen (Bereich `Anmeldungen`) damit verknüpft werden.",
           tone: "blue",
         },
         screenshot:
@@ -804,7 +814,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Zeigt für den heutigen Tag alle gestörten Positionen des Betreuungsplans und öffnet für jeden Block einen Editor für Abwesenheit, Ersatz, bewusst unbesetzte Blöcke oder eine Absage (nur für Admins).",
         steps: [
-          "`Vertretung` in der Seitenleiste öffnen. Die Seite zeigt zunächst den heutigen Tag (am Wochenende den nächsten Montag).",
+          "In der Seitenleiste den Bereich `Planung` aufklappen und `Vertretung` öffnen. Die Seite zeigt zunächst den heutigen Tag (am Wochenende den nächsten Montag).",
           "Links steht die Störungsliste des Tages: jede betroffene Position mit dem Soll/Ist/Abwesend-Tripel. Eine abwesende Person ohne eingetragenen Ersatz zeigt `Ersatz: ??`, eine bewusst unbesetzte Position `bewusst unbesetzt`, ein abgesagter Termin `abgesagt` mit Grund. Rechts zeigt der Tageskalender denselben Tag zur Orientierung; auf schmalen Bildschirmen entfällt die Kalenderspalte, die Liste bleibt allein bedienbar.",
           "Oben in der Wochenleiste (Montag bis Freitag) zeigt jeder Tages-Chip die Zahl offener Lücken dieses Tages; ein Klick wechselt den Tag, die Pfeile springen wochenweise, `Heute` kehrt zum aktuellen Tag zurück. Daneben zeigen zwei Zähler `Offen` und `Quittiert` die offenen bzw. bewusst unbesetzten Lücken des angezeigten Tages; für vergangene Tage oder bei einem Ladefehler erscheint ein Strich statt einer erfundenen Null.",
           "Mit dem Umschalter `Nur Störungen | Ganzer Tag` zwischen der reinen Störungsliste und allen Terminen des Tages wechseln. Ein Tag ohne Störungen zeigt automatisch alle Termine mit dem Hinweis `Keine Störungen an diesem Tag`.",
@@ -826,17 +836,23 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Mein Kalender",
         icon: CalendarRange,
         summary:
-          "Zeigt persönliche Termine, Einladungen und zugewiesene Betreuungsangebote. Mitarbeitende mit Verwaltungsrecht erstellen Termine für Team, Eltern oder ganze Gruppen.",
+          "Zeigt persönliche Termine, Einladungen, eigene Dienstplan-Schichten und zugewiesene Betreuungsangebote. Mitarbeitende mit Verwaltungsrecht erstellen, bearbeiten und sagen Termine für Team, Eltern oder ganze Gruppen ab und benachrichtigen Eltern optional per E-Mail.",
         steps: [
           "`Mein Kalender` öffnen.",
-          "Oben zwischen `Tag`, `Woche` und `Monat` wechseln und mit den Pfeilen oder `Heute` zum passenden Zeitraum springen.",
+          "Oben zwischen `Tag`, `Woche` und `Monat` wechseln und mit den Pfeilen oder `Heute` zum passenden Zeitraum springen. Samstag und Sonntag sind standardmäßig ausgeblendet; über `Sa/So` blendest du sie ein — steht dort ein Zähler, liegen Einträge am Wochenende.",
+          "Die Tages- und Wochenansicht ordnen Einträge auf einer Stunden-Zeitachse an; Dienstplan-Schichten hinterlegen ihren Zeitraum als farbiges Band im Hintergrund, Termine und Betreuungsblöcke liegen darüber.",
+          "Einträge an der Farbe unterscheiden: grüne Karten sind Termine (`Termin`), blaue Karten Betreuungsblöcke (`Betreuung`), orangefarbene die eigenen Dienstplan-Schichten (`Dienst`). Schichten kommen aus dem Dienstplan und lassen sich hier nicht bearbeiten.",
           "Mit `Neuer Termin` den Dialog öffnen. Diese Schaltfläche sehen nur Personen mit dem Recht, Kalendertermine zu verwalten.",
           "`Titel`, Datum, Uhrzeit, Ort und Beschreibung eintragen. Bei ganztägigen Terminen `Ganztägig` aktivieren.",
           "Unter `Antwortregel` wählen, ob Eingeladene zusagen/absagen müssen oder nur informiert werden.",
           "Unter `Teilnehmerübersicht` festlegen, wer die Liste der Eingeladenen und ihren Status sehen darf: nur du, Mitarbeitende mit Termin oder alle Eingeladenen.",
           "In `Empfänger auswählen` mehrere Zielgruppen kombinieren, zum Beispiel `Alle Mitarbeitenden`, einzelne Mitarbeitende, Eltern nach Klasse, Gruppe oder Kind sowie einzelne Eltern. Bereits durch eine Gruppe abgedeckte Personen werden markiert und nicht doppelt ausgewählt.",
           "Optional eine `Wiederholung` mit Intervall, Wochentagen und Enddatum setzen.",
+          "Mit `Eltern per E-Mail benachrichtigen` optional eine E-Mail mit Titel und Termin an die eingeladenen Eltern senden. Ohne Haken erscheint der Termin nur im Eltern-Portal.",
           "Mit `Termin speichern` anlegen. Termine mit Antwortregel zeigen im Kalender `Zusagen` und `Absagen`; über `Teilnehmer` öffnest du die Übersicht.",
+          "Einen bestehenden Termin über `Bearbeiten` anpassen. Änderungen gelten für die ganze Serie; ist erneut `Eltern per E-Mail benachrichtigen` gesetzt, geht eine Aktualisierungs-E-Mail heraus. Ein bereits abgesagter Termin lässt sich nicht mehr bearbeiten.",
+          "Mit `Absagen` bleibt der Termin sichtbar, aber als `Abgesagt` markiert; mit `Löschen` verschwindet er ganz. Bei einer Terminreihe fragt die App, ob die Aktion für `Nur diesen Termin entfernen` oder die `Ganze Reihe` gilt. Noch nicht versendete Benachrichtigungen werden dabei automatisch gestoppt.",
+          "Über `Zum Kalender hinzufügen` an einem Termin eine `.ics`-Datei herunterladen, um ihn in einen persönlichen Kalender (Handy, Outlook) zu übernehmen.",
         ],
         callout: {
           title: "Eltern nur mit Portalzugang einladen",
@@ -844,7 +860,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Mein Kalender mit Umschaltung Tag/Woche/Monat, Schaltfläche Neuer Termin, Termin-Dialog und Teilnehmerübersicht.",
+          "Mein Kalender mit Umschaltung Tag/Woche/Monat, Schaltfläche Neuer Termin, Termin-Dialog mit E-Mail-Benachrichtigung sowie Bearbeiten/Absagen/Löschen und Teilnehmerübersicht.",
       },
       {
         id: "dienstplan",
@@ -853,8 +869,9 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Plant konkrete Schichten pro Mitarbeiter und Tag, zeigt Wochensummen gegen das Arbeitszeitmodell und die zugehörigen Einsätze aus dem Betreuungsplan und bietet eine Halbjahres-Übersicht (nur für Admins).",
         steps: [
-          "`Dienstplan` in der Seitenleiste (oder im mobilen `Mehr`-Menü) öffnen. Der Bereich hat eine eigene Adresse; ein Neuladen der Seite oder ein geteilter Link zeigt wieder dieselbe Woche.",
+          "In der Seitenleiste den Bereich `Planung` aufklappen und `Dienstplan` öffnen (mobil im `Mehr`-Menü). Der Bereich hat eine eigene Adresse; ein Neuladen der Seite oder ein geteilter Link zeigt wieder dieselbe Woche.",
           "Mit den Pfeilen zwischen den Wochen wechseln, `Heute` springt zurück zur aktuellen Woche. Oben rechts zwischen `Woche` und `Halbjahr` umschalten.",
+          "Der `Zeitraum`-Chip in der Kopfzeile zeigt den Planungszeitraum der angezeigten Woche mit Name und Laufzeit; ein Klick öffnet die Liste zum Umspringen, `Zeiträume verwalten` führt zur Verwaltungsseite. Es ist dieselbe Anzeige wie im Betreuungsplan.",
           "Auf kleinen Bildschirmen die Wochenansicht horizontal wischen oder den beschrifteten Tabellenbereich fokussieren und mit der Tastatur scrollen, um weitere Wochentage zu sehen.",
           "Über `Schichtarten verwalten` (oben rechts) eigene Schichtarten pflegen: Name, Farbe, optionale Beschreibung und Aktiv-Status. `Beispiele hinzufügen` legt typische Schichtarten wie Betreuung, Vorbereitung, Vertretungsunterricht und Pause an, die anschließend frei anpassbar oder löschbar sind.",
           "Optional lassen sich einer Schichtart eine oder mehrere `Timetable-Kategorien` zuordnen. Betreuungsblöcke dieser Kategorien werden dadurch der Schichtart zugeordnet und zeigen sie im Betreuungsplan als Kennzeichnung. Eine Kategorie kann nur einer Schichtart zugeordnet sein.",
@@ -930,9 +947,12 @@ export const appChapters: readonly GuideChapter[] = [
           "In der Karte `Urlaub` Resturlaub, beantragte, genehmigte und abgelehnte Anträge prüfen.",
           "Mit `Urlaub beantragen` einen Zeitraum wählen. Halbe Tage, Notiz, Überschneidungen und Resturlaub werden direkt im Dialog geprüft.",
           "Eigene Urlaubsanträge in `Meine Anträge` verfolgen und offene oder zukünftige genehmigte Anträge bei Bedarf stornieren.",
+          "Stellt die Leitung eine `Rückfrage`, erscheint sie unabhängig von Jahr und Alter des Antrags im eigenen Bereich `Rückfragen`: die Antwort im Textfeld ergänzen und mit `Antwort senden & erneut einreichen` den Antrag zurück zur Entscheidung geben.",
           "In der Tabelle `Zeiterfassung` zwischen Woche und Monat wechseln und mit `Diese Woche` oder `Diesen Monat` zurückspringen.",
           "In der Monatsansicht die eigene `Monatskarte` prüfen: Übertrag aus dem Vormonat, Summe Soll, Summe Ist, Gutschriften für Krankheit und Urlaub sowie der Monatssaldo stehen dort zusammen.",
           "Tageszeilen prüfen: Plan (geplante Schicht), Check-in, Check-out, Pause, Soll, Ist, Saldo, Status, Quelle und Hinweise zeigen, ob ein Tag vollständig erfasst wurde.",
+          "Gesetzliche Feiertage (nach dem Bundesland der Einrichtung) tragen das Badge `Feiertag`. An diesen Tagen ist das Soll automatisch 0, es entstehen also keine Minusstunden. Wird an einem Feiertag trotzdem gestempelt, erscheint der Hinweis `Feiertagsarbeit`.",
+          "Von der Einrichtung hinterlegte OGS-Schließtage (z. B. pädagogische Tage oder die Sommerschließung) tragen das Badge `Schließtag` und setzen das Soll ebenfalls auf 0. Fällt ein Schließtag auf einen Feiertag, zeigt die Zeile das Feiertag-Badge.",
           "Über das Stift-Symbol eigene Arbeitszeiteinträge korrigieren oder fehlende Arbeitstage nachtragen. Bei jeder Arbeitszeit-Korrektur einen Grund angeben.",
           "Geänderte Tage aufklappen, um die Änderungshistorie zu sehen. Für Auswertungen den Export im Tabellenkopf nutzen.",
         ],
@@ -1536,11 +1556,44 @@ export const nfcChapters: readonly GuideChapter[] = [
             image: "/help/screens/nfc-tablet-pin.webp",
             caption: "PIN-Eingabe: 4-stellige PIN über das Zahlenfeld.",
           },
-          {
-            image: "/help/screens/nfc-tablet-menue.webp",
-            caption: "Menü nach erfolgreicher Anmeldung.",
-          },
         ],
+      },
+    ],
+  },
+  {
+    id: "nfc-mitarbeiter-stempeln",
+    title: "Arbeitszeit am Tablet stempeln",
+    description:
+      "Mitarbeitende können mit ihrem persönlichen NFC-Armband ein- und ausstempeln sowie Pausen erfassen. Dafür ist keine Aktivität oder Gruppe nötig.",
+    icon: Clock3,
+    tone: "blue",
+    steps: [
+      {
+        id: "nfc-mitarbeiter-arbeitszeit",
+        title: "Ein-, ausstempeln und Pause erfassen",
+        summary:
+          "Über `Mitarbeiter-Stempeln` liest das Tablet den aktuellen Stand aus und bietet nur die Aktionen an, die gerade möglich sind.",
+        steps: [
+          "Im `Menü` auf `Mitarbeiter-Stempeln` tippen und `Armband scannen` wählen.",
+          "Das persönliche Armband an den NFC-Sensor halten. Kinderarmbänder und nicht zugewiesene Armbänder werden abgewiesen.",
+          "Beim Einstempeln `Vor Ort` oder `Homeoffice` wählen und auf `Einstempeln` tippen.",
+          "Im Zustand `Eingestempelt` entweder `Pause starten` oder `Ausstempeln` wählen.",
+          "Im Zustand `In Pause` die Pause mit `Pause beenden` fortsetzen oder direkt ausstempeln.",
+          "Verlangt der Dienstplan eine Begründung für die Abweichung, den Grund eingeben und den Stempelvorgang erneut bestätigen.",
+        ],
+        callout: {
+          title: "Persönliches Armband erforderlich",
+          body: "Die Zeiterfassung funktioniert nur mit einem aktiven NFC-Armband, das dem jeweiligen Mitarbeitenden zugewiesen ist. Die allgemeine Geräte-PIN identifiziert die Person nicht. Fehlt die Zuweisung, wenden Sie sich an Ihre OGS-Leitung.",
+          tone: "orange",
+        },
+        checklist: [
+          "Nach dem Einstempeln steht der Status auf `Eingestempelt`.",
+          "Eine laufende Pause wird als `In Pause` angezeigt.",
+          "Ab mehr als sechs Stunden Arbeitszeit erscheint der Hinweis zur erforderlichen Pause, solange sie noch nicht vollständig genommen wurde.",
+          "Die Einträge erscheinen parallel in der Zeiterfassung der Web-App mit der Quelle `NFC`.",
+        ],
+        screenshot:
+          "Tablet-Seite Mitarbeiter-Stempeln mit Name, aktuellem Zustand, Arbeitsort-Auswahl und den jeweils erlaubten Aktionen.",
       },
     ],
   },
@@ -1829,7 +1882,6 @@ export const nfcChapters: readonly GuideChapter[] = [
           tone: "gray",
         },
         screenshot: "Tablet-`Menü` mit `Aufsicht beenden` und `Abmelden`.",
-        image: "/help/screens/nfc-tablet-menue.webp",
       },
       {
         id: "nfc-team-anpassen",

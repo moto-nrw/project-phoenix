@@ -61,6 +61,24 @@ export interface ResolvedSetting {
   } | null;
 }
 
+/** Returns a resolved setting value without duplicating schema traversal. */
+export function getSettingValue(
+  schema: SettingsSchema | null | undefined,
+  key: string,
+): unknown | undefined {
+  if (!schema || !Array.isArray(schema.tabs)) return undefined;
+  for (const tab of schema.tabs) {
+    if (!tab || !Array.isArray(tab.categories)) continue;
+    for (const category of tab.categories) {
+      if (!category || !Array.isArray(category.items)) continue;
+      for (const item of category.items) {
+        if (item?.key === key) return item.value;
+      }
+    }
+  }
+  return undefined;
+}
+
 interface ApiResponse<T> {
   status: string;
   data: T;

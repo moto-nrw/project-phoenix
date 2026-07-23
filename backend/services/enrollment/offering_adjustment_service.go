@@ -3,6 +3,7 @@ package enrollment
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -13,6 +14,8 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type offeringAdjustmentSnapshot struct {
@@ -309,19 +312,41 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 			}
 		}
 		if guardian != nil {
-			if terr := s.applyTargetedFields(ctx, req, child, student, guardian, input.ActorAccountID, targetedFieldSyncOptions{
+			planSynced, terr := s.applyTargetedFields(ctx, req, child, student, guardian, input.ActorAccountID, targetedFieldSyncOptions{
 				Replace:                input.ReplaceTargetedData,
 				PreviousSnapshot:       input.PreviousSnapshot,
 				KeepGuardianProfileIDs: keepGuardianProfileIDs,
-			}); terr != nil {
+			})
+			if terr != nil {
 				s.Logger.Warn("decision: approved child targeted-field sync had errors",
 					slog.Int64("request_id", req.ID),
 					slog.Int64("child_id", child.ID),
 					slog.String("error", terr.Error()),
 				)
+				// The two companion sentinels are NOT best-effort field noise:
+				// they mean the departure-plan sync was REFUSED, either because
+				// it would strand a linked child without an allowed Heimweg or
+				// because another editor holds the linked child's row. Swallowing
+				// them outside the replacement path (as every other field error is
+				// swallowed) would report success for a correction that never
+				// landed. Propagate so the tenant transaction rolls back and the
+				// handler answers with the actionable 400/409 the student PUT
+				// gives (#1694).
 				if input.ReplaceTargetedData {
 					return nil, fmt.Errorf("decision: approved child targeted-field replacement sync: %w", terr)
 				}
+				if errors.Is(terr, users.ErrCompanionWouldLoseDeparture) ||
+					errors.Is(terr, users.ErrCompanionLockBusy) {
+					return nil, fmt.Errorf("decision: approved child departure sync refused: %w", terr)
+				}
+			}
+			// A departure-plan sync that actually TRIMMED a link changed rows on
+			// ANOTHER child's card too. Announce it exactly like the student PUT,
+			// care-request and master-data-review writers do, or open detail cards
+			// and the Laufgemeinschaft search keep showing the pre-sync links.
+			// After the refusal returns above, so a rolled-back sync stays silent.
+			if planSynced {
+				s.deferStudentPlanBroadcasts(ctx, student.ID)
 			}
 		}
 	}
@@ -332,6 +357,50 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 	}
 
 	return s.RequestChildRepo.FindByID(ctx, child.ID)
+}
+
+// deferStudentPlanBroadcasts announces, after the surrounding tenant
+// transaction commits, that an enrollment sync replaced a child's departure
+// plan. Two events, because they invalidate different caches — exactly like
+// the master-data-review and care-request emitters:
+//
+//   - student_updated: the plan itself lives on the student record, so the
+//     student detail and database caches that feed an OPEN staff editor must
+//     refetch. Without it the editor keeps the pre-sync plan and resubmits it
+//     whole on the next unrelated save (an address edit), reverting the
+//     approved change.
+//   - student_companions_changed: a narrowed plan makes the repository trim
+//     "läuft mit" links, which are rows on ANOTHER child's card too — the
+//     signal every mounted companion view refetches on.
+//
+// Fire-and-forget: a lost event costs a stale card, never data.
+func (s *decisionService) deferStudentPlanBroadcasts(ctx context.Context, studentID int64) {
+	if s.Broadcaster == nil {
+		return
+	}
+	tenantID := tenant.FromContext(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		if tenantID <= 0 {
+			return
+		}
+		source := "enrollment_sync"
+		studentEvent := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{Source: &source})
+		if err := s.Broadcaster.BroadcastToTenant(tenantID, studentEvent); err != nil {
+			s.Logger.Warn("decision: failed to broadcast student update",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int64("student_id", studentID),
+				slog.String("error", err.Error()),
+			)
+		}
+		companionEvent := realtime.NewEvent(realtime.EventStudentCompanionsChanged, "", realtime.EventData{Source: &source})
+		if err := s.Broadcaster.BroadcastToTenant(tenantID, companionEvent); err != nil {
+			s.Logger.Warn("decision: failed to broadcast student companions change",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int64("student_id", studentID),
+				slog.String("error", err.Error()),
+			)
+		}
+	})
 }
 
 func (s *decisionService) actorSnapshot(ctx context.Context, accountID int64) (*string, *string) {

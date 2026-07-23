@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -26,7 +27,26 @@ import {
   type StudentEnrollmentExtraFieldGroup,
   uploadStudentPhoto,
 } from "~/lib/student-api";
+import {
+  companionsFingerprint,
+  fetchStudentCompanions,
+  mergeCompanionConfirmations,
+  type CompanionExtensionConfirmation,
+  type StudentCompanion,
+} from "~/lib/student-companion-api";
+import { useCompanionRemoteRefresh } from "~/lib/hooks/use-companion-remote-refresh";
 import { createLogger } from "~/lib/logger";
+import {
+  companionDepartureMessage,
+  CompanionPlanConflictError,
+  companionsChangedMessage,
+  embeddedJsonObject,
+  isCompanionDepartureRefusal,
+  isCompanionPlanConflictBody,
+  isCompanionsChanged,
+  parseConflictExtensions,
+  withPrivacyConsentSavedNotice,
+} from "~/lib/api";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
@@ -44,7 +64,8 @@ import {
   allowedDepartureToDepartureDays,
   allowedDepartureToPickupDays,
   normalizeAllowedDepartureModes,
-  DEPARTURE_WEEKDAYS,
+  allowedDepartureModesEqual,
+  allowedDepartureModesFingerprint,
 } from "~/lib/student-helpers";
 import type { Student } from "~/lib/api";
 
@@ -101,20 +122,78 @@ function pickupDaysEqual(
   );
 }
 
-function allowedDepartureModesEqual(
-  a?: AllowedDepartureModes | null,
-  b?: AllowedDepartureModes | null,
-): boolean {
-  const left = normalizeAllowedDepartureModes(a);
-  const right = normalizeAllowedDepartureModes(b);
-  return DEPARTURE_WEEKDAYS.every((day) => {
-    const leftModes = left[day.key] ?? [];
-    const rightModes = right[day.key] ?? [];
-    return (
-      leftModes.length === rightModes.length &&
-      leftModes.every((mode, idx) => mode === rightModes[idx])
-    );
-  });
+// The save path of this tab goes through the generic CRUD service, which throws
+// a plain Error carrying the HTTP status, while other callers reach the typed
+// CompanionPlanConflictError from studentService.updateStudent — detect both.
+// The status alone is NOT enough: the student PUT also answers 409 when a linked
+// child is locked by a concurrent edit (code companion_lock_busy), which is
+// retriable and has nothing to confirm — asking "Ergänzen?" there would be
+// unanswerable. Everything else on a 409 stays the companion-plan question: this
+// form never submits sick/excused, the only other conflicting field pair.
+function isCompanionPlanConflict(err: unknown): boolean {
+  if (err instanceof CompanionPlanConflictError) return true;
+  return (
+    err instanceof Error &&
+    (err as Error & { status?: number }).status === 409 &&
+    !isCompanionLockConflict(err)
+  );
+}
+
+// Reads the backend's lock code out of whichever wrapping the error arrived in:
+// the untouched body the CRUD service attaches, or the JSON embedded in the
+// message.
+function isCompanionLockConflict(err: Error): boolean {
+  const body = (err as Error & { body?: string }).body;
+  if (body && !isCompanionPlanConflictBody(body)) return true;
+  const match = embeddedJsonObject(err.message);
+  return match ? !isCompanionPlanConflictBody(match) : false;
+}
+
+const COMPANION_CONFLICT_FALLBACK =
+  "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.";
+
+// Digs the backend's German conflict message out of whichever wrapping the
+// error arrived in; falls back to the generic sentence.
+function companionConflictMessage(err: unknown): string {
+  if (err instanceof CompanionPlanConflictError) return err.message;
+  if (err instanceof Error) {
+    const match = embeddedJsonObject(err.message);
+    if (match) {
+      try {
+        const parsed = JSON.parse(match) as { message?: string };
+        if (typeof parsed.message === "string" && parsed.message.trim()) {
+          return parsed.message;
+        }
+      } catch {
+        // Not JSON — use the fallback text.
+      }
+    }
+  }
+  return COMPANION_CONFLICT_FALLBACK;
+}
+
+// The confirmable conflicts the backend reported, dug out of whichever
+// wrapping the error arrived in. An empty list means we could not read them —
+// the retry then confirms nothing and the backend asks again, which is the
+// safe direction.
+function companionConflictExtensions(
+  err: unknown,
+): CompanionExtensionConfirmation[] {
+  if (err instanceof CompanionPlanConflictError) return err.conflicts;
+  if (err instanceof Error) {
+    // The CRUD service reduces the response to a single message but attaches
+    // the untouched body, where the proxy forwards `conflicts` as a sibling of
+    // `error`. Read that first — the message itself is only the German
+    // sentence and never contains the list.
+    const body = (err as Error & { body?: string }).body;
+    if (body) {
+      const fromBody = parseConflictExtensions(body);
+      if (fromBody.length > 0) return fromBody;
+    }
+    const match = embeddedJsonObject(err.message);
+    if (match) return parseConflictExtensions(match);
+  }
+  return [];
 }
 
 function buildDraft(
@@ -189,6 +268,73 @@ export function StudentStammdatenTab({
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  // Laufgemeinschaft: fetched separately (own table) and submitted together
+  // with the departure plan, because a link is only legal on a day that plan
+  // allows "Anderes Kind".
+  //
+  // The submitted list REPLACES the stored one, so it may only travel once it
+  // IS the stored one: an empty list from a pending or failed load would delete
+  // the child's Laufgemeinschaft on any unrelated save, and this component is
+  // reused across children, so a load that fails after switching would submit
+  // the PREVIOUS child's links. Hence the explicit status, reset on every id
+  // change, plus the untouched-since-load snapshot the dirty check compares
+  // against.
+  const [companions, setCompanions] = useState<StudentCompanion[]>([]);
+  const [loadedCompanions, setLoadedCompanions] = useState<StudentCompanion[]>(
+    [],
+  );
+  const [companionsStatus, setCompanionsStatus] = useState<
+    "loading" | "ready" | "error"
+  >("loading");
+  const [reloadCompanions, setReloadCompanions] = useState(0);
+  const [extendCompanionPlans, setExtendCompanionPlans] = useState(false);
+  // WHAT the user confirmed, not just that they did: the backend widens a
+  // companion's plan only for the children and weekdays listed here, so a
+  // conflict that appeared after the question was asked is refused again
+  // instead of riding along on the earlier yes.
+  const [confirmedExtensions, setConfirmedExtensions] = useState<
+    CompanionExtensionConfirmation[]
+  >([]);
+  // The children and weekdays the OPEN question is about — not yet approved.
+  // They become confirmed extensions only when the user clicks "Ergänzen und
+  // speichern"; merging them on arrival would let "Abbrechen" leave a yes
+  // behind that widens another child's Heimweg on the next ordinary save.
+  const [pendingExtensions, setPendingExtensions] = useState<
+    CompanionExtensionConfirmation[]
+  >([]);
+  // Set when the backend refused because a linked child's own departure plan
+  // does not allow the requested days (409). Answering yes re-sends the same
+  // payload with extend_companion_plans — mirroring PersonalInfoFormModal.
+  const [planConflict, setPlanConflict] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!student.id) return;
+    let cancelled = false;
+    setCompanionsStatus("loading");
+    setCompanions([]);
+    setLoadedCompanions([]);
+    setExtendCompanionPlans(false);
+    setConfirmedExtensions([]);
+    setPendingExtensions([]);
+    setPlanConflict(null);
+    fetchStudentCompanions(String(student.id))
+      .then((loaded) => {
+        if (cancelled) return;
+        setCompanions(loaded);
+        setLoadedCompanions(loaded);
+        setCompanionsStatus("ready");
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setCompanionsStatus("error");
+        logger.error("failed to load companions", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [student.id, reloadCompanions]);
   const {
     groups: enrollmentExtraGroups,
     loading: enrollmentExtraLoading,
@@ -332,9 +478,115 @@ export function StudentStammdatenTab({
     () => buildDraft(student, photosEnabled, serverConsent),
     [student, photosEnabled, serverConsent],
   );
+  // The departure plan this form last saw on the server. Everything below reads
+  // it to tell a plan the USER changed from one that merely rode along on the
+  // load — the same distinction the backend draws with DepartureBaseline.
+  const serverPlanRef = useRef<AllowedDepartureModes | undefined>(
+    originalDraft.allowed_departure_modes,
+  );
+  // Rebase an UNTOUCHED departure plan onto the server's.
+  //
+  // This form stays mounted while other people work on the same child, and the
+  // main reset effect is gated on student.id so a background refetch cannot wipe
+  // unsaved edits. The plan therefore keeps the value it was loaded with. Every
+  // save resubmits it — and the backend TRIMS the links to the weekdays the
+  // submitted plan allows. So after someone else widened the plan and linked a
+  // child on the new day, an unrelated edit here (an address, a note) would
+  // silently delete that fresh link: the companion list itself stays out of such
+  // a save, and without a list there is no fingerprint for the backend to refuse
+  // it by.
+  //
+  // Only a plan the user has NOT touched is rebased; a real edit still wins and
+  // is saved as the deliberate change it is. The submitted plan is derived
+  // entirely from allowed_departure_modes, so that is the field the comparison
+  // turns on; the legacy views follow it exactly like the picker's own handler
+  // keeps them in step.
+  useEffect(() => {
+    const previous = serverPlanRef.current;
+    const next = originalDraft.allowed_departure_modes;
+    serverPlanRef.current = next;
+    if (allowedDepartureModesEqual(previous, next)) return;
+    setFormData((prev) => {
+      if (!allowedDepartureModesEqual(prev.allowed_departure_modes, previous)) {
+        return prev;
+      }
+      const busDays = allowedDepartureToBusDays(next);
+      const pickupDays = allowedDepartureToPickupDays(next);
+      return {
+        ...prev,
+        allowed_departure_modes: next,
+        departure_days: allowedDepartureToDepartureDays(next),
+        bus_days: busDays,
+        bus: busDaysHaveAny(busDays),
+        pickup_days: pickupDays,
+        pickup_status: pickupDaysHaveAny(pickupDays)
+          ? "Wird abgeholt"
+          : "Geht alleine nach Hause",
+      };
+    });
+  }, [originalDraft.allowed_departure_modes]);
+  const companionsDirty = useMemo(
+    () =>
+      companionsStatus === "ready" &&
+      companionsFingerprint(loadedCompanions) !==
+        companionsFingerprint(companions),
+    [companions, companionsStatus, loadedCompanions],
+  );
+  // A departure plan the USER changed is a companion-conflicting edit too, even
+  // while the picker itself is untouched: the backend TRIMS the stored links to
+  // the weekdays the submitted plan allows, so such a draft is a pending delete
+  // of every link on the days it dropped.
+  //
+  // Without this, a remote companion write would be answered by a plain refetch
+  // (nothing "dirty" to protect), and the refreshed list would silently become
+  // the baseline this save claims: the fingerprint then describes the very edge
+  // the other person just added on the removed weekday, the backend has nothing
+  // left to refuse the save by, and the trim deletes their link. Treat it like
+  // an edited list — keep the loaded baseline, flag the view stale, make the
+  // user reload and redo the narrowing deliberately.
+  //
+  // An UNTOUCHED plan stays out: the rebase effect above keeps it equal to the
+  // server's, so this comparison is false for it and unrelated saves are not
+  // blocked by somebody else's legitimate companion change.
+  const departurePlanDirty = useMemo(
+    () =>
+      !allowedDepartureModesEqual(
+        originalDraft.allowed_departure_modes,
+        formData.allowed_departure_modes,
+      ),
+    [originalDraft.allowed_departure_modes, formData.allowed_departure_modes],
+  );
+  // This form stays mounted while other people work on the same child, and the
+  // links it submits REPLACE the stored ones. Without listening to companion
+  // writes, an edit started before a remote change would save on top of a
+  // snapshot that no longer exists and delete links this form never saw.
+  const reloadCompanionsFromRemote = useCallback(
+    () => setReloadCompanions((count) => count + 1),
+    [],
+  );
+  const { companionsStale, refreshFromRemote, withOwnWrite, markStale } =
+    useCompanionRemoteRefresh({
+      // Always listening, including while the first load is still in flight —
+      // that request can have been answered before the remote write landed.
+      active: true,
+      // This tab is never unmounted between children (the master-detail list
+      // just selects another one), so the child id is what ends a stale flag
+      // here — `active` never goes false.
+      resetKey: String(student.id),
+      hasUnsavedCompanionEdits: companionsDirty || departurePlanDirty,
+      // Both halves of what a save submits about the Laufgemeinschaft: the list
+      // itself and the plan the backend trims it to. The picker stays usable
+      // while a save runs (only the button is disabled), so this is what tells
+      // the hook that the draft has moved on from the one that was submitted.
+      companionDraftKey: `${companionsFingerprint(companions)}#${allowedDepartureModesFingerprint(formData.allowed_departure_modes)}`,
+      onRefresh: reloadCompanionsFromRemote,
+    });
   const isDirty = useMemo(() => {
     if (pendingPhotoBlob !== null) return true;
     if (pendingPhotoRemoved) return true;
+    // The picker writes to its own state, not into formData — without this the
+    // Save button stays disabled for a companion-only edit.
+    if (companionsDirty) return true;
     const keys = Object.keys(originalDraft) as Array<keyof Student>;
     return keys.some((key) => {
       if (key === "bus_days") {
@@ -360,7 +612,13 @@ export function StudentStammdatenTab({
       }
       return originalDraft[key] !== formData[key];
     });
-  }, [originalDraft, formData, pendingPhotoBlob, pendingPhotoRemoved]);
+  }, [
+    companionsDirty,
+    originalDraft,
+    formData,
+    pendingPhotoBlob,
+    pendingPhotoRemoved,
+  ]);
 
   const handleChange = useCallback(
     (
@@ -380,14 +638,30 @@ export function StudentStammdatenTab({
   );
 
   const validateForm = useCallback(() => {
-    const next = validateStudentForm(formData, {
-      firstName: true,
-      lastName: true,
-      schoolClass: false,
-    });
+    const next = validateStudentForm(
+      formData,
+      {
+        firstName: true,
+        lastName: true,
+        schoolClass: false,
+      },
+      {
+        // A link answers "mit wem" too — without this, an accompanied plan
+        // backed only by a Laufgemeinschaft could never be saved from this tab.
+        // The cover is per weekday (a Monday link says nothing about an
+        // accompanied Tuesday), so the union of the linked days travels, not a
+        // boolean. While the stored links are unknown, claiming "none" would
+        // block an unrelated edit for the wrong reason; the backend re-checks
+        // the rule against the stored links either way.
+        companionLinkDays:
+          companionsStatus !== "ready"
+            ? "unknown"
+            : companions.flatMap((companion) => companion.weekdays),
+      },
+    );
     setErrors(next);
     return Object.keys(next).length === 0;
-  }, [formData]);
+  }, [companions, companionsStatus, formData]);
 
   // Consent toggle. Picking + then withdrawing consent in the same session
   // is contradictory (you can't upload a photo without consent), so we
@@ -436,14 +710,11 @@ export function StudentStammdatenTab({
   // clears photo_path + unlinks the file via the backend's
   // applyPhotoConsent. We skip the explicit DELETE in that branch — a
   // second call would 404 / no-op but adds noise.
-  const handleSubmit = useCallback(
-    async (event: React.FormEvent) => {
-      event.preventDefault();
-      if (!validateForm()) return;
-      if (privacyConsentLoadError) {
-        setErrors({ submit: privacyConsentLoadError });
-        return;
-      }
+  const performSave = useCallback(
+    async (
+      extendPlans: boolean,
+      confirmed: CompanionExtensionConfirmation[],
+    ) => {
       setSaving(true);
       const submitData: Partial<Student> = { ...formData };
       submitData.allowed_departure_modes = normalizeAllowedDepartureModes(
@@ -461,16 +732,171 @@ export function StudentStammdatenTab({
       ) {
         delete submitData.photo_consent_given;
       }
+      // Same reasoning for the Datenschutz pair, and load-bearing since the
+      // proxy writes it BEFORE the student PUT: both fields sit in the draft on
+      // every save, so an unrelated edit (a name, a companion) would resubmit
+      // the values this form loaded. If somebody else changed the consent in the
+      // meantime and this save is then refused — a companion conflict, a stale
+      // list — the stale echo would already have overwritten their change and
+      // stay committed, while the user is told nothing was saved. Omitted keys
+      // make the proxy skip the consent write entirely, so only a save that
+      // actually changes consent can touch it.
+      //
+      // Both travel together or not at all: the proxy's consent PUT is a full
+      // upsert of the pair, so a lone field would write the OTHER one back to
+      // its default (accepted=false / 30 days).
+      if (
+        submitData.privacy_consent_accepted ===
+          originalDraft.privacy_consent_accepted &&
+        submitData.data_retention_days === originalDraft.data_retention_days
+      ) {
+        delete submitData.privacy_consent_accepted;
+        delete submitData.data_retention_days;
+      }
+      // A plan the USER changed, as opposed to the untouched copy that rides
+      // along on every save. Only the former may remove links.
+      const planEdited = !allowedDepartureModesEqual(
+        originalDraft.allowed_departure_modes,
+        submitData.allowed_departure_modes,
+      );
+      if (companionsStatus === "ready") {
+        // What this save claims the stored links are. It travels with an edited
+        // LIST (which replaces them) and with an edited PLAN, because the
+        // backend trims the links to the weekdays the submitted plan allows — a
+        // deliberate narrowing removes links just as surely as an edited list
+        // does, and without the claim the backend cannot tell it from a plan
+        // that went stale while this form was open. An unrelated save claims
+        // nothing: its plan is untouched, so it removes nothing, and a
+        // fingerprint could only refuse it for somebody else's legitimate
+        // change. (If such a plan IS stale — a dropped refresh left the rebase
+        // effect above behind — the backend sees the removal it would cause and
+        // refuses the save outright, which is the point.)
+        if (companionsDirty || planEdited) {
+          submitData.companions_fingerprint =
+            companionsFingerprint(loadedCompanions);
+        }
+        // Only when the user actually EDITED the list. It replaces the stored
+        // one wholesale, so an untouched snapshot must not travel: someone else
+        // may have changed the links since this form loaded, and re-sending the
+        // stale copy on an unrelated save (an address edit) would silently
+        // revert their change — the row locks serialize the writes but cannot
+        // see that ours is stale. An omitted key means "don't touch the links",
+        // which is exactly what an unedited list should do. A pending or failed
+        // load stays out for the same reason (there it would read as "delete
+        // them all"). The plan that DOES travel on every save cannot delete a
+        // link behind that omission either: an untouched plan is rebased onto
+        // the server's before it is submitted (see the rebase effect above), and
+        // the fingerprint sent above makes the backend refuse the removal if a
+        // dropped refresh left that rebase behind anyway.
+        if (companionsDirty) {
+          submitData.companions = companions.map((companion) => ({
+            companion_student_id: companion.companion_student_id,
+            weekdays: companion.weekdays,
+          }));
+        }
+        // Inert without a companion list, and the retry after a plan conflict
+        // always carries one (the conflict can only arise from an edited list).
+        submitData.extend_companion_plans = extendPlans;
+        submitData.confirmed_companion_extensions = confirmed;
+      }
+      // Whether the backend can answer this save with a
+      // student_companions_changed echo. It broadcasts only when the write
+      // actually changed links: an edited list travels with a differing
+      // fingerprint, a confirmed extension widens a companion's plan, and a
+      // changed departure plan can trim links off weekdays it no longer allows
+      // (only possible when links exist — unknown while the load is not
+      // "ready", so that case stays conservative). A pure name or address edit
+      // resubmits the unchanged plan and is never echoed; arming the grace for
+      // it would swallow the next genuinely remote change instead.
+      const mayAnnounceCompanions =
+        companionsDirty ||
+        confirmed.length > 0 ||
+        (planEdited &&
+          (companionsStatus !== "ready" || loadedCompanions.length > 0));
       try {
-        await onSave(submitData);
+        // withOwnWrite: this save announces the companion change itself, and
+        // reacting to our own announcement would flag the form stale for a
+        // change the user just made.
+        await withOwnWrite(() => onSave(submitData), mayAnnounceCompanions);
+        setPlanConflict(null);
+        // The confirmation is one-shot: this save consumed it. Keeping it
+        // would let a later unrelated save from this still-mounted form
+        // re-widen a companion's plan (possibly narrowed again by someone else
+        // in the meantime) on a stale yes instead of asking a fresh question.
+        setExtendCompanionPlans(false);
+        setConfirmedExtensions([]);
+        setPendingExtensions([]);
       } catch (err) {
+        // A companion-plan 409 is a question, not a failure: nothing was
+        // written, and re-sending with extend_companion_plans after the user
+        // confirms completes the save. Only possible when a list traveled.
+        if (companionsStatus === "ready" && isCompanionPlanConflict(err)) {
+          // The conflicts stay PENDING until the user answers the question —
+          // "Abbrechen" must leave nothing behind that a later ordinary save
+          // could carry along and widen unasked. The question is also where a
+          // committed consent write is most easily lost sight of: answering
+          // "Abbrechen" ends the save for good, so the notice has to ride along
+          // here too and not only on the outright failures below.
+          setPlanConflict(
+            withPrivacyConsentSavedNotice(err, companionConflictMessage(err)),
+          );
+          setPendingExtensions(companionConflictExtensions(err));
+          setSaving(false);
+          return;
+        }
+        // The backend saw what the in-tab announcement bus could not: another
+        // browser replaced the links this list was built on. Nothing was
+        // written, and re-sending the same list is exactly the write that was
+        // refused — flag the form stale so the user reloads and redoes the edit.
+        if (isCompanionsChanged(err)) {
+          markStale();
+          setErrors({
+            submit: withPrivacyConsentSavedNotice(
+              err,
+              companionsChangedMessage(err),
+            ),
+          });
+          setSaving(false);
+          return;
+        }
         const message = err instanceof Error ? err.message : String(err);
         logger.error("error saving student", { error: message });
         setErrors({
-          submit: "Fehler beim Speichern. Bitte versuchen Sie es erneut.",
+          // The stranded-companion refusal is expected and user-actionable —
+          // it names the child whose Heimweg has to be filled in first. "Bitte
+          // versuchen Sie es erneut" would be wrong twice over: retrying the
+          // identical save is refused again, and the instruction is lost.
+          //
+          // Either text is prefixed with the partial-success notice when the
+          // consent half of this request already committed: without it the
+          // user reads "nichts gespeichert" for a save that did change the
+          // stored Datenschutz settings.
+          submit: withPrivacyConsentSavedNotice(
+            err,
+            isCompanionDepartureRefusal(err)
+              ? companionDepartureMessage(err)
+              : "Fehler beim Speichern. Bitte versuchen Sie es erneut.",
+          ),
         });
         setSaving(false);
         return;
+      }
+      // Re-read the stored links instead of promoting the list we hold to the
+      // new baseline. student.id doesn't change on a refetch, so the load
+      // effect won't re-run on its own, and the form would otherwise stay
+      // permanently dirty after a companion edit — but `companions` is NOT
+      // always what the backend now stores. Two ways it diverges: the backend
+      // TRIMS every link whose weekday the new plan no longer allows, and a
+      // plan-only save carries no companions list at all (unticking the last
+      // accompanied day unmounts CompanionPicker before its trimming effect
+      // runs, so the local list keeps the deleted links and stays clean).
+      // Recording that array would show the deleted children again the moment
+      // "Anderes Kind" is re-enabled in this still-mounted form and send them
+      // back on the next save. The reload also carries the failure path: an
+      // unreadable list flips the status to "error" rather than passing for
+      // the stored one.
+      if (companionsStatus === "ready") {
+        setReloadCompanions((count) => count + 1);
       }
 
       const consentNowOn = Boolean(formData.photo_consent_given);
@@ -518,20 +944,118 @@ export function StudentStammdatenTab({
       }
     },
     [
+      companions,
+      companionsDirty,
+      companionsStatus,
       formData,
+      loadedCompanions,
+      markStale,
       onSave,
       onStudentRefresh,
+      originalDraft.allowed_departure_modes,
+      originalDraft.data_retention_days,
       originalDraft.photo_consent_given,
+      originalDraft.privacy_consent_accepted,
       pendingPhotoBlob,
       pendingPhotoRemoved,
-      privacyConsentLoadError,
       student.id,
+      withOwnWrite,
+    ],
+  );
+
+  const handleSubmit = useCallback(
+    async (event: React.FormEvent) => {
+      event.preventDefault();
+      if (!validateForm()) return;
+      if (privacyConsentLoadError) {
+        setErrors({ submit: privacyConsentLoadError });
+        return;
+      }
+      // The edited list would replace links this form never loaded. Refusing
+      // here (instead of saving and hoping the backend's stranding check
+      // happens to object) is the only reading that cannot lose someone's work.
+      if (companionsStale) {
+        setErrors({
+          submit:
+            "Die Laufgemeinschaft wurde zwischenzeitlich an anderer Stelle geändert. Bitte oben neu laden und die Änderung wiederholen.",
+        });
+        return;
+      }
+      await performSave(extendCompanionPlans, confirmedExtensions);
+    },
+    [
+      companionsStale,
+      confirmedExtensions,
+      extendCompanionPlans,
+      performSave,
+      privacyConsentLoadError,
       validateForm,
     ],
   );
 
+  // The user confirmed widening the linked child's departure plan: repeat the
+  // identical save with the confirmation flag set.
+  const handleConfirmExtendPlans = useCallback(() => {
+    // Same reason as in handleSubmit — the confirmed retry re-sends the very
+    // list that went stale.
+    if (companionsStale) {
+      setPlanConflict(null);
+      setPendingExtensions([]);
+      setErrors({
+        submit:
+          "Die Laufgemeinschaft wurde zwischenzeitlich an anderer Stelle geändert. Bitte oben neu laden und die Änderung wiederholen.",
+      });
+      return;
+    }
+    // The yes happens HERE: only now do the conflicts the question named
+    // become confirmed extensions.
+    const confirmed = mergeCompanionConfirmations(
+      confirmedExtensions,
+      pendingExtensions,
+    );
+    setConfirmedExtensions(confirmed);
+    setPendingExtensions([]);
+    setExtendCompanionPlans(true);
+    setPlanConflict(null);
+    void performSave(true, confirmed);
+  }, [companionsStale, confirmedExtensions, pendingExtensions, performSave]);
+
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
+      {planConflict ? (
+        <div className="rounded-lg border border-[#F78C10] bg-[#F78C10]/5 p-3">
+          <p className="text-sm text-gray-900">{planConflict}</p>
+          <p className="mt-1 text-xs text-gray-600">
+            Soll „Anderes Kind“ im Heimweg des verknüpften Kindes ergänzt
+            werden? Bestehende Heimwege bleiben erhalten.
+          </p>
+          <div className="mt-2 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => {
+                // Dismissing the question is a NO: drop the conflicts with it,
+                // so the next save asks again instead of widening the linked
+                // child's Heimweg on a yes that was never given.
+                setPlanConflict(null);
+                setPendingExtensions([]);
+              }}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              disabled={saving}
+              onClick={handleConfirmExtendPlans}
+            >
+              Ergänzen und speichern
+            </Button>
+          </div>
+        </div>
+      ) : null}
       {errors.submit ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3">
           <p className="text-sm text-red-800">{errors.submit}</p>
@@ -540,6 +1064,48 @@ export function StudentStammdatenTab({
       {privacyConsentLoadError ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3">
           <p className="text-sm text-red-800">{privacyConsentLoadError}</p>
+        </div>
+      ) : null}
+      {companionsStale ? (
+        <div className="rounded-lg border border-[#F78C10] bg-[#F78C10]/5 p-3">
+          <p className="text-sm text-gray-900">
+            Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich an anderer
+            Stelle geändert. Speichern ist gesperrt, damit die fremde Änderung
+            nicht überschrieben wird.
+          </p>
+          <p className="mt-1 text-xs text-gray-600">
+            Neu laden verwirft die hier vorgenommenen Änderungen an der
+            Laufgemeinschaft.
+          </p>
+          <div className="mt-2 flex justify-end">
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={refreshFromRemote}
+            >
+              Neu laden
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      {companionsStatus === "error" ? (
+        <div className="rounded-lg border border-[#FF3130] bg-[#FF3130]/5 p-3">
+          <p className="text-sm text-gray-900">
+            Die Laufgemeinschaft konnte nicht geladen werden und wird unten
+            nicht angezeigt. Andere Angaben lassen sich speichern, die
+            bestehenden Verknüpfungen bleiben dabei unverändert.
+          </p>
+          <div className="mt-2 flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => setReloadCompanions((count) => count + 1)}
+            >
+              Erneut laden
+            </Button>
+          </div>
         </div>
       ) : null}
 
@@ -614,6 +1180,21 @@ export function StudentStammdatenTab({
           }))
         }
         companionNoteError={errors.departure_companion_note}
+        companions={companions}
+        // Hidden until the stored links are known (the section drops the picker
+        // without a change handler): an edit made against a pending or failed
+        // load would be silently discarded on save, since the list only travels
+        // when it is the stored one.
+        onCompanionsChange={
+          companionsStatus === "ready" ? setCompanions : undefined
+        }
+        companionStudentId={String(student.id)}
+        onCompanionExtensionConfirmed={(confirmation) => {
+          setExtendCompanionPlans(true);
+          setConfirmedExtensions((current) =>
+            mergeCompanionConfirmations(current, [confirmation]),
+          );
+        }}
       />
 
       <EnrollmentConsentsSection

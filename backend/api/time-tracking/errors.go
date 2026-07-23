@@ -96,8 +96,13 @@ func classifyAbsenceError(err error) render.Renderer {
 		return common.ErrorNotFound(err)
 
 	case msg == "can only update own absences",
-		msg == "can only delete own absences":
+		msg == "can only delete own absences",
+		msg == "can only resubmit own absences":
 		return common.ErrorForbidden(err)
+
+	case msg == "resubmit note is required",
+		msg == "only absences with a question can be resubmitted":
+		return common.ErrorInvalidRequest(err)
 
 	case strings.HasPrefix(msg, "absence overlaps"),
 		strings.HasPrefix(msg, "dates overlap"),

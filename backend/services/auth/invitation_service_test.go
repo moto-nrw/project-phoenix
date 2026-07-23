@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
+	platformModel "github.com/moto-nrw/project-phoenix/models/platform"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -733,6 +734,64 @@ func TestAcceptInvitationDeletedSchoolRejectsAcceptance(t *testing.T) {
 	require.True(t, errors.Is(err, ErrInvitationTenantDeleted),
 		"expected ErrInvitationTenantDeleted, got %v", err)
 	require.False(t, token.IsUsed(), "invitation must remain unused when school is deleted")
+}
+
+func TestGetTenantSubdomainForTokenUsesSubdomainNotSlug(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+
+	invitationRepo := newStubInvitationTokenRepository()
+	// School where slug != subdomain (issue #1977: OGS Burbach,
+	// slug=ogs-burbach, subdomain=burbach). The redirect after accepting an
+	// invitation must use the subdomain — tenant routing resolves by it.
+	schoolRepo := newStubSchoolRepository(nil)
+	schoolRepo.FindByIDFn = func(_ context.Context, id int64) (*platformModel.School, error) {
+		return &platformModel.School{
+			Model:     baseModel.Model{ID: id},
+			Active:    true,
+			Slug:      "ogs-burbach",
+			Subdomain: "burbach",
+		}, nil
+	}
+
+	service := NewInvitationService(InvitationServiceConfig{
+		InvitationRepo:    invitationRepo,
+		AccountRepo:       newStubAccountRepository(),
+		AccountTenantRepo: newStubAccountTenantRepository(),
+		RoleRepo: newStubRoleRepository(
+			&authModel.Role{Model: baseModel.Model{ID: 2}, Name: "Teacher"},
+		),
+		AccountRoleRepo:  newStubAccountRoleRepository(),
+		PersonRepo:       newStubPersonRepository(),
+		SchoolRepo:       schoolRepo,
+		FrontendURL:      "http://localhost:3000",
+		DefaultFrom:      newDefaultFromEmail(),
+		InvitationExpiry: 48 * time.Hour,
+		DB:               bunDB,
+	})
+
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	ctx := context.Background()
+	token := &authModel.InvitationToken{
+		Email:     "subdomain-test@example.com",
+		Token:     "subdomain-test-token",
+		RoleID:    2,
+		ExpiresAt: time.Now().Add(10 * time.Hour),
+	}
+	token.SetTenantID(42)
+	require.NoError(t, invitationRepo.Create(ctx, token))
+
+	expectAdminTx(mock)
+	subdomain := service.GetTenantSubdomainForToken(ctx, "subdomain-test-token")
+	require.Equal(t, "burbach", subdomain,
+		"accept response must carry the subdomain, not the slug")
 }
 
 func TestAcceptInvitationReusesExistingAccountForNewTenant(t *testing.T) {

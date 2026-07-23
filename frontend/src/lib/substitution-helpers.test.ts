@@ -560,7 +560,7 @@ describe("substitution-helpers", () => {
         ],
       };
 
-      expect(getTeacherStatus(teacher)).toBe("Übergabe: Group A");
+      expect(getTeacherStatus(teacher)).toBe("Tagesübergabe: Group A");
     });
 
     it("should return substitution status for single non-transfer", () => {
@@ -582,7 +582,7 @@ describe("substitution-helpers", () => {
         ],
       };
 
-      expect(getTeacherStatus(teacher)).toBe("Vertretung: Group B");
+      expect(getTeacherStatus(teacher)).toBe("Zugriff: Group B");
     });
 
     it("should use currentGroup when substitution groupName is empty", () => {
@@ -605,7 +605,7 @@ describe("substitution-helpers", () => {
         ],
       };
 
-      expect(getTeacherStatus(teacher)).toBe("Vertretung: Current Group");
+      expect(getTeacherStatus(teacher)).toBe("Zugriff: Current Group");
     });
 
     it("should use group name from substitution", () => {
@@ -627,7 +627,7 @@ describe("substitution-helpers", () => {
         ],
       };
 
-      expect(getTeacherStatus(teacher)).toBe("Vertretung: Group X");
+      expect(getTeacherStatus(teacher)).toBe("Zugriff: Group X");
     });
 
     it("should return multiple assignments status", () => {

@@ -19,7 +19,9 @@ import {
   getWeekNumber,
   getComplianceWarnings,
   calculateNetMinutes,
+  mapClosingDaysResponse,
   mapHistoryResponse,
+  mapHolidaysResponse,
 } from "./time-tracking-helpers";
 
 // Helper to create mock backend session
@@ -85,6 +87,20 @@ describe("mapWorkSessionResponse", () => {
     const result = mapWorkSessionResponse(backend);
 
     expect(result.updatedBy).toBeNull();
+  });
+
+  it("carries source through to the own-portal view", () => {
+    const backend = createMockBackendSession({ source: "nfc" });
+    const result = mapWorkSessionResponse(backend);
+
+    expect(result.source).toBe("nfc");
+  });
+
+  it("leaves source undefined when the payload predates the column", () => {
+    const backend = createMockBackendSession();
+    const result = mapWorkSessionResponse(backend);
+
+    expect(result.source).toBeUndefined();
   });
 
   it("handles empty notes string", () => {
@@ -277,6 +293,128 @@ describe("mapHistoryResponse", () => {
       sessionCount: 3,
       isOverWeeklyMax: false,
     });
+  });
+});
+
+describe("mapHolidaysResponse", () => {
+  it("maps timestamps to calendar-date keys and preserves names", () => {
+    const result = mapHolidaysResponse([
+      {
+        date: "2026-05-14T00:00:00Z",
+        name: "Christi Himmelfahrt",
+      },
+      { date: "2026-05-25", name: "Pfingstmontag" },
+    ]);
+
+    expect(result).toEqual(
+      new Map([
+        ["2026-05-14", "Christi Himmelfahrt"],
+        ["2026-05-25", "Pfingstmontag"],
+      ]),
+    );
+  });
+
+  it.each([null, undefined])("returns an empty map for %s", (data) => {
+    expect(mapHolidaysResponse(data)).toEqual(new Map());
+  });
+});
+
+describe("mapClosingDaysResponse", () => {
+  it("expands ranges into per-day entries with the reason", () => {
+    const result = mapClosingDaysResponse(
+      [
+        {
+          start_date: "2026-12-24",
+          end_date: "2026-12-27",
+          reason: "Weihnachtswoche",
+        },
+        {
+          start_date: "2027-02-08",
+          end_date: "2027-02-08",
+          reason: "Rosenmontag",
+        },
+      ],
+      "2026-12-01",
+      "2027-02-28",
+    );
+
+    expect(result).toEqual(
+      new Map([
+        ["2026-12-24", "Weihnachtswoche"],
+        ["2026-12-25", "Weihnachtswoche"],
+        ["2026-12-26", "Weihnachtswoche"],
+        ["2026-12-27", "Weihnachtswoche"],
+        ["2027-02-08", "Rosenmontag"],
+      ]),
+    );
+  });
+
+  it("keeps the first reason when ranges overlap", () => {
+    const result = mapClosingDaysResponse(
+      [
+        {
+          start_date: "2026-07-20",
+          end_date: "2026-07-24",
+          reason: "Sommer A",
+        },
+        {
+          start_date: "2026-07-24",
+          end_date: "2026-07-28",
+          reason: "Sommer B",
+        },
+      ],
+      "2026-07-01",
+      "2026-07-31",
+    );
+
+    expect(result.get("2026-07-24")).toBe("Sommer A");
+    expect(result.get("2026-07-25")).toBe("Sommer B");
+  });
+
+  it("crosses the DST boundary without skipping or doubling days", () => {
+    const result = mapClosingDaysResponse(
+      [
+        {
+          start_date: "2026-03-28",
+          end_date: "2026-03-30",
+          reason: "Umbau",
+        },
+      ],
+      "2026-03-28",
+      "2026-03-30",
+    );
+
+    expect([...result.keys()]).toEqual([
+      "2026-03-28",
+      "2026-03-29",
+      "2026-03-30",
+    ]);
+  });
+
+  it.each([null, undefined])("returns an empty map for %s", (data) => {
+    expect(mapClosingDaysResponse(data, "2026-01-01", "2026-12-31")).toEqual(
+      new Map(),
+    );
+  });
+
+  it("clamps long stored ranges to the requested window before expansion", () => {
+    const result = mapClosingDaysResponse(
+      [
+        {
+          start_date: "2020-01-01",
+          end_date: "2030-12-31",
+          reason: "Langzeit-Schließung",
+        },
+      ],
+      "2026-12-01",
+      "2026-12-31",
+    );
+
+    expect(result.size).toBe(31);
+    expect(result.get("2026-12-01")).toBe("Langzeit-Schließung");
+    expect(result.get("2026-12-31")).toBe("Langzeit-Schließung");
+    expect(result.has("2026-11-30")).toBe(false);
+    expect(result.has("2027-01-01")).toBe(false);
   });
 });
 

@@ -7,6 +7,7 @@ import { RangeCalendarInline } from "~/components/ui/date-range-picker";
 import { Modal } from "~/components/ui/modal";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
 import { useToast } from "~/contexts/ToastContext";
+import { dispatchAbsencesRefresh } from "~/lib/absence-helpers";
 import { createLogger } from "~/lib/logger";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import type { StaffAbsence } from "~/lib/time-tracking-helpers";
@@ -63,6 +64,7 @@ const logger = createLogger({ component: "VacationRequestModal" });
 
 const BLOCKING_VACATION_STATUSES = new Set([
   "requested",
+  "question",
   "approved",
   "reported",
 ]);
@@ -96,6 +98,8 @@ function vacationStatusLabel(status: string): string {
   switch (status) {
     case "requested":
       return "beantragt";
+    case "question":
+      return "Rückfrage";
     case "approved":
       return "genehmigt";
     case "reported":
@@ -204,6 +208,12 @@ export function VacationRequestModal({
           from: parseLocalDate(v.dateStart),
           to: parseLocalDate(v.dateEnd),
         })),
+      questionVacation: blockingVacations
+        .filter((v) => v.status === "question")
+        .map((v) => ({
+          from: parseLocalDate(v.dateStart),
+          to: parseLocalDate(v.dateEnd),
+        })),
       approvedVacation: blockingVacations
         .filter((v) => v.status === "approved" || v.status === "reported")
         .map((v) => ({
@@ -278,6 +288,7 @@ export function VacationRequestModal({
         note: note.trim() || undefined,
       });
       toast.success("Urlaubsantrag gesendet.");
+      dispatchAbsencesRefresh();
       onSubmitted();
       handleReset();
       onClose();
@@ -385,6 +396,8 @@ export function VacationRequestModal({
               modifiersClassNames={{
                 requestedVacation:
                   "[&>button]:!bg-amber-50 [&>button]:!text-amber-700 [&>button]:!ring-1 [&>button]:!ring-amber-200",
+                questionVacation:
+                  "[&>button]:!bg-[#7C3AED]/15 [&>button]:!text-[#7C3AED] [&>button]:!ring-1 [&>button]:!ring-[#7C3AED]/40",
                 approvedVacation:
                   "[&>button]:!bg-[#83CD2D]/15 [&>button]:!text-[#4a7a15] [&>button]:!ring-1 [&>button]:!ring-[#83CD2D]/40",
               }}
@@ -395,6 +408,10 @@ export function VacationRequestModal({
               <span className="inline-flex items-center gap-1">
                 <span className="h-2 w-2 rounded-full bg-amber-200" />
                 Beantragt
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-[#7C3AED]/50" />
+                {"Rückfrage"}
               </span>
               <span className="inline-flex items-center gap-1">
                 <span className="h-2 w-2 rounded-full bg-[#83CD2D]/50" />

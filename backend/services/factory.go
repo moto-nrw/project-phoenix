@@ -40,6 +40,7 @@ import (
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	iotcheckin "github.com/moto-nrw/project-phoenix/services/iot/checkin"
+	staffclock "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/mealplan"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
@@ -62,6 +63,8 @@ type Factory struct {
 	ActiveCleanup            active.CleanupService
 	WorkSession              active.WorkSessionService
 	WorkTimeMonth            active.WorkTimeMonthService
+	Holidays                 schedule.HolidayService
+	ClosingDays              schedule.ClosingDayService
 	StaffAbsence             active.StaffAbsenceService
 	Activities               activities.ActivityService
 	Education                education.Service
@@ -76,6 +79,7 @@ type Factory struct {
 	Suggestions              suggestions.Service
 	IoT                      iot.Service
 	Checkin                  *iotcheckin.CheckinService
+	StaffClock               *staffclock.Service
 	Settings                 config.SettingsService
 	Schedule                 schedule.Service
 	StaffShifts              schedule.StaffShiftService
@@ -337,6 +341,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence, repos.GroupSupervisor, repos.Staff, repos.StaffWorkSchedule, repos.WorkTimeModel, settingsService, activeLogger)
 	// Planned-shift lookups for the auto-checkout job (#1798).
 	workSessionService.SetStaffShiftRepo(repos.StaffShift)
+	staffClockService := staffclock.NewService(usersService, repos.RFIDCard, workSessionService)
 
 	// Monatskarte read model (#1842) — everything computed on read, the
 	// Übertrag is live.
@@ -352,8 +357,44 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		activeLogger,
 	)
 
+	// Public holidays per Bundesland (#1418 3a): computed from the
+	// operations.federal_state setting, zero the Soll of their day.
+	holidayService := schedule.NewHolidayService(settingsService, logger.With("service", "holidays"))
+	// Tenant closing days (#1418 3b) share the Soll=0 semantics of public
+	// holidays. The Soll consumers get the UNION of both via the composite
+	// reader; Factory.Holidays stays the plain holiday service so the
+	// /holidays endpoint keeps reporting only real public holidays.
+	closingDayService := schedule.NewClosingDayService(repos.ClosingDay)
+	nonWorkingDayService := schedule.NewNonWorkingDayResolver(holidayService, closingDayService)
+	workTimeMonthService.SetHolidayReader(nonWorkingDayService)
+	// The session service's weekly summaries reduce their Soll by holidays
+	// too. The setter is not part of the WorkSessionService interface (it
+	// would break external mocks), hence the assertion.
+	if holidayAware, ok := workSessionService.(interface {
+		SetHolidayReader(active.HolidayDatesReader)
+	}); ok {
+		holidayAware.SetHolidayReader(nonWorkingDayService)
+	}
+
 	// Initialize staff absence service
 	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit)
+
+	// Absence email notifications (#1419 4d). Setter injection keeps the
+	// constructor stable and unit tests email-free (mirrors SetShiftPlanSyncer);
+	// the interface stays untouched via the assertion (like SetHolidayReader).
+	if emailAware, ok := staffAbsenceService.(interface {
+		SetAbsenceEmailDeps(active.AbsenceEmailDeps)
+	}); ok {
+		emailAware.SetAbsenceEmailDeps(active.AbsenceEmailDeps{
+			Settings:    settingsService,
+			Dispatcher:  dispatcher,
+			StaffRepo:   repos.Staff,
+			SchoolRepo:  repos.School,
+			DefaultFrom: defaultFrom,
+			FrontendURL: frontendURL,
+			Logger:      activeLogger,
+		})
+	}
 
 	// Initialize attendance sync service (WP-B10). Implements
 	// active.AttendanceSyncer - called from CreateVisit / EndVisit to mirror
@@ -557,6 +598,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "staff_shift"),
 	)
 	staffShiftService.SetSeriesExceptionRepo(repos.StaffShiftSeriesException)
+	// #1884: shift moves append a shift_moved Änderungsprotokoll entry.
+	staffShiftService.SetDeviationEventRepo(repos.DeviationEvent)
 
 	// Recurring shift series (Dienstplan-Serien, #1889)
 	staffShiftSeriesService := schedule.NewStaffShiftSeriesService(
@@ -587,6 +630,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Staff:         repos.Staff,
 		WorkSchedules: repos.StaffWorkSchedule,
 		WorkModels:    repos.WorkTimeModel,
+		Holidays:      nonWorkingDayService,
 	})
 
 	// Initialize pickup schedule service
@@ -902,6 +946,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			DefaultFrom: defaultFrom,
 		})),
 	)
+	// Calendar appointment (Termine) notifications — one renderer, all four kinds.
+	appointmentRenderer := platform.RendererFunc(calendarService.NewAppointmentRenderer(calendarService.EmailConfig{
+		DefaultFrom: defaultFrom,
+	}))
+	for _, kind := range []string{
+		platformModels.EmailKindAppointmentPublished,
+		platformModels.EmailKindAppointmentUpdated,
+		platformModels.EmailKindAppointmentCancelled,
+		platformModels.EmailKindAppointmentReminder,
+	} {
+		emailTemplateRegistry.Register(kind, appointmentRenderer)
+	}
 	// Enrollment outbox renderers, one per EmailKind sharing the same config.
 	// Per-status decision emails (PR 8 slice 2) keep one renderer per kind so
 	// subjects + templates stay independent and copy updates stay contained.
@@ -1220,6 +1276,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AccountRoleRepo:          repos.AccountRole,
 		RoleRepo:                 repos.Role,
 		OutboxEnqueuer:           emailOutboxService,
+		Broadcaster:              realtimeHub,
 		FrontendURL:              frontendURL,
 		ParentsURL:               parentsURL,
 		Settings:                 settingsService,
@@ -1260,10 +1317,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DataAccessLogRepo:        repos.DataAccessLog,
 		StudentRepo:              repos.Student,
 		StudentGuardianRepo:      repos.StudentGuardian,
+		StudentCompanionRepo:     repos.StudentCompanion,
 		PersonRepo:               repos.Person,
 		EducationGroupRepo:       repos.Group,
 	})
 	enrollmentDecisionApplier, _ := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
+
+	// Created before the change-request service: its multi-child approval takes
+	// the companion lock order through this service.
+	studentService := users.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentCompanion)
 
 	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
 		ChangeRequestRepo:        repos.ChangeRequest,
@@ -1279,6 +1341,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		GuardianProfileRepo:      repos.GuardianProfile,
 		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
 		DecisionService:          enrollmentDecisionApplier,
+		CompanionGraphLocker:     studentService,
 		Settings:                 settingsService,
 		OutboxEnqueuer:           emailOutboxService,
 		FrontendURL:              frontendURL,
@@ -1302,8 +1365,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                       db,
 		Logger:                   logger.With("service", "enrollment-rollover"),
 	})
-
-	studentService := users.NewStudentService(repos.Student, repos.PrivacyConsent)
 
 	// Chat-pill emitter (#1803): posts non-interactive notification events
 	// into parent-OGS threads on behalf of the request/self-service flows.
@@ -1375,9 +1436,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		InstanceStaffRepo:    repos.InstanceStaff,
 		InstanceStudentRepo:  repos.InstanceStudent,
 		ActivityInstanceRepo: repos.ActivityInstance,
+		StaffShiftRepo:       repos.StaffShift,
+		ShiftTypeRepo:        repos.ShiftType,
 		CareDays:             careDayService,
 		UserContext:          userContextService,
 		DB:                   db,
+		Outbox:               emailOutboxService,
+		SchoolRepo:           repos.School,
+		Settings:             settingsService,
+		AccountRepo:          repos.Account,
+		ParentsURL:           parentsURL,
 	})
 
 	parentService := parent.NewService(parent.ServiceConfig{
@@ -1472,6 +1540,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ActiveCleanup:            activeCleanupService,
 		WorkSession:              workSessionService,
 		WorkTimeMonth:            workTimeMonthService,
+		Holidays:                 holidayService,
+		ClosingDays:              closingDayService,
 		StaffAbsence:             staffAbsenceService,
 		Activities:               activitiesService,
 		Education:                educationService,
@@ -1484,6 +1554,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Suggestions:              suggestionsService,
 		IoT:                      iotService,
 		Checkin:                  checkinService,
+		StaffClock:               staffClockService,
 		Settings:                 settingsService,
 		Schedule:                 scheduleService,
 		StaffShifts:              staffShiftService,

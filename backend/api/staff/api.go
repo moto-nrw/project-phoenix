@@ -100,6 +100,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Get("/absences/pending", rs.listPendingAbsenceRequests)
 		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Post("/absences/{absenceId}/approve", rs.approveAbsence)
 		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Post("/absences/{absenceId}/deny", rs.denyAbsence)
+		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Post("/absences/{absenceId}/question", rs.questionAbsence)
 		r.With(authorize.RequiresAnyPermission(permissions.VacationApprove, permissions.TimeTrackingManage), withTx).Get("/{id}/vacation/quota", rs.getStaffVacationQuota)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/vacation/quota", rs.setStaffVacationQuota)
 		// Audit trail of a single work session, admin-facing. The MA-side

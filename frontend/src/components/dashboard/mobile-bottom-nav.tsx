@@ -20,13 +20,22 @@ import { navigationIcons } from "~/lib/navigation-icons";
 import { operatorPath } from "~/lib/operator-url";
 import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
 import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
+import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import {
   useNFCEnabled,
+  useOpenCareGroupMode,
   usePresenceMode,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
 } from "~/lib/tenant-context";
-import { useTenantAwarePath } from "~/lib/tenant-path";
+import { getSettingValue } from "~/lib/settings-api";
+import {
+  getPlanningMobileActivePaths,
+  isPlanningPageHref,
+  PLANNING_SUB_PAGES,
+  type PlanningPageHref,
+} from "~/lib/planning-navigation";
+import { normalizeTenantPathname, useTenantAwarePath } from "~/lib/tenant-path";
 import {
   Drawer,
   DrawerContent,
@@ -267,6 +276,25 @@ const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
   },
 ];
 
+const PLANNING_ICON_KEYS: Record<
+  PlanningPageHref,
+  keyof typeof navigationIcons
+> = {
+  "/betreuungsplan": "betreuungsplan",
+  "/dienstplan": "dienstplan",
+  "/vertretung": "vertretung",
+  "/calendar-periods": "calendar",
+};
+
+const PLANNING_ADDITIONAL_ITEMS: AdditionalNavItem[] =
+  PLANNING_SUB_PAGES.filter((page) => page.showInMobileNav).map((page) => ({
+    href: page.href,
+    label: page.label,
+    iconKey: PLANNING_ICON_KEYS[page.href],
+    requiresAdmin: true,
+    activePaths: getPlanningMobileActivePaths(page.href),
+  }));
+
 const additionalNavItems: AdditionalNavItem[] = [
   {
     href: "/activities",
@@ -284,36 +312,16 @@ const additionalNavItems: AdditionalNavItem[] = [
   },
   { href: "/rooms", label: "Räume", iconKey: "rooms", alwaysShow: true },
   {
-    // "Übergaben" statt "Vertretungen", damit nur der neue Planungsbereich
-    // "Vertretung" heißt (docs/planung-redesign/docs/03).
+    // Alt-Bereich für temporären Gruppen-Datenzugriff (#1940) — nur bei
+    // festen Gruppen sichtbar (Filter unten).
     href: "/substitutions",
-    label: "Übergaben",
+    label: "Gruppenzugriff",
     iconKey: "substitutions",
     requiresAdmin: true,
   },
-  // Die drei Planungsbereiche als flache Einträge im "Mehr"-Drawer
-  // (Planung-Redesign, docs/planung-redesign/docs/03 Abschnitt 6).
-  {
-    href: "/betreuungsplan",
-    label: "Betreuungsplan",
-    iconKey: "betreuungsplan",
-    requiresAdmin: true,
-    activePaths: ["/betreuungsplan", "/calendar-periods", "/timetables"],
-  },
-  {
-    href: "/dienstplan",
-    label: "Dienstplan",
-    iconKey: "dienstplan",
-    requiresAdmin: true,
-    activePaths: ["/dienstplan", "/staff/dienstplan"],
-  },
-  {
-    // /vertretungsplan matcht bereits per Präfix, kein activePaths nötig.
-    href: "/vertretung",
-    label: "Vertretung",
-    iconKey: "vertretung",
-    requiresAdmin: true,
-  },
+  // Planning is flattened in the mobile drawer. The shared catalog omits the
+  // desktop-only calendar-period editor and supplies all legacy active paths.
+  ...PLANNING_ADDITIONAL_ITEMS,
   {
     href: "/database",
     label: "Datenverwaltung",
@@ -413,13 +421,11 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // subdomain mode, so without this guard a tenant whose slug is a real route
   // (e.g. "messages") visiting messages.<domain>/messages would be stripped to
   // "/" and mis-highlight Home. No-op in subdomain/operator/parent mode.
-  const inPathRouting = routingMode === "path";
-  const pathname =
-    inPathRouting && tenantSlug && rawPathname.startsWith(`/${tenantSlug}/`)
-      ? rawPathname.slice(tenantSlug.length + 1)
-      : inPathRouting && tenantSlug && rawPathname === `/${tenantSlug}`
-        ? "/"
-        : rawPathname;
+  const pathname = normalizeTenantPathname(
+    rawPathname,
+    tenantSlug,
+    routingMode,
+  );
   // Prefixes tenant-scoped hrefs with the slug in path-routing mode (no-op in
   // subdomain/operator/parent mode). Used for the Eltern hub link below.
   const tenantPath = useTenantAwarePath();
@@ -586,6 +592,24 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const hasGroupSupervision = !isLoadingGroups && hasGroups;
   const hasRoomSupervision = !isLoadingSupervision && isSupervising;
 
+  // Gruppenzugriff (#1940) ist nur bei festen Gruppen sinnvoll.
+  const openCareGroupMode = useOpenCareGroupMode();
+  // Planung-Einträge (#1946) hängen an timetable.enabled. Gleiches
+  // settingsSchema-Lesemuster wie die Desktop-Sidebar; `!== false`, damit die
+  // Einträge während des Schema-Ladens nicht kurz verschwinden. Das Ergebnis
+  // gated nur die admin-only Planungs-Einträge, darum feuert der Request auch
+  // nur für Admins.
+  const { data: settingsSchema } = useSettingsSchema(
+    mode === "teacher" && userIsAdmin,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      shouldRetryOnError: false,
+    },
+  );
+  const timetableEnabled =
+    getSettingValue(settingsSchema, "timetable.enabled") !== false;
+
   // Filter additional navigation items based on permissions
   const filteredMainItemsByMode = filteredMainItems.filter(
     (item) => showActivityNav || !NFC_ONLY_HREFS.has(item.href),
@@ -597,6 +621,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       return false;
     }
     if (!showActivityNav && NFC_ONLY_HREFS.has(item.href)) return false;
+    if (isPlanningPageHref(item.href) && !timetableEnabled) return false;
+    if (item.href === "/substitutions" && openCareGroupMode) return false;
     if (item.alwaysShow) return true;
     if (item.requiresAdmin) return userIsAdmin;
     if (item.requiresPermission) {
@@ -720,7 +746,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   // prefixes its card links. Other entries stay bare — /help is
                   // host-agnostic and must not carry the slug.
                   const href =
-                    item.href === "/eltern" ? tenantPath(item.href) : item.href;
+                    item.href === "/eltern" || isPlanningPageHref(item.href)
+                      ? tenantPath(item.href)
+                      : item.href;
 
                   // Coming soon items are not clickable
                   if (item.comingSoon) {

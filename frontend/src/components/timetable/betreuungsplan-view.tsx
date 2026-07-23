@@ -10,7 +10,7 @@
  * URL-Vokabular (Planung-Redesign, docs/planung-redesign/docs/06-betreuungsplan.md
  * Abschnitt 2.1): genau `d` (Berlin-Kalendertag; die angezeigte Woche/der Monat
  * ist die Woche/der Monat, die/den `d` enthält), `view` ("woche" | "monat" |
- * "serien") und `block` (Instanz-ID des geöffneten InstanceDetailSlideOver).
+ * "serien") und `block` (Instanz-ID des geöffneten InstanceDetailModal).
  * Ungültige Werte fallen still auf die Defaults zurück (heute, "woche"). Die
  * sieben Alt-Parameter (week/month/year/instance/day/period/Alt-view) entfallen
  * ersatzlos; die Jahresansicht ist nicht mehr verlinkbar. Der Dichte-Umschalter
@@ -30,6 +30,7 @@ import { useSession } from "next-auth/react";
 import { CalendarOff } from "lucide-react";
 
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
+import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OriginChip } from "~/components/ui/origin-chip";
@@ -37,7 +38,6 @@ import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
-import { PageHeader } from "~/components/ui/page-header/PageHeader";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useToast } from "~/contexts/ToastContext";
@@ -45,9 +45,10 @@ import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { ConflictWarningsBanner } from "~/components/timetable/conflict-warnings-banner";
 import { GapJumpList } from "~/components/timetable/gap-jump-list";
 import {
-  InstanceDetailSlideOver,
+  InstanceDetailModal,
   type LifecycleAction,
-} from "~/components/timetable/instance-detail-slide-over";
+} from "~/components/timetable/instance-detail-modal";
+import { StaffPoolSlideOver } from "~/components/timetable/staff-pool-slide-over";
 import { TimetableAddMenu } from "~/components/timetable/timetable-add-menu";
 import { MonthPlannerGrid } from "~/components/timetable/month-planner-grid";
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
@@ -58,14 +59,12 @@ import { timetableSurface } from "~/components/timetable/timetable-style";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
 import { hasPermission } from "~/lib/auth-utils";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
+import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import {
-  SETTINGS_SCHEMA_SWR_KEY,
-  fetchSettingsSchema,
-} from "~/lib/settings-api";
+import { getSettingValue } from "~/lib/settings-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import { fetchStudents } from "~/lib/student-api";
 import { staffService } from "~/lib/staff-api";
@@ -174,29 +173,6 @@ function schoolYearPeriodDefaults(anchor: Date): {
   };
 }
 
-/**
- * Rendered when the tenant setting `timetable.enabled` resolves to false.
- * The sidebar already hides the nav entry for disabled tenants; this guard
- * covers direct navigation without redirecting (no redirect loops).
- */
-function TimetableDisabledState() {
-  return (
-    <div className="flex flex-col gap-4" data-testid="timetable-disabled-state">
-      <PageHeader title="Betreuungsplan" />
-      <div className={`${timetableSurface} p-10 text-center`}>
-        <CalendarOff className="mx-auto h-10 w-10 text-gray-300" aria-hidden />
-        <h2 className="mt-4 text-base font-semibold text-gray-900">
-          Betreuungsplan ist deaktiviert
-        </h2>
-        <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-gray-600">
-          Der Betreuungsplan ist für diese Schule ausgeschaltet. Er kann in den
-          Einstellungen unter „Betrieb“ wieder aktiviert werden.
-        </p>
-      </div>
-    </div>
-  );
-}
-
 function TimetablesContent() {
   const { params, updateParams: updateUrlParams } = useUrlParams(
     ALLOWED_URL_PARAMS,
@@ -207,6 +183,7 @@ function TimetablesContent() {
     hasPermission(session, "schedules:read") &&
     hasPermission(session, "time_tracking:manage") &&
     hasPermission(session, "users:read");
+  const canManageSchedules = hasPermission(session, "schedules:manage");
   const toast = useToast();
   const tenantMutate = useTenantMutate();
   const tenantPath = useTenantAwarePath();
@@ -225,6 +202,12 @@ function TimetablesContent() {
   const todayISO = useMemo(() => berlinTodayISO(), []);
 
   const [eventModalOpen, setEventModalOpen] = useState(false);
+  // Personalpool (#1884): Zielblock, für den der Pool-SlideOver offen ist.
+  // Solange er offen ist, wird das Detail-Modal suspendiert (Kit-Modal
+  // z-9999 würde den SlideOver sonst verdecken; Muster aus PR #1962).
+  const [poolInstance, setPoolInstance] = useState<EnrichedInstance | null>(
+    null,
+  );
   const [eventDefaultRepeat, setEventDefaultRepeat] = useState<
     "none" | "weekly"
   >("none");
@@ -398,16 +381,13 @@ function TimetablesContent() {
   // (settings schema -> timetable.enabled). fetchSettingsSchema returns
   // null when the user cannot read settings; the page then renders
   // normally (graceful default, mirroring the sidebar).
-  const { data: settingsSchema, isLoading: settingsSchemaLoading } = useSWRAuth(
-    status === "authenticated" ? SETTINGS_SCHEMA_SWR_KEY : null,
-    fetchSettingsSchema,
-    { revalidateOnFocus: false, revalidateOnReconnect: false },
-  );
+  const { data: settingsSchema, isLoading: settingsSchemaLoading } =
+    useSettingsSchema(status === "authenticated", {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    });
   const timetableDisabled =
-    settingsSchema?.tabs
-      .flatMap((tab) => tab.categories)
-      .flatMap((category) => category.items)
-      .find((item) => item.key === "timetable.enabled")?.value === false;
+    getSettingValue(settingsSchema, "timetable.enabled") === false;
 
   // SWR retries (errorRetryCount=3) produce a fresh Error per attempt. Keying
   // the effect on the message string keeps the toast from firing once per
@@ -931,7 +911,14 @@ function TimetablesContent() {
   }
 
   if (timetableDisabled) {
-    return <TimetableDisabledState />;
+    return (
+      <PlanningDisabledState
+        pageTitle="Betreuungsplan"
+        heading="Betreuungsplan ist deaktiviert"
+        description="Der Betreuungsplan ist für diese Schule ausgeschaltet. Er kann in den Einstellungen unter „Betrieb“ wieder aktiviert werden."
+        testId="timetable-disabled-state"
+      />
+    );
   }
 
   const todayDate = parseISODate(todayISO);
@@ -1138,7 +1125,7 @@ function TimetablesContent() {
         </>
       )}
 
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={selectedInstance}
         onClose={() => handleSelectInstance(null)}
         onLifecycleAction={handleLifecycle}
@@ -1169,6 +1156,20 @@ function TimetablesContent() {
         studentNames={studentNames}
         onAttendancePatch={handleAttendancePatch}
         editDeferred={false}
+        suspended={eventModalOpen || poolInstance !== null}
+        onOpenPool={setPoolInstance}
+        canManageStaffPool={canManageSchedules}
+      />
+
+      <StaffPoolSlideOver
+        open={poolInstance !== null}
+        instance={poolInstance}
+        canManage={canManageSchedules}
+        onClose={() => setPoolInstance(null)}
+        onMoved={() => {
+          void tenantMutate(swrKey);
+          void tenantMutate(gapsSWRKey);
+        }}
       />
 
       <TimetableEventModal

@@ -7,7 +7,7 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { InstanceDetailSlideOver } from "./instance-detail-slide-over";
+import { InstanceDetailModal } from "./instance-detail-modal";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import {
   useAttendanceWebEnabled,
@@ -89,7 +89,7 @@ async function expectNoUnhandledRejection(
   }
 }
 
-describe("InstanceDetailSlideOver", () => {
+describe("InstanceDetailModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(useAttendanceWebEnabled).mockReturnValue(true);
@@ -98,7 +98,7 @@ describe("InstanceDetailSlideOver", () => {
 
   it("renders nothing without a selected instance", () => {
     const { container } = render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={null}
         onClose={vi.fn()}
         onLifecycleAction={vi.fn()}
@@ -115,7 +115,7 @@ describe("InstanceDetailSlideOver", () => {
     const onAttendancePatch = vi.fn().mockResolvedValue(undefined);
 
     render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance()}
         onClose={vi.fn()}
         onLifecycleAction={onLifecycleAction}
@@ -173,7 +173,7 @@ describe("InstanceDetailSlideOver", () => {
   // write attendance for a day the child is not in care at all.
   it("groups children who are not in care today and drops their actions", () => {
     render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({
           students: [
             { studentId: "21", status: "expected", careDayStatus: "scheduled" },
@@ -224,7 +224,7 @@ describe("InstanceDetailSlideOver", () => {
   // absence from care that was never owed (#1747).
   it("groups a status-day absence on an unbooked day as not scheduled", () => {
     render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({
           students: [
             {
@@ -265,7 +265,7 @@ describe("InstanceDetailSlideOver", () => {
 
   it("marks spontaneous instances in the detail header", () => {
     render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({ isSpontaneous: true })}
         onClose={vi.fn()}
         onLifecycleAction={vi.fn()}
@@ -278,7 +278,7 @@ describe("InstanceDetailSlideOver", () => {
   it("completes an active instance", async () => {
     const onLifecycleAction = vi.fn().mockResolvedValue(undefined);
     render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({ status: "active", isLive: true })}
         onClose={vi.fn()}
         onLifecycleAction={onLifecycleAction}
@@ -299,7 +299,7 @@ describe("InstanceDetailSlideOver", () => {
   it("cancels an active instance", async () => {
     const onLifecycleAction = vi.fn().mockResolvedValue(undefined);
     render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({ status: "active", isLive: true })}
         onClose={vi.fn()}
         onLifecycleAction={onLifecycleAction}
@@ -326,7 +326,7 @@ describe("InstanceDetailSlideOver", () => {
     const onAttendancePatch = vi.fn().mockResolvedValue(undefined);
 
     render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({
           status: "active",
           isLive: true,
@@ -378,7 +378,7 @@ describe("InstanceDetailSlideOver", () => {
     const onAttendancePatch = vi.fn().mockResolvedValue(undefined);
 
     render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({ status: "active", isLive: true })}
         onClose={vi.fn()}
         onLifecycleAction={vi.fn()}
@@ -425,7 +425,7 @@ describe("InstanceDetailSlideOver", () => {
     const onAttendancePatch = vi.fn();
 
     render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({ status: "active", isLive: true })}
         onClose={vi.fn()}
         onLifecycleAction={vi.fn()}
@@ -453,7 +453,7 @@ describe("InstanceDetailSlideOver", () => {
       .fn()
       .mockRejectedValue(new Error("already reported lifecycle failure"));
     render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({ status: "active", isLive: true })}
         onClose={vi.fn()}
         onLifecycleAction={onLifecycleAction}
@@ -478,7 +478,7 @@ describe("InstanceDetailSlideOver", () => {
       .fn()
       .mockRejectedValue(new Error("already reported attendance failure"));
     render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({ status: "active", isLive: true })}
         onClose={vi.fn()}
         onLifecycleAction={vi.fn()}
@@ -502,7 +502,7 @@ describe("InstanceDetailSlideOver", () => {
     const onDeleteCancelled = vi.fn().mockResolvedValue(undefined);
 
     render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({
           status: "cancelled",
           students: [],
@@ -532,7 +532,7 @@ describe("InstanceDetailSlideOver", () => {
     const onDeleteFollowing = vi.fn().mockResolvedValue(undefined);
 
     render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({ activityGroupId: "7", isSpontaneous: false })}
         onClose={vi.fn()}
         onLifecycleAction={vi.fn()}
@@ -561,7 +561,7 @@ describe("InstanceDetailSlideOver", () => {
       .mockRejectedValue(new Error("already reported delete failure"));
 
     render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({ activityGroupId: "7", isSpontaneous: false })}
         onClose={vi.fn()}
         onLifecycleAction={vi.fn()}
@@ -591,7 +591,7 @@ describe("InstanceDetailSlideOver", () => {
     const onDeleteFollowing = vi.fn().mockResolvedValue(undefined);
 
     render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({ activityGroupId: "7", isSpontaneous: true })}
         onClose={vi.fn()}
         onLifecycleAction={vi.fn()}
@@ -619,10 +619,10 @@ describe("InstanceDetailSlideOver", () => {
     expect(onDeleteFollowing).not.toHaveBeenCalled();
   });
 
-  it("renders completed, empty, and detailed attendance states", () => {
+  it("renders completed, empty, and detailed attendance states", async () => {
     const onClose = vi.fn();
     const { rerender } = render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({
           status: "completed",
           staff: [],
@@ -650,10 +650,11 @@ describe("InstanceDetailSlideOver", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Raum #3")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Schließen" }));
-    expect(onClose).toHaveBeenCalledOnce();
+    // Das Kit-Modal ruft onClose erst nach der Exit-Animation (250ms) auf.
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
 
     rerender(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({
           status: "completed",
           students: [
@@ -684,9 +685,25 @@ describe("InstanceDetailSlideOver", () => {
     expect(screen.getByText(/Sonstiges/)).toBeInTheDocument();
   });
 
+  it("hides itself while another overlay is stacked on top", () => {
+    const onClose = vi.fn();
+    render(
+      <InstanceDetailModal
+        instance={instance({})}
+        onClose={onClose}
+        onLifecycleAction={vi.fn()}
+        suspended
+      />,
+    );
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("shows the Regeltermin OriginChip only when the instance stems from one", () => {
     const { rerender } = render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({
           activityGroupId: "9",
           date: "2026-05-04", // Monday
@@ -703,7 +720,7 @@ describe("InstanceDetailSlideOver", () => {
     ).toBeInTheDocument();
 
     rerender(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({ activityGroupId: undefined })}
         onClose={vi.fn()}
         onLifecycleAction={vi.fn()}
@@ -715,7 +732,7 @@ describe("InstanceDetailSlideOver", () => {
 
   it("labels the substitution jump action 'Vertretung bearbeiten' and links to /vertretung", () => {
     render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({
           status: "planned",
           staff: [
@@ -743,7 +760,7 @@ describe("InstanceDetailSlideOver", () => {
     const onDeleteCancelled = vi.fn();
 
     render(
-      <InstanceDetailSlideOver
+      <InstanceDetailModal
         instance={instance({ status: "cancelled" })}
         onClose={vi.fn()}
         onLifecycleAction={vi.fn()}
@@ -759,5 +776,90 @@ describe("InstanceDetailSlideOver", () => {
       screen.queryByText("Abgesagten Termin löschen?"),
     ).not.toBeInTheDocument();
     expect(onDeleteCancelled).not.toHaveBeenCalled();
+  });
+});
+
+describe("Personalpool-Affordanz (#1884)", () => {
+  it("zeigt 'Person hinzuziehen' für einen zukünftigen geplanten Block", () => {
+    const onOpenPool = vi.fn();
+    render(
+      <InstanceDetailModal
+        instance={instance({ date: "2099-05-04" })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onOpenPool={onOpenPool}
+        canManageStaffPool
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: /Person hinzuziehen/ });
+    fireEvent.click(button);
+    expect(onOpenPool).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "42" }),
+    );
+  });
+
+  it("zeigt einen neutralen Nur-Lese-Einstieg ohne Verwaltungsrecht", () => {
+    const onOpenPool = vi.fn();
+    render(
+      <InstanceDetailModal
+        instance={instance({ date: "2099-05-04" })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onOpenPool={onOpenPool}
+      />,
+    );
+
+    const button = screen.getByRole("button", {
+      name: /Personalpool ansehen/,
+    });
+    fireEvent.click(button);
+    expect(onOpenPool).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "42" }),
+    );
+    expect(
+      screen.queryByRole("button", { name: /Person hinzuziehen/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("versteckt die Affordanz für vergangene Blöcke", () => {
+    render(
+      <InstanceDetailModal
+        instance={instance({ date: "2020-05-04" })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onOpenPool={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: /Person hinzuziehen/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("versteckt die Affordanz für abgeschlossene Blöcke", () => {
+    render(
+      <InstanceDetailModal
+        instance={instance({ date: "2099-05-04", status: "completed" })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onOpenPool={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: /Person hinzuziehen/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("versteckt die Affordanz ohne onOpenPool-Handler", () => {
+    render(
+      <InstanceDetailModal
+        instance={instance({ date: "2099-05-04" })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: /Person hinzuziehen/ }),
+    ).not.toBeInTheDocument();
   });
 });

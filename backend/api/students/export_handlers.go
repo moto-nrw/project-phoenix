@@ -133,6 +133,10 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	columns := listexport.ResolveColumns(req.Columns, req.Preset)
+	if err := rs.enrichExportCompanions(r, responses, columns, accessCtx); err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 	enrollmentSummaries, err := rs.loadActiveEnrollmentSummaries(r, collectResponseIDs(responses), planningDate, columns)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
@@ -165,6 +169,25 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(file.Data)
+}
+
+// enrichExportCompanions loads the structured "mit wem" names, but only for an
+// export that actually renders them.
+//
+// Only the departure column reads DepartureCompanions, so any other column would
+// pay for the links of every exported child, their far-end students and the
+// authorization behind them and then throw the result away. At the export cap of
+// 5.000 rows that is the most expensive lookup in this handler, so it is skipped
+// outright rather than merely tolerated when it fails.
+//
+// Which is also why the error is fatal to the caller: it now only runs where a
+// missing name makes the document wrong rather than merely less detailed — see
+// enrichWithCompanionLinks.
+func (rs *Resource) enrichExportCompanions(r *http.Request, responses []StudentResponse, columns []listexport.Column, accessCtx *studentAccessContext) error {
+	if !exportHasColumn(columns, listexport.ColumnDeparture) {
+		return nil
+	}
+	return rs.enrichWithCompanionLinks(r.Context(), responses, accessCtx)
 }
 
 // resolveExportPlanningDate resolves the export's planning day and rejects the
@@ -680,13 +703,37 @@ func sentenceCase(value string) string {
 	return string(unicode.ToUpper(r)) + value[size:]
 }
 
+// exportHasColumn reports whether the resolved column set carries the given
+// column.
+func exportHasColumn(columns []listexport.Column, id listexport.ColumnID) bool {
+	for _, column := range columns {
+		if column.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
 // departureExportCell renders the per-weekday departure plan and appends the
-// coupled "mit wem" companion note whenever the plan allows the accompanied
-// ("Mit anderem Kind") mode, so offline pickup/weekly lists carry the
-// actionable "with whom" detail staff need to act on (#1694).
+// coupled "mit wem" detail whenever the plan allows the accompanied ("Mit
+// anderem Kind") mode, so offline pickup/weekly lists carry the actionable
+// "with whom" information staff need to act on (#1694).
+//
+// Both sources of that detail are rendered, structured links first: since links
+// satisfy the accompanied-requires-a-note rule per weekday, a child that walks
+// in a Laufgemeinschaft legitimately has NO note at all, and a cell built from
+// the note alone would print "Mit anderem Kind" and leave the paper list — the
+// one staff use when the app is not at hand — without a single name.
 func departureExportCell(student StudentResponse) string {
 	summary := departureSummary(student.AllowedDepartureModes, student.DepartureDays)
-	if student.DepartureCompanionNote == "" {
+	details := make([]string, 0, 2)
+	if companions := users.FormatCompanionLinks(student.DepartureCompanions); companions != "" {
+		details = append(details, companions)
+	}
+	if student.DepartureCompanionNote != "" {
+		details = append(details, student.DepartureCompanionNote)
+	}
+	if len(details) == 0 {
 		return summary
 	}
 	allowed := student.AllowedDepartureModes.Normalize()
@@ -696,7 +743,7 @@ func departureExportCell(student StudentResponse) string {
 	if !allowed.HasMode(users.DepartureAccompanied) {
 		return summary
 	}
-	return summary + " (mit: " + student.DepartureCompanionNote + ")"
+	return summary + " (mit: " + strings.Join(details, "; ") + ")"
 }
 
 // departureSummary renders the per-weekday departure plan for the export, e.g.
