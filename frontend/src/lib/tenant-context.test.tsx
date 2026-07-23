@@ -301,6 +301,34 @@ describe("TenantProvider — cross-tab settings sync", () => {
     });
   });
 
+  it("ignores refetched values for a different subdomain", async () => {
+    mockResolveTenant.mockResolvedValue({
+      ...mockTenant,
+      subdomain: "other-school",
+      studentPhotosEnabled: true,
+    });
+
+    const observed: { value: TenantInfo | null } = { value: null };
+    function Probe() {
+      observed.value = useTenantSafe()?.tenant ?? null;
+      return null;
+    }
+
+    render(
+      <TenantProvider tenantSlug="demo-school" tenant={mockTenant}>
+        <Probe />
+      </TenantProvider>,
+    );
+
+    await act(async () => {
+      for (const handler of broadcastHandlers) handler();
+      await Promise.resolve();
+    });
+
+    expect(mockResolveTenant).toHaveBeenCalledWith("demo-school");
+    expect(observed.value).toEqual(mockTenant);
+  });
+
   it("ignores stale resolveTenant responses that finish out of order", async () => {
     // Bursting refetches (visibilitychange + SSE + BroadcastChannel
     // landing in the same tick) used to last-writer-wins on whichever
