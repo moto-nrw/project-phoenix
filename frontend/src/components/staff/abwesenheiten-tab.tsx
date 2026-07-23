@@ -18,21 +18,23 @@ import {
   SickReportModal,
   type SickReportStaff,
 } from "~/components/staff/sick-report-modal";
+import { AbsenceRequestRow } from "~/components/staff/absence-request-row";
 import {
-  ABSENCE_TYPE_COLOR,
+  ABSENCE_TYPE_HEX,
   ABSENCE_TYPE_LABEL,
   absenceStatusMeta,
   absenceTypeNoun as absenceTypeLabel,
   dayCountFor as sharedDayCountFor,
   dispatchAbsencesRefresh,
-  formatAbsenceDate,
   formatAbsenceRange,
   formatDayCount,
 } from "~/lib/absence-helpers";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
+import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { todayISO } from "~/lib/date-helpers";
@@ -56,10 +58,6 @@ const VACATION_WORKFLOW_STATUSES = new Set([
   "declined",
   "canceled",
 ]);
-
-function formatDate(iso: string): string {
-  return formatAbsenceDate(iso);
-}
 
 function formatRange(start: string, end: string): string {
   return formatAbsenceRange(start, end);
@@ -504,128 +502,31 @@ function PendingAbsences({
   }
 
   return (
-    <div className="rounded-3xl border-2 border-amber-200 bg-amber-50/40 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5">
       <div className="mb-3 flex items-center gap-2">
-        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
-          {rows.length}
-        </span>
-        <h3 className="text-sm font-bold tracking-wide text-amber-900 uppercase">
+        <h3 className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
           Eingehende Anfragen
         </h3>
+        <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+          {rows.length}
+        </span>
       </div>
-      <ul className="space-y-2">
+      <ul className="divide-y divide-gray-100">
         {rows.map((row) => (
-          <PendingAbsenceRow
+          <AbsenceRequestRow
             key={row.id}
             row={row}
-            canEdit={canEdit}
             isBusy={pendingActionId === row.id}
-            onApprove={onApprove}
+            showActions={canEdit}
+            onApprove={(r) => {
+              onApprove(r);
+            }}
             onDeny={onDeny}
             onQuestion={onQuestion}
           />
         ))}
       </ul>
     </div>
-  );
-}
-
-function PendingAbsenceRow({
-  row,
-  canEdit,
-  isBusy,
-  onApprove,
-  onDeny,
-  onQuestion,
-}: {
-  readonly row: StaffAbsenceRow;
-  readonly canEdit: boolean;
-  readonly isBusy: boolean;
-  readonly onApprove: (row: StaffAbsenceRow) => Promise<void>;
-  readonly onDeny: (row: StaffAbsenceRow) => void;
-  readonly onQuestion: (row: StaffAbsenceRow) => void;
-}) {
-  const isQuestioned = row.status === "question";
-  return (
-    <li className="rounded-2xl border border-amber-100 bg-white p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${ABSENCE_TYPE_COLOR[row.absence_type] ?? "bg-gray-100 text-gray-600"}`}
-            >
-              {ABSENCE_TYPE_LABEL[row.absence_type] ?? row.absence_type}
-            </span>
-            {isQuestioned && (
-              <span
-                className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${absenceStatusMeta(row.status).className}`}
-              >
-                {absenceStatusMeta(row.status).label}
-              </span>
-            )}
-            <p className="text-sm font-medium text-gray-800">
-              {formatRange(row.date_start, row.date_end)}
-              {row.half_day && (
-                <span className="ml-2 text-xs text-gray-500">(halber Tag)</span>
-              )}
-              {row.working_days != null && (
-                <span className="ml-2 text-xs text-gray-500">
-                  · {row.working_days} {row.working_days === 1 ? "Tag" : "Tage"}
-                </span>
-              )}
-            </p>
-          </div>
-          {row.note && (
-            <p className="mt-2 text-xs text-gray-600">
-              <span className="font-medium">Notiz:</span> {row.note}
-            </p>
-          )}
-          {isQuestioned && row.decision_note && (
-            <p className="mt-1 text-xs text-purple-700">
-              <span className="font-medium">Rückfrage:</span>{" "}
-              {row.decision_note}
-            </p>
-          )}
-          {row.requested_at && (
-            <p className="mt-1 text-[11px] text-gray-400">
-              Eingegangen {formatDate(row.requested_at)}
-            </p>
-          )}
-        </div>
-        {canEdit && (
-          <div className="flex w-full flex-col gap-2 min-[420px]:w-auto min-[420px]:flex-row">
-            {!isQuestioned && (
-              <button
-                type="button"
-                onClick={() => onQuestion(row)}
-                disabled={isBusy}
-                className="rounded-lg border border-[#7C3AED]/40 px-3 py-1.5 text-xs font-medium text-[#7C3AED] transition-colors hover:bg-[#7C3AED]/5 disabled:opacity-50"
-              >
-                Rückfrage
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => onDeny(row)}
-              disabled={isBusy}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
-            >
-              Ablehnen
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onApprove(row);
-              }}
-              disabled={isBusy}
-              className="rounded-lg bg-[#83CD2D] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#74b827] disabled:opacity-50"
-            >
-              {isBusy ? "…" : "Genehmigen"}
-            </button>
-          </div>
-        )}
-      </div>
-    </li>
   );
 }
 
@@ -718,11 +619,12 @@ function AbsenceRow({
     <li className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${ABSENCE_TYPE_COLOR[row.absence_type] ?? "bg-gray-100 text-gray-600"}`}
-          >
-            {ABSENCE_TYPE_LABEL[row.absence_type] ?? row.absence_type}
-          </span>
+          <StatusDotBadge
+            label={ABSENCE_TYPE_LABEL[row.absence_type] ?? row.absence_type}
+            color={
+              ABSENCE_TYPE_HEX[row.absence_type] ?? LOCATION_COLORS.UNKNOWN
+            }
+          />
           <p className="text-sm font-medium text-gray-800">
             {formatRange(row.date_start, row.date_end)}
             <span className="ml-2 text-xs text-gray-500">
@@ -741,11 +643,7 @@ function AbsenceRow({
         )}
       </div>
       <div className="flex items-center gap-2">
-        <span
-          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${meta.className}`}
-        >
-          {meta.label}
-        </span>
+        <StatusDotBadge label={meta.label} color={meta.color} />
         {canDelete && (
           <button
             type="button"

@@ -8,19 +8,10 @@ import {
   DenyAbsenceModal,
   QuestionAbsenceModal,
 } from "~/components/staff/absence-decision-modals";
-import { Avatar } from "~/components/ui/avatar";
+import { AbsenceRequestRow } from "~/components/staff/absence-request-row";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useToast } from "~/contexts/ToastContext";
-import {
-  ABSENCE_TYPE_COLOR,
-  ABSENCE_TYPE_LABEL,
-  absenceStatusMeta,
-  dayCountFor,
-  dispatchAbsencesRefresh,
-  formatAbsenceDate,
-  formatAbsenceRange,
-  formatDayCount,
-} from "~/lib/absence-helpers";
+import { dispatchAbsencesRefresh } from "~/lib/absence-helpers";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import {
@@ -124,41 +115,22 @@ export function StaffPendingInbox({
     }
   };
 
+  // Nothing pending → no panel at all; the sidebar counter already covers
+  // the "alles bearbeitet" case and the list page stays clean.
   if (rows.length === 0) {
-    return (
-      <div className="mb-6 flex items-center gap-3 rounded-2xl border border-gray-200 bg-white/60 px-5 py-3 text-sm text-gray-500">
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#83CD2D]/15 text-[#4a7a15]">
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M5 13l4 4L19 7"
-            />
-          </svg>
-        </span>
-        <p className="text-sm font-medium text-gray-600">
-          Keine offenen Anfragen
-        </p>
-      </div>
-    );
+    return null;
   }
 
   return (
-    <div className="mb-6 rounded-2xl border-2 border-amber-200 bg-amber-50/40 p-5 shadow-sm">
+    <div className="moto-content-surface mb-6 rounded-2xl border p-4 shadow-sm sm:p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
-            {rows.length}
-          </span>
-          <h2 className="text-sm font-bold tracking-wide text-amber-900 uppercase">
+          <h2 className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
             Eingehende Anfragen
           </h2>
+          <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+            {rows.length}
+          </span>
         </div>
         <Tabs value={typeFilter} onValueChange={setTypeFilter}>
           <TabsList>
@@ -176,110 +148,25 @@ export function StaffPendingInbox({
           Keine offenen Anfragen für diesen Typ.
         </p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="divide-y divide-gray-100">
           {filtered.map((row) => {
             const staffMember = staffById.get(row.staff_id);
             const staffName = staffMember
               ? `${staffMember.firstName} ${staffMember.lastName}`
               : `Mitarbeiter:in #${row.staff_id}`;
-            const isQuestioned = row.status === "question";
-            const isBusy = busyId === row.id;
             return (
-              <li
+              <AbsenceRequestRow
                 key={row.id}
-                className="rounded-2xl border border-amber-100 bg-white p-4"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex min-w-0 flex-1 items-start gap-3">
-                    <Avatar name={staffName} size="md" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-bold text-gray-900">
-                          {staffName}
-                        </p>
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${ABSENCE_TYPE_COLOR[row.absence_type] ?? "bg-gray-100 text-gray-600"}`}
-                        >
-                          {ABSENCE_TYPE_LABEL[row.absence_type] ??
-                            row.absence_type}
-                        </span>
-                        {isQuestioned && (
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${absenceStatusMeta(row.status).className}`}
-                          >
-                            {absenceStatusMeta(row.status).label}
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-0.5 text-sm text-gray-700">
-                        {formatAbsenceRange(row.date_start, row.date_end)}
-                        <span className="ml-2 text-xs text-gray-500">
-                          ·{" "}
-                          {formatDayCount(
-                            dayCountFor({
-                              workingDays: row.working_days,
-                              dateStart: row.date_start,
-                              dateEnd: row.date_end,
-                              halfDay: row.half_day,
-                              startHalfDay: row.start_half_day,
-                              endHalfDay: row.end_half_day,
-                              hasBoundaryFields:
-                                row.start_half_day !== undefined ||
-                                row.end_half_day !== undefined,
-                            }),
-                          )}
-                        </span>
-                      </p>
-                      {row.note && (
-                        <p className="mt-1 text-xs text-gray-600">
-                          <span className="font-medium">Notiz:</span> {row.note}
-                        </p>
-                      )}
-                      {isQuestioned && row.decision_note && (
-                        <p className="mt-1 text-xs text-purple-700">
-                          <span className="font-medium">Rückfrage:</span>{" "}
-                          {row.decision_note}
-                        </p>
-                      )}
-                      {row.requested_at && (
-                        <p className="mt-1 text-[11px] text-gray-400">
-                          Eingegangen {formatAbsenceDate(row.requested_at)}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row">
-                    {!isQuestioned && (
-                      <button
-                        type="button"
-                        onClick={() => setQuestionModal(row)}
-                        disabled={isBusy}
-                        className="rounded-lg border border-[#7C3AED]/40 px-3 py-1.5 text-xs font-medium text-[#7C3AED] transition-colors hover:bg-[#7C3AED]/5 disabled:opacity-50"
-                      >
-                        Rückfrage
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setDenyModal(row)}
-                      disabled={isBusy}
-                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Ablehnen
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleApprove(row);
-                      }}
-                      disabled={isBusy}
-                      className="rounded-lg bg-[#83CD2D] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#74b827] disabled:opacity-50"
-                    >
-                      {isBusy ? "…" : "Genehmigen"}
-                    </button>
-                  </div>
-                </div>
-              </li>
+                row={row}
+                staffName={staffName}
+                isBusy={busyId === row.id}
+                showActions
+                onApprove={(r) => {
+                  handleApprove(r);
+                }}
+                onDeny={setDenyModal}
+                onQuestion={setQuestionModal}
+              />
             );
           })}
         </ul>

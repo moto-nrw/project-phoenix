@@ -2,6 +2,8 @@
 // abwesenheiten-tab.tsx and leave-requests-card.tsx; the /staff inbox is the
 // third consumer, so the copies were consolidated here.
 
+import { LOCATION_COLORS } from "~/lib/location-helper";
+
 export const ABSENCE_TYPE_LABEL: Record<string, string> = {
   vacation: "Urlaub",
   sick: "Krank",
@@ -9,11 +11,13 @@ export const ABSENCE_TYPE_LABEL: Record<string, string> = {
   other: "Sonstige",
 };
 
-export const ABSENCE_TYPE_COLOR: Record<string, string> = {
-  vacation: "bg-[#5080D8]/15 text-[#5080D8]",
-  sick: "bg-[#EAB308]/15 text-amber-700",
-  training: "bg-[#7C3AED]/15 text-purple-700",
-  other: "bg-gray-100 text-gray-600",
+// Brand hex per absence type, rendered via StatusDotBadge (colored dot +
+// tinted label on a gray-50 pill) — never generic Tailwind hues.
+export const ABSENCE_TYPE_HEX: Record<string, string> = {
+  vacation: LOCATION_COLORS.OTHER_ROOM,
+  sick: LOCATION_COLORS.SICK,
+  training: LOCATION_COLORS.EXCUSED,
+  other: LOCATION_COLORS.UNKNOWN,
 };
 
 // Noun form for action labels ("Krankmeldung löschen", not "Krank löschen");
@@ -105,11 +109,12 @@ export function dayCountFor(a: AbsenceDayCountInput): number {
 
 export interface AbsenceStatusMeta {
   readonly label: string;
-  readonly className: string;
+  readonly color: string;
 }
 
-// Status pill meta. `requestedLabel` lets the MA self-service card keep its
-// "Wartet auf Antwort" wording while admin views show the shorter "Wartet".
+// Status pill meta (label + LOCATION_COLORS hex, rendered via StatusDotBadge).
+// `requestedLabel` lets the MA self-service card keep its "Wartet auf
+// Antwort" wording while admin views show the shorter "Wartet".
 export function absenceStatusMeta(
   status: string,
   options?: { readonly requestedLabel?: string },
@@ -118,26 +123,20 @@ export function absenceStatusMeta(
     case "requested":
       return {
         label: options?.requestedLabel ?? "Wartet",
-        className: "bg-amber-50 text-amber-700",
+        color: LOCATION_COLORS.SICK,
       };
     case "question":
-      return {
-        label: "Rückfrage",
-        className: "bg-[#7C3AED]/15 text-purple-700",
-      };
+      return { label: "Rückfrage", color: LOCATION_COLORS.EXCUSED };
     case "approved":
-      return {
-        label: "Genehmigt",
-        className: "bg-[#83CD2D]/15 text-[#4a7a15]",
-      };
+      return { label: "Genehmigt", color: LOCATION_COLORS.GROUP_ROOM };
     case "declined":
-      return { label: "Abgelehnt", className: "bg-red-50 text-red-700" };
+      return { label: "Abgelehnt", color: LOCATION_COLORS.HOME };
     case "canceled":
-      return { label: "Storniert", className: "bg-gray-100 text-gray-500" };
+      return { label: "Storniert", color: LOCATION_COLORS.UNKNOWN };
     case "reported":
-      return { label: "Eingetragen", className: "bg-gray-100 text-gray-700" };
+      return { label: "Eingetragen", color: LOCATION_COLORS.UNKNOWN };
     default:
-      return { label: status, className: "bg-gray-100 text-gray-600" };
+      return { label: status, color: LOCATION_COLORS.UNKNOWN };
   }
 }
 

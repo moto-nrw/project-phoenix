@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 
+import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
+import { Textarea } from "~/components/ui/textarea";
 import { useToast } from "~/contexts/ToastContext";
 import { ABSENCE_TYPE_LABEL, formatAbsenceRange } from "~/lib/absence-helpers";
 import { staffAbsenceService, type StaffAbsenceRow } from "~/lib/staff-api";
@@ -16,8 +18,7 @@ function AbsenceNoteModal({
   noteLabel,
   placeholder,
   submitLabel,
-  submitClassName,
-  focusClassName,
+  submitVariant,
   onSubmitNote,
   successMessage,
   errorMessage,
@@ -29,8 +30,7 @@ function AbsenceNoteModal({
   readonly noteLabel: string;
   readonly placeholder: string;
   readonly submitLabel: string;
-  readonly submitClassName: string;
-  readonly focusClassName: string;
+  readonly submitVariant: "danger" | "primary";
   readonly onSubmitNote: (note: string) => Promise<void>;
   readonly successMessage: string;
   readonly errorMessage: string;
@@ -65,22 +65,24 @@ function AbsenceNoteModal({
       title={title}
       footer={
         <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="md"
             onClick={onClose}
             disabled={submitting}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
           >
             Abbrechen
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant={submitVariant}
+            size="md"
             onClick={handleSubmit}
             disabled={submitting}
-            className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50 ${submitClassName}`}
           >
             {submitting ? "…" : submitLabel}
-          </button>
+          </Button>
         </div>
       }
     >
@@ -95,14 +97,13 @@ function AbsenceNoteModal({
         >
           {noteLabel}
         </label>
-        <textarea
+        <Textarea
           id="decision-note"
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={4}
           maxLength={500}
           placeholder={placeholder}
-          className={`w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none ${focusClassName}`}
         />
         <p className="text-right text-xs text-gray-400">{note.length}/500</p>
       </div>
@@ -126,8 +127,7 @@ export function DenyAbsenceModal({
       noteLabel="Begründung"
       placeholder="Wird der Mitarbeiterin per E-Mail mitgeteilt."
       submitLabel="Ablehnen"
-      submitClassName="bg-red-600 hover:bg-red-700"
-      focusClassName="focus:border-red-500"
+      submitVariant="danger"
       onSubmitNote={(note) => staffAbsenceService.deny(absence.id, note)}
       successMessage="Antrag abgelehnt."
       errorMessage="Ablehnung fehlgeschlagen."
@@ -153,8 +153,7 @@ export function QuestionAbsenceModal({
       noteLabel="Rückfrage"
       placeholder="Wird der Mitarbeiterin per E-Mail mitgeteilt. Sie kann ihre Antwort ergänzen und den Antrag erneut einreichen."
       submitLabel="Rückfrage senden"
-      submitClassName="bg-[#7C3AED] hover:bg-[#6d28d9]"
-      focusClassName="focus:border-[#7C3AED]"
+      submitVariant="primary"
       onSubmitNote={(note) => staffAbsenceService.question(absence.id, note)}
       successMessage="Rückfrage gesendet."
       errorMessage="Rückfrage fehlgeschlagen."

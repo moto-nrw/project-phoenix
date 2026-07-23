@@ -380,7 +380,7 @@ function StaffPageContent() {
                           </span>
                           {(pendingByStaff.get(Number(staffMember.id)) ?? 0) >
                             0 && (
-                            <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                            <span className="inline-flex items-center rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white">
                               {pendingByStaff.get(Number(staffMember.id))}{" "}
                               {pendingByStaff.get(Number(staffMember.id)) === 1
                                 ? "Anfrage"

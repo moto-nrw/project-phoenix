@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { Textarea } from "~/components/ui/textarea";
 import { useToast } from "~/contexts/ToastContext";
 import {
   absenceStatusMeta,
@@ -222,7 +225,7 @@ export function LeaveRequestsCard() {
                           )}
                           {v.decisionNote && (
                             <p
-                              className={`mt-0.5 text-xs ${isQuestioned ? "text-purple-700" : "text-gray-500"}`}
+                              className={`mt-0.5 text-xs ${isQuestioned ? "text-[#7C3AED]" : "text-gray-500"}`}
                             >
                               <span className="font-medium">
                                 {isQuestioned
@@ -234,11 +237,10 @@ export function LeaveRequestsCard() {
                           )}
                         </div>
                         <div className="flex items-center gap-3">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${meta.className}`}
-                          >
-                            {meta.label}
-                          </span>
+                          <StatusDotBadge
+                            label={meta.label}
+                            color={meta.color}
+                          />
                           {cancelable && (
                             <button
                               type="button"
@@ -345,24 +347,24 @@ function ResubmitAbsenceForm({
       >
         Deine Antwort
       </label>
-      <textarea
+      <Textarea
         id={`resubmit-note-${absence.id}`}
         value={note}
         onChange={(e) => setNote(e.target.value)}
         rows={2}
         maxLength={500}
         placeholder="Antwort auf die Rückfrage ergänzen…"
-        className="w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-[#7C3AED] focus:outline-none"
       />
       <div className="mt-2 flex justify-end">
-        <button
+        <Button
           type="button"
+          variant="primary"
+          size="compact"
           onClick={handleSubmit}
           disabled={submitting}
-          className="rounded-full bg-[#7C3AED] px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#6d28d9] disabled:opacity-50"
         >
           {submitting ? "…" : "Antwort senden & erneut einreichen"}
-        </button>
+        </Button>
       </div>
     </div>
   );
