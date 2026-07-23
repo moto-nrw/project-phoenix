@@ -1875,24 +1875,42 @@ func statusLabel(entry mergedEntry, source Source) string {
 }
 
 func countRows(rows []Row, source Source) Counters {
-	counters := Counters{}
+	// A slot list may include several offerings and the same child can hold one
+	// row in each, but these counters are child headcounts — the export subtitle
+	// labels them "geplante Kinder" / "anwesende Kinder", not assignment entries.
+	// Deduplicate by StudentID per category so a child assigned to two offerings
+	// counts once, never twice (#1565 review pass 1 P2). Categories stay
+	// independent (as the per-row logic already was): a child present in one slot
+	// and missing in another appears in both headcounts, matching the row logic.
+	planned := map[int64]struct{}{}
+	present := map[int64]struct{}{}
+	missing := map[int64]struct{}{}
+	excused := map[int64]struct{}{}
+	unplanned := map[int64]struct{}{}
 	for _, row := range rows {
 		if row.Planned {
-			counters.Planned++
+			planned[row.StudentID] = struct{}{}
 		}
 		if row.Present {
-			counters.Present++
+			present[row.StudentID] = struct{}{}
 		}
 		switch {
 		case row.Planned && !row.Present && row.Excused:
 			// Registered sign-off: a justified absence, not an unexplained gap.
-			counters.Excused++
+			excused[row.StudentID] = struct{}{}
 		case row.Planned && !row.Present:
-			counters.Missing++
+			missing[row.StudentID] = struct{}{}
 		}
 		if row.Unplanned {
-			counters.Unplanned++
+			unplanned[row.StudentID] = struct{}{}
 		}
+	}
+	counters := Counters{
+		Planned:   len(planned),
+		Present:   len(present),
+		Missing:   len(missing),
+		Excused:   len(excused),
+		Unplanned: len(unplanned),
 	}
 	// Planned/actual previews intentionally show only their own counter;
 	// the merge counters are a reconciliation concept.
