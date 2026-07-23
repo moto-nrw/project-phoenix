@@ -757,6 +757,13 @@ export default function SlotListsPage() {
   // present/missing rows and counters until an unrelated filter changes (#1565
   // review pass 2).
   const [previewNonce, setPreviewNonce] = useState(0);
+  // A warning that must survive the very next preview refetch. The preview
+  // effect clears any error at the start of its run, so an export-time drift
+  // message set alongside a previewNonce bump would only flash and vanish before
+  // the user could read it. Stash it here instead; the effect consumes it once
+  // the fresh preview has landed, so the user sees the refreshed data AND the
+  // "please review and retry" notice together (#1565 review pass 8).
+  const pendingPreviewWarning = useRef<string | null>(null);
 
   const isPickupBased = target === "pickup_cohort";
   const isManualSlotSelection = target === "slots" && listKind === "";
@@ -1222,9 +1229,17 @@ export default function SlotListsPage() {
     let cancelled = false;
     setIsLoading(true);
     setError(null);
+    // Consume a warning stashed by the export drift path (409 / header-only
+    // drift) exactly once: it is re-applied after the fresh preview lands so it
+    // survives the setError(null) above instead of flashing (#1565 review pass
+    // 8).
+    const carriedWarning = pendingPreviewWarning.current;
+    pendingPreviewWarning.current = null;
     fetchSlotListPreview(request)
       .then((preview) => {
-        if (!cancelled) setResult(preview);
+        if (cancelled) return;
+        setResult(preview);
+        if (carriedWarning) setError(carriedWarning);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -1482,9 +1497,17 @@ export default function SlotListsPage() {
         );
         return;
       }
+      // resultSignature only covers the label, counters and rows. The backend
+      // signature additionally folds in the exported "Enthalten" header summary,
+      // which can drift on its own — e.g. a rowless selected slot is cancelled in
+      // this window, leaving rows/counters identical but the contained-slot
+      // summary changed. Comparing the backend signatures too closes that
+      // header-only window; otherwise the drifted freshPreview.signature would be
+      // handed to the export unchecked (#1565 review pass 8).
       if (
         !result ||
-        resultSignature(freshPreview) !== resultSignature(result)
+        resultSignature(freshPreview) !== resultSignature(result) ||
+        freshPreview.signature !== result.signature
       ) {
         printTarget?.close();
         setIsExporting(false);
@@ -1527,12 +1550,14 @@ export default function SlotListsPage() {
         // 409 = the backend's atomic drift refusal (its rebuild no longer matches
         // the verified signature). Refresh the preview so the user sees the new
         // content and re-checks, rather than silently failing. exportSlotList
-        // already closed the print tab on this rejection.
+        // already closed the print tab on this rejection. Stash the warning so it
+        // survives the preview effect's setError(null) — setting it directly here
+        // would be wiped by the refetch the nonce bump triggers, flashing the
+        // message for a frame or never showing it at all (#1565 review pass 8).
         if (err instanceof SlotListExportError && err.status === 409) {
+          pendingPreviewWarning.current =
+            "Die Liste hat sich seit dem Laden geändert. Bitte prüfen und erneut exportieren.";
           setPreviewNonce((n) => n + 1);
-          setError(
-            "Die Liste hat sich seit dem Laden geändert. Bitte prüfen und erneut exportieren.",
-          );
           return;
         }
         logger.error("slot_list_export_failed", {

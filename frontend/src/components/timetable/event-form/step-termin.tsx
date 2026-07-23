@@ -53,6 +53,10 @@ export interface StepTerminProps {
   expanded: boolean;
   isSeriesFlow: boolean;
   quickPreset: string;
+  // Flipped true the moment the user changes Listenart, so an all/following
+  // series edit writes the new value instead of echoing the fetched template
+  // (#1565 review).
+  listKindTouched: React.RefObject<boolean>;
 }
 
 /**
@@ -72,6 +76,7 @@ export function StepTermin({
   expanded,
   isSeriesFlow,
   quickPreset,
+  listKindTouched,
 }: Readonly<StepTerminProps>) {
   return (
     <>
@@ -170,12 +175,13 @@ export function StepTermin({
           <select
             id="event_list_kind"
             value={form.listKind}
-            onChange={(event) =>
+            onChange={(event) => {
+              listKindTouched.current = true;
               update(
                 "listKind",
                 event.target.value as EventFormState["listKind"],
-              )
-            }
+              );
+            }}
             className={FORM_SELECT_CLASS}
           >
             <option value="">Keine</option>

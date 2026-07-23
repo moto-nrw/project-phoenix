@@ -269,6 +269,14 @@ export function useEventForm({
   // the user explicitly changes Personal; otherwise a title-only split would
   // promote a substitute to planned series staff and erase its deviation role.
   const staffRosterTouched = useRef(false);
+  // An occurrence form starts from the occurrence's OWN Listenart snapshot,
+  // which may differ from the series template's classification (a per-occurrence
+  // override, or a blank that inherits). So the form value alone can't tell an
+  // untouched inherited value from a deliberate series-wide edit. Remember
+  // explicit user intent separately: an all/following edit echoes the fetched
+  // template's Listenart until the user actually changes the field, then it
+  // writes form.listKind to the series (#1565 review).
+  const listKindTouched = useRef(false);
   // Once the user picks Woche A/B explicitly, date or period changes must not
   // override that choice with the recomputed default parity — and the pick
   // survives switching the repeat mode away and back within the same modal
@@ -400,6 +408,7 @@ export function useEventForm({
     setInitialPrimaryStaffIDSnapshot(nextForm.primaryStaffId);
     requiredStaffTouched.current = false;
     staffRosterTouched.current = false;
+    listKindTouched.current = false;
     manualWeekPattern.current = null;
     setForm(nextForm);
     setValidationError(null);
@@ -1065,18 +1074,20 @@ export function useEventForm({
     return {
       name: form.title.trim(),
       type: template.type,
-      // Preserve the series' own Listenart. This builder runs only for
-      // occurrence-scope edits ("Alle Termine" / "Diesen und folgende"). Here
-      // `form.listKind` is the OCCURRENCE's own classification (its snapshot, or
-      // an override the user set in StepTermin) — the "Nur diesen Termin" scope
-      // persists that via instanceBody, but an all/following edit targets the
-      // SERIES, so copying the occurrence value onto the template would clear the
-      // classification (stale empty) or promote a per-occurrence override to
-      // every future occurrence. Echo the fetched template's value instead;
-      // `?? null` sends an explicit clear only
-      // when the template itself has none (a no-op on an already-unset series),
-      // which both the update and split endpoints honor (#1565 review).
-      list_kind: template.listKind ?? null,
+      // This builder runs only for occurrence-scope edits ("Alle Termine" /
+      // "Diesen und folgende"), both of which target the SERIES. `form.listKind`
+      // starts as the OCCURRENCE's own classification (its snapshot, or a
+      // per-occurrence override), so blindly copying it onto the template would
+      // clear the series (stale empty) or promote a per-occurrence override to
+      // every future occurrence. Until the user actually changes Listenart, echo
+      // the fetched template's value (`?? null` clears only an already-unset
+      // series — a no-op). Once they edit it, both scope descriptions promise the
+      // change applies to the series, so write the new value to the series;
+      // `|| null` sends an explicit clear when they pick "Keine". Both the update
+      // and split endpoints honor either (#1565 review).
+      list_kind: listKindTouched.current
+        ? form.listKind || null
+        : (template.listKind ?? null),
       weekdays: weekdays.length > 0 ? weekdays : [1],
       start_time: form.startTime,
       end_time: form.endTime,
@@ -1954,6 +1965,7 @@ export function useEventForm({
     title,
     requiredStaffTouched,
     staffRosterTouched,
+    listKindTouched,
     manualWeekPattern,
   };
 }
