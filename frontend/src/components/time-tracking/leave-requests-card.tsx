@@ -208,7 +208,7 @@ export function LeaveRequestsCard() {
                   return (
                     <li
                       key={v.id}
-                      className={`rounded-xl border px-4 py-3 ${isQuestioned ? "border-[#7C3AED]/30 bg-[#7C3AED]/5" : "border-gray-100 bg-white"}`}
+                      className="rounded-xl border border-gray-100 bg-white px-4 py-3"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="min-w-0">
@@ -224,9 +224,7 @@ export function LeaveRequestsCard() {
                             </p>
                           )}
                           {v.decisionNote && (
-                            <p
-                              className={`mt-0.5 text-xs ${isQuestioned ? "text-[#7C3AED]" : "text-gray-500"}`}
-                            >
+                            <p className="mt-0.5 text-xs text-gray-500">
                               <span className="font-medium">
                                 {isQuestioned
                                   ? "Rückfrage der Leitung:"
@@ -340,7 +338,7 @@ function ResubmitAbsenceForm({
   };
 
   return (
-    <div className="mt-3 border-t border-[#7C3AED]/20 pt-3">
+    <div className="mt-3 border-t border-gray-100 pt-3">
       <label
         htmlFor={`resubmit-note-${absence.id}`}
         className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"

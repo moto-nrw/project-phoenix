@@ -8,7 +8,6 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
     | "secondary"
     | "outline"
     | "outline_danger"
-    | "outline_purple"
     | "danger"
     | "success"
     | "ghost";
@@ -67,9 +66,6 @@ export function Button({
       "bg-transparent text-gray-700 ring-1 ring-gray-300 shadow-md hover:bg-gray-50 hover:ring-gray-400",
     outline_danger:
       "bg-red-50 text-red-600 ring-1 ring-red-300 shadow-md hover:bg-red-100 hover:ring-red-400",
-    // Purple = the "Rückfrage"/query accent (LOCATION_COLORS.EXCUSED #7C3AED).
-    outline_purple:
-      "bg-transparent text-[#7C3AED] ring-1 ring-[#7C3AED]/40 shadow-md hover:bg-[#7C3AED]/5 hover:ring-[#7C3AED]/60",
     danger: "bg-red-600 text-white shadow-md hover:bg-red-700 hover:shadow-lg",
     success:
       "bg-green-600 text-white shadow-md hover:bg-green-700 hover:shadow-lg active:scale-95",

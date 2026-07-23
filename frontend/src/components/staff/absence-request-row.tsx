@@ -86,7 +86,7 @@ export function AbsenceRequestRow({
               </p>
             )}
             {isQuestioned && row.decision_note && (
-              <p className="mt-1 text-xs text-[#7C3AED]">
+              <p className="mt-1 text-xs text-gray-600">
                 <span className="font-medium">Rückfrage:</span>{" "}
                 {row.decision_note}
               </p>
@@ -103,7 +103,7 @@ export function AbsenceRequestRow({
             {!isQuestioned && (
               <Button
                 type="button"
-                variant="outline_purple"
+                variant="outline"
                 size="compact"
                 onClick={() => onQuestion(row)}
                 disabled={isBusy}
@@ -113,7 +113,7 @@ export function AbsenceRequestRow({
             )}
             <Button
               type="button"
-              variant="outline_danger"
+              variant="outline"
               size="compact"
               onClick={() => onDeny(row)}
               disabled={isBusy}
@@ -122,7 +122,7 @@ export function AbsenceRequestRow({
             </Button>
             <Button
               type="button"
-              variant="success"
+              variant="primary"
               size="compact"
               onClick={() => onApprove(row)}
               disabled={isBusy}
