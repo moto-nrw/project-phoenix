@@ -233,9 +233,9 @@ func (req *AcceptInvitationRequest) Bind(_ *http.Request) error {
 }
 
 type AcceptInvitationResponse struct {
-	AccountID  int64  `json:"account_id"`
-	Email      string `json:"email"`
-	TenantSlug string `json:"tenant_slug,omitempty"`
+	AccountID       int64  `json:"account_id"`
+	Email           string `json:"email"`
+	TenantSubdomain string `json:"tenant_subdomain,omitempty"`
 }
 
 // renderAcceptError maps service-layer errors to HTTP responses.
@@ -308,18 +308,18 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		Email:     account.Email,
 	}
 	if rs.SchoolService != nil && rs.db != nil {
-		if slug := rs.lookupTenantSlugForInvitation(r.Context(), token); slug != "" {
-			resp.TenantSlug = slug
+		if subdomain := rs.lookupTenantSubdomainForInvitation(r.Context(), token); subdomain != "" {
+			resp.TenantSubdomain = subdomain
 		}
 	}
 	common.Respond(w, r, http.StatusCreated, resp, "Invitation accepted successfully")
 }
 
-// lookupTenantSlugForInvitation resolves the tenant slug from an invitation
-// token via the invitation service. Best-effort: returns "" on any error so
-// the accept response still succeeds.
-func (rs *Resource) lookupTenantSlugForInvitation(ctx context.Context, token string) string {
-	return rs.InvitationService.GetTenantSlugForToken(ctx, token)
+// lookupTenantSubdomainForInvitation resolves the tenant subdomain from an
+// invitation token via the invitation service. Best-effort: returns "" on any
+// error so the accept response still succeeds.
+func (rs *Resource) lookupTenantSubdomainForInvitation(ctx context.Context, token string) string {
+	return rs.InvitationService.GetTenantSubdomainForToken(ctx, token)
 }
 
 func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Request) {

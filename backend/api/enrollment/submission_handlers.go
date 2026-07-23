@@ -415,7 +415,7 @@ type EditDraftResponse struct {
 	RequestID           string                      `json:"request_id"`
 	StatusToken         string                      `json:"status_token"`
 	TenantID            string                      `json:"tenant_id"`
-	TenantSlug          string                      `json:"tenant_slug"`
+	TenantSubdomain     string                      `json:"tenant_subdomain"`
 	PhaseID             string                      `json:"phase_id"`
 	GuardianFirstName   string                      `json:"guardian_first_name"`
 	GuardianLastName    string                      `json:"guardian_last_name"`
@@ -599,7 +599,9 @@ func toEditDraftResponse(draft *enrollmentService.EditDraft) EditDraftResponse {
 		Children:            toEditDraftChildResponses(draft),
 	}
 	if draft.School != nil {
-		resp.TenantSlug = draft.School.Slug
+		// Tenant resolution (TenantProvider → /auth/tenant/resolve) works by
+		// subdomain, not slug (#1977).
+		resp.TenantSubdomain = draft.School.Subdomain
 	}
 	return resp
 }

@@ -78,7 +78,7 @@ const bootstrap = {
     request_id: "99",
     status_token: "tok",
     tenant_id: "1",
-    tenant_slug: "demo",
+    tenant_subdomain: "demo",
     phase_id: "5",
     guardian_first_name: "Mara",
     guardian_last_name: "Muster",

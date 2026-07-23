@@ -225,7 +225,7 @@ type InvitationServiceMock struct {
 	RevokeInvitationFn                       func(ctx context.Context, invitationID int64, actorAccountID int64) error
 	InvalidatePendingInvitationsByTenantIDFn func(ctx context.Context, tenantID int64) (int, error)
 	CleanupExpiredInvitationsFn              func(ctx context.Context) (int, error)
-	GetTenantSlugForTokenFn                  func(ctx context.Context, token string) string
+	GetTenantSubdomainForTokenFn             func(ctx context.Context, token string) string
 }
 
 var _ svcauth.InvitationService = (*InvitationServiceMock)(nil)
@@ -286,9 +286,9 @@ func (m *InvitationServiceMock) CleanupExpiredInvitations(ctx context.Context) (
 	return 0, nil
 }
 
-func (m *InvitationServiceMock) GetTenantSlugForToken(ctx context.Context, token string) string {
-	if m.GetTenantSlugForTokenFn != nil {
-		return m.GetTenantSlugForTokenFn(ctx, token)
+func (m *InvitationServiceMock) GetTenantSubdomainForToken(ctx context.Context, token string) string {
+	if m.GetTenantSubdomainForTokenFn != nil {
+		return m.GetTenantSubdomainForTokenFn(ctx, token)
 	}
 	return ""
 }
