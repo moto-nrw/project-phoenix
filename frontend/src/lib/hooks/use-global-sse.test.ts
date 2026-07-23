@@ -608,4 +608,25 @@ describe("useGlobalSSE — companion announcements", () => {
       ).toBe(true);
     }
   });
+
+  it("marks reminders stale on pickup_schedule_changed", () => {
+    // "Abholung in 10 Min" / "überfällig" rows come from the effective pickup
+    // time, so a Gehzeit edit adds, drops or re-times them. The bell and
+    // /reminders own their tenant-prefixed SWR key under TenantProvider, so the
+    // hook announces staleness via this window event instead of mutating.
+    const listener = vi.fn();
+    window.addEventListener("phoenix:reminders-stale", listener);
+
+    try {
+      renderHook(() => useGlobalSSE());
+      fireSSE(makeEvent("pickup_schedule_changed", { student_id: "s1" }));
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener("phoenix:reminders-stale", listener);
+    }
+  });
 });

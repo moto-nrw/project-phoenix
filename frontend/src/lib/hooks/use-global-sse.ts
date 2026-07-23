@@ -393,6 +393,14 @@ export function useGlobalSSE(): SSEHookState {
       hasPendingTimetableEvent.current ||
       hasPendingDashboardEvent.current ||
       hasPendingDailyCheckoutDashboardEvent.current ||
+      // "Abholung in 10 Min" / "Abholung überfällig" rows are computed from the
+      // EFFECTIVE pickup time (schedule resolved against the day's exception —
+      // services/reminders reads GetBulkEffectivePickupTimesForDate), so a
+      // Gehzeit edit adds, drops or re-times rows. The 60s poll only catches
+      // thresholds crossed by time passing, not the plan changing underneath.
+      // Arrival deliberately stays out: reminders cover pickups and activities
+      // only, so an arrival edit changes no row.
+      hasPendingPickupScheduleEvent.current ||
       hasPendingStudentUpdateEvent.current
     ) {
       if (typeof window !== "undefined") {

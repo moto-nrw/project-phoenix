@@ -174,6 +174,17 @@ export function useSSE(
           // refresh on focus or manual reload (#1845 review).
           "change_requests_changed",
           "parent_child_updated",
+          // Same defect, same fix: both are broadcast as NAMED events
+          // (instance_service.go / substitute.go for staffing,
+          // student_handlers.go + master_data_review/care_request/offering
+          // services for companions) and both have live handlers in
+          // useGlobalSSE, so without registration those branches never ran.
+          // Timetable caches — including the per-child Betreuungsplan, whose
+          // blocks a substitute or absence changes — only refreshed on focus or
+          // reload, and a remote "läuft mit" edit stayed invisible until
+          // remount (the #1694 bus it drives never fired).
+          "staffing_deviation_changed",
+          "student_companions_changed",
         ];
 
         for (const eventType of eventTypes) {

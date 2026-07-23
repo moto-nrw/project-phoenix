@@ -14,9 +14,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// hasPickupScheduleBroadcast reports whether the recorder saw a global
-// pickup_schedule_changed event.
-func hasPickupScheduleBroadcast(b *testpkg.RecordingBroadcaster) bool {
+// hasPickupScheduleBroadcast reports whether the recorder saw a
+// pickup_schedule_changed event addressed to the given tenant.
+//
+// Deliberately reads CallsByMethod("tenant"), not "all": only the writing
+// school can read the affected child, so a global fan-out would make every
+// other school refetch student and care-plan data for an invisible write.
+func hasPickupScheduleBroadcast(b *testpkg.RecordingBroadcaster, tenantID int64) bool {
+	for _, c := range b.CallsByMethod("tenant") {
+		if c.Event.Type == realtime.EventPickupScheduleChanged && c.TenantID == tenantID {
+			return true
+		}
+	}
+	return false
+}
+
+// hasGlobalPickupScheduleBroadcast reports whether any pickup_schedule_changed
+// event was broadcast to EVERY connected staff client, in any tenant.
+func hasGlobalPickupScheduleBroadcast(b *testpkg.RecordingBroadcaster) bool {
 	for _, c := range b.CallsByMethod("all") {
 		if c.Event.Type == realtime.EventPickupScheduleChanged {
 			return true
@@ -32,9 +47,11 @@ func hasPickupScheduleBroadcast(b *testpkg.RecordingBroadcaster) bool {
 // detail header, the student lists — kept the previous value indefinitely:
 // those caches disable focus revalidation, leaving SSE as their only live path.
 //
-// All four write paths are asserted, because each one carries its own
-// after-commit hook and a missed hook is invisible until a user reports a stale
-// time.
+// Every write path is asserted, because each one carries its own after-commit
+// hook and a missed hook is invisible until a user reports a stale time. Each
+// assertion also pins the SCOPE: the event must reach the writing school's
+// clients and must not be a global fan-out, which would make every other school
+// refetch student and care-plan data for a child it cannot read.
 func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 	tc := setupTestContext(t)
 
@@ -55,8 +72,10 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 		rr := authExec(t, tc, req, claims, []string{"admin:*"})
 		require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 
-		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster),
+		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID()),
 			"a weekly Gehzeit update must broadcast pickup_schedule_changed to staff tabs")
+		assert.False(t, hasGlobalPickupScheduleBroadcast(tc.broadcaster),
+			"the event must stay scoped to the writing tenant, never fan out to every school")
 	})
 
 	t.Run("exception_create_update_delete", func(t *testing.T) {
@@ -74,7 +93,7 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-exceptions", student.ID), body)
 		rr := authExec(t, tc, req, claims, []string{"admin:*"})
 		require.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
-		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster),
+		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID()),
 			"creating a pickup exception must broadcast pickup_schedule_changed")
 
 		exceptionID := latestPickupExceptionID(t, tc, student.ID)
@@ -86,7 +105,7 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 			fmt.Sprintf("/%d/pickup-exceptions/%d", student.ID, exceptionID), body)
 		rr = authExec(t, tc, req, claims, []string{"admin:*"})
 		require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster),
+		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID()),
 			"editing a pickup exception must broadcast pickup_schedule_changed")
 
 		// Delete
@@ -95,8 +114,10 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 			fmt.Sprintf("/%d/pickup-exceptions/%d", student.ID, exceptionID), nil)
 		rr = authExec(t, tc, req, claims, []string{"admin:*"})
 		require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
-		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster),
+		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID()),
 			"deleting a pickup exception must broadcast pickup_schedule_changed")
+		assert.False(t, hasGlobalPickupScheduleBroadcast(tc.broadcaster),
+			"the event must stay scoped to the writing tenant, never fan out to every school")
 	})
 
 	// A day note travels in the same pickup payload as the times (the detail
@@ -112,7 +133,7 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 		rr := authExec(t, tc, req, claims, []string{"admin:*"})
 		require.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 
-		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster),
+		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.GetTenantID()),
 			"creating a pickup day note must broadcast pickup_schedule_changed")
 	})
 }
