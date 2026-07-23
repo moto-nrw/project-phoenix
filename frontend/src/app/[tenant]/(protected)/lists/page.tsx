@@ -488,6 +488,67 @@ function pickupCohortsSignature(options: SlotListOptionsResult): string {
     .join(",");
 }
 
+// Metadata signature of ONLY the slots that appear in the requested slot-list
+// document — never the whole day. optionsSignature covers every slot, pickup
+// cohort and list-kind aggregate for the date, so as a pre-export drift guard it
+// trips on changes to unrelated slots/cohorts/kinds and refuses an otherwise
+// identical export (#1565 review pass 5). Scope the comparison to the effective
+// set:
+//   - Classified list (listKind set): the active slots whose list_kind is the
+//     requested kind. A reassignment that moves a slot into or out of that kind
+//     changes set membership here — caught — even though the active instance-ID
+//     set the backend intersects against is unchanged, so list_kind need not be
+//     in the tuple.
+//   - Manual selection (listKind ""): the active slots the user selected, or
+//     every active slot when the selection is "all active" (selectedIds null).
+// A rename, reschedule or room change of an in-scope slot changes its tuple and
+// registers as drift; the same change on an out-of-scope slot does not. JSON
+// tuples keep the free-text title/time_range/room_name delimiter-safe, mirroring
+// optionsSignature.
+function slotDocumentSignature(
+  options: SlotListOptionsResult,
+  listKind: SlotListKind | "",
+  selectedIds: Set<string> | null,
+): string {
+  return options.slots
+    .filter((slot) => {
+      if (slot.status === CANCELLED_SLOT_STATUS) return false;
+      if (listKind) return (slot.list_kind ?? "") === listKind;
+      return selectedIds === null || selectedIds.has(slot.instance_id);
+    })
+    .map((slot) =>
+      JSON.stringify([
+        slot.instance_id,
+        slot.status,
+        slot.title,
+        slot.time_range,
+        slot.room_name ?? "",
+      ]),
+    )
+    .sort()
+    .join(",");
+}
+
+// A stable signature of a SINGLE pickup cohort — the one being exported. The
+// export re-buckets and re-labels only the requested cohort, so comparing the
+// whole pickup_cohorts array (pickupCohortsSignature) as a pre-export drift
+// guard would refuse the export when an unrelated cohort's cutoff or roster
+// changed (#1565 review pass 5). An absent cohort collapses to "" — a real
+// signature is a JSON array string, so this sentinel never collides with one.
+function pickupCohortSignature(
+  options: SlotListOptionsResult,
+  cohort: SlotListPickupCohort,
+): string {
+  const match = options.pickup_cohorts.find((c) => c.cohort === cohort);
+  if (!match) return "";
+  return JSON.stringify([
+    match.cohort,
+    match.label,
+    match.available ? 1 : 0,
+    match.row_count,
+  ]);
+}
+
 function defaultSelectionOption(): SelectionOption {
   const option = SELECTION_OPTIONS[0];
   if (!option) {
@@ -991,12 +1052,14 @@ export default function SlotListsPage() {
           // change ("Ganztag bis 14:30" -> "bis 14:00", same row_count) slips past
           // it — listOptions is not reinstalled, the pickup preview never re-fires,
           // and its cohort header stays on the old cutoff until an export attempt
-          // trips the pickupCohortsSignature drift guard. Fold the cohort-label
-          // signature in here so focus revalidation reinstalls on a label-only
-          // change too, re-firing the preview so the visible cohort matches what an
-          // export would produce (#1565 review pass 1). Slot export drift keeps
-          // comparing optionsSignature alone — a pickup-cutoff change must not
-          // spuriously block an unrelated slot-list export.
+          // trips the export drift guard. Fold the cohort-label signature in here
+          // so focus revalidation reinstalls on a label-only change too, re-firing
+          // the preview so the visible cohort matches what an export would produce
+          // (#1565 review pass 1). This whole-payload comparison is intentional
+          // here — it only decides whether to re-render the preview, never blocks
+          // anything — whereas the export drift guard scopes its check to the
+          // requested list (slotDocumentSignature / pickupCohortSignature) so an
+          // unrelated change can never spuriously refuse an export.
           const unchanged =
             optionsSignature(prev) === optionsSignature(fresh) &&
             pickupCohortsSignature(prev) === pickupCohortsSignature(fresh);
@@ -1216,16 +1279,29 @@ export default function SlotListsPage() {
           isManualSlotSelection && selectedSlotIds !== null
             ? selectedSlotIds.filter((id) => freshActive.includes(id))
             : freshActive;
+        // Scope the metadata drift check to the slots that actually appear in
+        // THIS document (the selected slots, or the requested list_kind), so a
+        // rename/reschedule/room change on an unrelated slot — or any pickup or
+        // other-list-kind change — no longer refuses an unchanged export (#1565
+        // review pass 5).
+        const selectedIds =
+          isManualSlotSelection && selectedSlotIds !== null
+            ? new Set(selectedSlotIds)
+            : null;
         const metadataChanged =
           !listOptions ||
-          optionsSignature(listOptions) !== optionsSignature(fresh);
+          slotDocumentSignature(listOptions, listKind, selectedIds) !==
+            slotDocumentSignature(fresh, listKind, selectedIds);
         drift =
           metadataChanged ||
           !sameStringSet(effective, request.instance_ids ?? []);
       } else {
+        // Compare only the cohort being exported — an unrelated cohort's cutoff
+        // or roster change must not block this one (#1565 review pass 5).
         drift =
           !listOptions ||
-          pickupCohortsSignature(listOptions) !== pickupCohortsSignature(fresh);
+          pickupCohortSignature(listOptions, pickupCohort) !==
+            pickupCohortSignature(fresh, pickupCohort);
       }
       if (drift) {
         printTarget?.close();
@@ -1262,6 +1338,8 @@ export default function SlotListsPage() {
       dateISO,
       isManualSlotSelection,
       selectedSlotIds,
+      listKind,
+      pickupCohort,
       listOptions,
     ],
   );
