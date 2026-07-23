@@ -7,6 +7,7 @@ import { RangeCalendarInline } from "~/components/ui/date-range-picker";
 import { Modal } from "~/components/ui/modal";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
 import { useToast } from "~/contexts/ToastContext";
+import { dispatchAbsencesRefresh } from "~/lib/absence-helpers";
 import { createLogger } from "~/lib/logger";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import type { StaffAbsence } from "~/lib/time-tracking-helpers";
@@ -287,6 +288,7 @@ export function VacationRequestModal({
         note: note.trim() || undefined,
       });
       toast.success("Urlaubsantrag gesendet.");
+      dispatchAbsencesRefresh();
       onSubmitted();
       handleReset();
       onClose();
@@ -409,7 +411,7 @@ export function VacationRequestModal({
               </span>
               <span className="inline-flex items-center gap-1">
                 <span className="h-2 w-2 rounded-full bg-[#7C3AED]/50" />
-                Rückfrage
+                {"Rückfrage"}
               </span>
               <span className="inline-flex items-center gap-1">
                 <span className="h-2 w-2 rounded-full bg-[#83CD2D]/50" />

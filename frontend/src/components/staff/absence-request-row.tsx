@@ -85,12 +85,15 @@ export function AbsenceRequestRow({
                 <span className="font-medium">Notiz:</span> {row.note}
               </p>
             )}
-            {isQuestioned && row.decision_note && (
-              <p className="mt-1 text-xs text-gray-600">
-                <span className="font-medium">Rückfrage:</span>{" "}
-                {row.decision_note}
-              </p>
-            )}
+            {row.decision_note &&
+              (isQuestioned || row.status === "requested") && (
+                <p className="mt-1 text-xs text-gray-600">
+                  <span className="font-medium">
+                    {isQuestioned ? "Rückfrage:" : "Vorherige Rückfrage:"}
+                  </span>{" "}
+                  {row.decision_note}
+                </p>
+              )}
             {row.requested_at && (
               <p className="mt-1 text-[11px] text-gray-400">
                 Eingegangen {formatAbsenceDate(row.requested_at)}

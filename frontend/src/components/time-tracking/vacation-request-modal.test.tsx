@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { DateRange, Matcher } from "react-day-picker";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ABSENCES_REFRESH_EVENT } from "~/lib/absence-helpers";
 import type { StaffAbsence } from "~/lib/time-tracking-helpers";
 
 import { VacationRequestModal } from "./vacation-request-modal";
@@ -156,5 +157,35 @@ describe("VacationRequestModal questioned absences", () => {
       screen.getByRole("button", { name: "Antrag senden" }),
     ).toBeDisabled();
     expect(mocks.requestVacation).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the approver badge after a successful request", async () => {
+    mocks.requestVacation.mockResolvedValue({});
+    const listener = vi.fn();
+    window.addEventListener(ABSENCES_REFRESH_EVENT, listener);
+
+    render(
+      <VacationRequestModal
+        isOpen
+        onClose={vi.fn()}
+        onSubmitted={vi.fn()}
+        remainingDays={20}
+        existingVacations={[]}
+      />,
+    );
+
+    act(() => {
+      mocks.calendarProps?.onChange({
+        from: new Date(2027, 6, 5),
+        to: new Date(2027, 6, 6),
+      });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Antrag senden" }));
+    });
+
+    expect(mocks.requestVacation).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledTimes(1);
+    window.removeEventListener(ABSENCES_REFRESH_EVENT, listener);
   });
 });

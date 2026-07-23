@@ -35,12 +35,12 @@ export function useStaffPendingInbox() {
   const { data: session } = useSession();
   const canReview =
     isAdmin(session) || hasPermission(session, "vacation:approve");
-  const { data, mutate } = useSWRAuth<StaffAbsenceRow[]>(
+  const { data } = useSWRAuth<StaffAbsenceRow[]>(
     canReview ? STAFF_PENDING_ABSENCES_KEY : null,
     () => staffAbsenceService.listPending(),
     { revalidateOnFocus: true },
   );
-  return { rows: data ?? [], canReview, refresh: mutate };
+  return { rows: data ?? [], canReview };
 }
 
 const TYPE_TABS = [
@@ -54,11 +54,9 @@ const TYPE_TABS = [
 export function StaffPendingInbox({
   rows,
   staffList,
-  onRefresh,
 }: {
   readonly rows: StaffAbsenceRow[];
   readonly staffList: Staff[];
-  readonly onRefresh: () => void;
 }) {
   const toast = useToast();
   const { mutate: swrMutate } = useSWRConfig();
@@ -86,9 +84,9 @@ export function StaffPendingInbox({
   );
 
   const afterMutation = () => {
-    onRefresh();
-    // Per-staff detail-tab badges share the key prefix; the sidebar counter
-    // listens for the refresh event.
+    // The tenant-wide inbox and per-staff detail-tab badges share the key
+    // prefix; one predicate refreshes each matching key exactly once. The
+    // sidebar counter listens for the separate refresh event.
     swrMutate(
       (key) =>
         typeof key === "string" && key.includes("staff-pending-absences-"),

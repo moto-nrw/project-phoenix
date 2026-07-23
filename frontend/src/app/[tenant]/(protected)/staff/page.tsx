@@ -75,11 +75,8 @@ function StaffPageContent() {
 
   // Open absence requests (#1419): feeds the inbox above the grid and the
   // per-card pending indicators. Fetches only with vacation:approve.
-  const {
-    rows: pendingAbsences,
-    canReview: canReviewAbsences,
-    refresh: refreshPendingAbsences,
-  } = useStaffPendingInbox();
+  const { rows: pendingAbsences, canReview: canReviewAbsences } =
+    useStaffPendingInbox();
   const pendingByStaff = useMemo(() => {
     const map = new Map<number, number>();
     for (const row of pendingAbsences) {
@@ -258,13 +255,7 @@ function StaffPageContent() {
 
       {/* Eingehende Anfragen (#1419) — only for approvers */}
       {canReviewAbsences && (
-        <StaffPendingInbox
-          rows={pendingAbsences}
-          staffList={staff}
-          onRefresh={() => {
-            refreshPendingAbsences();
-          }}
-        />
+        <StaffPendingInbox rows={pendingAbsences} staffList={staff} />
       )}
 
       {/* Error Display */}

@@ -2004,19 +2004,21 @@ func TestAbsResubmitAbsence_RestampsAndAudits(t *testing.T) {
 
 	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
 		return &activeModels.StaffAbsence{
-			Model:       base.Model{ID: int64(1105)},
-			StaffID:     staffID,
-			AbsenceType: activeModels.AbsenceTypeVacation,
-			DateStart:   timezone.NewDate(2027, 7, 1),
-			DateEnd:     timezone.NewDate(2027, 7, 2),
-			Status:      activeModels.AbsenceStatusQuestion,
-			Note:        "alte Notiz",
-			RequestedAt: originalRequestedAt,
+			Model:        base.Model{ID: int64(1105)},
+			StaffID:      staffID,
+			AbsenceType:  activeModels.AbsenceTypeVacation,
+			DateStart:    timezone.NewDate(2027, 7, 1),
+			DateEnd:      timezone.NewDate(2027, 7, 2),
+			Status:       activeModels.AbsenceStatusQuestion,
+			Note:         "alte Notiz",
+			DecisionNote: "Wer übernimmt die Frühschicht?",
+			RequestedAt:  originalRequestedAt,
 		}, nil
 	}
 	absRepo.updateFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
 		assert.Equal(t, activeModels.AbsenceStatusRequested, entity.Status)
 		assert.Equal(t, "Vertretung ist geklärt", entity.Note)
+		assert.Equal(t, "Wer übernimmt die Frühschicht?", entity.DecisionNote)
 		assert.True(t, entity.RequestedAt.After(originalRequestedAt), "resubmit must re-stamp requested_at")
 		return nil
 	}

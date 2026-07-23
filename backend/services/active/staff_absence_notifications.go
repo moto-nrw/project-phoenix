@@ -132,6 +132,11 @@ func (s *staffAbsenceService) notifyAbsenceRequested(ctx context.Context, absenc
 		return
 	}
 	requesterName := requester.FirstName + " " + requester.LastName
+	previousQuestion := strings.TrimSpace(absence.DecisionNote)
+	subject := "Neuer Abwesenheitsantrag von " + requesterName
+	if previousQuestion != "" {
+		subject = "Abwesenheitsantrag erneut eingereicht von " + requesterName
+	}
 	for _, approver := range approvers {
 		if approver.Email == "" || approver.StaffID == absence.StaffID {
 			continue
@@ -139,7 +144,7 @@ func (s *staffAbsenceService) notifyAbsenceRequested(ctx context.Context, absenc
 		s.dispatchAbsenceEmail(ctx, "absence_request_received", absence, email.Message{
 			From:     s.emailDeps.DefaultFrom,
 			To:       email.NewEmail(approver.FirstName+" "+approver.LastName, approver.Email),
-			Subject:  "Neuer Abwesenheitsantrag von " + requesterName,
+			Subject:  subject,
 			Template: "absence-request-received.html",
 			Content: map[string]any{
 				"FirstName":        approver.FirstName,
@@ -148,6 +153,7 @@ func (s *staffAbsenceService) notifyAbsenceRequested(ctx context.Context, absenc
 				"AbsenceTypeLabel": absenceTypeLabelGerman(absence.AbsenceType),
 				"DateRange":        formatAbsenceDateRange(absence),
 				"Note":             absence.Note,
+				"PreviousQuestion": previousQuestion,
 				"LinkURL":          linkURL,
 				"LogoURL":          s.logoURL(),
 			},
@@ -245,7 +251,7 @@ func (s *staffAbsenceService) absenceEmailLink(ctx context.Context, absence *act
 	return link, true
 }
 
-func buildTenantFrontendURL(frontendURL string, subdomain string, targetPath string) (string, error) {
+func buildTenantFrontendURL(frontendURL, subdomain, targetPath string) (string, error) {
 	base, err := url.Parse(strings.TrimSpace(frontendURL))
 	if err != nil {
 		return "", fmt.Errorf("parse frontend URL: %w", err)

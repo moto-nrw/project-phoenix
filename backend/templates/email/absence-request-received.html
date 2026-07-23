@@ -3,17 +3,28 @@
 
 <div class="email-body">
     {{template "moto-brand" .}}
+    {{if .PreviousQuestion}}
+    <h1>Abwesenheitsantrag erneut eingereicht</h1>
+    {{else}}
     <h1>Neuer Abwesenheitsantrag</h1>
+    {{end}}
 
     <p>Hallo {{.FirstName}},</p>
 
+    {{if .PreviousQuestion}}
+    <p><strong>{{.RequesterName}}</strong> hat einen Antrag nach einer Rückfrage erneut eingereicht:</p>
+    {{else}}
     <p><strong>{{.RequesterName}}</strong> hat einen neuen Antrag eingereicht:</p>
+    {{end}}
 
     <div class="highlight-box">
         <p><strong>{{.AbsenceTypeLabel}}</strong><br>
         Zeitraum: {{.DateRange}}</p>
+        {{if .PreviousQuestion}}
+        <p>Vorherige Rückfrage: {{.PreviousQuestion}}</p>
+        {{end}}
         {{if .Note}}
-        <p>Notiz: {{.Note}}</p>
+        <p>{{if .PreviousQuestion}}Aktualisierte Notiz{{else}}Notiz{{end}}: {{.Note}}</p>
         {{end}}
     </div>
 

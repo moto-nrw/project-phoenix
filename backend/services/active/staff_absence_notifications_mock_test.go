@@ -254,7 +254,44 @@ func TestNotifyAbsenceRequested_SkipsSelfAndMissingEmail(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "Krankmeldung", content["AbsenceTypeLabel"])
 	assert.Equal(t, "05.07.2027", content["DateRange"])
+	assert.Equal(t, "", content["PreviousQuestion"])
 	assert.Equal(t, "http://tenant.localhost:3000/staff", content["LinkURL"])
+}
+
+func TestNotifyAbsenceRequested_IncludesResubmissionContext(t *testing.T) {
+	staffRepo := &testpkg.StaffRepoMock{
+		GetStaffContactInfoFn: func(_ context.Context, staffID int64) (*usersModels.StaffWithRoleInfo, error) {
+			return &usersModels.StaffWithRoleInfo{
+				StaffID:   staffID,
+				FirstName: "Mila",
+				LastName:  "Muster",
+			}, nil
+		},
+		ListStaffWithPermissionFn: func(context.Context, string) ([]*usersModels.StaffWithRoleInfo, error) {
+			return []*usersModels.StaffWithRoleInfo{
+				{StaffID: int64(44), FirstName: "Lena", LastName: "Leitung", Email: "lena@example.test"},
+			}, nil
+		},
+	}
+	svc, mailer := newAbsenceNotificationTestService(
+		t,
+		absSettingsMock{enabled: true},
+		staffRepo,
+	)
+	absence := notificationTestAbsence(activeModels.AbsenceStatusRequested)
+	absence.Note = "Vertretung ist geklärt"
+	absence.DecisionNote = "Wer übernimmt die Frühschicht?"
+
+	svc.notifyAbsenceRequested(context.Background(), absence)
+
+	require.True(t, mailer.WaitForMessages(1, 2*time.Second))
+	messages := mailer.Messages()
+	require.Len(t, messages, 1)
+	assert.Equal(t, "Abwesenheitsantrag erneut eingereicht von Mila Muster", messages[0].Subject)
+	content, ok := messages[0].Content.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "Vertretung ist geklärt", content["Note"])
+	assert.Equal(t, "Wer übernimmt die Frühschicht?", content["PreviousQuestion"])
 }
 
 func TestNotifyAbsenceRequested_DispatchesOnlyAfterCommit(t *testing.T) {

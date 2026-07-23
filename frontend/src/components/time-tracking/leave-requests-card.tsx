@@ -44,6 +44,16 @@ function statusMeta(status: string) {
   return absenceStatusMeta(status, { requestedLabel: "Wartet auf Antwort" });
 }
 
+function decisionNoteLabel(status: string): string {
+  if (status === "question" || status === "canceled") {
+    return "Rückfrage der Leitung:";
+  }
+  if (status === "requested") {
+    return "Vorherige Rückfrage der Leitung:";
+  }
+  return "Anmerkung der Leitung:";
+}
+
 export function LeaveRequestsCard() {
   const currentTimestamp = useCurrentTimestamp();
   const [modalOpen, setModalOpen] = useState(false);
@@ -104,6 +114,7 @@ export function LeaveRequestsCard() {
       await timeTrackingService.cancelAbsence(cancelTarget.id);
       toast.success("Antrag storniert.");
       setCancelTarget(null);
+      dispatchAbsencesRefresh();
       await loadAll();
     } catch (err) {
       toast.error(
@@ -226,9 +237,7 @@ export function LeaveRequestsCard() {
                           {v.decisionNote && (
                             <p className="mt-0.5 text-xs text-gray-500">
                               <span className="font-medium">
-                                {isQuestioned
-                                  ? "Rückfrage der Leitung:"
-                                  : "Anmerkung Leitung:"}
+                                {decisionNoteLabel(v.status)}
                               </span>{" "}
                               {v.decisionNote}
                             </p>

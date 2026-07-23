@@ -125,7 +125,7 @@ export function DenyAbsenceModal({
       absence={absence}
       title="Antrag ablehnen"
       noteLabel="Begründung"
-      placeholder="Wird der Mitarbeiterin per E-Mail mitgeteilt."
+      placeholder="Wird der Mitarbeiterin im Antrag angezeigt und bei aktivierten Benachrichtigungen zusätzlich per E-Mail mitgeteilt."
       submitLabel="Ablehnen"
       submitVariant="danger"
       onSubmitNote={(note) => staffAbsenceService.deny(absence.id, note)}
@@ -151,7 +151,7 @@ export function QuestionAbsenceModal({
       absence={absence}
       title="Rückfrage stellen"
       noteLabel="Rückfrage"
-      placeholder="Wird der Mitarbeiterin per E-Mail mitgeteilt. Sie kann ihre Antwort ergänzen und den Antrag erneut einreichen."
+      placeholder="Wird der Mitarbeiterin im Antrag angezeigt. Sie kann ihre Antwort ergänzen und den Antrag erneut einreichen; bei aktivierten Benachrichtigungen erhält sie zusätzlich eine E-Mail."
       submitLabel="Rückfrage senden"
       submitVariant="primary"
       onSubmitNote={(note) => staffAbsenceService.question(absence.id, note)}

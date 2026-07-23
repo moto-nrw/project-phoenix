@@ -11,22 +11,25 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 export function Textarea({
   label,
   name,
+  id,
   error,
   className = "",
   ...props
 }: TextareaProps) {
+  const inputId = id ?? name;
+
   return (
     <div>
       {label && (
         <label
-          htmlFor={name}
+          htmlFor={inputId}
           className="mb-2 block text-sm font-medium text-gray-700"
         >
           {label}
         </label>
       )}
       <textarea
-        id={name}
+        id={inputId}
         name={name}
         aria-invalid={error ? true : undefined}
         className={`block w-full resize-none rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200 ${className}`}
