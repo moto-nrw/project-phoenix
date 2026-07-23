@@ -309,23 +309,34 @@ function StatusBadge({
   );
 }
 
-// nextSelection collapses a multi-select to null ("all") when the chosen set is
-// empty or covers every current option; otherwise it keeps the subset.
+// nextSelection collapses a multi-select to null ("all", no restriction) ONLY
+// when the chosen set genuinely covers every current option and carries no
+// hidden extra; otherwise it keeps the subset.
 //
-// It compares MEMBERSHIP against the actual option values, not just the count.
 // A bookmarked `gruppen`/`klassen` filter can carry a value that is absent from
-// today's options (a stale ID, a group with no rows today, a duplicated URL
-// value). Such a value lingers in the dropdown's selection while not being a
-// current option, so a plain `values.length === total` compare could report a
-// partial selection as "complete" and return null — silently dropping a
-// confidential group/class restriction and broadening the named-student
-// preview/export to the whole cohort. Deduplicating and dropping unknown values
-// keeps the restriction accurate and prunes the stale selection (#1565 review).
+// today's options — a group/class that simply has no rows for the selected date
+// + source (result.groups/result.classes are derived from the preview rows, not
+// the school's full set). Such a HIDDEN value still rides the dropdown's current
+// selection, and it MUST be preserved: dropping it and then collapsing an emptied
+// set to null would silently lift a confidential restriction and broaden the
+// named-student list to the whole cohort. Concretely, with visible group A plus
+// hidden group B selected, deselecting A leaves `values === [B]`; filtering B out
+// as "unknown" would empty the set and return null (no restriction), disclosing
+// every group. So keep unknown selected values verbatim — they clear only on an
+// explicit filter reset — and only report "no restriction" when every current
+// option is chosen AND nothing hidden remains (#1565 review pass 1). Keying on
+// membership rather than a bare `values.length === total` count also stops a
+// partial selection that happens to sit alongside a hidden value from being
+// mis-read as "complete".
 function nextSelection<T>(values: T[], options: T[]): T[] | null {
   const optionSet = new Set(options);
-  const chosen = [...new Set(values)].filter((value) => optionSet.has(value));
-  if (chosen.length === 0) return null; // nothing valid chosen → no restriction
-  if (chosen.length === optionSet.size) return null; // every option → no restriction
+  const deduped = [...new Set(values)];
+  const known = deduped.filter((value) => optionSet.has(value));
+  const unknown = deduped.filter((value) => !optionSet.has(value));
+  // Every current option chosen and no hidden selection left → truly all groups.
+  if (known.length === optionSet.size && unknown.length === 0) return null;
+  const chosen = [...known, ...unknown];
+  if (chosen.length === 0) return null; // nothing selected at all → no restriction
   return chosen;
 }
 
@@ -549,6 +560,41 @@ function pickupCohortSignature(
   ]);
 }
 
+// A full content signature of a rendered preview — list label, counters and
+// every row's identity, placement and status. The /options metadata guards
+// (slotDocumentSignature / pickupCohortSignature) only see slot and cohort
+// structure; roster membership and attendance can change without touching them
+// (a child swaps groups or cohorts, checks in/out, is marked sick), yet the
+// export endpoint re-derives from current data. Comparing this signature of a
+// freshly refetched preview against the one the user reviewed catches exactly
+// that drift, so an export never hands out names or statuses the reviewed list
+// never showed (#1565 review pass 2). Rows are compared positionally: the
+// preview and the export both sort identically (BuildList sortRows), so element
+// order is stable and a positional tuple is enough.
+function resultSignature(result: SlotListResult): string {
+  return JSON.stringify({
+    label: result.list_label,
+    counters: result.counters,
+    rows: result.rows.map((row) => [
+      row.student_id,
+      row.name,
+      row.school_class,
+      row.group_name,
+      row.group_id ?? "",
+      row.instance_id ?? "",
+      row.slot,
+      row.room_name ?? "",
+      row.pickup_time ?? "",
+      row.status_label,
+      row.planned,
+      row.present,
+      row.unplanned,
+      row.excused,
+      row.group_title ?? "",
+    ]),
+  });
+}
+
 function defaultSelectionOption(): SelectionOption {
   const option = SELECTION_OPTIONS[0];
   if (!option) {
@@ -702,6 +748,14 @@ export default function SlotListsPage() {
   // isLoading true indefinitely (permanent spinner, exports disabled) even
   // though /preview itself could succeed (#1565 review pass 1).
   const [optionsError, setOptionsError] = useState<string | null>(null);
+  // Bumped on focus/visibility to force the preview effect to refetch. The
+  // /options revalidation alone cannot catch attendance drift: its payload holds
+  // only slot, pickup-cohort and planned-roster metadata, so a check-in/out or a
+  // per-slot status change leaves listOptions' signature unchanged and the
+  // preview — keyed on request/listOptions — would otherwise keep rendering stale
+  // present/missing rows and counters until an unrelated filter changes (#1565
+  // review pass 2).
+  const [previewNonce, setPreviewNonce] = useState(0);
 
   const isPickupBased = target === "pickup_cohort";
   const isManualSlotSelection = target === "slots" && listKind === "";
@@ -1075,9 +1129,18 @@ export default function SlotListsPage() {
 
   useEffect(() => {
     if (authStatus !== "authenticated" || timetableDisabled) return;
-    const onFocus = () => revalidateOptions();
+    // Refresh BOTH the options snapshot (slot/cohort structure) and the preview
+    // (live attendance / roster). revalidateOptions only re-fires the preview
+    // when the options signature changes; a pure attendance change does not touch
+    // it, so bump previewNonce to force a preview refetch on every focus/return
+    // (#1565 review pass 2).
+    const refresh = () => {
+      revalidateOptions();
+      setPreviewNonce((n) => n + 1);
+    };
+    const onFocus = () => refresh();
     const onVisibility = () => {
-      if (document.visibilityState === "visible") revalidateOptions();
+      if (document.visibilityState === "visible") refresh();
     };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
@@ -1157,6 +1220,9 @@ export default function SlotListsPage() {
     awaitingActiveSlots,
     optionsError,
     filterLinkInvalid,
+    // A focus/visibility refresh bumps this to force a preview refetch even when
+    // request and listOptions are unchanged but attendance may have drifted.
+    previewNonce,
   ]);
 
   // We deliberately do NOT reconcile stale group/class URL filters against the
@@ -1274,11 +1340,6 @@ export default function SlotListsPage() {
       }
       let drift: boolean;
       if (target === "slots") {
-        const freshActive = activeInstanceIdsOf(fresh);
-        const effective =
-          isManualSlotSelection && selectedSlotIds !== null
-            ? selectedSlotIds.filter((id) => freshActive.includes(id))
-            : freshActive;
         // Scope the metadata drift check to the slots that actually appear in
         // THIS document (the selected slots, or the requested list_kind), so a
         // rename/reschedule/room change on an unrelated slot — or any pickup or
@@ -1288,13 +1349,35 @@ export default function SlotListsPage() {
           isManualSlotSelection && selectedSlotIds !== null
             ? new Set(selectedSlotIds)
             : null;
+        // The active (non-cancelled) instance IDs THIS document contains, scoped
+        // exactly like slotDocumentSignature: a classified list to its own
+        // list_kind, a manual selection to the chosen slots. Comparing the whole
+        // day's active set (freshActive vs request.instance_ids, which for a
+        // classified list is EVERY active slot) let a slot added or cancelled in
+        // an unrelated list kind refuse an otherwise-unchanged classified export
+        // (#1565 review pass 5 follow-up). For a manual selection this equals the
+        // prior `selectedSlotIds ∩ active` set the request already sent.
+        const documentActiveIds = (opts: SlotListOptionsResult): string[] =>
+          opts.slots
+            .filter((slot) => slot.status !== CANCELLED_SLOT_STATUS)
+            .filter((slot) =>
+              listKind ? (slot.list_kind ?? "") === listKind : true,
+            )
+            .filter(
+              (slot) =>
+                selectedIds === null || selectedIds.has(slot.instance_id),
+            )
+            .map((slot) => slot.instance_id);
         const metadataChanged =
           !listOptions ||
           slotDocumentSignature(listOptions, listKind, selectedIds) !==
             slotDocumentSignature(fresh, listKind, selectedIds);
         drift =
           metadataChanged ||
-          !sameStringSet(effective, request.instance_ids ?? []);
+          !sameStringSet(
+            listOptions ? documentActiveIds(listOptions) : [],
+            documentActiveIds(fresh),
+          );
       } else {
         // Compare only the cohort being exported — an unrelated cohort's cutoff
         // or roster change must not block this one (#1565 review pass 5).
@@ -1311,6 +1394,39 @@ export default function SlotListsPage() {
           target === "slots"
             ? "Die Angebote für diesen Tag haben sich seit dem Laden geändert. Bitte prüfen und erneut exportieren."
             : "Die Abholzeiten für diesen Tag haben sich seit dem Laden geändert. Bitte prüfen und erneut exportieren.",
+        );
+        return;
+      }
+
+      // The options guard above only sees slot/cohort METADATA. Roster membership
+      // and attendance can drift without touching it — a child swaps groups or
+      // cohorts, checks in/out, or is marked sick — and the export re-derives from
+      // current data, so it could hand out different names or statuses than the
+      // reviewed preview. Re-fetch the preview and compare its full content to
+      // what the user reviewed; on any difference swap in the fresh list and ask
+      // them to re-check rather than export something they never saw (#1565 review
+      // pass 2).
+      let freshPreview: SlotListResult;
+      try {
+        freshPreview = await fetchSlotListPreview(request);
+      } catch (err: unknown) {
+        printTarget?.close();
+        logger.error("slot_list_preview_revalidate_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setError(
+          "Die Liste konnte vor dem Export nicht überprüft werden. Bitte versuchen Sie es erneut.",
+        );
+        return;
+      }
+      if (
+        !result ||
+        resultSignature(freshPreview) !== resultSignature(result)
+      ) {
+        printTarget?.close();
+        setResult(freshPreview);
+        setError(
+          "Die Liste hat sich seit dem Laden geändert. Bitte prüfen und erneut exportieren.",
         );
         return;
       }
@@ -1341,6 +1457,7 @@ export default function SlotListsPage() {
       listKind,
       pickupCohort,
       listOptions,
+      result,
     ],
   );
 
