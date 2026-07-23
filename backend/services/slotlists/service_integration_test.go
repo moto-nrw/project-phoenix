@@ -106,7 +106,7 @@ func (s stubSlotListSettings) HasTenantOverride(_ context.Context, key string) (
 	return ok, nil
 }
 
-func (stubSlotListSettings) LockSlotListCutoffPair(context.Context) error { return nil }
+func (stubSlotListSettings) LockSlotListCutoffPairShared(context.Context) error { return nil }
 
 type failingSlotListSettings struct{}
 
@@ -118,7 +118,7 @@ func (failingSlotListSettings) HasTenantOverride(context.Context, string) (bool,
 	return false, nil
 }
 
-func (failingSlotListSettings) LockSlotListCutoffPair(context.Context) error { return nil }
+func (failingSlotListSettings) LockSlotListCutoffPairShared(context.Context) error { return nil }
 
 type groupSupervisorOnlySlotListSettings struct{}
 
@@ -141,7 +141,7 @@ func (groupSupervisorOnlySlotListSettings) HasTenantOverride(_ context.Context, 
 	return key == configModels.KeyStudentDataScope, nil
 }
 
-func (groupSupervisorOnlySlotListSettings) LockSlotListCutoffPair(context.Context) error {
+func (groupSupervisorOnlySlotListSettings) LockSlotListCutoffPairShared(context.Context) error {
 	return nil
 }
 
@@ -173,7 +173,7 @@ func newTestServiceWithSettings(db *bun.DB, settings stubSlotListSettings) slotl
 func newTestServiceWithSettingsReader(db *bun.DB, settings interface {
 	ResolveString(context.Context, string) (string, error)
 	HasTenantOverride(context.Context, string) (bool, error)
-	LockSlotListCutoffPair(context.Context) error
+	LockSlotListCutoffPairShared(context.Context) error
 }) slotlists.Service {
 	return newTestServiceWithCustomRoomRepo(db, facilitiesRepo.NewRoomRepository(db), settings)
 }
@@ -183,7 +183,7 @@ func newTestServiceWithCustomRoomRepo(db *bun.DB, roomRepo interface {
 }, settings interface {
 	HasTenantOverride(context.Context, string) (bool, error)
 	ResolveString(context.Context, string) (string, error)
-	LockSlotListCutoffPair(context.Context) error
+	LockSlotListCutoffPairShared(context.Context) error
 }) slotlists.Service {
 	return newTestServiceWithCustomAccess(db, roomRepo, settings, slotListUserContext{currentStaff: &userModels.Staff{}})
 }
@@ -193,7 +193,7 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 }, settings interface {
 	HasTenantOverride(context.Context, string) (bool, error)
 	ResolveString(context.Context, string) (string, error)
-	LockSlotListCutoffPair(context.Context) error
+	LockSlotListCutoffPairShared(context.Context) error
 }, userCtx slotListUserContext) slotlists.Service {
 	return slotlists.NewService(slotlists.Dependencies{
 		InstanceRepo:        scheduleRepo.NewActivityInstanceRepository(db),

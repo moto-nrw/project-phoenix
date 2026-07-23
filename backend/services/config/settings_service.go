@@ -552,11 +552,33 @@ func (s *settingsService) LockSlotListCutoffPair(ctx context.Context) error {
 	if _, hasTx := modelBase.TxFromContext(ctx); !hasTx {
 		return nil
 	}
-	lockKey := fmt.Sprintf("slot-list-cutoff:%d", tenant.FromContext(ctx))
-	if err := base.AcquireXactLock(ctx, s.db, lockKey); err != nil {
+	if err := base.AcquireXactLock(ctx, s.db, slotListCutoffLockKey(ctx)); err != nil {
 		return fmt.Errorf("lock Ganztag cutoff pair: %w", err)
 	}
 	return nil
+}
+
+// LockSlotListCutoffPairShared takes the SHARED variant of the Ganztag cutoff
+// lock for read paths (services/slotlists pickupBuckets). Shared holders never
+// block one another, so concurrent /options, pickup-preview and export requests
+// no longer serialize behind a single exclusive lock — a slow export scanning
+// rosters or rendering a PDF/XLSX cannot stall every other reader in the tenant.
+// It still conflicts with the exclusive writer lock, so a cutoff update can never
+// commit a partial pair while a reader observes the two cutoffs (#1565 review).
+func (s *settingsService) LockSlotListCutoffPairShared(ctx context.Context) error {
+	if _, hasTx := modelBase.TxFromContext(ctx); !hasTx {
+		return nil
+	}
+	if err := base.AcquireXactLockShared(ctx, s.db, slotListCutoffLockKey(ctx)); err != nil {
+		return fmt.Errorf("lock Ganztag cutoff pair (shared): %w", err)
+	}
+	return nil
+}
+
+// slotListCutoffLockKey is the per-tenant advisory-lock key shared by the
+// exclusive writer lock and the shared reader lock so the two conflict.
+func slotListCutoffLockKey(ctx context.Context) string {
+	return fmt.Sprintf("slot-list-cutoff:%d", tenant.FromContext(ctx))
 }
 
 // validateTimeFormat checks that a string is a valid HH:MM time.

@@ -1183,9 +1183,22 @@ export default function SlotListsPage() {
     // when the options signature changes; a pure attendance change does not touch
     // it, so bump previewNonce to force a preview refetch on every focus/return
     // (#1565 review pass 2).
+    //
+    // Restoring a background tab commonly fires BOTH visibilitychange→visible AND
+    // focus, so without coalescing each handler would run refresh() and issue a
+    // duplicate /options + /preview pair — redundant slot/roster scans that also
+    // contend on the cutoff lock. The generation counter downstream only discards
+    // the stale client commit; it does not cancel the duplicated backend work.
+    // Collapse any burst of events into a single trailing refresh so the pair
+    // becomes one request set (#1565 review).
+    let coalesce: ReturnType<typeof setTimeout> | null = null;
     const refresh = () => {
-      revalidateOptions();
-      setPreviewNonce((n) => n + 1);
+      if (coalesce !== null) return;
+      coalesce = setTimeout(() => {
+        coalesce = null;
+        revalidateOptions();
+        setPreviewNonce((n) => n + 1);
+      }, 100);
     };
     const onFocus = () => refresh();
     const onVisibility = () => {
@@ -1194,6 +1207,7 @@ export default function SlotListsPage() {
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
+      if (coalesce !== null) clearTimeout(coalesce);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };

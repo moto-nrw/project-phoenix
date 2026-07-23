@@ -91,6 +91,14 @@ type SettingsService interface {
 	// short/long pair under READ COMMITTED. Best-effort: without an ambient
 	// transaction the xact lock is meaningless, so it is skipped rather than failing.
 	LockSlotListCutoffPair(ctx context.Context) error
+
+	// LockSlotListCutoffPairShared is the SHARED-mode counterpart taken by read
+	// paths (services/slotlists pickupBuckets). Shared holders do not block one
+	// another, so concurrent option loads, pickup previews and exports run in
+	// parallel instead of serializing behind the exclusive writer lock; it still
+	// conflicts with LockSlotListCutoffPair so a cutoff write cannot expose a
+	// partial pair to a reader. Same best-effort tx semantics.
+	LockSlotListCutoffPairShared(ctx context.Context) error
 }
 
 // --- Response types ---

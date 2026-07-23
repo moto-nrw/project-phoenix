@@ -139,11 +139,13 @@ type arrivalTimeReader interface {
 type settingsReader interface {
 	HasTenantOverride(ctx context.Context, key string) (bool, error)
 	ResolveString(ctx context.Context, key string) (string, error)
-	// LockSlotListCutoffPair acquires the advisory lock guarding the Ganztag
-	// pickup-cutoff pair so pickupBuckets observes both cutoffs from one
+	// LockSlotListCutoffPairShared acquires the SHARED advisory lock guarding the
+	// Ganztag pickup-cutoff pair so pickupBuckets observes both cutoffs from one
 	// consistent snapshot, never one cutoff from before and the sibling from after
-	// a concurrent two-write change (#1565 review pass 12).
-	LockSlotListCutoffPair(ctx context.Context) error
+	// a concurrent two-write change (#1565 review pass 12). Shared mode lets
+	// concurrent readers (/options, pickup preview, exports) run in parallel while
+	// still excluding a cutoff writer (#1565 review).
+	LockSlotListCutoffPairShared(ctx context.Context) error
 }
 
 // Dependencies wires the narrow read interfaces the service needs.
@@ -244,16 +246,20 @@ type pickupBucketConfig struct {
 }
 
 func (s *service) pickupBuckets(ctx context.Context) (pickupBucketConfig, error) {
-	// s.settings is guaranteed non-nil (required by NewService). Hold the same
-	// advisory lock the settings writer takes before reading either cutoff, so the
-	// two ResolveString calls below observe one consistent pair. Without it they
-	// run as separate statements under READ COMMITTED, and an administrator lowering
-	// BOTH boundaries through two individually valid writes (e.g. 14:30/16:00 →
-	// 13:00/14:00) could commit between them and hand this reader the old short
-	// cutoff with the new long cutoff — an inverted pair (14:30/14:00) the ordering
-	// check below would 500 on, even though nothing invalid was ever persisted
-	// (#1565 review pass 12).
-	if err := s.settings.LockSlotListCutoffPair(ctx); err != nil {
+	// s.settings is guaranteed non-nil (required by NewService). Hold the SHARED
+	// variant of the advisory lock the settings writer takes exclusively, before
+	// reading either cutoff, so the two ResolveString calls below observe one
+	// consistent pair. Without it they run as separate statements under READ
+	// COMMITTED, and an administrator lowering BOTH boundaries through two
+	// individually valid writes (e.g. 14:30/16:00 → 13:00/14:00) could commit
+	// between them and hand this reader the old short cutoff with the new long
+	// cutoff — an inverted pair (14:30/14:00) the ordering check below would 500 on,
+	// even though nothing invalid was ever persisted (#1565 review pass 12).
+	// Shared mode means concurrent readers (/options, pickup preview, exports) do
+	// NOT block one another — only a concurrent cutoff writer is excluded — so a
+	// slow export no longer serializes every other request in the tenant behind
+	// this lock (#1565 review).
+	if err := s.settings.LockSlotListCutoffPairShared(ctx); err != nil {
 		return pickupBucketConfig{}, err
 	}
 	short, err := s.settings.ResolveString(ctx, configModel.KeySlotListShortDayCutoff)
@@ -832,11 +838,21 @@ func applyGrouping(rows []Row, groupBy GroupBy) {
 	if groupBy == GroupByNone {
 		return
 	}
+	// GroupBySlot keys on the Slot label, but that label is NOT unique across
+	// activity instances: two concrete instances can share a title and time range
+	// (parallel offerings in different rooms, or two templates). Since both the
+	// export's repeated-marker suppression and the frontend's group_title
+	// bucketing key sections off the GroupTitle string, an undisambiguated label
+	// would fold distinct instances into one section. Precompute a per-instance
+	// heading suffix that only fires when a label actually collides (#1565 review
+	// pass 2).
+	slotSuffix := slotHeadingDisambiguation(rows, groupBy)
 	for i := range rows {
 		var value string
 		switch groupBy {
 		case GroupBySlot:
 			value = rows[i].Slot
+			value += slotSuffix[rows[i].InstanceID]
 		case GroupByRoom:
 			value = rows[i].RoomName
 		case GroupByClass:
@@ -849,6 +865,62 @@ func applyGrouping(rows []Row, groupBy GroupBy) {
 		}
 		rows[i].GroupTitle = groupBy.Label() + ": " + value
 	}
+}
+
+// slotHeadingDisambiguation returns a per-instance heading suffix for GroupBySlot
+// so distinct activity instances that share one Slot label never merge into a
+// single section. Instances whose label is already unique get no suffix (the
+// map returns "" for them), so the common case renders exactly as before. When a
+// label is shared by several instances, each colliding instance is tagged with
+// its room name where that uniquely identifies it, otherwise a running ordinal —
+// guaranteeing a distinct, deterministic heading without leaking raw IDs. Returns
+// nil for any non-slot grouping (no suffix ever applied).
+func slotHeadingDisambiguation(rows []Row, groupBy GroupBy) map[int64]string {
+	if groupBy != GroupBySlot {
+		return nil
+	}
+	// Per label: the distinct instance IDs (ascending, for stable ordinals) and
+	// each instance's room.
+	type labelInfo struct {
+		ids   []int64
+		room  map[int64]string
+		known map[int64]struct{}
+	}
+	byLabel := map[string]*labelInfo{}
+	for _, r := range rows {
+		li := byLabel[r.Slot]
+		if li == nil {
+			li = &labelInfo{room: map[int64]string{}, known: map[int64]struct{}{}}
+			byLabel[r.Slot] = li
+		}
+		if _, ok := li.known[r.InstanceID]; ok {
+			continue
+		}
+		li.known[r.InstanceID] = struct{}{}
+		li.ids = append(li.ids, r.InstanceID)
+		li.room[r.InstanceID] = r.RoomName
+	}
+	suffix := map[int64]string{}
+	for _, li := range byLabel {
+		if len(li.ids) < 2 {
+			continue // unique label — no disambiguation, heading stays clean
+		}
+		sort.Slice(li.ids, func(i, j int) bool { return li.ids[i] < li.ids[j] })
+		roomCount := map[string]int{}
+		for _, id := range li.ids {
+			roomCount[li.room[id]]++
+		}
+		ordinal := 0
+		for _, id := range li.ids {
+			if room := li.room[id]; room != "" && roomCount[room] == 1 {
+				suffix[id] = " (" + room + ")"
+				continue
+			}
+			ordinal++
+			suffix[id] = fmt.Sprintf(" (%d)", ordinal)
+		}
+	}
+	return suffix
 }
 
 // availableOptions derives the distinct education groups and school classes
@@ -1888,18 +1960,25 @@ func pickupMatchesCohort(cohort PickupCohort, hhmm string, buckets pickupBucketC
 // enrichEntries filters by source/read access, resolves names/classes/groups,
 // and maps to display rows.
 func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, source Source, access studentReadAccess, date timezone.Date) ([]Row, error) {
-	filtered := make([]mergedEntry, 0, len(entries))
-	for _, entry := range entries {
+	// matchesSource is the per-source selection predicate. A Plan list selects
+	// rows that are planned, an Ist list rows that are present, an Abgleich keeps
+	// everything. It is applied once to build `filtered` and re-applied after the
+	// enrollment gate below mutates entries, so the two never diverge.
+	matchesSource := func(e mergedEntry) bool {
 		switch source {
 		case SourcePlanned:
-			if entry.Planned {
-				filtered = append(filtered, entry)
-			}
+			return e.Planned
 		case SourceActual:
-			if entry.Present {
-				filtered = append(filtered, entry)
-			}
+			return e.Present
 		case SourceReconciliation:
+			return true
+		default:
+			return false
+		}
+	}
+	filtered := make([]mergedEntry, 0, len(entries))
+	for _, entry := range entries {
+		if matchesSource(entry) {
 			filtered = append(filtered, entry)
 		}
 	}
@@ -1946,6 +2025,17 @@ func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, sour
 			entry.Planned = false
 			entry.PlannedStatus = ""
 			entry.PlannedSubstatus = nil
+			// Clearing the plan can drop the entry below the source predicate it
+			// originally satisfied. On a Plan list the row only reached `filtered`
+			// because it was planned; now de-planned, keeping it would leak an
+			// "ungeplant" row into the planned roster — rendered as Geplant yet
+			// excluded from the planned counter (a contradictory row). Re-apply the
+			// source filter so a de-planned present row survives only where the list
+			// actually selects on presence (Ist/Abgleich), not on a Plan list
+			// (#1565 review pass 2).
+			if !matchesSource(entry) {
+				continue
+			}
 		}
 		enrolled = append(enrolled, entry)
 	}
