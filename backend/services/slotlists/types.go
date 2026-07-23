@@ -212,6 +212,15 @@ type Slot struct {
 	Title      string `json:"title"`
 	TimeRange  string `json:"time_range"`
 	Status     string `json:"status"`
+	// ListKind and RoomName are echoed so the frontend's pre-export options
+	// guard can detect document-affecting drift that leaves the active
+	// instance-ID set unchanged (#1565 review pass 4): a list_kind reassignment
+	// moves a slot in or out of a classified list (the backend intersects
+	// list_kind with instance_ids, so request.instance_ids stays equal yet a
+	// different slot exports), and a room change — reassignment or a rename of
+	// the same room — reshapes a room-grouped export. Empty when unset.
+	ListKind string `json:"list_kind,omitempty"`
+	RoomName string `json:"room_name,omitempty"`
 }
 
 // GroupOption is one selectable education group in the group filter.

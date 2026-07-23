@@ -532,12 +532,27 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 	}
 	slots := make([]Slot, 0, len(instances))
 	kindInstanceIDs := map[ListKind][]int64{}
+	// Resolve each slot's room name and list kind into the options payload so the
+	// frontend can detect a room reassignment/rename or a list_kind change that
+	// leaves the active instance-ID set unchanged before it exports (#1565 review
+	// pass 4). The room lookup is cached per build, matching collectSlotEntries.
+	roomCache := map[int64]string{}
 	for _, inst := range instances {
+		roomName, err := s.lookupRoomName(ctx, inst.RoomID, roomCache)
+		if err != nil {
+			return nil, err
+		}
+		listKind := ""
+		if inst.ListKind != nil {
+			listKind = *inst.ListKind
+		}
 		slots = append(slots, Slot{
 			InstanceID: inst.ID,
 			Title:      inst.Title,
 			TimeRange:  fmt.Sprintf("%s\u2013%s", inst.StartTime.Format(timeLayout), inst.EndTime.Format(timeLayout)),
 			Status:     inst.Status,
+			ListKind:   listKind,
+			RoomName:   roomName,
 		})
 		if inst.Status == scheduleModel.InstanceStatusCancelled || inst.ListKind == nil {
 			continue
@@ -877,11 +892,17 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 		if err != nil {
 			return nil, err
 		}
+		listKind := ""
+		if inst.ListKind != nil {
+			listKind = *inst.ListKind
+		}
 		result.Slots = append(result.Slots, Slot{
 			InstanceID: inst.ID,
 			Title:      inst.Title,
 			TimeRange:  fmt.Sprintf("%s–%s", inst.StartTime.Format(timeLayout), inst.EndTime.Format(timeLayout)),
 			Status:     inst.Status,
+			ListKind:   listKind,
+			RoomName:   roomName,
 		})
 		cancelled := inst.Status == scheduleModel.InstanceStatusCancelled
 		// A cancelled or not-yet-started occurrence carries a void plan, but it may

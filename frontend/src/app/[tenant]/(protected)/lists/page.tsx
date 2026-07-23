@@ -422,6 +422,10 @@ function optionsSignature(options: SlotListOptionsResult): string {
   // slot is renamed or moved in another tab its ID and status are unchanged,
   // and without these fields the fresh payload is discarded on focus while a
   // later export silently renders the updated label (#1565 review pass 3).
+  // list_kind and room_name matter for the same reason (#1565 review pass 4):
+  // a list_kind reassignment moves a slot in/out of a classified list and a
+  // room change reshapes a room-grouped export, both without touching the
+  // active instance-ID set — omit them and the drift slips past the guard.
   const slots = options.slots
     .map((slot) =>
       JSON.stringify([
@@ -429,6 +433,8 @@ function optionsSignature(options: SlotListOptionsResult): string {
         slot.status,
         slot.title,
         slot.time_range,
+        slot.list_kind ?? "",
+        slot.room_name ?? "",
       ]),
     )
     .sort()
@@ -457,6 +463,29 @@ function activeInstanceIdsOf(options: SlotListOptionsResult): string[] {
   return options.slots
     .filter((slot) => slot.status !== CANCELLED_SLOT_STATUS)
     .map((slot) => slot.instance_id);
+}
+
+// A stable, order-independent signature of the pickup-cohort metadata — cohort
+// key, label (which embeds the tenant's cutoff, e.g. "Ganztag bis 14:30"),
+// availability and row count. A pickup list carries no instance_ids or slot
+// metadata, so the slot-oriented guard skips it; this lets the pre-export guard
+// still catch a cutoff change made after the preview rendered. Moving a cutoff
+// re-buckets which children fall into short/long day AND rewrites the cohort's
+// header, so exporting against the stale snapshot would hand out a different
+// cohort and label than the reviewed preview (#1565 review pass 4). JSON tuples
+// keep the free-text label delimiter-safe, mirroring the slot signature.
+function pickupCohortsSignature(options: SlotListOptionsResult): string {
+  return options.pickup_cohorts
+    .map((cohort) =>
+      JSON.stringify([
+        cohort.cohort,
+        cohort.label,
+        cohort.available ? 1 : 0,
+        cohort.row_count,
+      ]),
+    )
+    .sort()
+    .join(",");
 }
 
 function defaultSelectionOption(): SelectionOption {
@@ -913,6 +942,17 @@ export default function SlotListsPage() {
     dateISORef.current = dateISO;
   }, [dateISO]);
 
+  // The last-known options error, mirrored into a ref so a background
+  // revalidation can tell "the initial load FAILED" (recover by installing the
+  // fresh payload) apart from "the initial load is still in flight" (leave it to
+  // the date-change effect) without adding optionsError to revalidateOptions'
+  // deps, which would re-subscribe the focus/visibility listeners on every error
+  // change.
+  const optionsErrorRef = useRef(optionsError);
+  useEffect(() => {
+    optionsErrorRef.current = optionsError;
+  }, [optionsError]);
+
   // The /options snapshot is otherwise fetched only when the date changes, so a
   // page left open across the day would keep sending a stale active-slot set to
   // every preview and export — omitting a slot added since load and retaining a
@@ -930,12 +970,21 @@ export default function SlotListsPage() {
     fetchSlotListOptions(requestedDate)
       .then((fresh) => {
         if (requestedDate !== dateISORef.current) return; // date moved on
+        // Read the failure flag BEFORE clearing it: prev === null means either
+        // the initial load is still running (no error yet) or it FAILED. Only in
+        // the failed case do we install the fresh payload here — otherwise the
+        // date-change effect's own in-flight fetch owns the initial load and we
+        // must not race it.
+        const recoveringFromFailure = optionsErrorRef.current !== null;
         setOptionsError(null);
         setListOptions((prev) => {
-          // The date-change effect owns the initial load (prev === null while it
-          // runs, or after an /options failure). Don't race it — leave recovery
-          // to that effect and skip until real options exist.
-          if (!prev) return prev;
+          if (!prev) {
+            // Recover a permanently-blocked page: without this, clearing the
+            // error above while leaving listOptions null strands a slot target on
+            // awaitingActiveSlots forever — no error to release the gate, and the
+            // date-load effect never reruns (#1565 review pass 4).
+            return recoveringFromFailure ? fresh : prev;
+          }
           return optionsSignature(prev) === optionsSignature(fresh)
             ? prev
             : fresh;
@@ -1118,31 +1167,37 @@ export default function SlotListsPage() {
       // An export is the one non-idempotent, hand-it-out action here, so before
       // it fires validate against a FRESH /options read — never the possibly-
       // hours-old snapshot the current request/preview was built from (#1565
-      // review pass 2). Refuse the export when the fresh options differ from the
-      // loaded ones in ANY way that changes the document: the effective
-      // instance_ids the request would carry (additions/cancellations), OR the
-      // option metadata — a rename/reschedule, or a list_kind reassignment that
-      // moves a slot in or out of a classified list without changing the active
-      // ID set (the backend intersects list_kind with instance_ids, so
-      // request.instance_ids stays equal yet the rendered document differs).
-      // On any such drift swap in the fresh options (re-rendering the preview and
-      // pruning now-cancelled selections) and ask the user to re-check and export
-      // again, rather than print a stale or differently-labeled list. Pickup
-      // cohorts carry no instance_ids/slot metadata, so they skip this guard.
+      // review pass 2 + pass 4). BOTH list types re-resolve their document from
+      // current state at export time, so both must re-check here:
+      //   - Slot lists: refuse when the effective instance_ids change
+      //     (additions/cancellations) OR the slot metadata does — a rename/
+      //     reschedule, a room change, or a list_kind reassignment that moves a
+      //     slot in/out of a classified list without changing the active ID set
+      //     (the backend intersects list_kind with instance_ids, so
+      //     request.instance_ids stays equal yet the rendered document differs).
+      //   - Pickup cohorts carry no instance_ids/slot metadata, but their cutoffs
+      //     are tenant config the export endpoint re-resolves: moving a cutoff
+      //     re-buckets the exported children and rewrites the cohort header.
+      //     Refuse when the pickup-cohort metadata changed.
+      // On any such drift swap in the fresh options (updating the slot/cohort
+      // controls and pruning now-cancelled selections) and ask the user to
+      // re-check and export again, rather than hand out a stale or
+      // differently-labeled list.
+      let fresh: SlotListOptionsResult;
+      try {
+        fresh = await fetchSlotListOptions(dateISO);
+      } catch (err: unknown) {
+        printTarget?.close();
+        logger.error("slot_list_options_revalidate_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setError(
+          "Die Angebote konnten vor dem Export nicht überprüft werden. Bitte versuchen Sie es erneut.",
+        );
+        return;
+      }
+      let drift: boolean;
       if (target === "slots") {
-        let fresh: SlotListOptionsResult;
-        try {
-          fresh = await fetchSlotListOptions(dateISO);
-        } catch (err: unknown) {
-          printTarget?.close();
-          logger.error("slot_list_options_revalidate_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          setError(
-            "Die Angebote konnten vor dem Export nicht überprüft werden. Bitte versuchen Sie es erneut.",
-          );
-          return;
-        }
         const freshActive = activeInstanceIdsOf(fresh);
         const effective =
           isManualSlotSelection && selectedSlotIds !== null
@@ -1151,18 +1206,24 @@ export default function SlotListsPage() {
         const metadataChanged =
           !listOptions ||
           optionsSignature(listOptions) !== optionsSignature(fresh);
-        if (
+        drift =
           metadataChanged ||
-          !sameStringSet(effective, request.instance_ids ?? [])
-        ) {
-          printTarget?.close();
-          setOptionsError(null);
-          setListOptions(fresh);
-          setError(
-            "Die Angebote für diesen Tag haben sich seit dem Laden geändert. Die Vorschau wurde aktualisiert. Bitte prüfen und erneut exportieren.",
-          );
-          return;
-        }
+          !sameStringSet(effective, request.instance_ids ?? []);
+      } else {
+        drift =
+          !listOptions ||
+          pickupCohortsSignature(listOptions) !== pickupCohortsSignature(fresh);
+      }
+      if (drift) {
+        printTarget?.close();
+        setOptionsError(null);
+        setListOptions(fresh);
+        setError(
+          target === "slots"
+            ? "Die Angebote für diesen Tag haben sich seit dem Laden geändert. Bitte prüfen und erneut exportieren."
+            : "Die Abholzeiten für diesen Tag haben sich seit dem Laden geändert. Bitte prüfen und erneut exportieren.",
+        );
+        return;
       }
 
       setIsExporting(true);

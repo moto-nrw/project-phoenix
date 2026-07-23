@@ -36,6 +36,10 @@ interface SlotListSlot {
   title: string;
   time_range: string;
   status: string;
+  /** Timetable list classification; drives which classified list a slot exports to. */
+  list_kind?: string;
+  /** Planned room name; reshapes a room-grouped export when it changes. */
+  room_name?: string;
 }
 
 export interface SlotListRow {
