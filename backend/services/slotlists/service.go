@@ -54,7 +54,7 @@ var ErrPickupCohortPastDate = errors.New("Ganztag-Listen sind nur für heute und
 // the whole group is missing before the day has even started (#1565 review). Plan
 // and Ist lists stay available for future dates; only the merge is refused. The
 // handler maps this to HTTP 400.
-var ErrReconciliationFutureDate = errors.New("Ein Abgleich ist nur für heute und vergangene Tage möglich, nicht für künftige Tage")
+var ErrReconciliationFutureDate = errors.New("Ein Abgleich ist nur für heute und vergangene Tage möglich, nicht für künftige Tage") //nolint:staticcheck // ST1005: user-facing German message
 
 // ErrListDrifted is returned by RenderList when the freshly rebuilt list no
 // longer matches the content signature the client verified in its preview
@@ -526,7 +526,20 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 		if rows[i].Slot != rows[j].Slot {
 			return rows[i].Slot < rows[j].Slot
 		}
-		return rows[i].Name < rows[j].Name
+		if rows[i].Name != rows[j].Name {
+			return rows[i].Name < rows[j].Name
+		}
+		// Stable ID tie-breakers: two rows can share group title, slot and full
+		// name — e.g. two identically named unplanned attendees in one slot. Their
+		// input order comes from map iteration / an incompletely ordered query,
+		// while listSignature hashes InstanceID and StudentID positionally, so
+		// without a deterministic order unchanged data could produce different
+		// preview/export signatures and trigger false drift refusals (#1565 review
+		// pass 9).
+		if rows[i].InstanceID != rows[j].InstanceID {
+			return rows[i].InstanceID < rows[j].InstanceID
+		}
+		return rows[i].StudentID < rows[j].StudentID
 	})
 	result.Rows = rows
 	result.Counters = countRows(rows, params.Source)

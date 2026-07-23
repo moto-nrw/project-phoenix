@@ -847,9 +847,16 @@ export default function SlotListsPage() {
   // document-affecting inputs are unchanged and a fresh one on any change, so an
   // identity comparison against the captured value is exact (#1565 review pass 7).
   const requestRef = useRef(request);
-  useEffect(() => {
-    requestRef.current = request;
-  }, [request]);
+  // Update synchronously during render, NOT in a passive effect. handleExport
+  // re-reads requestRef.current at its identity gates after awaiting two network
+  // round-trips; a passive effect runs only after paint, so a fetch continuation
+  // resuming between commit and that effect would still read the pre-change
+  // request and export the list the UI has already left. Writing here keeps the
+  // ref current the moment `request` changes. `request` is a stable useMemo, so
+  // this only stores a new reference when a document-affecting input actually
+  // changes — an identity comparison against the captured value stays exact
+  // (#1565 review pass 9).
+  requestRef.current = request;
 
   // For slot lists the active (non-cancelled) instance set is authoritative and
   // comes from /options, never the preview. Until it loads, activeInstanceIds is
@@ -1557,6 +1564,16 @@ export default function SlotListsPage() {
         if (err instanceof SlotListExportError && err.status === 409) {
           pendingPreviewWarning.current =
             "Die Liste hat sich seit dem Laden geändert. Bitte prüfen und erneut exportieren.";
+          // The 409 means schedule metadata or a pickup cutoff drifted after the
+          // preflight /options read but before the backend's export rebuild.
+          // Bumping only previewNonce refreshes the preview while request and the
+          // controls keep deriving from the stale listOptions snapshot: a
+          // since-cancelled slot stays selected and its explicit ID is re-sent to
+          // the refreshed preview, leaving the UI inconsistent and forcing another
+          // failed export before options finally update. Revalidate the options
+          // snapshot alongside so activeInstanceIds is re-derived and the stale
+          // selection is pruned (#1565 review pass 9).
+          revalidateOptions();
           setPreviewNonce((n) => n + 1);
           return;
         }
@@ -1582,6 +1599,7 @@ export default function SlotListsPage() {
       pickupCohort,
       listOptions,
       result,
+      revalidateOptions,
     ],
   );
 
