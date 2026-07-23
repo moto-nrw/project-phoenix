@@ -2035,6 +2035,124 @@ func TestBuildList_SlotListDropsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
 	assert.Equal(t, 1, mensaOption.RowCount, "options planned count must exclude the unbooked status-day child")
 }
 
+// The deferred (not-yet-started) void plan must apply the SAME unbooked-day drop
+// as the live merge: a broad sick status day can stamp an absent+substatus row
+// onto a child the care plan never booked into care this weekday
+// (CareDayNotScheduled). Before the slot's scheduled start that row is not a
+// registered absence — the child was never expected — so it must be dropped, not
+// inflated into the planned/excused lists. A genuinely signed-off ("Kommt heute
+// nicht", CareDayCancelled) child on the same deferred slot must still survive as
+// "Abgemeldet", proving the guard is surgical (#1565 review pass 10).
+func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-DefSdRoom-%d", suffix))
+	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-DefSdAct-%d", suffix))
+	staff := testpkg.CreateTestStaff(t, db, "SL-DefSdStaff", fmt.Sprintf("DSD-%d", suffix))
+	mensa := activitiesModels.ListKindMensa
+
+	// pickupNow is 12:00 on pickupDate (Wednesday, ISO 3); this occurrence starts
+	// at 15:00 → not yet started, so the reconciliation reaches it deferred.
+	future := &scheduleModels.ActivityInstance{
+		Date:            pickupDate,
+		ActivityGroupID: &activity.ID,
+		Title:           fmt.Sprintf("Mensa-Future %d", suffix),
+		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:          room.ID,
+		Status:          scheduleModels.InstanceStatusPlanned,
+		ListKind:        &mensa,
+	}
+	future.SetTenantID(1)
+	_, err := db.NewInsert().Model(future).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
+	require.NoError(t, err)
+
+	sickUnbooked := testpkg.CreateTestStudent(t, db, "SL-DefSdSick", fmt.Sprintf("DS-%d", suffix), "5a")
+	cancelled := testpkg.CreateTestStudent(t, db, "SL-DefSdCxl", fmt.Sprintf("DC-%d", suffix), "5a")
+
+	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	var pickupIDs []int64
+	for _, row := range []*scheduleModels.StudentPickupSchedule{
+		// sickUnbooked is only booked on Monday (ISO 1) → not_scheduled on
+		// Wednesday: a plan exists but does not cover today (CareDayNotScheduled,
+		// not the plan-less CareDayUnknown).
+		{StudentID: sickUnbooked.ID, Weekday: 1, PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
+		// cancelled IS booked on Wednesday (ISO 3); a timeless exception below signs
+		// the day off → CareDayCancelled, a real all-day absence.
+		{StudentID: cancelled.ID, Weekday: 3, PickupTime: time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
+	} {
+		row.SetTenantID(1)
+		require.NoError(t, pickupRepo.Create(ctx, row))
+		pickupIDs = append(pickupIDs, row.ID)
+	}
+
+	cancelExc := &scheduleModels.StudentPickupException{
+		StudentID: cancelled.ID, ExceptionDate: pickupDate, PickupTime: nil, CreatedBy: staff.ID,
+	}
+	cancelExc.SetTenantID(1)
+	_, err = db.NewInsert().Model(cancelExc).ModelTableExpr(`schedule.student_pickup_exceptions`).Exec(ctx)
+	require.NoError(t, err)
+
+	// A broad sick day stamps sickUnbooked's expected row absent and owns it via
+	// student_status_day_id — a false absence on a day the child was never booked.
+	statusDay := testpkg.CreateTestStudentStatusDay(t, db, sickUnbooked.ID, pickupDate, activeModels.StudentStatusDaySick)
+
+	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	sickRow := &scheduleModels.InstanceStudent{
+		InstanceID:         future.ID,
+		StudentID:          sickUnbooked.ID,
+		Status:             scheduleModels.AttendanceStatusAbsent,
+		StudentStatusDayID: &statusDay.ID,
+	}
+	sickRow.SetTenantID(1)
+	require.NoError(t, isRepo.Create(ctx, sickRow))
+	// The signed-off child is still expected on the roster; the cancellation lives
+	// in the care plan, not the row.
+	cancelledRow := &scheduleModels.InstanceStudent{
+		InstanceID: future.ID,
+		StudentID:  cancelled.ID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+	}
+	cancelledRow.SetTenantID(1)
+	require.NoError(t, isRepo.Create(ctx, cancelledRow))
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", sickRow.ID, cancelledRow.ID)
+		testpkg.CleanupStudentStatusDays(t, db, statusDay.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_exceptions", cancelExc.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_schedules", pickupIDs...)
+		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", future.ID)
+		testpkg.CleanupActivityFixtures(t, db, sickUnbooked.ID)
+		testpkg.CleanupActivityFixtures(t, db, cancelled.ID, staff.ID)
+		testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activity.ID, room.ID)
+	})
+
+	svc := newTestService(db)
+	recon, err := svc.BuildList(ctx, slotlists.Params{
+		Date:   pickupDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+
+	// The unbooked status-day absence must NOT appear before the slot starts.
+	assert.Nil(t, rowByStudent(recon.Rows, sickUnbooked.ID),
+		"a status-day absence on a day the child was never booked must be dropped on a deferred slot")
+
+	// The genuine sign-off still survives as Abgemeldet — the guard is surgical.
+	cancelledResult := rowByStudent(recon.Rows, cancelled.ID)
+	require.NotNil(t, cancelledResult, "a signed-off (cancelled) child still shows before the slot starts")
+	assert.True(t, cancelledResult.Excused)
+	assert.Equal(t, "Abgemeldet (entschuldigt)", cancelledResult.StatusLabel)
+
+	assert.Equal(t, 1, recon.Counters.Excused, "only the real sign-off counts as Abgemeldet")
+	assert.Equal(t, 0, recon.Counters.Missing, "no missing-child count before the slot has started")
+}
+
 // A signed-off ("Kommt heute nicht") child stays on a classified slot list as a
 // planned "Abgemeldet" row, so ListOptions' per-kind planned count must include
 // them too — otherwise the list-kind availability underreports what the

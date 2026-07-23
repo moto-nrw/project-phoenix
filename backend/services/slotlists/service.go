@@ -1914,6 +1914,22 @@ func voidPlanRegisteredAbsence(row *scheduleModel.InstanceStudent, careDay sched
 	if row == nil {
 		return "", false
 	}
+	// The care plan never booked this child into the OGS on this weekday
+	// (CareDayNotScheduled means a plan exists but does not cover today), yet a
+	// broad sick/excused/class-trip status day can still stamp the roster row
+	// absent+substatus for a day the child was never expected. On a deferred
+	// (not-yet-started) slot that is not a registered absence — the child does
+	// not belong on the list at all — so drop it here exactly as the normal
+	// merge does at its CareDayNotScheduled branch (service.go ~1207); keeping it
+	// would inflate the planned and excused lists with unbooked children. A
+	// manual per-slot override (ManualStatusAt) is a human decision that wins and
+	// is deliberately excluded from this guard, matching that same merge branch.
+	// A child with no plan at all resolves to CareDayUnknown (not NotScheduled),
+	// so a genuine sign-off on an unplanned child still survives below (#1565
+	// review pass 10).
+	if row.ManualStatusAt == nil && careDay == scheduleSvc.CareDayNotScheduled {
+		return "", false
+	}
 	if row.Status == scheduleModel.AttendanceStatusAbsent && row.Substatus != nil {
 		switch *row.Substatus {
 		case scheduleModel.AttendanceSubstatusSick,

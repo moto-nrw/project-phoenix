@@ -200,12 +200,28 @@ export class SlotListExportError extends Error {
   }
 }
 
+// Thrown when the caller's commitGuard reports the live selection no longer
+// matches the exported request AFTER the file has been built but BEFORE it is
+// handed out. Distinct from SlotListExportError so the caller can show a
+// "selection changed" hint instead of logging an export failure (#1565 review
+// pass 10).
+export class SlotListExportSupersededError extends Error {
+  constructor() {
+    super("slot list export superseded by a newer selection");
+    this.name = "SlotListExportSupersededError";
+  }
+}
+
 export async function exportSlotList(
   request: SlotListRequest,
   format: SlotListFormat,
   mode: SlotListExportMode,
   preOpenedPrintTarget?: Window | null,
   expectedSignature?: string,
+  // Evaluated after the export response arrives but before the file is handed
+  // out (download/print). Returning false aborts the handoff — the caller's
+  // selection moved on during the export round-trip, so the built file is stale.
+  commitGuard?: () => boolean,
 ): Promise<void> {
   // The print tab must open synchronously while the click's transient user
   // activation is still valid: after `await fetch` popup blockers (Safari,
@@ -242,6 +258,18 @@ export async function exportSlotList(
     }
 
     const blob = await response.blob();
+
+    // Last gate before the file leaves the building: the backend already
+    // verified the signature, but the export round-trip is itself a window in
+    // which the user can change the date/filters. If the live selection no
+    // longer matches the exported request, abort the handoff rather than
+    // download/print a document for a selection the UI has already left. The
+    // catch below closes the print tab and rethrows for the caller to surface
+    // (#1565 review pass 10).
+    if (commitGuard && !commitGuard()) {
+      throw new SlotListExportSupersededError();
+    }
+
     const url = URL.createObjectURL(blob);
     if (printTarget) {
       openForPrint(printTarget, url);

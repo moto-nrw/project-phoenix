@@ -47,6 +47,7 @@ import {
   fetchSlotListPreview,
   groupByOptionsFor,
   SlotListExportError,
+  SlotListExportSupersededError,
   SLOT_LIST_KIND_LABELS,
   SLOT_LIST_GROUP_BY_LABELS,
   SLOT_LIST_SOURCE_LABELS,
@@ -1236,17 +1237,25 @@ export default function SlotListsPage() {
     let cancelled = false;
     setIsLoading(true);
     setError(null);
-    // Consume a warning stashed by the export drift path (409 / header-only
-    // drift) exactly once: it is re-applied after the fresh preview lands so it
-    // survives the setError(null) above instead of flashing (#1565 review pass
-    // 8).
-    const carriedWarning = pendingPreviewWarning.current;
-    pendingPreviewWarning.current = null;
     fetchSlotListPreview(request)
       .then((preview) => {
         if (cancelled) return;
         setResult(preview);
-        if (carriedWarning) setError(carriedWarning);
+        // Re-apply a warning stashed by the export drift path (409 / header-only
+        // drift) after the fresh preview lands, so it survives the setError(null)
+        // above instead of flashing (#1565 review pass 8). Deliberately re-read
+        // the LIVE ref (not a value captured at effect start) and do NOT clear it
+        // here: a single 409 fires BOTH an options revalidation and a nonce bump,
+        // so the preview effect can run more than once before the refresh settles.
+        // Consuming the warning in the first run to resolve let the later
+        // options-triggered run — which supersedes it — land with an empty ref and
+        // wipe the message. Keeping the ref set lets whichever run settles last
+        // re-apply it; it is cleared only when the user starts a new export
+        // (handleExport) or switches context (the effect below) (#1565 review pass
+        // 9 / pass 10).
+        if (pendingPreviewWarning.current) {
+          setError(pendingPreviewWarning.current);
+        }
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -1280,6 +1289,18 @@ export default function SlotListsPage() {
     // request and listOptions are unchanged but attendance may have drifted.
     previewNonce,
   ]);
+
+  // A stashed export-drift warning stays applicable only as long as the user is
+  // still looking at the list that produced the drift. These inputs change ONLY
+  // by a deliberate user gesture (date, list target, source, pickup cohort, list
+  // kind) — never by the background options revalidation the 409 path fires, which
+  // touches listOptions/activeInstanceIds/slot pruning but none of these. So
+  // clearing the warning here preserves it through that refresh (which is the
+  // whole point) yet drops it the moment the user navigates to a different
+  // document, where "please re-export" would be stale (#1565 review pass 10).
+  useEffect(() => {
+    pendingPreviewWarning.current = null;
+  }, [dateISO, target, source, pickupCohort, listKind]);
 
   // We deliberately do NOT reconcile stale group/class URL filters against the
   // preview. result.groups / result.classes are derived from the preview rows,
@@ -1373,6 +1394,11 @@ export default function SlotListsPage() {
       // below clears the lock again.
       setIsExporting(true);
       setError(null);
+      // A fresh export attempt supersedes any lingering "please re-export" drift
+      // warning from a previous 409: drop it so a later preview settle cannot
+      // re-apply a now-irrelevant message over this attempt's result (#1565
+      // review pass 10).
+      pendingPreviewWarning.current = null;
 
       // An export is the one non-idempotent, hand-it-out action here, so before
       // it fires validate against a FRESH /options read — never the possibly-
@@ -1404,6 +1430,22 @@ export default function SlotListsPage() {
         });
         setError(
           "Die Angebote konnten vor dem Export nicht überprüft werden. Bitte versuchen Sie es erneut.",
+        );
+        return;
+      }
+      // If the user changed the date, source, list type, slot selection, or a
+      // filter while this /options round-trip was in flight, `fresh` describes the
+      // OLD document. Everything below — the drift comparison, the
+      // setListOptions(fresh) install, the preview refetch and the export —
+      // operates on the captured (now stale) request, so installing `fresh` here
+      // would overwrite the new date's already-committed options with the old
+      // date's snapshot and query the wrong slots. Gate BEFORE any of that state
+      // mutation, not just before the export (#1565 review pass 7 / pass 10).
+      if (requestRef.current !== request) {
+        printTarget?.close();
+        setIsExporting(false);
+        setError(
+          "Die Auswahl hat sich während des Exports geändert. Bitte prüfen und erneut exportieren.",
         );
         return;
       }
@@ -1468,20 +1510,6 @@ export default function SlotListsPage() {
         return;
       }
 
-      // If the user changed the date, source, list type, slot selection, or a
-      // filter while the options round-trip was in flight, everything below still
-      // operates on the captured (now stale) request — the preview refetch and the
-      // export would hand out the list the UI has moved away from. Abort here
-      // rather than waste the preview fetch on it (#1565 review pass 7).
-      if (requestRef.current !== request) {
-        printTarget?.close();
-        setIsExporting(false);
-        setError(
-          "Die Auswahl hat sich während des Exports geändert. Bitte prüfen und erneut exportieren.",
-        );
-        return;
-      }
-
       // The options guard above only sees slot/cohort METADATA. Roster membership
       // and attendance can drift without touching it — a child swaps groups or
       // cohorts, checks in/out, or is marked sick — and the export re-derives from
@@ -1501,6 +1529,20 @@ export default function SlotListsPage() {
         });
         setError(
           "Die Liste konnte vor dem Export nicht überprüft werden. Bitte versuchen Sie es erneut.",
+        );
+        return;
+      }
+      // Same mid-flight guard as after the options read: if the selection moved on
+      // while this preview round-trip was in flight, `freshPreview` describes the
+      // OLD document. The setResult(freshPreview) install below would overwrite the
+      // current selection's already-committed preview with named children outside
+      // the filters shown in the controls. Gate BEFORE comparing or installing it,
+      // not just before the export (#1565 review pass 7 / pass 10).
+      if (requestRef.current !== request) {
+        printTarget?.close();
+        setIsExporting(false);
+        setError(
+          "Die Auswahl hat sich während des Exports geändert. Bitte prüfen und erneut exportieren.",
         );
         return;
       }
@@ -1525,19 +1567,6 @@ export default function SlotListsPage() {
         return;
       }
 
-      // Final identity gate before the file is handed out: the preview refetch
-      // above is another round-trip during which the selection could have moved
-      // on. Never export the captured request once the live selection no longer
-      // matches it (#1565 review pass 7).
-      if (requestRef.current !== request) {
-        printTarget?.close();
-        setIsExporting(false);
-        setError(
-          "Die Auswahl hat sich während des Exports geändert. Bitte prüfen und erneut exportieren.",
-        );
-        return;
-      }
-
       try {
         // Pass the verified preview's backend signature. The client-side guards
         // above cannot close the last window: the export endpoint rebuilds the
@@ -1546,14 +1575,36 @@ export default function SlotListsPage() {
         // out a file the user never saw. The backend re-derives, recomputes the
         // signature and refuses with 409 on any mismatch — so the downloaded file
         // is guaranteed to match the approved preview (#1565 review pass 2).
+        //
+        // exportSlotList runs its OWN network round-trip, and the date/filter
+        // controls stay interactive throughout it (disabling them would thread a
+        // disabled prop through the shared kit — see the isExporting note above).
+        // The last identity gate before this call therefore cannot cover the
+        // export await itself: the user could change the selection while the file
+        // is being built, and without a further check the file for the abandoned
+        // selection would still be downloaded/printed. Hand exportSlotList a commit
+        // guard it evaluates AFTER the response arrives but BEFORE the file is
+        // handed out, so a changed selection aborts the handoff instead of leaking
+        // a document the UI has already left (#1565 review pass 10).
         await exportSlotList(
           request,
           format,
           mode,
           printTarget,
           freshPreview.signature,
+          () => requestRef.current === request,
         );
       } catch (err: unknown) {
+        // The selection changed during the export round-trip, so exportSlotList
+        // refused to hand out the now-stale file (and already closed the print
+        // tab). Ask the user to re-check and export again — this is not a failure
+        // to log (#1565 review pass 10).
+        if (err instanceof SlotListExportSupersededError) {
+          setError(
+            "Die Auswahl hat sich während des Exports geändert. Bitte prüfen und erneut exportieren.",
+          );
+          return;
+        }
         // 409 = the backend's atomic drift refusal (its rebuild no longer matches
         // the verified signature). Refresh the preview so the user sees the new
         // content and re-checks, rather than silently failing. exportSlotList
@@ -1677,20 +1728,37 @@ export default function SlotListsPage() {
   ]);
 
   // Surface a group/class restriction that the standard dropdowns above cannot
-  // show. Those dropdowns only render when the preview exposes more than one
-  // option (`result.groups`/`result.classes` are derived from the day's rows).
+  // fully show. Those dropdowns only render when the preview exposes more than
+  // one option (`result.groups`/`result.classes` are derived from the day's
+  // rows), and they can only display/toggle values that ARE options.
+  //
   // A bookmarked filter can point at a group/class with no rows for the selected
   // date + source: the reconciliation effect deliberately keeps that selection
   // (dropping it would broaden a confidential single-group list to the whole
-  // cohort), but with zero or one visible options the control disappears,
-  // leaving an unexplained empty preview and no way to inspect or clear the
-  // restriction. Render a removable chip for exactly those cases so the still-
-  // active filter stays visible and clearable (#1565 review pass 2).
+  // cohort). Two shapes leave a value unreachable from the dropdown:
+  //   - Dropdown hidden (zero or one visible option): the control disappears
+  //     entirely, so the whole restriction is invisible.
+  //   - Dropdown shown but the selection also contains a value that is NOT among
+  //     the visible options (a stale/rowless id). The dropdown renders the
+  //     visible members but cannot show or uncheck the hidden one, and
+  //     nextSelection deliberately preserves unknown selections — so the hidden
+  //     restriction silently narrows the list with no way to clear it there.
+  // Render a removable chip for BOTH cases so the still-active filter stays
+  // visible and clearable; removing it resets the whole restriction to "all"
+  // (#1565 review pass 2 / pass 10).
   const hiddenActiveFilters: ActiveFilter[] = useMemo(() => {
     const chips: ActiveFilter[] = [];
     const groupDropdownShown = !!result && result.groups.length > 1;
     const classDropdownShown = !!result && result.classes.length > 1;
-    if (selectedGroupIds !== null && !groupDropdownShown) {
+    const groupOptionIds = new Set(result?.groups.map((g) => g.id) ?? []);
+    const classOptions = new Set(result?.classes ?? []);
+    const groupHasHidden =
+      selectedGroupIds !== null &&
+      selectedGroupIds.some((id) => !groupOptionIds.has(id));
+    const classHasHidden =
+      selectedClasses !== null &&
+      selectedClasses.some((c) => !classOptions.has(c));
+    if (selectedGroupIds !== null && (!groupDropdownShown || groupHasHidden)) {
       chips.push({
         id: "group-restriction",
         label: "Gruppenfilter aktiv",
@@ -1700,7 +1768,7 @@ export default function SlotListsPage() {
         },
       });
     }
-    if (selectedClasses !== null && !classDropdownShown) {
+    if (selectedClasses !== null && (!classDropdownShown || classHasHidden)) {
       chips.push({
         id: "class-restriction",
         label: "Klassenfilter aktiv",

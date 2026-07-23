@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	timetableListKindVersion     = "1.15.210"
+	timetableListKindVersion     = "1.15.217"
 	timetableListKindDescription = "Add timetable list kind to activity templates and instances"
 )
 
@@ -30,7 +30,7 @@ func init() {
 }
 
 func timetableListKindUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.210: Adding timetable list_kind columns...")
+	fmt.Println("Migration 1.15.217: Adding timetable list_kind columns...")
 
 	statements := []string{
 		`ALTER TABLE activities.groups ADD COLUMN IF NOT EXISTS list_kind TEXT`,
@@ -61,7 +61,7 @@ func timetableListKindUp(ctx context.Context, db *bun.DB) error {
 }
 
 func timetableListKindDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.210: Removing timetable list_kind columns...")
+	fmt.Println("Rolling back migration 1.15.217: Removing timetable list_kind columns...")
 
 	statements := []string{
 		`DROP INDEX IF EXISTS activities.idx_activity_groups_tenant_list_kind`,
