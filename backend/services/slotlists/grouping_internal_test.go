@@ -71,6 +71,31 @@ func TestApplyGrouping_SlotDisambiguatesDistinctInstances(t *testing.T) {
 		}, 3)
 	})
 
+	t.Run("numeric room name never collides with an ordinal", func(t *testing.T) {
+		// A unique room literally named "1" renders the suffix " (1)", which is
+		// textually identical to the first ordinal " (1)" the shared-room / no-room
+		// instances fall back to. The two namespaces must stay disjoint so distinct
+		// instances never share a GroupTitle (#1565 review pass 2 follow-up).
+		rows := []Row{
+			{InstanceID: 1, Slot: "AG 14:00", RoomName: "1", StudentID: 10},
+			{InstanceID: 2, Slot: "AG 14:00", RoomName: "", StudentID: 20},
+			{InstanceID: 3, Slot: "AG 14:00", RoomName: "", StudentID: 30},
+		}
+		applyGrouping(rows, GroupBySlot)
+		byInstance := map[int64]string{}
+		for _, r := range rows {
+			byInstance[r.InstanceID] = r.GroupTitle
+		}
+		// The unique room keeps its name; the ordinal pass skips the " (1)" string
+		// the room already claimed and starts at " (2)".
+		assert.Equal(t, "Angebot: AG 14:00 (1)", byInstance[1])
+		assert.Equal(t, "Angebot: AG 14:00 (2)", byInstance[2])
+		assert.Equal(t, "Angebot: AG 14:00 (3)", byInstance[3])
+		assert.Len(t, map[string]struct{}{
+			byInstance[1]: {}, byInstance[2]: {}, byInstance[3]: {},
+		}, 3, "distinct instances must never share a section")
+	})
+
 	t.Run("non-slot grouping is unaffected", func(t *testing.T) {
 		rows := []Row{
 			{InstanceID: 1, Slot: "Fußball", SchoolClass: "3a", StudentID: 10},

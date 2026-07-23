@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -854,16 +861,27 @@ export default function SlotListsPage() {
   // document-affecting inputs are unchanged and a fresh one on any change, so an
   // identity comparison against the captured value is exact (#1565 review pass 7).
   const requestRef = useRef(request);
-  // Update synchronously during render, NOT in a passive effect. handleExport
-  // re-reads requestRef.current at its identity gates after awaiting two network
-  // round-trips; a passive effect runs only after paint, so a fetch continuation
-  // resuming between commit and that effect would still read the pre-change
-  // request and export the list the UI has already left. Writing here keeps the
-  // ref current the moment `request` changes. `request` is a stable useMemo, so
-  // this only stores a new reference when a document-affecting input actually
-  // changes — an identity comparison against the captured value stays exact
-  // (#1565 review pass 9).
-  requestRef.current = request;
+  // Sync the ref in the COMMIT phase — not during render, not in a passive effect.
+  // handleExport re-reads requestRef.current at its identity gates after awaiting
+  // two network round-trips, so the ref must reflect the request the user has
+  // actually committed to:
+  //   - A render-phase write (`requestRef.current = request`) also publishes
+  //     SPECULATIVE renders: React's concurrent renderer can begin rendering a
+  //     filter/date change and then abandon or supersede it, but a ref mutation is
+  //     never rolled back — so an export identity gate could observe a request the
+  //     user never navigated to and falsely discard a valid file.
+  //   - A passive effect (useEffect) runs only after paint, leaving a gap between
+  //     commit and the effect in which a resuming fetch continuation would still
+  //     read the pre-change request and export the list the UI has already left.
+  // useLayoutEffect runs synchronously inside commit — after a render is actually
+  // committed (never for a discarded speculative render) and before the browser
+  // yields to a microtask / fetch continuation — so it closes both windows.
+  // `request` is a stable useMemo, so this only stores a new reference when a
+  // document-affecting input actually changes and the identity comparison against
+  // the captured value stays exact (#1565 review pass 3 follow-up).
+  useLayoutEffect(() => {
+    requestRef.current = request;
+  }, [request]);
 
   // For slot lists the active (non-cancelled) instance set is authoritative and
   // comes from /options, never the preview. Until it loads, activeInstanceIds is
@@ -1465,6 +1483,32 @@ export default function SlotListsPage() {
       // snapshot, rolling active slot IDs or cutoff metadata back and re-firing a
       // stale preview / repeated export refusal (#1565 review pass 1 P2).
       const exportOptionsGeneration = ++optionsRequestGenerationRef.current;
+      // The no-drift path below commits this preflight's options generation but,
+      // because its drift check is scoped to the list being exported, cannot
+      // install `fresh` inline: doing so would churn activeInstanceIds -> request
+      // and trip the identity gates further down, refusing an otherwise-valid
+      // export for a change OUTSIDE this document. So it STAGES the fresh whole-day
+      // snapshot here and commitRefreshedOptions installs it once the attempt has
+      // run and can no longer be disrupted by the resulting request change. Without
+      // this, advancing the committed marker without storing `fresh` would strand
+      // listOptions on the stale snapshot — a Lernzeit slot cancelled while Mensa is
+      // exported leaves drift false, yet an older focus refresh is then dropped
+      // (generation <= committed), so switching to the affected list before the next
+      // refresh re-derives activeInstanceIds from stale data and sends the wrong
+      // active IDs (#1565 review pass 2 P2 follow-up).
+      let refreshedOptions: SlotListOptionsResult | null = null;
+      const commitRefreshedOptions = () => {
+        // `fresh` is the whole-day /options snapshot for the captured date; install
+        // it as long as the user is still on THAT date (a list-kind / source /
+        // filter / slot change keeps it valid — only a date change invalidates it,
+        // and that already has its own fresh load). Guarding on the date rather than
+        // the full request identity lets a mid-export list switch still receive the
+        // fresh active-slot set instead of the stale one.
+        if (refreshedOptions && dateISORef.current === dateISO) {
+          setListOptions(refreshedOptions);
+        }
+        refreshedOptions = null;
+      };
       let fresh: SlotListOptionsResult;
       try {
         fresh = await fetchSlotListOptions(dateISO);
@@ -1572,18 +1616,23 @@ export default function SlotListsPage() {
         return;
       }
 
-      // No drift: `fresh` equals the installed options, so nothing is
-      // reinstalled. Still commit this preflight's generation (guarded against a
-      // newer request that already won) — the drift branch above only advances
-      // the marker when it installs. Without committing here, this preflight's
-      // /options read (the newest started) leaves the shared marker behind an
-      // older focus/visibility revalidation that started earlier but resolves
-      // later; that stale sibling would then pass its own `generation <=
-      // committed` check and overwrite this fresh snapshot, rolling active slot
-      // IDs or cutoff metadata back and re-firing a stale preview / repeated
-      // export refusal until the next refresh (#1565 review pass 2 P2).
+      // No drift IN THIS DOCUMENT, but `fresh` may still differ from the installed
+      // options OUTSIDE it (the drift check above is scoped to the exported list).
+      // Commit this preflight's generation (guarded against a newer request that
+      // already won) — the drift branch above only advances the marker when it
+      // installs. Without committing here, this preflight's /options read (the
+      // newest started) leaves the shared marker behind an older focus/visibility
+      // revalidation that started earlier but resolves later; that stale sibling
+      // would then pass its own `generation <= committed` check and overwrite the
+      // snapshot, rolling active slot IDs or cutoff metadata back and re-firing a
+      // stale preview / repeated export refusal until the next refresh (#1565 review
+      // pass 2 P2). STAGE `fresh` alongside the commit so listOptions is brought up
+      // to the newest snapshot after this attempt runs — advancing the marker while
+      // dropping `fresh` would strand listOptions stale for out-of-document changes
+      // (#1565 review pass 2 P2 follow-up).
       if (exportOptionsGeneration > optionsCommittedGenerationRef.current) {
         optionsCommittedGenerationRef.current = exportOptionsGeneration;
+        refreshedOptions = fresh;
       }
 
       // The options guard above only sees slot/cohort METADATA. Roster membership
@@ -1617,6 +1666,13 @@ export default function SlotListsPage() {
       if (requestRef.current !== request) {
         printTarget?.close();
         setIsExporting(false);
+        // The user navigated mid-export. If they only switched list_kind / source /
+        // filter (the date is unchanged, so the staged snapshot is still valid),
+        // install it now: the request already moved on, so this cannot disrupt the
+        // abandoned export, and it keeps the generation-committed listOptions from
+        // stranding stale on the list the user just switched to (#1565 review pass 2
+        // P2 follow-up). A date change is skipped by commitRefreshedOptions' guard.
+        commitRefreshedOptions();
         setError(
           "Die Auswahl hat sich während des Exports geändert. Bitte prüfen und erneut exportieren.",
         );
@@ -1670,6 +1726,15 @@ export default function SlotListsPage() {
           freshPreview.signature,
           () => requestRef.current === request,
         );
+        // The file has been handed out, so the request it was built from can no
+        // longer be disrupted by a resulting state change: install any options
+        // snapshot the no-drift preflight staged. This brings listOptions up to the
+        // newest whole-day state — e.g. a slot cancelled in a DIFFERENT list_kind
+        // while this list was exported, which the document-scoped drift check
+        // correctly ignored — so a later switch to the affected list derives its
+        // active-slot set from fresh data instead of the stale, generation-locked
+        // snapshot (#1565 review pass 2 P2 follow-up).
+        commitRefreshedOptions();
       } catch (err: unknown) {
         // The selection changed during the export round-trip, so exportSlotList
         // refused to hand out the now-stale file (and already closed the print

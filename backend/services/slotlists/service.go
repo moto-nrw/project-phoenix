@@ -742,6 +742,25 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 				careDays[row.StudentID] == scheduleSvc.CareDayNotScheduled {
 				continue
 			}
+			// A cancelled care day the child ATTENDED anyway is unplanned presence,
+			// not a planned row: classifyPlannedRow's cancelled branch emits such a
+			// flipped-to-present row present-only (exactly like the IsUnplanned and
+			// not_scheduled branches), never the planned "Abgemeldet" shape. Once the
+			// check-in flips the row to present, AttendanceRowCareDay reports unknown
+			// (a real status tells its own story), so the generic increment below
+			// would miscount it as planned and overreport /options versus the Plan
+			// preview and export. Key on the RAW cancellation verdict (a manual
+			// override still wins and is excluded), mirroring classifyPlannedRow. A
+			// cancelled NO-SHOW keeps its Expected/absent status and still counts below
+			// as the "Abgemeldet" planned row it prints as (#1565 review pass 1). The
+			// roster-only count cannot observe a visit that left the row status
+			// untouched, but the concrete drift this guards is the flipped-to-present
+			// row the review found.
+			if row.ManualStatusAt == nil &&
+				careDays[row.StudentID] == scheduleSvc.CareDayCancelled &&
+				row.Status == scheduleModel.AttendanceStatusPresent {
+				continue
+			}
 			verdict := scheduleSvc.AttendanceRowCareDay(completed, row, careDays[row.StudentID])
 			// A genuine non-booking (not_scheduled) — whether the row still reads
 			// Expected or was already stamped absent by a broad status day on a day
@@ -910,14 +929,39 @@ func slotHeadingDisambiguation(rows []Row, groupBy GroupBy) map[int64]string {
 		for _, id := range li.ids {
 			roomCount[li.room[id]]++
 		}
-		ordinal := 0
+		// Two passes with a shared `used` set so the room and ordinal suffixes can
+		// never render the same string. A numeric room name like "1" produces the
+		// suffix " (1)", which is textually identical to the first ordinal " (1)";
+		// emitting both would hand two distinct instances the same GroupTitle and
+		// re-merge the sections this function exists to split. First assign every
+		// uniquely-identifying room its " (room)" suffix and record it; then fill the
+		// remaining instances with running ordinals, SKIPPING any ordinal string a
+		// room suffix already claimed. This keeps both forms clean (no verbose prefix,
+		// no leaked IDs) while guaranteeing distinct, deterministic headings
+		// (#1565 review pass 2 follow-up).
+		used := map[string]struct{}{}
 		for _, id := range li.ids {
 			if room := li.room[id]; room != "" && roomCount[room] == 1 {
-				suffix[id] = " (" + room + ")"
+				s := " (" + room + ")"
+				suffix[id] = s
+				used[s] = struct{}{}
+			}
+		}
+		ordinal := 0
+		for _, id := range li.ids {
+			if _, done := suffix[id]; done {
 				continue
 			}
-			ordinal++
-			suffix[id] = fmt.Sprintf(" (%d)", ordinal)
+			var s string
+			for {
+				ordinal++
+				s = fmt.Sprintf(" (%d)", ordinal)
+				if _, taken := used[s]; !taken {
+					break
+				}
+			}
+			suffix[id] = s
+			used[s] = struct{}{}
 		}
 	}
 	return suffix
