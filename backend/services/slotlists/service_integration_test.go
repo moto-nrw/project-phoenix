@@ -1149,9 +1149,14 @@ func TestBuildList_GroupByClass(t *testing.T) {
 	require.Error(t, err, "slot grouping must be rejected for pickup-based lists")
 }
 
-// TestBuildList_FullDayActualScopedToCohort guards the pickup-list "Ist" mode:
-// a present child outside the cohort must NOT appear in actual mode (it has no
-// physical room — only the merge view surfaces it as unplanned).
+// TestBuildList_FullDayActualScopedToCohort guards the pickup-list "Ist" and
+// "Abgleich" modes against cross-cohort leakage. In Ist, a present child outside
+// the reconciled cohort must NOT appear (it has no physical room here). In
+// Abgleich, "Ungeplant anwesend" is reserved for children with no valid cohort
+// assignment at all: a present child who belongs to the OTHER valid cohort is
+// correctly planned there and must NOT be surfaced as unplanned, or every
+// long-day child would flood the short-day Abgleich on an ordinary school day
+// (#1565 review pass 2 P1).
 func TestBuildList_FullDayActualScopedToCohort(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
@@ -1161,7 +1166,8 @@ func TestBuildList_FullDayActualScopedToCohort(t *testing.T) {
 	weekday := int(pickupDate.Weekday())
 
 	early := testpkg.CreateTestStudent(t, db, "SL-CohEarly", fmt.Sprintf("CE-%d", suffix), "1a") // 14:00 → 14:30 cohort
-	late := testpkg.CreateTestStudent(t, db, "SL-CohLate", fmt.Sprintf("CL-%d", suffix), "1a")   // 16:00 → not in cohort
+	late := testpkg.CreateTestStudent(t, db, "SL-CohLate", fmt.Sprintf("CL-%d", suffix), "1a")   // 16:00 → the OTHER valid cohort
+	walkIn := testpkg.CreateTestStudent(t, db, "SL-CohWalk", fmt.Sprintf("CW-%d", suffix), "1a") // no pickup schedule → no cohort at all
 	staff := testpkg.CreateTestStaff(t, db, "SL-CohStaff", fmt.Sprintf("CS-%d", suffix))
 	device := testpkg.CreateTestDevice(t, db, fmt.Sprintf("sl-coh-%d", suffix))
 
@@ -1176,12 +1182,12 @@ func TestBuildList_FullDayActualScopedToCohort(t *testing.T) {
 		pickupIDs = append(pickupIDs, p.ID)
 	}
 
-	// Both children were physically present on pickupDate. Closed attendance
+	// All three children were physically present on pickupDate. Closed attendance
 	// must still count for list generation.
 	checkIn := atOn(pickupDate, 8, 0)
 	checkOut := atOn(pickupDate, 15, 30)
 	var attendanceIDs []int64
-	for _, sid := range []int64{early.ID, late.ID} {
+	for _, sid := range []int64{early.ID, late.ID, walkIn.ID} {
 		att := &activeModels.Attendance{
 			StudentID:    sid,
 			Date:         pickupDate,
@@ -1201,6 +1207,7 @@ func TestBuildList_FullDayActualScopedToCohort(t *testing.T) {
 		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_schedules", pickupIDs...)
 		testpkg.CleanupActivityFixtures(t, db, early.ID, staff.ID, device.ID)
 		testpkg.CleanupActivityFixtures(t, db, late.ID)
+		testpkg.CleanupActivityFixtures(t, db, walkIn.ID)
 	})
 
 	svc := newTestService(db)
@@ -1216,7 +1223,10 @@ func TestBuildList_FullDayActualScopedToCohort(t *testing.T) {
 	assert.NotNil(t, rowByStudent(actual.Rows, early.ID), "cohort child present → in Ist")
 	assert.Nil(t, rowByStudent(actual.Rows, late.ID), "non-cohort present child must not pollute the pickup Ist list")
 
-	// Abgleich (reconciliation): the merge still surfaces the late child as unplanned.
+	// Abgleich (reconciliation): the 16:00 child belongs to the long-day cohort, so
+	// the short-day Abgleich must NOT report them as unplanned — they are reconciled
+	// in their own cohort. The genuine walk-in (no pickup schedule → no valid cohort)
+	// is the only one the unplanned sweep surfaces here.
 	recon, err := svc.BuildList(ctx, slotlists.Params{
 		Date:         pickupDate,
 		Target:       slotlists.TargetPickupCohort,
@@ -1224,9 +1234,11 @@ func TestBuildList_FullDayActualScopedToCohort(t *testing.T) {
 		Source:       slotlists.SourceReconciliation,
 	})
 	require.NoError(t, err)
-	lateRow := rowByStudent(recon.Rows, late.ID)
-	require.NotNil(t, lateRow, "reconciliation must still surface the non-cohort present child")
-	assert.True(t, lateRow.Unplanned)
+	assert.Nil(t, rowByStudent(recon.Rows, late.ID),
+		"a child in the other valid cohort must not be labelled unplanned in this cohort's Abgleich")
+	walkInRow := rowByStudent(recon.Rows, walkIn.ID)
+	require.NotNil(t, walkInRow, "a present child with no valid cohort assignment must still surface as unplanned")
+	assert.True(t, walkInRow.Unplanned)
 }
 
 // TestBuildList_ExcusedAbsence proves only an explicit registered sign-off

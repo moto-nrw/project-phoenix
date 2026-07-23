@@ -2032,6 +2032,20 @@ func (s *service) collectPickupEntries(ctx context.Context, params Params, bucke
 			if _, ok := cohort[id]; ok {
 				continue
 			}
+			// A present child whose resolved pickup time belongs to ANOTHER valid
+			// cohort (short vs long day) is correctly planned there — it is simply
+			// not the cohort being reconciled. Only that child's own cohort
+			// Abgleich should account for them, so skip them here. Without this,
+			// presentSet (school-wide attendance) makes a short-day Abgleich label
+			// every long-day child "Ungeplant anwesend" (and vice versa), inflating
+			// the rows and the unplanned counter in the ordinary daily case where
+			// both cohorts attended. Unplanned rows are reserved for children with
+			// no valid cohort assignment at all — no care time, or a pickup time
+			// past the long-day cutoff (#1565 review pass 2 P1).
+			cancelled := careDays[id] == scheduleSvc.CareDayCancelled
+			if resolved := cohortPickupTime(cancelled, pickupTimes[id], regularBucket[id]); pickupInAnyCohort(resolved, buckets) {
+				continue
+			}
 			pickupLabel := ""
 			if pickup := pickupTimes[id]; pickup != nil && pickup.PickupTime != nil {
 				pickupLabel = pickup.PickupTime.Format(timeLayout)
@@ -2056,6 +2070,19 @@ func pickupMatchesCohort(cohort PickupCohort, hhmm string, buckets pickupBucketC
 	default:
 		return false
 	}
+}
+
+// pickupInAnyCohort reports whether hhmm places a child into any valid pickup
+// cohort (short or long day). A child with such a time is planned in exactly one
+// cohort, so a reconciliation for a DIFFERENT cohort must not treat their
+// presence as unplanned. Returns false for an empty time (not in care) or a
+// pickup past the long-day cutoff (no cohort claims them).
+func pickupInAnyCohort(hhmm string, buckets pickupBucketConfig) bool {
+	if hhmm == "" {
+		return false
+	}
+	return pickupMatchesCohort(PickupCohortShortDay, hhmm, buckets) ||
+		pickupMatchesCohort(PickupCohortLongDay, hhmm, buckets)
 }
 
 // enrichEntries filters by source/read access, resolves names/classes/groups,

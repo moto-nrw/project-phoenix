@@ -1619,16 +1619,29 @@ export default function SlotListsPage() {
         // /options request has committed since this preflight started, then
         // advance the marker so an older revalidation resolving later is dropped
         // rather than overwriting this snapshot. If a newer request already won,
-        // keep its options and just re-check (the drift warning is stashed below
-        // regardless) (#1565 review pass 1 P2).
-        if (exportOptionsGeneration > optionsCommittedGenerationRef.current) {
-          optionsCommittedGenerationRef.current = exportOptionsGeneration;
-          setListOptions(fresh);
-        }
+        // keep its options — but then setListOptions is skipped, so the else branch
+        // must force a preview refetch or the stashed warning never surfaces
+        // (#1565 review pass 1 P2). The stash is set first so it is live before
+        // whichever branch triggers the preview rerun that re-applies it.
         pendingPreviewWarning.current =
           target === "slots"
             ? "Die Angebote für diesen Tag haben sich seit dem Laden geändert. Bitte prüfen und erneut exportieren."
             : "Die Abholzeiten für diesen Tag haben sich seit dem Laden geändert. Bitte prüfen und erneut exportieren.";
+        if (exportOptionsGeneration > optionsCommittedGenerationRef.current) {
+          optionsCommittedGenerationRef.current = exportOptionsGeneration;
+          setListOptions(fresh);
+        } else {
+          // A newer /options refresh already committed a higher generation, so
+          // installing `fresh` here would roll listOptions back and is correctly
+          // skipped. But then NO preview dependency changes, so the preview effect
+          // never reruns and the stashed warning above is never surfaced — the
+          // export would stop with no file AND no explanation. Force a preview
+          // refetch so the effect reruns and re-applies pendingPreviewWarning.current
+          // once it lands. previewNonce is not a document input, so the separate
+          // effect that clears the stash on a real document change does not fire
+          // (#1565 review pass 1 P2 follow-up).
+          setPreviewNonce((n) => n + 1);
+        }
         return;
       }
 
