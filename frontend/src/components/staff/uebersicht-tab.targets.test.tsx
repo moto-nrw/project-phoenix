@@ -83,4 +83,16 @@ describe("UebersichtTab Soll-Quelle", () => {
       ),
     ).toBe(true);
   });
+
+  it("lädt auch zukünftige Stundenkonto-Buchungen für die Verwaltung", () => {
+    render(<UebersichtTab staffId="1" />);
+
+    expect(
+      swrKeys.some(
+        (k) =>
+          k.startsWith("staff-balance-adjustments-1-") &&
+          k.endsWith("-9999-12-31"),
+      ),
+    ).toBe(true);
+  });
 });

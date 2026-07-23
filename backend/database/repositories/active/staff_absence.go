@@ -116,7 +116,8 @@ func (r *StaffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID 
 }
 
 // GetTodayAbsenceMap returns a map of staff IDs to their absence type for today.
-// Priority order when multiple absences exist: sick > training > vacation > other
+// Priority order when multiple absences exist:
+// sick > training > vacation > comp_time > other.
 func (r *StaffAbsenceRepository) GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error) {
 	var absences []*active.StaffAbsence
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -136,11 +137,12 @@ func (r *StaffAbsenceRepository) GetTodayAbsenceMap(ctx context.Context) (map[in
 		}
 	}
 
-	// Priority: sick > training > vacation > other
+	// Priority: sick > training > vacation > comp_time > other.
 	priority := map[string]int{
-		active.AbsenceTypeSick:     4,
-		active.AbsenceTypeTraining: 3,
-		active.AbsenceTypeVacation: 2,
+		active.AbsenceTypeSick:     5,
+		active.AbsenceTypeTraining: 4,
+		active.AbsenceTypeVacation: 3,
+		active.AbsenceTypeCompTime: 2,
 		active.AbsenceTypeOther:    1,
 	}
 

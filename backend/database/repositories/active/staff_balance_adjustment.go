@@ -37,8 +37,8 @@ func (r *StaffBalanceAdjustmentRepository) List(ctx context.Context, options *mo
 }
 
 // LockStaffBalanceWrites serializes balance-adjustment writes for one
-// tenant/staff pair. ResetBalance holds it through its read-compute-insert
-// sequence so two concurrent resets cannot both read the same balance.
+// tenant/staff pair. Every adjustment mutation takes the same lock so no
+// create/delete can commit inside ResetBalance's read-compute-insert sequence.
 func (r *StaffBalanceAdjustmentRepository) LockStaffBalanceWrites(ctx context.Context, staffID int64) error {
 	if staffID <= 0 {
 		return errors.New("staff id is required")

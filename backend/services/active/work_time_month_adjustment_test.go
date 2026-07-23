@@ -104,6 +104,35 @@ func TestWTMAdjustments_FutureDatedAdjustmentIgnored(t *testing.T) {
 	assert.Equal(t, baseline.ClosingBalanceMinutes, summary.ClosingBalanceMinutes)
 }
 
+// A historical cutoff must ignore later sessions, targets, and adjustments in
+// the same month. ResetBalance uses this value to post its delta on the cutoff
+// day, so including July 13/14 activity in a July 7 reset would corrupt the
+// requested carryover.
+func TestWTMAdjustments_ClosingBalanceAsOfHistoricalCutoff(t *testing.T) {
+	f := newWTMFixture()
+	f.sessions.sessions = []*activeModels.WorkSession{
+		wtmSession(timezone.NewDate(2026, time.July, 6), 9, 300, 0),
+		wtmSession(timezone.NewDate(2026, time.July, 13), 9, 480, 0),
+	}
+	f.svc.SetAdjustmentReader(&wtmMockAdjustmentReader{adjustments: []*activeModels.StaffBalanceAdjustment{
+		wtmAdjustment(1, activeModels.BalanceAdjustmentTypePayout, -60, timezone.NewDate(2026, time.July, 7)),
+		wtmAdjustment(2, activeModels.BalanceAdjustmentTypePayout, -120, timezone.NewDate(2026, time.July, 14)),
+	}})
+
+	cutoff := timezone.NewDate(2026, time.July, 7)
+	balance, err := f.svc.GetClosingBalanceAsOf(context.Background(), wtmStaffID, cutoff)
+	require.NoError(t, err)
+
+	// June contributes five unworked Mondays (-2400). Through July 7, only the
+	// July 6 target/session and July 7 payout apply: -2400 - 480 + 300 - 60.
+	assert.Equal(t, -2640, balance)
+
+	todaySummary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+	assert.Equal(t, -2760, todaySummary.ClosingBalanceMinutes)
+	assert.NotEqual(t, todaySummary.ClosingBalanceMinutes, balance)
+}
+
 // A reset row turns the closing balance into the carry-over value: with a
 // closing balance of B before the reset, delta = carryover − B yields exactly
 // carryover afterwards (#1420 5c).

@@ -23,6 +23,14 @@ func renderBalanceAdjustmentError(w http.ResponseWriter, r *http.Request, err er
 	common.RenderError(w, r, common.RenderWithRules(err, balanceAdjustmentErrorRules, common.ErrorInternalServer))
 }
 
+func (rs *Resource) requireBalanceAdjustmentStaff(w http.ResponseWriter, r *http.Request, staffID int64) bool {
+	if _, err := rs.PersonService.GetStaffByID(r.Context(), staffID); err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+		return false
+	}
+	return true
+}
+
 // createBalanceAdjustmentRequest is the wire shape for POST
 // /api/staff/{id}/time-tracking/adjustments. MinutesDelta is signed and must
 // be negative — payout and comp-time grants only reduce the Stundenkonto.
@@ -48,6 +56,9 @@ func (rs *Resource) listBalanceAdjustments(w http.ResponseWriter, r *http.Reques
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	if !rs.requireBalanceAdjustmentStaff(w, r, staffID) {
+		return
+	}
 	from, err := timezone.ParseDate(r.URL.Query().Get("from"))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
@@ -71,6 +82,9 @@ func (rs *Resource) createBalanceAdjustment(w http.ResponseWriter, r *http.Reque
 	staffID, err := common.ParseID(r)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if !rs.requireBalanceAdjustmentStaff(w, r, staffID) {
 		return
 	}
 	decidedBy, err := rs.resolveEditorStaffID(r.Context())
@@ -109,6 +123,9 @@ func (rs *Resource) deleteBalanceAdjustment(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	if !rs.requireBalanceAdjustmentStaff(w, r, staffID) {
+		return
+	}
 	adjustmentID, err := parseInt64Param(r, "adjustmentId")
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -127,6 +144,9 @@ func (rs *Resource) resetStaffBalance(w http.ResponseWriter, r *http.Request) {
 	staffID, err := common.ParseID(r)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if !rs.requireBalanceAdjustmentStaff(w, r, staffID) {
 		return
 	}
 	decidedBy, err := rs.resolveEditorStaffID(r.Context())

@@ -346,7 +346,8 @@ type StaffAbsenceRepository interface {
 	GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*StaffAbsence, error)
 
 	// GetTodayAbsenceMap returns a map of staff IDs to their absence type for today
-	// Priority order when multiple absences exist: sick > training > vacation > other
+	// Priority order when multiple absences exist:
+	// sick > training > vacation > comp_time > other.
 	GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error)
 
 	// ListByStatuses returns all absences whose status is in the given set,
@@ -375,8 +376,8 @@ type StaffBalanceAdjustmentRepository interface {
 	base.Repository[*StaffBalanceAdjustment]
 
 	// LockStaffBalanceWrites serializes balance-adjustment writes for one
-	// staff member inside the ambient tenant transaction. ResetBalance must
-	// acquire it before its read-compute-insert sequence.
+	// staff member inside the ambient tenant transaction. Every adjustment
+	// mutation acquires it before its first read or write.
 	LockStaffBalanceWrites(ctx context.Context, staffID int64) error
 
 	// GetByStaffAndDateRange returns adjustments whose effective_date lies in

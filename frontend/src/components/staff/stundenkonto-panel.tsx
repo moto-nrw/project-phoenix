@@ -13,7 +13,7 @@ import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
-import { formatDate, todayISO } from "~/lib/date-helpers";
+import { formatDate } from "~/lib/date-helpers";
 import { staffBalanceAdjustmentService } from "~/lib/staff-api";
 import {
   balanceAdjustmentTypeLabels,
@@ -28,6 +28,8 @@ interface StundenkontoPanelProps {
   readonly balanceMinutes: number | null;
   /** Kontostart ("YYYY-MM-DD") — Buchungen davor lehnt der Server ab. */
   readonly accountStartKey: string;
+  /** Heutiges Datum in Berlin ("YYYY-MM-DD"). */
+  readonly todayKey: string;
   readonly adjustments: readonly BalanceAdjustment[];
   readonly onChanged: () => void | Promise<unknown>;
 }
@@ -36,6 +38,7 @@ export function StundenkontoPanel({
   staffId,
   balanceMinutes,
   accountStartKey,
+  todayKey,
   adjustments,
   onChanged,
 }: StundenkontoPanelProps) {
@@ -154,6 +157,7 @@ export function StundenkontoPanel({
         <AdjustmentModal
           staffId={staffId}
           accountStartKey={accountStartKey}
+          todayKey={todayKey}
           type={activeModal}
           onClose={() => setActiveModal(null)}
           onSaved={async () => {
@@ -166,6 +170,7 @@ export function StundenkontoPanel({
         <ResetModal
           staffId={staffId}
           accountStartKey={accountStartKey}
+          todayKey={todayKey}
           balanceMinutes={balanceMinutes}
           onClose={() => setActiveModal(null)}
           onSaved={async () => {
@@ -227,19 +232,21 @@ const modalCopy = {
 function AdjustmentModal({
   staffId,
   accountStartKey,
+  todayKey,
   type,
   onClose,
   onSaved,
 }: {
   readonly staffId: string;
   readonly accountStartKey: string;
+  readonly todayKey: string;
   readonly type: "payout" | "comp_time";
   readonly onClose: () => void;
   readonly onSaved: () => void | Promise<void>;
 }) {
   const copy = modalCopy[type];
   const [hours, setHours] = useState("");
-  const [effectiveDate, setEffectiveDate] = useState(todayISO());
+  const [effectiveDate, setEffectiveDate] = useState(todayKey);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const toast = useToast();
@@ -336,18 +343,20 @@ function AdjustmentModal({
 function ResetModal({
   staffId,
   accountStartKey,
+  todayKey,
   balanceMinutes,
   onClose,
   onSaved,
 }: {
   readonly staffId: string;
   readonly accountStartKey: string;
+  readonly todayKey: string;
   readonly balanceMinutes: number | null;
   readonly onClose: () => void;
   readonly onSaved: () => void | Promise<void>;
 }) {
   const [effectiveDate, setEffectiveDate] = useState(
-    defaultResetDateISO(accountStartKey),
+    defaultResetDateISO(accountStartKey, todayKey),
   );
   const [carryoverHours, setCarryoverHours] = useState("0");
   const [note, setNote] = useState("");
@@ -407,19 +416,20 @@ function ResetModal({
           Kontostand zum Stichtag und bucht die Differenz als Reset.
         </p>
         {balanceMinutes !== null && (
-          <div className="rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-700">
-            Aktueller Stand:{" "}
-            <span className="font-medium tabular-nums">
-              {formatSignedDuration(balanceMinutes)}
-            </span>
+          <div className="space-y-1 rounded-xl bg-gray-50 px-3 py-2 text-sm text-gray-700">
+            <p>
+              Aktueller Stand:{" "}
+              <span className="font-medium tabular-nums">
+                {formatSignedDuration(balanceMinutes)}
+              </span>
+            </p>
             {carryoverValid && (
-              <>
-                {" "}
-                → danach:{" "}
+              <p>
+                Gewünschter Übertrag am Stichtag:{" "}
                 <span className="font-medium tabular-nums">
                   {formatSignedDuration(Math.round(carryover * 60))}
                 </span>
-              </>
+              </p>
             )}
           </div>
         )}
@@ -434,6 +444,7 @@ function ResetModal({
             id="reset-date"
             type="date"
             min={accountStartKey}
+            max={todayKey}
             value={effectiveDate}
             onChange={(e) => setEffectiveDate(e.target.value)}
             className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
@@ -533,14 +544,16 @@ function NoteField({
 // reset usually anchors on (#1420 5c). Clamped at the account start: a
 // booking before the anchor sits outside every carry chain and the server
 // rejects it.
-function defaultResetDateISO(accountStartKey: string): string {
-  const today = todayISO();
-  const year = Number(today.slice(0, 4));
+function defaultResetDateISO(
+  accountStartKey: string,
+  todayKey: string,
+): string {
+  const year = Number(todayKey.slice(0, 4));
   const thisYearsEnd = `${year}-07-31`;
   const lastSchoolYearEnd =
-    thisYearsEnd <= today ? thisYearsEnd : `${year - 1}-07-31`;
+    thisYearsEnd <= todayKey ? thisYearsEnd : `${year - 1}-07-31`;
   if (lastSchoolYearEnd < accountStartKey) {
-    return accountStartKey <= today ? today : accountStartKey;
+    return accountStartKey <= todayKey ? todayKey : accountStartKey;
   }
   return lastSchoolYearEnd;
 }

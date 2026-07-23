@@ -114,6 +114,9 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 	if err := s.rejectPreAccountDate(ctx, req.EffectiveDate); err != nil {
 		return nil, err
 	}
+	if err := s.adjustmentRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
+		return nil, fmt.Errorf("failed to lock staff balance writes: %w", err)
+	}
 
 	adjustment := &activeModels.StaffBalanceAdjustment{
 		StaffID:       staffID,
@@ -140,6 +143,9 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, staffID, adjustmentID int64) error {
 	if staffID <= 0 || adjustmentID <= 0 {
 		return fmt.Errorf("%w: staff id and adjustment id are required", ErrAdjustmentInvalid)
+	}
+	if err := s.adjustmentRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
+		return fmt.Errorf("failed to lock staff balance writes: %w", err)
 	}
 	adjustment, err := s.adjustmentRepo.FindByID(ctx, adjustmentID)
 	if err != nil {
@@ -180,7 +186,7 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 		return nil, fmt.Errorf("failed to lock staff balance writes: %w", err)
 	}
 
-	summary, err := s.monthService.GetMonthSummary(ctx, staffID, effectiveDate.Year, int(effectiveDate.Month))
+	previousBalance, err := s.monthService.GetClosingBalanceAsOf(ctx, staffID, effectiveDate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute balance for reset: %w", err)
 	}
@@ -188,7 +194,7 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 	adjustment := &activeModels.StaffBalanceAdjustment{
 		StaffID:       staffID,
 		Type:          activeModels.BalanceAdjustmentTypeReset,
-		MinutesDelta:  carryoverMinutes - summary.ClosingBalanceMinutes,
+		MinutesDelta:  carryoverMinutes - previousBalance,
 		EffectiveDate: effectiveDate,
 		Note:          note,
 		DecidedBy:     decidedBy,
@@ -203,7 +209,7 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 	s.getLogger().Info("balance reset",
 		"staff_id", staffID,
 		"effective_date", effectiveDate.String(),
-		"previous_balance_minutes", summary.ClosingBalanceMinutes,
+		"previous_balance_minutes", previousBalance,
 		"carryover_minutes", carryoverMinutes,
 		"minutes_delta", adjustment.MinutesDelta,
 		"decided_by", decidedBy,

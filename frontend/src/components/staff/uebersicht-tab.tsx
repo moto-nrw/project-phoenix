@@ -140,6 +140,7 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
 
   const accountStartKey = toDateKey(accountAnchor);
   const yearEndKey = toDateKey(today);
+  const adjustmentHistoryEndKey = "9999-12-31";
   const { data: accountSessions, isLoading: sessionsLoading } = useSWRAuth<
     StaffHistorySession[]
   >(`staff-history-account-${staffId}-${accountStartKey}-${yearEndKey}`, () =>
@@ -154,9 +155,13 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
   // den kumulativen Saldo-Verlauf ein, sonst widerspricht die Kurve der
   // "Stundenkonto"-Kachel direkt darueber.
   const { data: accountAdjustments } = useSWRAuth<BalanceAdjustment[]>(
-    `staff-balance-adjustments-${staffId}-${accountStartKey}-${yearEndKey}`,
+    `staff-balance-adjustments-${staffId}-${accountStartKey}-${adjustmentHistoryEndKey}`,
     () =>
-      staffBalanceAdjustmentService.list(staffId, accountStartKey, yearEndKey),
+      staffBalanceAdjustmentService.list(
+        staffId,
+        accountStartKey,
+        adjustmentHistoryEndKey,
+      ),
   );
   const refreshStundenkonto = useTenantMutateMatching([
     `staff-month-summary-${staffId}-`,
@@ -341,6 +346,7 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
       <StundenkontoPanel
         staffId={staffId}
         accountStartKey={accountStartKey}
+        todayKey={todayISO}
         balanceMinutes={accountBalanceMinutes}
         adjustments={accountAdjustments ?? []}
         onChanged={refreshStundenkonto}

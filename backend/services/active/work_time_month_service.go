@@ -65,6 +65,9 @@ type MonthSummary struct {
 // with its own dependency set.
 type WorkTimeMonthService interface {
 	GetMonthSummary(ctx context.Context, staffID int64, year, month int) (*MonthSummary, error)
+	// GetClosingBalanceAsOf returns the live carry-chain balance through cutoff.
+	// Unlike GetMonthSummary, it never includes activity later in cutoff's month.
+	GetClosingBalanceAsOf(ctx context.Context, staffID int64, cutoff timezone.Date) (int, error)
 	GetDailyTargets(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyTarget, error)
 	// SetHolidayReader injects the public-holiday resolver (#1418 3a) —
 	// wired in the factory after construction, like
@@ -737,7 +740,26 @@ func (s *workTimeMonthService) GetMonthSummary(ctx context.Context, staffID int6
 	if monthOf(today).addMonths(maxFutureMonths).before(key) {
 		return nil, fmt.Errorf("%w: %d-%02d is more than %d months ahead", ErrMonthOutOfRange, year, month, maxFutureMonths)
 	}
+	return s.getMonthSummaryThrough(ctx, staffID, key, today)
+}
 
+// GetClosingBalanceAsOf computes the carry-chain balance at the end of cutoff.
+// It shares all target/session/absence/adjustment math with the Monatskarte, but
+// pins the "today" clamp to cutoff so a historical reset cannot absorb activity
+// that happened later in the same month.
+func (s *workTimeMonthService) GetClosingBalanceAsOf(ctx context.Context, staffID int64, cutoff timezone.Date) (int, error) {
+	if cutoff.IsZero() {
+		return 0, errors.New("cutoff date is required")
+	}
+	key := monthOf(cutoff)
+	summary, err := s.getMonthSummaryThrough(ctx, staffID, key, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return summary.ClosingBalanceMinutes, nil
+}
+
+func (s *workTimeMonthService) getMonthSummaryThrough(ctx context.Context, staffID int64, key monthKey, through timezone.Date) (*MonthSummary, error) {
 	anchor, err := s.chainAnchor(ctx, key)
 	if err != nil {
 		return nil, err
@@ -765,7 +787,7 @@ func (s *workTimeMonthService) GetMonthSummary(ctx context.Context, staffID int6
 			ErrAccountStartTooOld, first.String(), maxCarryChainMonths, key.Year, key.Month)
 	}
 
-	aggregates, err := s.computeAggregates(ctx, staffID, first, key, today)
+	aggregates, err := s.computeAggregates(ctx, staffID, first, key, through)
 	if err != nil {
 		return nil, err
 	}

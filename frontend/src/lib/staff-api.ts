@@ -195,6 +195,7 @@ const absenceLabels: Record<string, string> = {
   sick: "Krank",
   vacation: "Urlaub",
   training: "Fortbildung",
+  comp_time: "Freizeitausgleich",
   other: "Abwesend", // Shows red, same as "not clocked in"
 };
 

@@ -66,6 +66,47 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 	})
 
+	t.Run("missing and cross-tenant staff are not addressable", func(t *testing.T) {
+		missingStaffID := subject.ID + 9_000_000_000
+		missingAdjustmentsPath := fmt.Sprintf("/staff/%d/time-tracking/adjustments", missingStaffID)
+		missingResetPath := fmt.Sprintf("/staff/%d/time-tracking/reset", missingStaffID)
+
+		rec := do(http.MethodGet, missingAdjustmentsPath+"?from=2026-01-01&to=2026-12-31", "", token)
+		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+		rec = do(http.MethodPost, missingAdjustmentsPath,
+			fmt.Sprintf(`{"type":"payout","minutes_delta":-60,"effective_date":"%s","note":"x"}`, today), token)
+		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+		rec = do(http.MethodDelete, missingAdjustmentsPath+"/1", "", token)
+		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+		rec = do(http.MethodPost, missingResetPath,
+			fmt.Sprintf(`{"effective_date":"%s","carryover_minutes":0,"note":"x"}`, today), token)
+		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+
+		foreignTenantID := testpkg.UniqueTestTenantID(t)
+		testpkg.EnsureTestTenant(t, tc.db, foreignTenantID)
+		foreignStaff := testpkg.CreateTestStaffForTenant(
+			t,
+			tc.db,
+			foreignTenantID,
+			"Foreign",
+			fmt.Sprintf("Subject-%d", suffix),
+		)
+		t.Cleanup(func() {
+			testpkg.CleanupStaffFixtures(t, tc.db, foreignStaff.ID)
+			_, err := tc.db.Exec("DELETE FROM platform.schools WHERE id = ?", foreignTenantID)
+			require.NoError(t, err)
+			_, err = tc.db.Exec("DELETE FROM platform.organizations WHERE id = ?", foreignTenantID)
+			require.NoError(t, err)
+		})
+
+		foreignPath := fmt.Sprintf("/staff/%d/time-tracking/adjustments", foreignStaff.ID)
+		rec = do(http.MethodGet, foreignPath+"?from=2026-01-01&to=2026-12-31", "", token)
+		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+		rec = do(http.MethodPost, foreignPath,
+			fmt.Sprintf(`{"type":"payout","minutes_delta":-60,"effective_date":"%s","note":"x"}`, today), token)
+		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	})
+
 	t.Run("create validation", func(t *testing.T) {
 		rec := do(http.MethodPost, adjustmentsPath,
 			fmt.Sprintf(`{"type":"payout","minutes_delta":60,"effective_date":"%s","note":"x"}`, today), token)

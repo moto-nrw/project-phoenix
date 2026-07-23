@@ -56,6 +56,13 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
       </button>
       <button
         type="button"
+        data-testid="filter-abwesend"
+        onClick={() => filters?.[0]?.onChange("abwesend")}
+      >
+        Abwesend
+      </button>
+      <button
+        type="button"
         data-testid="clear-filters"
         onClick={onClearAllFilters}
       >
@@ -155,6 +162,36 @@ describe("StaffPage", () => {
     await waitFor(() => {
       expect(screen.queryByText("Anna")).not.toBeInTheDocument();
       expect(screen.getByText("Ben")).toBeInTheDocument();
+    });
+  });
+
+  it("classifies Freizeitausgleich as absence rather than a room", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: [
+        {
+          ...mockStaff[0],
+          id: "3",
+          name: "Carla Frei",
+          firstName: "Carla",
+          lastName: "Frei",
+          currentLocation: "Freizeitausgleich",
+        },
+      ],
+      isLoading: false,
+      error: null,
+    } as never);
+
+    render(<StaffPage />);
+    fireEvent.click(screen.getByTestId("filter-abwesend"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Carla")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("filter-im-raum"));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Carla")).not.toBeInTheDocument();
     });
   });
 

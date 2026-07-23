@@ -2050,6 +2050,7 @@ var germanAbsenceTypeLabels = map[string]string{
 	activeModels.AbsenceTypeVacation: "Urlaub",
 	activeModels.AbsenceTypeTraining: "Fortbildung",
 	activeModels.AbsenceTypeOther:    "Sonstige",
+	activeModels.AbsenceTypeCompTime: "Freizeitausgleich",
 }
 
 // exportRow represents a single row in the export (either a work session or an absence day)
