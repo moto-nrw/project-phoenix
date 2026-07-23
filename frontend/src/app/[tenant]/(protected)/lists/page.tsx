@@ -1030,6 +1030,7 @@ export default function SlotListsPage() {
   useEffect(() => {
     if (authStatus !== "authenticated" || timetableDisabled) return;
     let cancelled = false;
+    const generation = ++optionsRequestGenerationRef.current;
     // Drop the previous date's options immediately. They stay rendered and
     // selectable until this request resolves otherwise, and on a slow response
     // toggling a stale slot would write its (globally unique) ID into the new
@@ -1041,13 +1042,24 @@ export default function SlotListsPage() {
     setIsOptionsLoading(true);
     fetchSlotListOptions(dateISO)
       .then((options) => {
-        if (!cancelled) setListOptions(options);
+        if (cancelled) return;
+        // A background revalidation may have started after this initial load and
+        // already installed a newer schedule snapshot while listOptions was
+        // still null; drop this now-stale result rather than clobbering it
+        // (#1565 review pass 2).
+        if (generation <= optionsCommittedGenerationRef.current) return;
+        optionsCommittedGenerationRef.current = generation;
+        setListOptions(options);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
         logger.error("slot_list_options_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        // A newer request already succeeded — do not overwrite good options with
+        // this superseded load's error. (A failure never advances the marker, so
+        // it cannot block a later revalidation from recovering the page.)
+        if (generation <= optionsCommittedGenerationRef.current) return;
         setListOptions(null);
         // Record the failure so the preview gate releases instead of spinning
         // forever. Prefer the API client's resolved German sentence (#1565).
@@ -1074,25 +1086,22 @@ export default function SlotListsPage() {
     dateISORef.current = dateISO;
   }, [dateISO]);
 
-  // The last-known options error, mirrored into a ref so a background
-  // revalidation can tell "the initial load FAILED" (recover by installing the
-  // fresh payload) apart from "the initial load is still in flight" (leave it to
-  // the date-change effect) without adding optionsError to revalidateOptions'
-  // deps, which would re-subscribe the focus/visibility listeners on every error
-  // change.
-  const optionsErrorRef = useRef(optionsError);
-  useEffect(() => {
-    optionsErrorRef.current = optionsError;
-  }, [optionsError]);
-
-  // A monotonic id stamped on each background revalidation. focus and
-  // visibilitychange can both fire on the same return-to-tab, launching two
-  // concurrent /options requests for the SAME date; the date-only guard below
-  // would then let whichever RESOLVES last win — so an earlier request that read
-  // the pre-edit schedule could clobber the newer one and roll the preview back
-  // to stale slots/cutoffs. Only the newest revalidation (highest id) may write
-  // state; any superseded response is dropped regardless of resolution order.
-  const revalidateGenerationRef = useRef(0);
+  // A monotonic id stamped on EVERY /options request — the initial date-load
+  // fetch AND each background revalidation increment the SAME counter. Focus and
+  // visibilitychange can both fire on one return-to-tab, and a revalidation can
+  // start while the initial load is still in flight; a date-only guard would then
+  // let whichever RESOLVES last win, so an earlier request that read the pre-edit
+  // schedule could clobber a newer one and roll the preview back to stale
+  // slots/cutoffs — or the initial load could overwrite a newer revalidation that
+  // resolved first while listOptions was still null (#1565 review pass 2). Each
+  // request captures its id at START; on resolve it commits only when its id is
+  // newer than optionsCommittedGenerationRef, then advances that marker, so a
+  // later-resolving-but-older request is dropped regardless of resolution order.
+  // A FAILED request commits nothing and does NOT advance the marker, so it never
+  // permanently blocks a still-valid sibling (a retry / a focus revalidation) from
+  // installing — which is what recovers a page whose initial load failed.
+  const optionsRequestGenerationRef = useRef(0);
+  const optionsCommittedGenerationRef = useRef(0);
 
   // The /options snapshot is otherwise fetched only when the date changes, so a
   // page left open across the day would keep sending a stale active-slot set to
@@ -1108,28 +1117,23 @@ export default function SlotListsPage() {
   const revalidateOptions = useCallback(() => {
     if (authStatus !== "authenticated" || timetableDisabled) return;
     const requestedDate = dateISO;
-    const generation = ++revalidateGenerationRef.current;
+    const generation = ++optionsRequestGenerationRef.current;
     fetchSlotListOptions(requestedDate)
       .then((fresh) => {
-        // A newer revalidation started while this one was in flight — its result
-        // supersedes ours no matter which network round-trip finished first.
-        if (generation !== revalidateGenerationRef.current) return;
         if (requestedDate !== dateISORef.current) return; // date moved on
-        // Read the failure flag BEFORE clearing it: prev === null means either
-        // the initial load is still running (no error yet) or it FAILED. Only in
-        // the failed case do we install the fresh payload here — otherwise the
-        // date-change effect's own in-flight fetch owns the initial load and we
-        // must not race it.
-        const recoveringFromFailure = optionsErrorRef.current !== null;
+        // Superseded by a newer /options request — the initial load, a later
+        // revalidation, or a date change — that already committed its result.
+        // Drop this one no matter which network round-trip finished first.
+        if (generation <= optionsCommittedGenerationRef.current) return;
+        optionsCommittedGenerationRef.current = generation;
         setOptionsError(null);
         setListOptions((prev) => {
-          if (!prev) {
-            // Recover a permanently-blocked page: without this, clearing the
-            // error above while leaving listOptions null strands a slot target on
-            // awaitingActiveSlots forever — no error to release the gate, and the
-            // date-load effect never reruns (#1565 review pass 4).
-            return recoveringFromFailure ? fresh : prev;
-          }
+          // Newest request and nothing installed yet: the initial load is still
+          // in flight or FAILED. Install the fresh payload outright — the shared
+          // generation marker guarantees the pending initial load, if it resolves
+          // later, will not overwrite this newer snapshot, and recovers a page
+          // whose initial load failed (#1565 review pass 2 / pass 4).
+          if (!prev) return fresh;
           // Reinstall on ANY change a downstream reader renders, INCLUDING a
           // pickup cutoff moved without re-bucketing any child. optionsSignature
           // keys cohorts on availability + row_count only, so a label-only cutoff

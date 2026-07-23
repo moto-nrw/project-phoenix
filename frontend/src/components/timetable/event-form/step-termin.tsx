@@ -154,32 +154,42 @@ export function StepTermin({
               ))}
             </select>
           </Field>
-
-          <Field label="Listenart" htmlFor="event_list_kind">
-            <select
-              id="event_list_kind"
-              value={form.listKind}
-              onChange={(event) =>
-                update(
-                  "listKind",
-                  event.target.value as EventFormState["listKind"],
-                )
-              }
-              className={FORM_SELECT_CLASS}
-            >
-              <option value="">Keine</option>
-              {LIST_KIND_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-[11px] leading-4 text-gray-500">
-              Ordnet den Termin einer druckbaren Tagesliste zu (Planung →
-              Tageslisten).
-            </p>
-          </Field>
         </>
+      )}
+
+      {/* Listenart (#1565): visible in every flow that writes an occurrence's
+          own list_kind — a one-off create, a standalone-instance edit, and the
+          "Nur diesen Termin" scope (all persist form.listKind via instanceBody)
+          — plus the expanded series flow (seriesBody). An "Alle/folgende" series
+          edit still echoes the template's classification and ignores this field.
+          Without this the field only rendered under expanded && isSeriesFlow, so
+          spontaneous/one-off slots could not be classified nor an occurrence
+          override cleared (#1565 review pass 1 P2). */}
+      {(!isSeriesFlow || expanded) && (
+        <Field label="Listenart" htmlFor="event_list_kind">
+          <select
+            id="event_list_kind"
+            value={form.listKind}
+            onChange={(event) =>
+              update(
+                "listKind",
+                event.target.value as EventFormState["listKind"],
+              )
+            }
+            className={FORM_SELECT_CLASS}
+          >
+            <option value="">Keine</option>
+            {LIST_KIND_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[11px] leading-4 text-gray-500">
+            Ordnet den Termin einer druckbaren Tagesliste zu (Planung →
+            Tageslisten).
+          </p>
+        </Field>
       )}
 
       <Field
