@@ -10,7 +10,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,9 +24,18 @@ func (failingAbsenceEmailSettings) ResolveBool(context.Context, string) (bool, e
 	return false, errors.New("settings unavailable")
 }
 
+type absenceEmailSchoolFinderStub struct {
+	school *platformModels.School
+	err    error
+}
+
+func (s absenceEmailSchoolFinderStub) FindByID(context.Context, int64) (*platformModels.School, error) {
+	return s.school, s.err
+}
+
 func newAbsenceNotificationTestService(
 	t *testing.T,
-	settings absenceEmailSettings,
+	settings absenceEmailSettingResolver,
 	staffRepo *testpkg.StaffRepoMock,
 ) (*staffAbsenceService, *testpkg.CapturingMailer) {
 	t.Helper()
@@ -34,20 +45,23 @@ func newAbsenceNotificationTestService(
 		Settings:    settings,
 		Dispatcher:  email.NewDispatcher(mailer, slog.Default()),
 		StaffRepo:   staffRepo,
+		SchoolRepo:  absenceEmailSchoolFinderStub{school: &platformModels.School{Subdomain: "tenant"}},
 		DefaultFrom: email.NewEmail("moto", "no-reply@moto.test"),
-		FrontendURL: "http://tenant.localhost:3000",
+		FrontendURL: "http://localhost:3000",
 	})
 	return svc, mailer
 }
 
 func notificationTestAbsence(status string) *activeModels.StaffAbsence {
-	return &activeModels.StaffAbsence{
+	absence := &activeModels.StaffAbsence{
 		StaffID:     int64(42),
 		AbsenceType: activeModels.AbsenceTypeSick,
 		DateStart:   timezone.NewDate(2027, 7, 5),
 		DateEnd:     timezone.NewDate(2027, 7, 5),
 		Status:      status,
 	}
+	absence.SetTenantID(int64(7001))
+	return absence
 }
 
 func TestAbsenceEmailHelpers_CoverLabelsRangesAndLoggers(t *testing.T) {
@@ -85,7 +99,69 @@ func TestAbsenceEmailsEnabled_RequiresDependenciesAndHandlesSettingFailure(t *te
 	assert.False(t, svc.absenceEmailsEnabled(ctx))
 
 	svc.emailDeps.Settings = absSettingsMock{enabled: true}
+	svc.emailDeps.StaffRepo = &testpkg.StaffRepoMock{}
+	svc.emailDeps.SchoolRepo = absenceEmailSchoolFinderStub{
+		school: &platformModels.School{Subdomain: "tenant"},
+	}
 	assert.True(t, svc.absenceEmailsEnabled(ctx))
+}
+
+func TestBuildTenantFrontendURL(t *testing.T) {
+	tests := []struct {
+		name        string
+		frontendURL string
+		subdomain   string
+		targetPath  string
+		want        string
+		wantErr     string
+	}{
+		{
+			name:        "localhost with port",
+			frontendURL: "http://localhost:3000",
+			subdomain:   "school-a",
+			targetPath:  "/staff",
+			want:        "http://school-a.localhost:3000/staff",
+		},
+		{
+			name:        "staging host",
+			frontendURL: "https://staging.moto-app.de/base?ignored=true",
+			subdomain:   "school-b",
+			targetPath:  "/time-tracking",
+			want:        "https://school-b.staging.moto-app.de/time-tracking",
+		},
+		{
+			name:        "missing subdomain",
+			frontendURL: "https://moto-app.de",
+			targetPath:  "/staff",
+			wantErr:     "school subdomain is required",
+		},
+		{
+			name:        "relative frontend URL",
+			frontendURL: "moto-app.de",
+			subdomain:   "school-a",
+			targetPath:  "/staff",
+			wantErr:     "frontend URL must include scheme and host",
+		},
+		{
+			name:        "relative target path",
+			frontendURL: "https://moto-app.de",
+			subdomain:   "school-a",
+			targetPath:  "staff",
+			wantErr:     "target path must start with '/'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := buildTenantFrontendURL(tt.frontendURL, tt.subdomain, tt.targetPath)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func TestNotifyAbsenceRequested_StopsOnLookupFailuresOrMissingApprovers(t *testing.T) {
@@ -178,6 +254,56 @@ func TestNotifyAbsenceRequested_SkipsSelfAndMissingEmail(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "Krankmeldung", content["AbsenceTypeLabel"])
 	assert.Equal(t, "05.07.2027", content["DateRange"])
+	assert.Equal(t, "http://tenant.localhost:3000/staff", content["LinkURL"])
+}
+
+func TestNotifyAbsenceRequested_DispatchesOnlyAfterCommit(t *testing.T) {
+	staffRepo := &testpkg.StaffRepoMock{
+		GetStaffContactInfoFn: func(_ context.Context, staffID int64) (*usersModels.StaffWithRoleInfo, error) {
+			return &usersModels.StaffWithRoleInfo{
+				StaffID:   staffID,
+				FirstName: "Mila",
+				LastName:  "Muster",
+			}, nil
+		},
+		ListStaffWithPermissionFn: func(context.Context, string) ([]*usersModels.StaffWithRoleInfo, error) {
+			return []*usersModels.StaffWithRoleInfo{
+				{StaffID: int64(44), FirstName: "Lena", LastName: "Leitung", Email: "lena@example.test"},
+			}, nil
+		},
+	}
+	svc, mailer := newAbsenceNotificationTestService(t, absSettingsMock{enabled: true}, staffRepo)
+	ctx, commit := tenant.WithAfterCommitHooksForTest(context.Background())
+
+	svc.notifyAbsenceRequested(ctx, notificationTestAbsence(activeModels.AbsenceStatusRequested))
+
+	assert.False(t, mailer.WaitForMessages(1, 100*time.Millisecond), "email must remain queued before commit")
+	commit()
+	require.True(t, mailer.WaitForMessages(1, 2*time.Second), "email must dispatch after commit")
+}
+
+func TestNotifyAbsenceRequested_DropsDispatchOnRollback(t *testing.T) {
+	staffRepo := &testpkg.StaffRepoMock{
+		GetStaffContactInfoFn: func(_ context.Context, staffID int64) (*usersModels.StaffWithRoleInfo, error) {
+			return &usersModels.StaffWithRoleInfo{
+				StaffID:   staffID,
+				FirstName: "Mila",
+				LastName:  "Muster",
+			}, nil
+		},
+		ListStaffWithPermissionFn: func(context.Context, string) ([]*usersModels.StaffWithRoleInfo, error) {
+			return []*usersModels.StaffWithRoleInfo{
+				{StaffID: int64(44), FirstName: "Lena", LastName: "Leitung", Email: "lena@example.test"},
+			}, nil
+		},
+	}
+	svc, mailer := newAbsenceNotificationTestService(t, absSettingsMock{enabled: true}, staffRepo)
+	ctx, _ := tenant.WithAfterCommitHooksForTest(context.Background())
+
+	svc.notifyAbsenceRequested(ctx, notificationTestAbsence(activeModels.AbsenceStatusRequested))
+
+	assert.False(t, mailer.WaitForMessages(1, 150*time.Millisecond), "rollback must drop the queued email")
+	assert.Empty(t, mailer.Messages())
 }
 
 func TestNotifyAbsenceDecision_CoversStatusesAndRecipientFailures(t *testing.T) {

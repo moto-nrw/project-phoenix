@@ -354,8 +354,8 @@ type StaffAbsenceRepository interface {
 	ListByStatuses(ctx context.Context, statuses []string) ([]*StaffAbsence, error)
 
 	// DeleteNonHistoricalByStaffID hard-deletes absences that are still pending
-	// ('requested') or not yet over (date_end >= from). Past decided absences
-	// stay as history. Used by staff offboarding.
+	// ('requested' or 'question') or not yet over (date_end >= from). Past
+	// decided absences stay as history. Used by staff offboarding.
 	DeleteNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error)
 
 	// Generic query helpers promoted from the embedded base repository.

@@ -174,15 +174,21 @@ func (r *StaffAbsenceRepository) ListByStatuses(ctx context.Context, statuses []
 }
 
 // DeleteNonHistoricalByStaffID hard-deletes absences that are still pending
-// ('requested') or not yet over (date_end >= from). Past decided absences stay
-// as history. Used by staff offboarding so offboarded staff no longer appear
-// in absence request lists and date maps. Returns the number of deleted rows.
+// ('requested' or 'question') or not yet over (date_end >= from). Past decided
+// absences stay as history. Used by staff offboarding so offboarded staff no
+// longer appear in absence request lists and date maps. Returns the number of
+// deleted rows.
 func (r *StaffAbsenceRepository) DeleteNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error) {
 	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*active.StaffAbsence)(nil)).
 		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
 		Where(`"staff_absence".staff_id = ?`, staffID).
-		Where(`("staff_absence".status = ? OR "staff_absence".date_end >= ?)`, active.AbsenceStatusRequested, from)
+		Where(
+			`("staff_absence".status IN (?, ?) OR "staff_absence".date_end >= ?)`,
+			active.AbsenceStatusRequested,
+			active.AbsenceStatusQuestion,
+			from,
+		)
 
 	query = base.WithTenantFilter(ctx, query, "staff_absence")
 

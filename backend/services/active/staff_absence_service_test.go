@@ -11,7 +11,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1883,6 +1885,42 @@ func TestAbsQuestionAbsence_RequiresNote(t *testing.T) {
 	assert.Equal(t, "question note is required", err.Error())
 }
 
+func TestAbsQuestionAbsence_RejectsWhitespaceOnlyNote(t *testing.T) {
+	svc := &staffAbsenceService{absenceRepo: &absStaffAbsenceRepoMock{}}
+
+	result, err := svc.QuestionAbsence(context.Background(), int64(1101), int64(2101), " \t\n ")
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Equal(t, "question note is required", err.Error())
+}
+
+func TestAbsQuestionAbsence_TrimsStoredAndAuditedNote(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	auditRepo := &absStaffAbsenceAuditRepoMock{}
+	svc := &staffAbsenceService{absenceRepo: absRepo, auditRepo: auditRepo}
+	absence := &activeModels.StaffAbsence{
+		Model:   base.Model{ID: int64(1110)},
+		StaffID: int64(4110),
+		Status:  activeModels.AbsenceStatusRequested,
+	}
+	absRepo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) {
+		return absence, nil
+	}
+	absRepo.updateFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
+		assert.Equal(t, "Wer übernimmt?", entity.DecisionNote)
+		return nil
+	}
+	auditRepo.createFunc = func(_ context.Context, audit *activeModels.StaffAbsenceAudit) error {
+		assert.Equal(t, "Wer übernimmt?", audit.Note)
+		return nil
+	}
+
+	_, err := svc.QuestionAbsence(context.Background(), absence.ID, int64(2110), "  Wer übernimmt? \n")
+
+	require.NoError(t, err)
+}
+
 func TestAbsQuestionAbsence_OnlyFromRequested(t *testing.T) {
 	absRepo := &absStaffAbsenceRepoMock{}
 	svc := &staffAbsenceService{absenceRepo: absRepo, auditRepo: &absStaffAbsenceAuditRepoMock{}}
@@ -1996,6 +2034,48 @@ func TestAbsResubmitAbsence_RestampsAndAudits(t *testing.T) {
 	assert.Equal(t, activeModels.AbsenceStatusRequested, result.Status)
 }
 
+func TestAbsResubmitAbsence_RejectsWhitespaceOnlyNote(t *testing.T) {
+	svc := &staffAbsenceService{absenceRepo: &absStaffAbsenceRepoMock{}}
+
+	result, err := svc.ResubmitAbsence(context.Background(), int64(4105), int64(2105), int64(1105), " \t\n ")
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Equal(t, "resubmit note is required", err.Error())
+}
+
+func TestAbsResubmitAbsence_TrimsStoredAndAuditedNote(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	auditRepo := &absStaffAbsenceAuditRepoMock{}
+	svc := &staffAbsenceService{absenceRepo: absRepo, auditRepo: auditRepo}
+	absence := &activeModels.StaffAbsence{
+		Model:   base.Model{ID: int64(1111)},
+		StaffID: int64(4111),
+		Status:  activeModels.AbsenceStatusQuestion,
+	}
+	absRepo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) {
+		return absence, nil
+	}
+	absRepo.updateFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
+		assert.Equal(t, "Vertretung geklärt", entity.Note)
+		return nil
+	}
+	auditRepo.createFunc = func(_ context.Context, audit *activeModels.StaffAbsenceAudit) error {
+		assert.Equal(t, "Vertretung geklärt", audit.Note)
+		return nil
+	}
+
+	_, err := svc.ResubmitAbsence(
+		context.Background(),
+		absence.StaffID,
+		int64(2111),
+		absence.ID,
+		"  Vertretung geklärt \n",
+	)
+
+	require.NoError(t, err)
+}
+
 func TestAbsResubmitAbsence_OwnershipGuard(t *testing.T) {
 	absRepo := &absStaffAbsenceRepoMock{}
 	svc := &staffAbsenceService{absenceRepo: absRepo}
@@ -2074,8 +2154,9 @@ func newAbsEmailTestService(t *testing.T, absRepo *absStaffAbsenceRepoMock, enab
 		Settings:    absSettingsMock{enabled: enabled},
 		Dispatcher:  email.NewDispatcher(mailer, slog.Default()),
 		StaffRepo:   staffRepo,
+		SchoolRepo:  absenceEmailSchoolFinderStub{school: &platformModels.School{Subdomain: "tenant"}},
 		DefaultFrom: email.NewEmail("moto", "no-reply@moto.test"),
-		FrontendURL: "http://tenant.localhost:3000",
+		FrontendURL: "http://localhost:3000",
 	})
 	return svc, mailer
 }
@@ -2109,7 +2190,8 @@ func TestAbsRequestVacation_SendsApproverEmail(t *testing.T) {
 	}
 	svc, mailer := newAbsEmailTestService(t, absRepo, true, absEmailStaffRepoMock())
 
-	_, err := svc.RequestVacation(context.Background(), int64(4200), RequestVacationRequest{
+	ctx := tenant.WithTenantID(context.Background(), int64(7001))
+	_, err := svc.RequestVacation(ctx, int64(4200), RequestVacationRequest{
 		DateStart: "2027-07-01",
 		DateEnd:   "2027-07-02",
 		Note:      "Sommerurlaub",
@@ -2127,14 +2209,16 @@ func TestAbsRequestVacation_SendsApproverEmail(t *testing.T) {
 func TestAbsQuestionAbsence_SendsRequesterEmail(t *testing.T) {
 	absRepo := &absStaffAbsenceRepoMock{}
 	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
-		return &activeModels.StaffAbsence{
+		absence := &activeModels.StaffAbsence{
 			Model:       base.Model{ID: int64(1201)},
 			StaffID:     int64(4201),
 			AbsenceType: activeModels.AbsenceTypeVacation,
 			DateStart:   timezone.NewDate(2027, 7, 5),
 			DateEnd:     timezone.NewDate(2027, 7, 6),
 			Status:      activeModels.AbsenceStatusRequested,
-		}, nil
+		}
+		absence.SetTenantID(int64(7001))
+		return absence, nil
 	}
 	absRepo.updateFunc = func(context.Context, *activeModels.StaffAbsence) error { return nil }
 	svc, mailer := newAbsEmailTestService(t, absRepo, true, absEmailStaffRepoMock())
@@ -2160,7 +2244,8 @@ func TestAbsEmails_SettingDisabled_NoSend(t *testing.T) {
 	}
 	svc, mailer := newAbsEmailTestService(t, absRepo, false, absEmailStaffRepoMock())
 
-	_, err := svc.RequestVacation(context.Background(), int64(4202), RequestVacationRequest{
+	ctx := tenant.WithTenantID(context.Background(), int64(7001))
+	_, err := svc.RequestVacation(ctx, int64(4202), RequestVacationRequest{
 		DateStart: "2027-07-08",
 		DateEnd:   "2027-07-09",
 	})

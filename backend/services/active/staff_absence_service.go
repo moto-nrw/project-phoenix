@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -869,6 +870,7 @@ func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, 
 }
 
 func (s *staffAbsenceService) QuestionAbsence(ctx context.Context, absenceID int64, actorAccountID int64, note string) (*StaffAbsenceResponse, error) {
+	note = strings.TrimSpace(note)
 	if note == "" {
 		return nil, fmt.Errorf("question note is required")
 	}
@@ -904,6 +906,7 @@ func (s *staffAbsenceService) QuestionAbsence(ctx context.Context, absenceID int
 }
 
 func (s *staffAbsenceService) ResubmitAbsence(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64, note string) (*StaffAbsenceResponse, error) {
+	note = strings.TrimSpace(note)
 	if note == "" {
 		return nil, fmt.Errorf("resubmit note is required")
 	}

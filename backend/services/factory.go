@@ -389,6 +389,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			Settings:    settingsService,
 			Dispatcher:  dispatcher,
 			StaffRepo:   repos.Staff,
+			SchoolRepo:  repos.School,
 			DefaultFrom: defaultFrom,
 			FrontendURL: frontendURL,
 			Logger:      activeLogger,

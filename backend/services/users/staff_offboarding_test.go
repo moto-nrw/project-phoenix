@@ -668,6 +668,8 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 		today.AddDays(10), today.AddDays(12))
 	pastApproved := makeAbsence(activeModels.AbsenceTypeSick, activeModels.AbsenceStatusApproved,
 		today.AddDays(-10), today.AddDays(-8))
+	pastQuestion := makeAbsence(activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusQuestion,
+		today.AddDays(-6), today.AddDays(-4))
 
 	t.Cleanup(func() {
 		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, nil)
@@ -686,6 +688,7 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 	}
 	assert.Zero(t, countAbsence(pendingRequest.ID), "pending request must be removed")
 	assert.Zero(t, countAbsence(futureApproved.ID), "future approved absence must be removed")
+	assert.Zero(t, countAbsence(pastQuestion.ID), "past questioned request must be removed")
 	assert.Equal(t, 1, countAbsence(pastApproved.ID), "past absence must stay as history")
 
 	var auditedCount string
@@ -694,7 +697,7 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 		ColumnExpr(`metadata->>'staff_absences'`).
 		Where(`staff_id = ?`, staff.ID).
 		Scan(context.Background(), &auditedCount))
-	assert.Equal(t, "2", auditedCount, "audit record must count the deleted absences")
+	assert.Equal(t, "3", auditedCount, "audit record must count the deleted absences")
 }
 
 func TestOffboardStaff_RemovesUpcomingStaffShifts(t *testing.T) {
