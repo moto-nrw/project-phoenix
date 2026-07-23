@@ -1715,14 +1715,27 @@ export default function SlotListsPage() {
         printTarget?.close();
         setIsExporting(false);
         setResult(freshPreview);
+        const driftWarning =
+          "Die Liste hat sich seit dem Laden geändert. Bitte prüfen und erneut exportieren.";
+        // Stash the warning BEFORE committing the refreshed options, exactly like
+        // the 409 and options-drift paths. Reaching here means the identity gate
+        // above passed, so the captured request is still current and
+        // commitRefreshedOptions is GUARANTEED to install the staged `fresh` — a new
+        // options object that re-derives activeInstanceIds -> request and reruns the
+        // preview effect, which opens with setError(null). A message set only via
+        // setError here would be wiped by that very refresh, flashing for a frame or
+        // never painting. Stashing it lets the refreshed preview reapply it once the
+        // fresh content lands. The direct setError below is a belt-and-suspenders
+        // fallback for the (currently unreachable) case where no refire fires; if a
+        // refire does fire it is wiped and re-applied from the ref, netting one
+        // stable warning (#1565 review pass 14 P2).
+        pendingPreviewWarning.current = driftWarning;
         // Same stranding guard as the other early-exit paths: the no-drift path
         // advanced the committed marker and staged `fresh`, so install it here too
         // rather than leaving listOptions behind the advanced marker (#1565 review
         // pass 2 P2).
         commitRefreshedOptions();
-        setError(
-          "Die Liste hat sich seit dem Laden geändert. Bitte prüfen und erneut exportieren.",
-        );
+        setError(driftWarning);
         return;
       }
 
