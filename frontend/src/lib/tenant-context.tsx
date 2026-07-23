@@ -76,12 +76,14 @@ export function TenantProvider({
       void resolveTenant(requestedSlug).then((fresh) => {
         if (token !== requestSeqRef.current) return;
         if (!fresh) return;
-        // Defence-in-depth: also drop responses whose payload slug
-        // doesn't match the slug we asked for. The counter-bump on
-        // slug change already invalidates stale responses, but the
-        // explicit slug compare guards against an upstream that
-        // returned data for a different slug than requested.
-        if (fresh.slug !== requestedSlug) return;
+        // Defence-in-depth: also drop responses whose payload doesn't
+        // match the tenant we asked for. The counter-bump on slug change
+        // already invalidates stale responses, but the explicit compare
+        // guards against an upstream that returned data for a different
+        // tenant than requested. Compare the SUBDOMAIN: the URL segment
+        // is the subdomain, while the payload slug column can
+        // legitimately differ from it (#1975).
+        if (fresh.subdomain !== requestedSlug) return;
         setTenant(fresh);
       });
     };
