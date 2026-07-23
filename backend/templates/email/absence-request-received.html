@@ -1,0 +1,43 @@
+{{define "absence-request-received.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "moto-brand" .}}
+    {{if .PreviousQuestion}}
+    <h1>Abwesenheitsantrag erneut eingereicht</h1>
+    {{else}}
+    <h1>Neuer Abwesenheitsantrag</h1>
+    {{end}}
+
+    <p>Hallo {{.FirstName}},</p>
+
+    {{if .PreviousQuestion}}
+    <p><strong>{{.RequesterName}}</strong> hat einen Antrag nach einer Rückfrage erneut eingereicht:</p>
+    {{else}}
+    <p><strong>{{.RequesterName}}</strong> hat einen neuen Antrag eingereicht:</p>
+    {{end}}
+
+    <div class="highlight-box">
+        <p><strong>{{.AbsenceTypeLabel}}</strong><br>
+        Zeitraum: {{.DateRange}}</p>
+        {{if .PreviousQuestion}}
+        <p>Vorherige Rückfrage: {{.PreviousQuestion}}</p>
+        {{end}}
+        {{if .Note}}
+        <p>{{if .PreviousQuestion}}Aktualisierte Notiz{{else}}Notiz{{end}}: {{.Note}}</p>
+        {{end}}
+    </div>
+
+    <p>Du kannst den Antrag direkt in den eingehenden Anfragen auf der Mitarbeiter-Seite bearbeiten.</p>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.LinkURL}}">Antrag ansehen</a>
+    </div>
+
+    <div class="link-box">
+        <a href="{{.LinkURL}}">{{.LinkURL}}</a>
+    </div>
+</div>
+
+{{template "footer" .}}
+{{end}}

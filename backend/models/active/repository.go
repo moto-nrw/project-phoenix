@@ -349,12 +349,13 @@ type StaffAbsenceRepository interface {
 	// Priority order when multiple absences exist: sick > training > vacation > other
 	GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error)
 
-	// ListByStatus returns all absences with the given status (used for inbox view)
-	ListByStatus(ctx context.Context, status string) ([]*StaffAbsence, error)
+	// ListByStatuses returns all absences whose status is in the given set,
+	// ordered by requested_at (used for the /staff inbox: requested + question)
+	ListByStatuses(ctx context.Context, statuses []string) ([]*StaffAbsence, error)
 
 	// DeleteNonHistoricalByStaffID hard-deletes absences that are still pending
-	// ('requested') or not yet over (date_end >= from). Past decided absences
-	// stay as history. Used by staff offboarding.
+	// ('requested' or 'question') or not yet over (date_end >= from). Past
+	// decided absences stay as history. Used by staff offboarding.
 	DeleteNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error)
 
 	// Generic query helpers promoted from the embedded base repository.

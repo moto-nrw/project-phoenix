@@ -143,6 +143,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"reminders.activity_overdue_enabled",
 		// Info-point display feature (issue #1325): opt-in toggle, default off.
 		"display.enabled",
+		// Absence-approval email notifications (issue #1419 4d).
+		"notifications.absence_approval_email",
 	}
 
 	for _, key := range expectedKeys {
@@ -156,6 +158,16 @@ func TestAllSettingsRegistered(t *testing.T) {
 	// The `>=` is intentional so later work packages can add more settings
 	// without retrofitting this assertion.
 	assert.GreaterOrEqual(t, len(all), len(expectedKeys), "all expected settings should be registered")
+}
+
+func TestAbsenceApprovalEmailSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyNotificationsAbsenceApprovalEmail)
+	require.NotNil(t, def, "notifications.absence_approval_email should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "absence emails must be opt-in")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "zeiterfassung", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
 }
 
 func TestPresenceModeSetting(t *testing.T) {

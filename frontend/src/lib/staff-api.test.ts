@@ -1774,6 +1774,87 @@ describe("staff-api", () => {
       );
     });
 
+    it("loads pending absences and normalizes null data", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      const pending = [
+        {
+          id: 7,
+          staff_id: 1,
+          absence_type: "vacation",
+          date_start: "2026-07-14",
+          date_end: "2026-07-16",
+          half_day: false,
+          status: "requested",
+        },
+      ];
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: pending }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: null }),
+        } as Response);
+
+      await expect(staffAbsenceService.listPending()).resolves.toEqual(pending);
+      await expect(staffAbsenceService.listPending()).resolves.toEqual([]);
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "/api/staff/absences/pending",
+        expect.any(Object),
+      );
+    });
+
+    it("throws when pending absences cannot be loaded", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        statusText: "Forbidden",
+      } as Response);
+
+      await expect(staffAbsenceService.listPending()).rejects.toThrow(
+        "Failed to fetch pending absences: Forbidden",
+      );
+    });
+
+    it("submits a question with its mandatory decision note", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({ ok: true } as Response);
+
+      await staffAbsenceService.question(7, "Wer übernimmt die Frühschicht?");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/absences/7/question",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            decision_note: "Wer übernimmt die Frühschicht?",
+          }),
+        }),
+      );
+    });
+
+    it("uses response text and the fallback for question errors", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          text: () => Promise.resolve("Rückfrage nicht möglich"),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          text: () => Promise.reject(new Error("body read failed")),
+        } as Response);
+
+      await expect(
+        staffAbsenceService.question(7, "Erste Frage"),
+      ).rejects.toThrow("Rückfrage nicht möglich");
+      await expect(
+        staffAbsenceService.question(8, "Zweite Frage"),
+      ).rejects.toThrow("Rückfrage fehlgeschlagen");
+    });
+
     it("creates a sick absence and returns the created row (#1843)", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       const createdRow = {

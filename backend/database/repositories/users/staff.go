@@ -168,6 +168,113 @@ func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff
 // calendar:own decision is made in Go with authorize.HasPermission so it honors
 // the same wildcard grants the route allows (calendar:*, admin:*, *:*, and
 // direct grants) instead of only exact role-based rows.
+// GetStaffContactInfo returns name + account email for a single staff member.
+// Multi-schema join (staff → person → account) the generic repository cannot
+// express; used to address absence-decision emails to the requester (#1419).
+func (r *StaffRepository) GetStaffContactInfo(ctx context.Context, staffID int64) (*users.StaffWithRoleInfo, error) {
+	var result users.StaffWithRoleInfo
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		ModelTableExpr(`users.staff AS "staff"`).
+		ColumnExpr(`"staff".id AS staff_id`).
+		ColumnExpr(`"staff".person_id`).
+		ColumnExpr(`"person".first_name`).
+		ColumnExpr(`"person".last_name`).
+		ColumnExpr(`"account".id AS account_id`).
+		ColumnExpr(`"account".email`).
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+		Join(`INNER JOIN auth.accounts AS "account" ON "account".id = "person".account_id`).
+		Where(`"staff".id = ?`, staffID).
+		Where(`"staff".deleted_at IS NULL`)
+
+	query = base.WithTenantFilter(ctx, query, "staff")
+
+	if err := query.Scan(ctx, &result); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "get staff contact info", Err: err}
+	}
+	return &result, nil
+}
+
+// ListStaffWithPermission returns all active staff whose effective permissions
+// (role-granted UNION directly-granted, tenant-scoped) match permissionName —
+// wildcard-aware via the same matcher route authorization uses. Used for the
+// absence-request email fan-out to approvers (#1419).
+func (r *StaffRepository) ListStaffWithPermission(ctx context.Context, permissionName string) ([]*users.StaffWithRoleInfo, error) {
+	tenantWhere, tenantID, hasTenant := base.TenantWhere(ctx, "staff")
+
+	db := base.GetDB(ctx, r.db)
+
+	effective := db.NewSelect().
+		ColumnExpr(`"account_role".account_id AS account_id`).
+		ColumnExpr(`"role_permission".permission_id AS permission_id`).
+		TableExpr(`auth.account_roles AS "account_role"`).
+		Join(`JOIN auth.role_permissions AS "role_permission" ON "role_permission".role_id = "account_role".role_id`).
+		Where(`"account_role".tenant_id = ?`, tenantID).
+		UnionAll(
+			db.NewSelect().
+				ColumnExpr(`"account_permission".account_id AS account_id`).
+				ColumnExpr(`"account_permission".permission_id AS permission_id`).
+				TableExpr(`auth.account_permissions AS "account_permission"`).
+				Where(`"account_permission".granted = ?`, true).
+				Where(`"account_permission".tenant_id = ?`, tenantID),
+		)
+
+	type staffPermissionInfoRow struct {
+		users.StaffWithRoleInfo
+		PermissionName string `bun:"permission_name"`
+	}
+	var rows []staffPermissionInfoRow
+
+	query := db.NewSelect().
+		With("effective_permissions", effective).
+		ColumnExpr(`DISTINCT "staff".id AS staff_id`).
+		ColumnExpr(`"person".id AS person_id`).
+		ColumnExpr(`"person".first_name AS first_name`).
+		ColumnExpr(`"person".last_name AS last_name`).
+		ColumnExpr(`"account".id AS account_id`).
+		ColumnExpr(`"account".email AS email`).
+		// resource:action, matching Permission.GetFullName so authorize.HasPermission parses it.
+		ColumnExpr(`("permission".resource || ':' || "permission".action) AS permission_name`).
+		TableExpr(`users.staff AS "staff"`).
+		Join(`JOIN users.persons AS "person" ON "person".id = "staff".person_id AND "person".deleted_at IS NULL`).
+		Join(`JOIN auth.accounts AS "account" ON "account".id = "person".account_id`).
+		Join(`JOIN auth.account_tenants AS "account_tenant" ON "account_tenant".account_id = "account".id AND "account_tenant".tenant_id = "staff".tenant_id`).
+		Join(`JOIN effective_permissions AS "effective_permission" ON "effective_permission".account_id = "account".id`).
+		Join(`JOIN auth.permissions AS "permission" ON "permission".id = "effective_permission".permission_id`).
+		Where(`"staff".deleted_at IS NULL`).
+		Where(`"account".active = ?`, true).
+		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive)
+
+	if hasTenant {
+		query = query.Where(tenantWhere, tenantID)
+	}
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list staff with permission", Err: err}
+	}
+
+	permissionsByStaff := make(map[int64][]string)
+	infoByStaff := make(map[int64]*users.StaffWithRoleInfo)
+	order := make([]int64, 0, len(rows))
+	for i := range rows {
+		row := &rows[i]
+		if _, seen := infoByStaff[row.StaffID]; !seen {
+			info := row.StaffWithRoleInfo
+			infoByStaff[row.StaffID] = &info
+			order = append(order, row.StaffID)
+		}
+		permissionsByStaff[row.StaffID] = append(permissionsByStaff[row.StaffID], row.PermissionName)
+	}
+
+	result := make([]*users.StaffWithRoleInfo, 0, len(order))
+	for _, staffID := range order {
+		if authorize.HasPermission(permissionName, permissionsByStaff[staffID]) {
+			result = append(result, infoByStaff[staffID])
+		}
+	}
+	return result, nil
+}
+
 func (r *StaffRepository) FindReachableCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error) {
 	tenantWhere, tenantID, hasTenant := base.TenantWhere(ctx, "staff")
 

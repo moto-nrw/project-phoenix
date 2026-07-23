@@ -569,6 +569,7 @@ POST /api/staff-shifts/series
 POST /api/staff/
 POST /api/staff/absences/{absenceId}/approve
 POST /api/staff/absences/{absenceId}/deny
+POST /api/staff/absences/{absenceId}/question
 POST /api/staff/{id}/absences
 POST /api/staff/{id}/time-tracking/sessions
 POST /api/students/
@@ -595,6 +596,7 @@ POST /api/suggestions/{id}/comments/read
 POST /api/suggestions/{id}/vote
 POST /api/time-tracking/absences
 POST /api/time-tracking/absences/{id}/cancel
+POST /api/time-tracking/absences/{id}/resubmit
 POST /api/time-tracking/break/end
 POST /api/time-tracking/break/start
 POST /api/time-tracking/check-in

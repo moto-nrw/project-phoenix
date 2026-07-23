@@ -11,13 +11,30 @@ import { useSWRConfig } from "swr";
 import { Thermometer, Trash2 } from "lucide-react";
 
 import {
+  DenyAbsenceModal,
+  QuestionAbsenceModal,
+} from "~/components/staff/absence-decision-modals";
+import {
   SickReportModal,
   type SickReportStaff,
 } from "~/components/staff/sick-report-modal";
+import { AbsenceRequestRow } from "~/components/staff/absence-request-row";
+import {
+  ABSENCE_TYPE_HEX,
+  ABSENCE_TYPE_LABEL,
+  absenceStatusMeta,
+  absenceTypeNoun as absenceTypeLabel,
+  dayCountFor as sharedDayCountFor,
+  dispatchAbsencesRefresh,
+  formatAbsenceRange,
+  formatDayCount,
+} from "~/lib/absence-helpers";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
+import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { todayISO } from "~/lib/date-helpers";
@@ -34,137 +51,40 @@ import {
 
 const logger = createLogger({ component: "AbwesenheitenTab" });
 
-const ABSENCE_TYPE_LABEL: Record<string, string> = {
-  vacation: "Urlaub",
-  sick: "Krank",
-  training: "Fortbildung",
-  other: "Sonstige",
-};
-
-// Noun form for the delete action ("Krankmeldung löschen", not "Krank
-// löschen"); unknown types fall back to the generic noun.
-function absenceTypeLabel(absenceType: string): string {
-  if (absenceType === "sick") return "Krankmeldung";
-  if (absenceType === "vacation") return "Urlaub";
-  if (absenceType === "training") return "Fortbildung";
-  return "Abwesenheit";
-}
-
-const ABSENCE_TYPE_COLOR: Record<string, string> = {
-  vacation: "bg-[#5080D8]/15 text-[#5080D8]",
-  sick: "bg-[#EAB308]/15 text-amber-700",
-  training: "bg-[#7C3AED]/15 text-purple-700",
-  other: "bg-gray-100 text-gray-600",
-};
-
 const VACATION_WORKFLOW_STATUSES = new Set([
   "requested",
+  "question",
   "approved",
   "declined",
   "canceled",
 ]);
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("de-DE", {
-    timeZone: "Europe/Berlin",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
 function formatRange(start: string, end: string): string {
-  return start === end
-    ? formatDate(start)
-    : `${formatDate(start)} - ${formatDate(end)}`;
-}
-
-// Mon-Fri working days inclusive (Feiertage kommen in Tranche 3). Used as
-// a fallback when the row predates the backend-computed working_days field.
-function countWorkdaysInclusive(startISO: string, endISO: string): number {
-  const start = new Date(`${startISO}T00:00:00`);
-  const end = new Date(`${endISO}T00:00:00`);
-  if (end.getTime() < start.getTime()) return 0;
-  let n = 0;
-  const cur = new Date(start);
-  while (cur.getTime() <= end.getTime()) {
-    const dow = cur.getDay();
-    if (dow !== 0 && dow !== 6) n += 1;
-    cur.setDate(cur.getDate() + 1);
-  }
-  return n;
-}
-
-function formatDayCount(days: number): string {
-  // German decimal comma, drop trailing ",0" so "5" prints as "5 Tage".
-  const rounded = Math.round(days * 10) / 10;
-  const display = Number.isInteger(rounded)
-    ? rounded.toString()
-    : rounded.toFixed(1).replace(".", ",");
-  return `${display} ${rounded === 1 ? "Tag" : "Tage"}`;
+  return formatAbsenceRange(start, end);
 }
 
 function dayCountFor(row: StaffAbsenceRow): number {
-  if (row.working_days != null) return row.working_days;
-  const base = countWorkdaysInclusive(row.date_start, row.date_end);
-  if (base <= 0) return base;
-  const hasBoundaryFields =
-    row.start_half_day !== undefined || row.end_half_day !== undefined;
-  if (!hasBoundaryFields) return row.half_day ? base - 0.5 : base;
-  const start = new Date(`${row.date_start.slice(0, 10)}T00:00:00`);
-  const end = new Date(`${row.date_end.slice(0, 10)}T00:00:00`);
-  let days = base;
-  if (row.start_half_day && isWorkday(start)) days -= 0.5;
-  if (
-    row.end_half_day &&
-    row.date_end.slice(0, 10) !== row.date_start.slice(0, 10) &&
-    isWorkday(end)
-  ) {
-    days -= 0.5;
-  }
-  if (
-    row.end_half_day &&
-    row.date_end.slice(0, 10) === row.date_start.slice(0, 10) &&
-    !row.start_half_day &&
-    isWorkday(end)
-  ) {
-    days -= 0.5;
-  }
-  return days;
+  return sharedDayCountFor({
+    workingDays: row.working_days,
+    dateStart: row.date_start,
+    dateEnd: row.date_end,
+    halfDay: row.half_day,
+    startHalfDay: row.start_half_day,
+    endHalfDay: row.end_half_day,
+    hasBoundaryFields:
+      row.start_half_day !== undefined || row.end_half_day !== undefined,
+  });
 }
 
-function isWorkday(date: Date): boolean {
-  const dow = date.getDay();
-  return dow !== 0 && dow !== 6;
-}
-
-interface StatusMeta {
-  readonly label: string;
-  readonly className: string;
-}
-
-function statusMeta(status: string): StatusMeta {
-  switch (status) {
-    case "requested":
-      return { label: "Wartet", className: "bg-amber-50 text-amber-700" };
-    case "approved":
-      return {
-        label: "Genehmigt",
-        className: "bg-[#83CD2D]/15 text-[#4a7a15]",
-      };
-    case "declined":
-      return { label: "Abgelehnt", className: "bg-red-50 text-red-700" };
-    case "canceled":
-      return { label: "Storniert", className: "bg-gray-100 text-gray-500" };
-    case "reported":
-      return { label: "Eingetragen", className: "bg-gray-100 text-gray-700" };
-    default:
-      return { label: status, className: "bg-gray-100 text-gray-600" };
-  }
+function statusMeta(status: string) {
+  return absenceStatusMeta(status);
 }
 
 function pendingAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
-  return absences.filter((absence) => absence.status === "requested");
+  return absences.filter(
+    (absence) =>
+      absence.status === "requested" || absence.status === "question",
+  );
 }
 
 function upcomingAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
@@ -228,6 +148,9 @@ export function AbwesenheitenTab({
   const [loading, setLoading] = useState(true);
   const [pendingActionId, setPendingActionId] = useState<number | null>(null);
   const [denyModal, setDenyModal] = useState<StaffAbsenceRow | null>(null);
+  const [questionModal, setQuestionModal] = useState<StaffAbsenceRow | null>(
+    null,
+  );
   const [quotaModal, setQuotaModal] = useState(false);
   // Snapshot of the staff identity taken when the modal opens: the live
   // `staff` prop can flip to undefined while onCreated's cache invalidation
@@ -278,6 +201,8 @@ export function AbwesenheitenTab({
           (key) =>
             typeof key === "string" && key.includes("staff-pending-absences-"),
         );
+        // Sidebar pending counter (#1419) listens for this event.
+        dispatchAbsencesRefresh();
       } catch (err) {
         logger.error("load_failed", {
           staff_id: staffId,
@@ -392,6 +317,7 @@ export function AbwesenheitenTab({
         pendingActionId={pendingActionId}
         onApprove={handleApprove}
         onDeny={setDenyModal}
+        onQuestion={setQuestionModal}
       />
 
       {/* Upcoming approved absences */}
@@ -504,6 +430,16 @@ export function AbwesenheitenTab({
           }}
         />
       )}
+      {questionModal && (
+        <QuestionAbsenceModal
+          absence={questionModal}
+          onClose={() => setQuestionModal(null)}
+          onQuestioned={async () => {
+            setQuestionModal(null);
+            await reload();
+          }}
+        />
+      )}
       {quotaModal && quota && (
         <EditQuotaModal
           staffId={staffId}
@@ -528,12 +464,14 @@ function PendingAbsences({
   pendingActionId,
   onApprove,
   onDeny,
+  onQuestion,
 }: {
   readonly rows: StaffAbsenceRow[];
   readonly canEdit: boolean;
   readonly pendingActionId: number | null;
   readonly onApprove: (row: StaffAbsenceRow) => Promise<void>;
   readonly onDeny: (row: StaffAbsenceRow) => void;
+  readonly onQuestion: (row: StaffAbsenceRow) => void;
 }) {
   if (rows.length === 0) {
     return (
@@ -564,101 +502,31 @@ function PendingAbsences({
   }
 
   return (
-    <div className="rounded-3xl border-2 border-amber-200 bg-amber-50/40 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5">
       <div className="mb-3 flex items-center gap-2">
-        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
-          {rows.length}
-        </span>
-        <h3 className="text-sm font-bold tracking-wide text-amber-900 uppercase">
+        <h3 className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
           Eingehende Anfragen
         </h3>
+        <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+          {rows.length}
+        </span>
       </div>
-      <ul className="space-y-2">
+      <ul className="divide-y divide-gray-100">
         {rows.map((row) => (
-          <PendingAbsenceRow
+          <AbsenceRequestRow
             key={row.id}
             row={row}
-            canEdit={canEdit}
             isBusy={pendingActionId === row.id}
-            onApprove={onApprove}
+            showActions={canEdit}
+            onApprove={(r) => {
+              onApprove(r);
+            }}
             onDeny={onDeny}
+            onQuestion={onQuestion}
           />
         ))}
       </ul>
     </div>
-  );
-}
-
-function PendingAbsenceRow({
-  row,
-  canEdit,
-  isBusy,
-  onApprove,
-  onDeny,
-}: {
-  readonly row: StaffAbsenceRow;
-  readonly canEdit: boolean;
-  readonly isBusy: boolean;
-  readonly onApprove: (row: StaffAbsenceRow) => Promise<void>;
-  readonly onDeny: (row: StaffAbsenceRow) => void;
-}) {
-  return (
-    <li className="rounded-2xl border border-amber-100 bg-white p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${ABSENCE_TYPE_COLOR[row.absence_type] ?? "bg-gray-100 text-gray-600"}`}
-            >
-              {ABSENCE_TYPE_LABEL[row.absence_type] ?? row.absence_type}
-            </span>
-            <p className="text-sm font-medium text-gray-800">
-              {formatRange(row.date_start, row.date_end)}
-              {row.half_day && (
-                <span className="ml-2 text-xs text-gray-500">(halber Tag)</span>
-              )}
-              {row.working_days != null && (
-                <span className="ml-2 text-xs text-gray-500">
-                  · {row.working_days} {row.working_days === 1 ? "Tag" : "Tage"}
-                </span>
-              )}
-            </p>
-          </div>
-          {row.note && (
-            <p className="mt-2 text-xs text-gray-600">
-              <span className="font-medium">Notiz:</span> {row.note}
-            </p>
-          )}
-          {row.requested_at && (
-            <p className="mt-1 text-[11px] text-gray-400">
-              Eingegangen {formatDate(row.requested_at)}
-            </p>
-          )}
-        </div>
-        {canEdit && (
-          <div className="flex w-full flex-col gap-2 min-[420px]:w-auto min-[420px]:flex-row">
-            <button
-              type="button"
-              onClick={() => onDeny(row)}
-              disabled={isBusy}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
-            >
-              Ablehnen
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                onApprove(row);
-              }}
-              disabled={isBusy}
-              className="rounded-lg bg-[#83CD2D] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#74b827] disabled:opacity-50"
-            >
-              {isBusy ? "…" : "Genehmigen"}
-            </button>
-          </div>
-        )}
-      </div>
-    </li>
   );
 }
 
@@ -751,11 +619,12 @@ function AbsenceRow({
     <li className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${ABSENCE_TYPE_COLOR[row.absence_type] ?? "bg-gray-100 text-gray-600"}`}
-          >
-            {ABSENCE_TYPE_LABEL[row.absence_type] ?? row.absence_type}
-          </span>
+          <StatusDotBadge
+            label={ABSENCE_TYPE_LABEL[row.absence_type] ?? row.absence_type}
+            color={
+              ABSENCE_TYPE_HEX[row.absence_type] ?? LOCATION_COLORS.UNKNOWN
+            }
+          />
           <p className="text-sm font-medium text-gray-800">
             {formatRange(row.date_start, row.date_end)}
             <span className="ml-2 text-xs text-gray-500">
@@ -774,11 +643,7 @@ function AbsenceRow({
         )}
       </div>
       <div className="flex items-center gap-2">
-        <span
-          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${meta.className}`}
-        >
-          {meta.label}
-        </span>
+        <StatusDotBadge label={meta.label} color={meta.color} />
         {canDelete && (
           <button
             type="button"
@@ -792,90 +657,6 @@ function AbsenceRow({
         )}
       </div>
     </li>
-  );
-}
-
-function DenyAbsenceModal({
-  absence,
-  onClose,
-  onDenied,
-}: {
-  readonly absence: StaffAbsenceRow;
-  readonly onClose: () => void;
-  readonly onDenied: () => void | Promise<void>;
-}) {
-  const [reason, setReason] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const toast = useToast();
-
-  const handleSubmit = async () => {
-    if (reason.trim().length < 3) {
-      toast.error("Bitte gib eine kurze Begründung ein.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await staffAbsenceService.deny(absence.id, reason.trim());
-      toast.success("Antrag abgelehnt.");
-      await onDenied();
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Ablehnung fehlgeschlagen.",
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Modal
-      isOpen
-      onClose={() => !submitting && onClose()}
-      title="Antrag ablehnen"
-      footer={
-        <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={submitting}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
-          >
-            Abbrechen
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
-          >
-            {submitting ? "…" : "Ablehnen"}
-          </button>
-        </div>
-      }
-    >
-      <div className="space-y-3">
-        <p className="text-sm text-gray-700">
-          Antrag {formatRange(absence.date_start, absence.date_end)} (
-          {ABSENCE_TYPE_LABEL[absence.absence_type] ?? absence.absence_type})
-        </p>
-        <label
-          htmlFor="deny-reason"
-          className="block text-xs font-semibold tracking-wider text-gray-500 uppercase"
-        >
-          Begründung
-        </label>
-        <textarea
-          id="deny-reason"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          rows={4}
-          maxLength={500}
-          placeholder="Wird der Mitarbeiterin per E-Mail mitgeteilt."
-          className="w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-red-500 focus:outline-none"
-        />
-        <p className="text-right text-xs text-gray-400">{reason.length}/500</p>
-      </div>
-    </Modal>
   );
 }
 

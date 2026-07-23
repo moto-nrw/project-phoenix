@@ -193,6 +193,39 @@ func (rs *Resource) denyAbsence(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, resp, "Absence declined")
 }
 
+// questionAbsenceErrorRules classifies QuestionAbsence service errors (#1419).
+var questionAbsenceErrorRules = []common.ErrorRule{
+	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
+	{Match: absenceMsgIs("question note is required"), Render: common.ErrorInvalidRequest},
+	{Match: absenceMsgIs("only requested absences can be questioned"), Render: common.ErrorInvalidRequest},
+}
+
+// questionAbsence handles POST /api/staff/absences/{absenceId}/question —
+// the Leitung's Rückfrage with a mandatory note (#1419 4d).
+func (rs *Resource) questionAbsence(w http.ResponseWriter, r *http.Request) {
+	absenceID, err := parseInt64Param(r, "absenceId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("invalid token")))
+		return
+	}
+	var req activeSvc.VacationDecisionRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	resp, err := rs.StaffAbsenceService.QuestionAbsence(r.Context(), absenceID, int64(claims.ID), req.DecisionNote)
+	if err != nil {
+		common.RenderError(w, r, common.RenderWithRules(err, questionAbsenceErrorRules, common.ErrorInternalServer))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, resp, "Absence question sent")
+}
+
 // getStaffVacationQuota handles GET /api/staff/{id}/vacation/quota?year=YYYY
 func (rs *Resource) getStaffVacationQuota(w http.ResponseWriter, r *http.Request) {
 	staffID, err := common.ParseID(r)

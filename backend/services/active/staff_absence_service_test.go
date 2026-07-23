@@ -3,12 +3,18 @@ package active
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,6 +33,7 @@ type absStaffAbsenceRepoMock struct {
 	getByStaffAndDateFunc      func(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.StaffAbsence, error)
 	getByDateRangeFunc         func(ctx context.Context, from, to timezone.Date) ([]*activeModels.StaffAbsence, error)
 	getTodayAbsenceMapFunc     func(ctx context.Context) (map[int64]string, error)
+	listByStatusesFunc         func(ctx context.Context, statuses []string) ([]*activeModels.StaffAbsence, error)
 }
 
 func (m *absStaffAbsenceRepoMock) LockStaffAbsenceWrites(context.Context, int64) error {
@@ -96,14 +103,17 @@ func (m *absStaffAbsenceRepoMock) GetTodayAbsenceMap(ctx context.Context) (map[i
 	return nil, nil
 }
 
-// ListByStaffAndStatuses + ListByStatus are part of the StaffAbsenceRepository
+// ListByStaffAndStatuses + ListByStatuses are part of the StaffAbsenceRepository
 // interface added in the Tranche 4 vacation-workflow spike. No-op defaults so
 // tests that don't exercise the vacation inbox still satisfy the interface.
 func (m *absStaffAbsenceRepoMock) ListByStaffAndStatuses(_ context.Context, _ int64, _ []string) ([]*activeModels.StaffAbsence, error) {
 	return nil, nil
 }
 
-func (m *absStaffAbsenceRepoMock) ListByStatus(_ context.Context, _ string) ([]*activeModels.StaffAbsence, error) {
+func (m *absStaffAbsenceRepoMock) ListByStatuses(ctx context.Context, statuses []string) ([]*activeModels.StaffAbsence, error) {
+	if m.listByStatusesFunc != nil {
+		return m.listByStatusesFunc(ctx, statuses)
+	}
 	return nil, nil
 }
 
@@ -935,6 +945,77 @@ func TestAbsGetAbsencesForRange_RepoError(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, results)
 	assert.Contains(t, err.Error(), "failed to get absences")
+}
+
+func TestAbsListAbsences_ByStatus(t *testing.T) {
+	svc, absRepo, _ := absSetupService()
+	staffID := int64(100)
+
+	absRepo.listFunc = func(_ context.Context, options *base.QueryOptions) ([]*activeModels.StaffAbsence, error) {
+		filteredStaffID, ok := options.Filter.Get("staff_id")
+		require.True(t, ok)
+		assert.Equal(t, staffID, filteredStaffID)
+		status, ok := options.Filter.Get("status")
+		require.True(t, ok)
+		assert.Equal(t, activeModels.AbsenceStatusQuestion, status)
+		require.NotNil(t, options.Sorting)
+		require.Len(t, options.Sorting.Fields, 1)
+		assert.Equal(t, "requested_at", options.Sorting.Fields[0].Field)
+		assert.Equal(t, base.SortDesc, options.Sorting.Fields[0].Direction)
+
+		return []*activeModels.StaffAbsence{{
+			Model:     base.Model{ID: 17},
+			StaffID:   staffID,
+			Status:    activeModels.AbsenceStatusQuestion,
+			DateStart: timezone.NewDate(2027, 7, 10),
+			DateEnd:   timezone.NewDate(2027, 7, 11),
+		}}, nil
+	}
+
+	results, err := svc.ListAbsences(context.Background(), staffID, StaffAbsenceListFilter{
+		Status: activeModels.AbsenceStatusQuestion,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, int64(17), results[0].ID)
+	assert.Equal(t, 2, results[0].DurationDays)
+}
+
+func TestAbsListAbsences_RejectsInvalidFilters(t *testing.T) {
+	svc, _, _ := absSetupService()
+	from := timezone.NewDate(2026, 1, 1)
+
+	tests := []struct {
+		name   string
+		filter StaffAbsenceListFilter
+		errMsg string
+	}{
+		{
+			name:   "empty",
+			filter: StaffAbsenceListFilter{},
+			errMsg: "absence list filter is required",
+		},
+		{
+			name:   "incomplete date range",
+			filter: StaffAbsenceListFilter{From: &from},
+			errMsg: "from and to must be provided together",
+		},
+		{
+			name:   "unknown status",
+			filter: StaffAbsenceListFilter{Status: "unknown"},
+			errMsg: "invalid absence status",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			results, err := svc.ListAbsences(context.Background(), 100, tc.filter)
+			require.Error(t, err)
+			assert.Nil(t, results)
+			assert.EqualError(t, err, tc.errMsg)
+		})
+	}
 }
 
 // ============================================================================
@@ -1816,4 +1897,433 @@ func TestAbsCreateAbsenceFor_MergeDeleteFailureAborts(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to delete merged absence")
 	require.Len(t, syncer.reassignCalls, 1)
 	assert.Empty(t, syncer.markCalls, "a failed merge must not continue into the cascade")
+}
+
+// ============================================================================
+// Rückfrage (question) + resubmit workflow (#1419 4d)
+// ============================================================================
+
+func TestAbsQuestionAbsence_WritesAuditAndDecisionNote(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	auditRepo := &absStaffAbsenceAuditRepoMock{}
+	svc := &staffAbsenceService{
+		absenceRepo: absRepo,
+		auditRepo:   auditRepo,
+	}
+	absenceID := int64(1100)
+	actorAccountID := int64(2100)
+
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return &activeModels.StaffAbsence{
+			Model:       base.Model{ID: absenceID},
+			StaffID:     int64(4100),
+			AbsenceType: activeModels.AbsenceTypeVacation,
+			DateStart:   timezone.NewDate(2027, 5, 3),
+			DateEnd:     timezone.NewDate(2027, 5, 4),
+			Status:      activeModels.AbsenceStatusRequested,
+		}, nil
+	}
+	absRepo.updateFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
+		assert.Equal(t, activeModels.AbsenceStatusQuestion, entity.Status)
+		assert.Equal(t, "Wer übernimmt die Frühschicht?", entity.DecisionNote)
+		assert.Nil(t, entity.ApprovedBy, "a question is not a decision")
+		assert.Nil(t, entity.ApprovedAt, "a question is not a decision")
+		return nil
+	}
+	auditRepo.createFunc = func(_ context.Context, audit *activeModels.StaffAbsenceAudit) error {
+		require.NotNil(t, audit.FromStatus)
+		assert.Equal(t, activeModels.AbsenceStatusRequested, *audit.FromStatus)
+		assert.Equal(t, activeModels.AbsenceStatusQuestion, audit.ToStatus)
+		assert.Equal(t, actorAccountID, audit.ActorID)
+		assert.Equal(t, "Wer übernimmt die Frühschicht?", audit.Note)
+		return nil
+	}
+
+	result, err := svc.QuestionAbsence(context.Background(), absenceID, actorAccountID, "Wer übernimmt die Frühschicht?")
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, activeModels.AbsenceStatusQuestion, result.Status)
+}
+
+func TestAbsQuestionAbsence_RequiresNote(t *testing.T) {
+	svc := &staffAbsenceService{absenceRepo: &absStaffAbsenceRepoMock{}}
+
+	result, err := svc.QuestionAbsence(context.Background(), int64(1101), int64(2101), "")
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Equal(t, "question note is required", err.Error())
+}
+
+func TestAbsQuestionAbsence_RejectsWhitespaceOnlyNote(t *testing.T) {
+	svc := &staffAbsenceService{absenceRepo: &absStaffAbsenceRepoMock{}}
+
+	result, err := svc.QuestionAbsence(context.Background(), int64(1101), int64(2101), " \t\n ")
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Equal(t, "question note is required", err.Error())
+}
+
+func TestAbsQuestionAbsence_TrimsStoredAndAuditedNote(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	auditRepo := &absStaffAbsenceAuditRepoMock{}
+	svc := &staffAbsenceService{absenceRepo: absRepo, auditRepo: auditRepo}
+	absence := &activeModels.StaffAbsence{
+		Model:   base.Model{ID: int64(1110)},
+		StaffID: int64(4110),
+		Status:  activeModels.AbsenceStatusRequested,
+	}
+	absRepo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) {
+		return absence, nil
+	}
+	absRepo.updateFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
+		assert.Equal(t, "Wer übernimmt?", entity.DecisionNote)
+		return nil
+	}
+	auditRepo.createFunc = func(_ context.Context, audit *activeModels.StaffAbsenceAudit) error {
+		assert.Equal(t, "Wer übernimmt?", audit.Note)
+		return nil
+	}
+
+	_, err := svc.QuestionAbsence(context.Background(), absence.ID, int64(2110), "  Wer übernimmt? \n")
+
+	require.NoError(t, err)
+}
+
+func TestAbsQuestionAbsence_OnlyFromRequested(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	svc := &staffAbsenceService{absenceRepo: absRepo, auditRepo: &absStaffAbsenceAuditRepoMock{}}
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return &activeModels.StaffAbsence{
+			Model:  base.Model{ID: int64(1102)},
+			Status: activeModels.AbsenceStatusApproved,
+		}, nil
+	}
+
+	result, err := svc.QuestionAbsence(context.Background(), int64(1102), int64(2102), "note")
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Equal(t, "only requested absences can be questioned", err.Error())
+}
+
+func TestAbsApproveAbsence_FromQuestion(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	auditRepo := &absStaffAbsenceAuditRepoMock{}
+	svc := &staffAbsenceService{absenceRepo: absRepo, auditRepo: auditRepo}
+	decidedByStaffID := int64(3103)
+
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return &activeModels.StaffAbsence{
+			Model:       base.Model{ID: int64(1103)},
+			StaffID:     int64(4103),
+			AbsenceType: activeModels.AbsenceTypeVacation,
+			DateStart:   timezone.NewDate(2027, 6, 1),
+			DateEnd:     timezone.NewDate(2027, 6, 2),
+			Status:      activeModels.AbsenceStatusQuestion,
+		}, nil
+	}
+	absRepo.updateFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
+		assert.Equal(t, activeModels.AbsenceStatusApproved, entity.Status)
+		return nil
+	}
+	auditRepo.createFunc = func(_ context.Context, audit *activeModels.StaffAbsenceAudit) error {
+		require.NotNil(t, audit.FromStatus)
+		assert.Equal(t, activeModels.AbsenceStatusQuestion, *audit.FromStatus)
+		return nil
+	}
+
+	result, err := svc.ApproveAbsence(context.Background(), int64(1103), int64(2103), decidedByStaffID, "passt doch")
+
+	require.NoError(t, err)
+	assert.Equal(t, activeModels.AbsenceStatusApproved, result.Status)
+}
+
+func TestAbsDenyAbsence_FromQuestion(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	svc := &staffAbsenceService{absenceRepo: absRepo, auditRepo: &absStaffAbsenceAuditRepoMock{}}
+
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return &activeModels.StaffAbsence{
+			Model:       base.Model{ID: int64(1104)},
+			StaffID:     int64(4104),
+			AbsenceType: activeModels.AbsenceTypeVacation,
+			DateStart:   timezone.NewDate(2027, 6, 7),
+			DateEnd:     timezone.NewDate(2027, 6, 8),
+			Status:      activeModels.AbsenceStatusQuestion,
+		}, nil
+	}
+	absRepo.updateFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
+		assert.Equal(t, activeModels.AbsenceStatusDeclined, entity.Status)
+		return nil
+	}
+
+	result, err := svc.DenyAbsence(context.Background(), int64(1104), int64(2104), int64(3104), "keine Vertretung")
+
+	require.NoError(t, err)
+	assert.Equal(t, activeModels.AbsenceStatusDeclined, result.Status)
+}
+
+func TestAbsResubmitAbsence_RestampsAndAudits(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	auditRepo := &absStaffAbsenceAuditRepoMock{}
+	svc := &staffAbsenceService{absenceRepo: absRepo, auditRepo: auditRepo}
+	staffID := int64(4105)
+	originalRequestedAt := time.Now().Add(-48 * time.Hour)
+
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return &activeModels.StaffAbsence{
+			Model:        base.Model{ID: int64(1105)},
+			StaffID:      staffID,
+			AbsenceType:  activeModels.AbsenceTypeVacation,
+			DateStart:    timezone.NewDate(2027, 7, 1),
+			DateEnd:      timezone.NewDate(2027, 7, 2),
+			Status:       activeModels.AbsenceStatusQuestion,
+			Note:         "alte Notiz",
+			DecisionNote: "Wer übernimmt die Frühschicht?",
+			RequestedAt:  originalRequestedAt,
+		}, nil
+	}
+	absRepo.updateFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
+		assert.Equal(t, activeModels.AbsenceStatusRequested, entity.Status)
+		assert.Equal(t, "Vertretung ist geklärt", entity.Note)
+		assert.Equal(t, "Wer übernimmt die Frühschicht?", entity.DecisionNote)
+		assert.True(t, entity.RequestedAt.After(originalRequestedAt), "resubmit must re-stamp requested_at")
+		return nil
+	}
+	auditRepo.createFunc = func(_ context.Context, audit *activeModels.StaffAbsenceAudit) error {
+		require.NotNil(t, audit.FromStatus)
+		assert.Equal(t, activeModels.AbsenceStatusQuestion, *audit.FromStatus)
+		assert.Equal(t, activeModels.AbsenceStatusRequested, audit.ToStatus)
+		assert.Equal(t, "Vertretung ist geklärt", audit.Note)
+		return nil
+	}
+
+	result, err := svc.ResubmitAbsence(context.Background(), staffID, int64(2105), int64(1105), "Vertretung ist geklärt")
+
+	require.NoError(t, err)
+	assert.Equal(t, activeModels.AbsenceStatusRequested, result.Status)
+}
+
+func TestAbsResubmitAbsence_RejectsWhitespaceOnlyNote(t *testing.T) {
+	svc := &staffAbsenceService{absenceRepo: &absStaffAbsenceRepoMock{}}
+
+	result, err := svc.ResubmitAbsence(context.Background(), int64(4105), int64(2105), int64(1105), " \t\n ")
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Equal(t, "resubmit note is required", err.Error())
+}
+
+func TestAbsResubmitAbsence_TrimsStoredAndAuditedNote(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	auditRepo := &absStaffAbsenceAuditRepoMock{}
+	svc := &staffAbsenceService{absenceRepo: absRepo, auditRepo: auditRepo}
+	absence := &activeModels.StaffAbsence{
+		Model:   base.Model{ID: int64(1111)},
+		StaffID: int64(4111),
+		Status:  activeModels.AbsenceStatusQuestion,
+	}
+	absRepo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) {
+		return absence, nil
+	}
+	absRepo.updateFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
+		assert.Equal(t, "Vertretung geklärt", entity.Note)
+		return nil
+	}
+	auditRepo.createFunc = func(_ context.Context, audit *activeModels.StaffAbsenceAudit) error {
+		assert.Equal(t, "Vertretung geklärt", audit.Note)
+		return nil
+	}
+
+	_, err := svc.ResubmitAbsence(
+		context.Background(),
+		absence.StaffID,
+		int64(2111),
+		absence.ID,
+		"  Vertretung geklärt \n",
+	)
+
+	require.NoError(t, err)
+}
+
+func TestAbsResubmitAbsence_OwnershipGuard(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	svc := &staffAbsenceService{absenceRepo: absRepo}
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return &activeModels.StaffAbsence{
+			Model:   base.Model{ID: int64(1106)},
+			StaffID: int64(4106),
+			Status:  activeModels.AbsenceStatusQuestion,
+		}, nil
+	}
+
+	result, err := svc.ResubmitAbsence(context.Background(), int64(9999), int64(2106), int64(1106), "meins?")
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Equal(t, "can only resubmit own absences", err.Error())
+}
+
+func TestAbsResubmitAbsence_OnlyFromQuestion(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	svc := &staffAbsenceService{absenceRepo: absRepo}
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return &activeModels.StaffAbsence{
+			Model:   base.Model{ID: int64(1107)},
+			StaffID: int64(4107),
+			Status:  activeModels.AbsenceStatusRequested,
+		}, nil
+	}
+
+	result, err := svc.ResubmitAbsence(context.Background(), int64(4107), int64(2107), int64(1107), "noch mal")
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Equal(t, "only absences with a question can be resubmitted", err.Error())
+}
+
+func TestAbsListPendingRequests_IncludesQuestionRows(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	svc := &staffAbsenceService{absenceRepo: absRepo}
+	absRepo.listByStatusesFunc = func(_ context.Context, statuses []string) ([]*activeModels.StaffAbsence, error) {
+		assert.ElementsMatch(t, []string{
+			activeModels.AbsenceStatusRequested,
+			activeModels.AbsenceStatusQuestion,
+		}, statuses)
+		return []*activeModels.StaffAbsence{
+			{Model: base.Model{ID: int64(1108)}, Status: activeModels.AbsenceStatusRequested, DateStart: timezone.NewDate(2027, 8, 2), DateEnd: timezone.NewDate(2027, 8, 2)},
+			{Model: base.Model{ID: int64(1109)}, Status: activeModels.AbsenceStatusQuestion, DateStart: timezone.NewDate(2027, 8, 3), DateEnd: timezone.NewDate(2027, 8, 3)},
+		}, nil
+	}
+
+	result, err := svc.ListPendingRequests(context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+	assert.Equal(t, activeModels.AbsenceStatusQuestion, result[1].Status)
+}
+
+// ============================================================================
+// Absence email notifications (#1419 4d)
+// ============================================================================
+
+type absSettingsMock struct{ enabled bool }
+
+func (m absSettingsMock) ResolveBool(context.Context, string) (bool, error) {
+	return m.enabled, nil
+}
+
+func newAbsEmailTestService(t *testing.T, absRepo *absStaffAbsenceRepoMock, enabled bool, staffRepo *testpkg.StaffRepoMock) (*staffAbsenceService, *testpkg.CapturingMailer) {
+	t.Helper()
+	mailer := testpkg.NewCapturingMailer()
+	svc := &staffAbsenceService{
+		absenceRepo: absRepo,
+		auditRepo:   &absStaffAbsenceAuditRepoMock{},
+	}
+	svc.SetAbsenceEmailDeps(AbsenceEmailDeps{
+		Settings:    absSettingsMock{enabled: enabled},
+		Dispatcher:  email.NewDispatcher(mailer, slog.Default()),
+		StaffRepo:   staffRepo,
+		SchoolRepo:  absenceEmailSchoolFinderStub{school: &platformModels.School{Subdomain: "tenant"}},
+		DefaultFrom: email.NewEmail("moto", "no-reply@moto.test"),
+		FrontendURL: "http://localhost:3000",
+	})
+	return svc, mailer
+}
+
+func absEmailStaffRepoMock() *testpkg.StaffRepoMock {
+	return &testpkg.StaffRepoMock{
+		GetStaffContactInfoFn: func(_ context.Context, staffID int64) (*usersModels.StaffWithRoleInfo, error) {
+			return &usersModels.StaffWithRoleInfo{
+				StaffID:   staffID,
+				FirstName: "Mila",
+				LastName:  "Muster",
+				Email:     "mila@example.test",
+			}, nil
+		},
+		ListStaffWithPermissionFn: func(_ context.Context, permissionName string) ([]*usersModels.StaffWithRoleInfo, error) {
+			return []*usersModels.StaffWithRoleInfo{
+				{StaffID: int64(8100), FirstName: "Lena", LastName: "Leitung", Email: "lena@example.test"},
+			}, nil
+		},
+	}
+}
+
+func TestAbsRequestVacation_SendsApproverEmail(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	absRepo.getByStaffAndDateRangeFunc = func(context.Context, int64, timezone.Date, timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return nil, nil
+	}
+	absRepo.createFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
+		entity.ID = 1200
+		return nil
+	}
+	svc, mailer := newAbsEmailTestService(t, absRepo, true, absEmailStaffRepoMock())
+
+	ctx := tenant.WithTenantID(context.Background(), int64(7001))
+	_, err := svc.RequestVacation(ctx, int64(4200), RequestVacationRequest{
+		DateStart: "2027-07-01",
+		DateEnd:   "2027-07-02",
+		Note:      "Sommerurlaub",
+	})
+	require.NoError(t, err)
+
+	require.True(t, mailer.WaitForMessages(1, 2*time.Second), "approver email should be dispatched")
+	msgs := mailer.Messages()
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "absence-request-received.html", msgs[0].Template)
+	assert.Equal(t, "lena@example.test", msgs[0].To.Address)
+	assert.Contains(t, msgs[0].Subject, "Mila Muster")
+}
+
+func TestAbsQuestionAbsence_SendsRequesterEmail(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		absence := &activeModels.StaffAbsence{
+			Model:       base.Model{ID: int64(1201)},
+			StaffID:     int64(4201),
+			AbsenceType: activeModels.AbsenceTypeVacation,
+			DateStart:   timezone.NewDate(2027, 7, 5),
+			DateEnd:     timezone.NewDate(2027, 7, 6),
+			Status:      activeModels.AbsenceStatusRequested,
+		}
+		absence.SetTenantID(int64(7001))
+		return absence, nil
+	}
+	absRepo.updateFunc = func(context.Context, *activeModels.StaffAbsence) error { return nil }
+	svc, mailer := newAbsEmailTestService(t, absRepo, true, absEmailStaffRepoMock())
+
+	_, err := svc.QuestionAbsence(context.Background(), int64(1201), int64(2201), "Wie lange genau?")
+	require.NoError(t, err)
+
+	require.True(t, mailer.WaitForMessages(1, 2*time.Second), "requester email should be dispatched")
+	msgs := mailer.Messages()
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "absence-request-question.html", msgs[0].Template)
+	assert.Equal(t, "mila@example.test", msgs[0].To.Address)
+}
+
+func TestAbsEmails_SettingDisabled_NoSend(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	absRepo.getByStaffAndDateRangeFunc = func(context.Context, int64, timezone.Date, timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return nil, nil
+	}
+	absRepo.createFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
+		entity.ID = 1202
+		return nil
+	}
+	svc, mailer := newAbsEmailTestService(t, absRepo, false, absEmailStaffRepoMock())
+
+	ctx := tenant.WithTenantID(context.Background(), int64(7001))
+	_, err := svc.RequestVacation(ctx, int64(4202), RequestVacationRequest{
+		DateStart: "2027-07-08",
+		DateEnd:   "2027-07-09",
+	})
+	require.NoError(t, err)
+
+	assert.False(t, mailer.WaitForMessages(1, 300*time.Millisecond), "no email when setting is off")
+	assert.Empty(t, mailer.Messages())
 }

@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -39,6 +42,14 @@ const maxSickAbsenceRangeDays = 366
 type StaffAbsenceResponse struct {
 	*activeModels.StaffAbsence
 	DurationDays int `json:"duration_days"`
+}
+
+// StaffAbsenceListFilter selects a staff member's absences by overlapping date
+// range, status, or both. From and To must either both be set or both be nil.
+type StaffAbsenceListFilter struct {
+	From   *timezone.Date
+	To     *timezone.Date
+	Status string
 }
 
 // RequestVacationRequest is what the MA submits via "Urlaub beantragen".
@@ -86,6 +97,7 @@ type StaffAbsenceService interface {
 	// after the schedule services exist; mirrors SetStaffShiftRepo).
 	SetShiftPlanSyncer(syncer ShiftPlanSyncer)
 	GetAbsencesForRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAbsenceResponse, error)
+	ListAbsences(ctx context.Context, staffID int64, filter StaffAbsenceListFilter) ([]*StaffAbsenceResponse, error)
 	HasAbsenceOnDate(ctx context.Context, staffID int64, date timezone.Date) (bool, *activeModels.StaffAbsence, error)
 
 	// GetTodayAbsenceMap returns staff ID -> absence type for today (issue
@@ -96,6 +108,13 @@ type StaffAbsenceService interface {
 	RequestVacation(ctx context.Context, staffID int64, req RequestVacationRequest) (*StaffAbsenceResponse, error)
 	ApproveAbsence(ctx context.Context, absenceID int64, actorAccountID int64, decidedByStaffID int64, note string) (*StaffAbsenceResponse, error)
 	DenyAbsence(ctx context.Context, absenceID int64, actorAccountID int64, decidedByStaffID int64, reason string) (*StaffAbsenceResponse, error)
+	// QuestionAbsence moves a requested absence into "question" (Rückfrage)
+	// with a mandatory note from the Leitung (#1419 4d). No decision is
+	// recorded yet — the actor is captured in the audit row.
+	QuestionAbsence(ctx context.Context, absenceID int64, actorAccountID int64, note string) (*StaffAbsenceResponse, error)
+	// ResubmitAbsence lets the MA amend their note and move a "question"
+	// absence back to "requested" for another decision round (#1419 4d).
+	ResubmitAbsence(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64, note string) (*StaffAbsenceResponse, error)
 	CancelAbsence(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64) error
 	GetVacationQuotaSummary(ctx context.Context, staffID int64, year int) (*VacationQuotaSummary, error)
 	UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error
@@ -114,6 +133,9 @@ type staffAbsenceService struct {
 	quotaRepo       activeModels.StaffVacationQuotaRepository
 	auditRepo       activeModels.StaffAbsenceAuditRepository
 	shiftPlanSyncer ShiftPlanSyncer
+	// emailDeps is nil unless SetAbsenceEmailDeps wired it (factory only);
+	// nil means no absence emails are sent (#1419 4d).
+	emailDeps *AbsenceEmailDeps
 }
 
 // SetShiftPlanSyncer wires the #1843 plan cascade (setter injection because
@@ -613,7 +635,53 @@ func (s *staffAbsenceService) DeleteAbsenceFor(ctx context.Context, subjectStaff
 	return nil
 }
 
-// GetAbsencesForRange returns absences for a staff member in a date range
+// ListAbsences returns a staff member's absences for a date range, status, or
+// both. The generic repository filter keeps tenant scoping in one place.
+func (s *staffAbsenceService) ListAbsences(ctx context.Context, staffID int64, filter StaffAbsenceListFilter) ([]*StaffAbsenceResponse, error) {
+	if (filter.From == nil) != (filter.To == nil) {
+		return nil, fmt.Errorf("from and to must be provided together")
+	}
+	if filter.From == nil && filter.Status == "" {
+		return nil, fmt.Errorf("absence list filter is required")
+	}
+	if filter.Status != "" && !slices.Contains(activeModels.ValidAbsenceStatuses, filter.Status) {
+		return nil, fmt.Errorf("invalid absence status")
+	}
+
+	options := modelBase.NewQueryOptions()
+	options.Filter.Equal("staff_id", staffID)
+	if filter.From != nil && filter.To != nil {
+		options.Filter.
+			LessThanOrEqual("date_start", *filter.To).
+			GreaterThanOrEqual("date_end", *filter.From)
+	}
+	if filter.Status != "" {
+		options.Filter.Equal("status", filter.Status)
+	}
+
+	sorting := &modelBase.Sorting{}
+	if filter.From != nil {
+		sorting.AddField("date_start", modelBase.SortAsc)
+	} else {
+		sorting.AddField("requested_at", modelBase.SortDesc)
+	}
+	options.Sorting = sorting
+
+	absences, err := s.absenceRepo.List(ctx, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get absences: %w", err)
+	}
+
+	responses := make([]*StaffAbsenceResponse, len(absences))
+	for i, a := range absences {
+		responses[i] = toAbsenceResponse(a)
+	}
+
+	return responses, nil
+}
+
+// GetAbsencesForRange preserves the range-only service contract used by staff
+// detail views.
 func (s *staffAbsenceService) GetAbsencesForRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAbsenceResponse, error) {
 	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
 	if err != nil {
@@ -658,6 +726,7 @@ func isEffectiveAbsenceStatus(status string) bool {
 func blocksAbsenceRange(status string) bool {
 	return status == activeModels.AbsenceStatusReported ||
 		status == activeModels.AbsenceStatusRequested ||
+		status == activeModels.AbsenceStatusQuestion ||
 		status == activeModels.AbsenceStatusApproved
 }
 
@@ -666,6 +735,7 @@ func isVacationWorkflowAbsence(absence *activeModels.StaffAbsence) bool {
 		return false
 	}
 	return absence.Status == activeModels.AbsenceStatusRequested ||
+		absence.Status == activeModels.AbsenceStatusQuestion ||
 		absence.Status == activeModels.AbsenceStatusApproved ||
 		absence.Status == activeModels.AbsenceStatusDeclined ||
 		absence.Status == activeModels.AbsenceStatusCanceled
@@ -781,6 +851,7 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 	if err := s.absenceRepo.Create(ctx, absence); err != nil {
 		return nil, fmt.Errorf("failed to create vacation request: %w", err)
 	}
+	s.notifyAbsenceRequested(ctx, absence)
 	return toAbsenceResponse(absence), nil
 }
 
@@ -796,7 +867,8 @@ func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int6
 	if err != nil {
 		return nil, fmt.Errorf("absence not found")
 	}
-	if absence.Status != activeModels.AbsenceStatusRequested {
+	if absence.Status != activeModels.AbsenceStatusRequested &&
+		absence.Status != activeModels.AbsenceStatusQuestion {
 		return nil, fmt.Errorf("only requested absences can be approved")
 	}
 	fromStatus := absence.Status
@@ -813,6 +885,7 @@ func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int6
 	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, note); err != nil {
 		return nil, fmt.Errorf("failed to audit absence approval: %w", err)
 	}
+	s.notifyAbsenceDecision(ctx, absence)
 	return toAbsenceResponse(absence), nil
 }
 
@@ -831,7 +904,8 @@ func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, 
 	if err != nil {
 		return nil, fmt.Errorf("absence not found")
 	}
-	if absence.Status != activeModels.AbsenceStatusRequested {
+	if absence.Status != activeModels.AbsenceStatusRequested &&
+		absence.Status != activeModels.AbsenceStatusQuestion {
 		return nil, fmt.Errorf("only requested absences can be declined")
 	}
 	fromStatus := absence.Status
@@ -848,6 +922,80 @@ func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, 
 	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, reason); err != nil {
 		return nil, fmt.Errorf("failed to audit absence decline: %w", err)
 	}
+	s.notifyAbsenceDecision(ctx, absence)
+	return toAbsenceResponse(absence), nil
+}
+
+func (s *staffAbsenceService) QuestionAbsence(ctx context.Context, absenceID int64, actorAccountID int64, note string) (*StaffAbsenceResponse, error) {
+	note = strings.TrimSpace(note)
+	if note == "" {
+		return nil, fmt.Errorf("question note is required")
+	}
+	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
+	if err != nil {
+		return nil, fmt.Errorf("absence not found")
+	}
+	if err := s.lockStaffAbsenceWrites(ctx, absence.StaffID); err != nil {
+		return nil, err
+	}
+	absence, err = s.absenceRepo.FindByID(ctx, absenceID)
+	if err != nil {
+		return nil, fmt.Errorf("absence not found")
+	}
+	if absence.Status != activeModels.AbsenceStatusRequested {
+		return nil, fmt.Errorf("only requested absences can be questioned")
+	}
+	fromStatus := absence.Status
+	absence.Status = activeModels.AbsenceStatusQuestion
+	// The Leitung's question lives in decision_note; ApprovedBy/At stay nil
+	// because no decision has been made yet. History is in the audit rows.
+	absence.DecisionNote = note
+	absence.UpdatedAt = time.Now()
+
+	if err := s.absenceRepo.Update(ctx, absence); err != nil {
+		return nil, fmt.Errorf("failed to question absence: %w", err)
+	}
+	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, note); err != nil {
+		return nil, fmt.Errorf("failed to audit absence question: %w", err)
+	}
+	s.notifyAbsenceDecision(ctx, absence)
+	return toAbsenceResponse(absence), nil
+}
+
+func (s *staffAbsenceService) ResubmitAbsence(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64, note string) (*StaffAbsenceResponse, error) {
+	note = strings.TrimSpace(note)
+	if note == "" {
+		return nil, fmt.Errorf("resubmit note is required")
+	}
+	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
+		return nil, err
+	}
+	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
+	if err != nil {
+		return nil, fmt.Errorf("absence not found")
+	}
+	if absence.StaffID != staffID {
+		return nil, fmt.Errorf("can only resubmit own absences")
+	}
+	if absence.Status != activeModels.AbsenceStatusQuestion {
+		return nil, fmt.Errorf("only absences with a question can be resubmitted")
+	}
+	fromStatus := absence.Status
+	now := time.Now()
+	absence.Status = activeModels.AbsenceStatusRequested
+	absence.Note = note
+	// Re-stamp so the request re-enters the inbox at its resubmit time.
+	absence.RequestedAt = now
+	absence.UpdatedAt = now
+
+	if err := s.absenceRepo.Update(ctx, absence); err != nil {
+		return nil, fmt.Errorf("failed to resubmit absence: %w", err)
+	}
+	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, note); err != nil {
+		return nil, fmt.Errorf("failed to audit absence resubmit: %w", err)
+	}
+	// A resubmit re-enters the inbox, so approvers get the "received" mail again.
+	s.notifyAbsenceRequested(ctx, absence)
 	return toAbsenceResponse(absence), nil
 }
 
@@ -862,9 +1010,11 @@ func (s *staffAbsenceService) CancelAbsence(ctx context.Context, staffID int64, 
 	if absence.StaffID != staffID {
 		return fmt.Errorf("can only cancel own absences")
 	}
-	// MA can cancel requested or approved future vacation. Past approved
-	// absences become historical record and are not cancelable from the UI.
+	// MA can cancel requested/questioned or approved future vacation. Past
+	// approved absences become historical record and are not cancelable from
+	// the UI.
 	if absence.Status != activeModels.AbsenceStatusRequested &&
+		absence.Status != activeModels.AbsenceStatusQuestion &&
 		absence.Status != activeModels.AbsenceStatusApproved {
 		return fmt.Errorf("only pending or approved absences can be canceled")
 	}
@@ -933,7 +1083,7 @@ func (s *staffAbsenceService) GetVacationQuotaSummary(ctx context.Context, staff
 		switch a.Status {
 		case activeModels.AbsenceStatusApproved, activeModels.AbsenceStatusReported:
 			taken += days
-		case activeModels.AbsenceStatusRequested:
+		case activeModels.AbsenceStatusRequested, activeModels.AbsenceStatusQuestion:
 			reserved += days
 		}
 	}
@@ -991,7 +1141,10 @@ func (s *staffAbsenceService) UpsertVacationQuota(ctx context.Context, staffID i
 }
 
 func (s *staffAbsenceService) ListPendingRequests(ctx context.Context) ([]*StaffAbsenceResponse, error) {
-	rows, err := s.absenceRepo.ListByStatus(ctx, activeModels.AbsenceStatusRequested)
+	rows, err := s.absenceRepo.ListByStatuses(ctx, []string{
+		activeModels.AbsenceStatusRequested,
+		activeModels.AbsenceStatusQuestion,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list pending requests: %w", err)
 	}

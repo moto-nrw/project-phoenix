@@ -574,6 +574,24 @@ describe("TimeTrackingService", () => {
       );
       expect(result).toEqual([]);
     });
+
+    it("fetches questioned absences without a date range", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "",
+        data: [{ ...backendAbsence, status: "question" }],
+      });
+
+      const result = await timeTrackingService.getQuestionedAbsences();
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/time-tracking/absences?status=question",
+        expect.objectContaining({ method: "GET" }),
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0]!.status).toBe("question");
+      expect(result[0]!.id).toBe("7");
+    });
   });
 
   describe("createAbsence", () => {
@@ -692,6 +710,41 @@ describe("TimeTrackingService", () => {
         "/api/time-tracking/absences/7/cancel",
         expect.objectContaining({ method: "POST" }),
       );
+    });
+  });
+
+  describe("resubmitAbsence", () => {
+    it("sends the amended note for another decision round", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "Resubmitted",
+        data: null,
+      });
+
+      await timeTrackingService.resubmitAbsence(
+        "7",
+        "Die Vertretung ist geklärt",
+      );
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/time-tracking/absences/7/resubmit",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ note: "Die Vertretung ist geklärt" }),
+        }),
+      );
+    });
+
+    it("surfaces the backend error", async () => {
+      global.fetch = mockFetchResponse(
+        { error: "Nur Rückfragen können erneut eingereicht werden" },
+        false,
+        409,
+      );
+
+      await expect(
+        timeTrackingService.resubmitAbsence("7", "Antwort"),
+      ).rejects.toThrow("Nur Rückfragen können erneut eingereicht werden");
     });
   });
 

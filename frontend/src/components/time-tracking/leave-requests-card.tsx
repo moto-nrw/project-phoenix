@@ -2,8 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { Textarea } from "~/components/ui/textarea";
 import { useToast } from "~/contexts/ToastContext";
+import {
+  absenceStatusMeta,
+  dayCountFor as sharedDayCountFor,
+  dispatchAbsencesRefresh,
+  formatAbsenceRange,
+  formatDayCount,
+} from "~/lib/absence-helpers";
 import { createLogger } from "~/lib/logger";
 import type { StaffAbsence } from "~/lib/time-tracking-helpers";
 import {
@@ -15,91 +25,33 @@ import { useCurrentTimestamp } from "~/lib/hooks/use-current-timestamp";
 
 const logger = createLogger({ component: "LeaveRequestsCard" });
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
 function formatRange(start: string, end: string): string {
-  return start === end
-    ? formatDate(start)
-    : `${formatDate(start)} - ${formatDate(end)}`;
-}
-
-// Mon-Fri inclusive (Feiertage kommen in Tranche 3). Fallback when the row
-// predates the backend-computed workingDays field.
-function countWorkdaysInclusive(startISO: string, endISO: string): number {
-  const start = new Date(`${startISO}T00:00:00`);
-  const end = new Date(`${endISO}T00:00:00`);
-  if (end.getTime() < start.getTime()) return 0;
-  let n = 0;
-  const cur = new Date(start);
-  while (cur.getTime() <= end.getTime()) {
-    const dow = cur.getDay();
-    if (dow !== 0 && dow !== 6) n += 1;
-    cur.setDate(cur.getDate() + 1);
-  }
-  return n;
-}
-
-function formatDayCount(days: number): string {
-  const rounded = Math.round(days * 10) / 10;
-  const display = Number.isInteger(rounded)
-    ? rounded.toString()
-    : rounded.toFixed(1).replace(".", ",");
-  return `${display} ${rounded === 1 ? "Tag" : "Tage"}`;
+  return formatAbsenceRange(start, end);
 }
 
 function dayCountFor(a: StaffAbsence): number {
-  if (a.workingDays != null) return a.workingDays;
-  const base = countWorkdaysInclusive(a.dateStart, a.dateEnd);
-  if (base <= 0) return base;
-  const start = new Date(`${a.dateStart}T00:00:00`);
-  const end = new Date(`${a.dateEnd}T00:00:00`);
-  const sameDay = a.dateStart === a.dateEnd;
-  let days = base;
-  if (a.startHalfDay && isWorkday(start)) days -= 0.5;
-  if (a.endHalfDay && !sameDay && isWorkday(end)) days -= 0.5;
-  if (a.endHalfDay && sameDay && !a.startHalfDay && isWorkday(end)) {
-    days -= 0.5;
+  return sharedDayCountFor({
+    workingDays: a.workingDays,
+    dateStart: a.dateStart,
+    dateEnd: a.dateEnd,
+    startHalfDay: a.startHalfDay,
+    endHalfDay: a.endHalfDay,
+    hasBoundaryFields: true,
+  });
+}
+
+function statusMeta(status: string) {
+  return absenceStatusMeta(status, { requestedLabel: "Wartet auf Antwort" });
+}
+
+function decisionNoteLabel(status: string): string {
+  if (status === "question" || status === "canceled") {
+    return "Rückfrage der Leitung:";
   }
-  return days;
-}
-
-function isWorkday(date: Date): boolean {
-  const dow = date.getDay();
-  return dow !== 0 && dow !== 6;
-}
-
-interface StatusMeta {
-  readonly label: string;
-  readonly className: string;
-}
-
-function statusMeta(status: string): StatusMeta {
-  switch (status) {
-    case "requested":
-      return {
-        label: "Wartet auf Antwort",
-        className: "bg-amber-50 text-amber-700",
-      };
-    case "approved":
-      return {
-        label: "Genehmigt",
-        className: "bg-[#83CD2D]/15 text-[#4a7a15]",
-      };
-    case "declined":
-      return { label: "Abgelehnt", className: "bg-red-50 text-red-700" };
-    case "canceled":
-      return { label: "Storniert", className: "bg-gray-100 text-gray-500" };
-    case "reported":
-      return { label: "Eingetragen", className: "bg-gray-100 text-gray-700" };
-    default:
-      return { label: status, className: "bg-gray-100 text-gray-600" };
+  if (status === "requested") {
+    return "Vorherige Rückfrage der Leitung:";
   }
+  return "Anmerkung der Leitung:";
 }
 
 export function LeaveRequestsCard() {
@@ -107,6 +59,9 @@ export function LeaveRequestsCard() {
   const [modalOpen, setModalOpen] = useState(false);
   const [quota, setQuota] = useState<VacationQuotaSummary | null>(null);
   const [vacations, setVacations] = useState<StaffAbsence[]>([]);
+  const [questionedVacations, setQuestionedVacations] = useState<
+    StaffAbsence[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
 
@@ -117,12 +72,18 @@ export function LeaveRequestsCard() {
     try {
       const yearStart = `${year}-01-01`;
       const yearEnd = `${year}-12-31`;
-      const [q, abs] = await Promise.all([
+      const [q, abs, questions] = await Promise.all([
         timeTrackingService.getVacationQuota(year),
         timeTrackingService.getAbsences(yearStart, yearEnd),
+        timeTrackingService.getQuestionedAbsences(),
       ]);
       setQuota(q);
       setVacations(abs.filter((a) => a.absenceType === "vacation"));
+      setQuestionedVacations(
+        questions.filter(
+          (a) => a.absenceType === "vacation" && a.status === "question",
+        ),
+      );
     } catch (err) {
       logger.error("load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -138,14 +99,51 @@ export function LeaveRequestsCard() {
 
   const counts = useMemo(() => {
     const reserved = vacations.filter((v) => v.status === "requested").length;
+    const question = questionedVacations.length;
     const approved = vacations.filter(
       (v) =>
         (v.status === "approved" || v.status === "reported") &&
         new Date(v.dateEnd) >= new Date(),
     ).length;
     const declined = vacations.filter((v) => v.status === "declined").length;
-    return { reserved, approved, declined };
-  }, [vacations]);
+    return { reserved, question, approved, declined };
+  }, [questionedVacations.length, vacations]);
+
+  const recentVacations = useMemo(
+    () =>
+      vacations
+        .filter((vacation) => vacation.status !== "question")
+        .sort(
+          (a, b) =>
+            new Date(b.requestedAt ?? b.dateStart).getTime() -
+            new Date(a.requestedAt ?? a.dateStart).getTime(),
+        )
+        .slice(0, 8),
+    [vacations],
+  );
+
+  const sortedQuestionedVacations = useMemo(
+    () =>
+      questionedVacations.slice().sort(
+        (a, b) =>
+          new Date(b.requestedAt ?? b.dateStart).getTime() -
+          new Date(a.requestedAt ?? a.dateStart).getTime(),
+      ),
+    [questionedVacations],
+  );
+
+  const blockingVacations = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          [...vacations, ...questionedVacations].map((vacation) => [
+            vacation.id,
+            vacation,
+          ]),
+        ).values(),
+      ),
+    [questionedVacations, vacations],
+  );
 
   const [cancelTarget, setCancelTarget] = useState<StaffAbsence | null>(null);
   const [cancelSubmitting, setCancelSubmitting] = useState(false);
@@ -154,6 +152,11 @@ export function LeaveRequestsCard() {
     setCancelTarget(absence);
   };
 
+  const handleResubmitted = useCallback(() => {
+    dispatchAbsencesRefresh();
+    void loadAll();
+  }, [loadAll]);
+
   const confirmCancel = async () => {
     if (!cancelTarget) return;
     setCancelSubmitting(true);
@@ -161,6 +164,7 @@ export function LeaveRequestsCard() {
       await timeTrackingService.cancelAbsence(cancelTarget.id);
       toast.success("Antrag storniert.");
       setCancelTarget(null);
+      dispatchAbsencesRefresh();
       await loadAll();
     } catch (err) {
       toast.error(
@@ -185,7 +189,9 @@ export function LeaveRequestsCard() {
           <span className="text-xs text-gray-400">{year}</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div
+          className={`grid grid-cols-2 gap-4 ${counts.question > 0 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}
+        >
           <Tile
             label="Resturlaub"
             value={loading ? "-" : `${remainingDays} Tage`}
@@ -202,6 +208,14 @@ export function LeaveRequestsCard() {
             hint="wartet auf Antwort"
             tone={counts.reserved > 0 ? "amber" : "muted"}
           />
+          {counts.question > 0 && (
+            <Tile
+              label="Rückfrage"
+              value={String(counts.question)}
+              hint="Antwort nötig"
+              tone="amber"
+            />
+          )}
           <Tile
             label="Genehmigt"
             value={loading ? "-" : String(counts.approved)}
@@ -230,71 +244,40 @@ export function LeaveRequestsCard() {
           </button>
         </div>
 
-        {vacations.length > 0 && (
+        {sortedQuestionedVacations.length > 0 && (
+          <div className="mt-5 border-t border-gray-100 pt-5">
+            <h3 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+              Rückfragen
+            </h3>
+            <ul className="space-y-2">
+              {sortedQuestionedVacations.map((vacation) => (
+                <AbsenceRequestItem
+                  key={vacation.id}
+                  absence={vacation}
+                  currentTimestamp={currentTimestamp}
+                  onCancel={handleCancel}
+                  onResubmitted={handleResubmitted}
+                  showResubmit
+                />
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {recentVacations.length > 0 && (
           <div className="mt-5 border-t border-gray-100 pt-5">
             <h3 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
               Meine Anträge
             </h3>
             <ul className="space-y-2">
-              {vacations
-                .slice()
-                .sort(
-                  (a, b) =>
-                    new Date(b.requestedAt ?? b.dateStart).getTime() -
-                    new Date(a.requestedAt ?? a.dateStart).getTime(),
-                )
-                .slice(0, 8)
-                .map((v) => {
-                  const meta = statusMeta(v.status);
-                  const cancelable =
-                    v.status === "requested" ||
-                    (v.status === "approved" &&
-                      new Date(v.dateStart).getTime() > currentTimestamp);
-                  return (
-                    <li
-                      key={v.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-800">
-                          {formatRange(v.dateStart, v.dateEnd)}
-                          <span className="ml-2 text-xs text-gray-500">
-                            · {formatDayCount(dayCountFor(v))}
-                          </span>
-                        </p>
-                        {v.note && (
-                          <p className="mt-0.5 truncate text-xs text-gray-500">
-                            {v.note}
-                          </p>
-                        )}
-                        {v.decisionNote && (
-                          <p className="mt-0.5 text-xs text-gray-500">
-                            <span className="font-medium">
-                              Anmerkung Leitung:
-                            </span>{" "}
-                            {v.decisionNote}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${meta.className}`}
-                        >
-                          {meta.label}
-                        </span>
-                        {cancelable && (
-                          <button
-                            type="button"
-                            onClick={() => handleCancel(v)}
-                            className="text-xs font-medium text-red-600 hover:text-red-700"
-                          >
-                            Stornieren
-                          </button>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
+              {recentVacations.map((vacation) => (
+                <AbsenceRequestItem
+                  key={vacation.id}
+                  absence={vacation}
+                  currentTimestamp={currentTimestamp}
+                  onCancel={handleCancel}
+                />
+              ))}
             </ul>
           </div>
         )}
@@ -307,7 +290,7 @@ export function LeaveRequestsCard() {
           loadAll();
         }}
         remainingDays={remainingDays}
-        existingVacations={vacations}
+        existingVacations={blockingVacations}
       />
 
       <ConfirmationModal
@@ -333,6 +316,138 @@ export function LeaveRequestsCard() {
         )}
       </ConfirmationModal>
     </>
+  );
+}
+
+function AbsenceRequestItem({
+  absence,
+  currentTimestamp,
+  onCancel,
+  onResubmitted,
+  showResubmit = false,
+}: {
+  readonly absence: StaffAbsence;
+  readonly currentTimestamp: number;
+  readonly onCancel: (absence: StaffAbsence) => void;
+  readonly onResubmitted?: () => void;
+  readonly showResubmit?: boolean;
+}) {
+  const meta = statusMeta(absence.status);
+  const cancelable =
+    absence.status === "requested" ||
+    absence.status === "question" ||
+    (absence.status === "approved" &&
+      new Date(absence.dateStart).getTime() > currentTimestamp);
+
+  return (
+    <li className="rounded-xl border border-gray-100 bg-white px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-gray-800">
+            {formatRange(absence.dateStart, absence.dateEnd)}
+            <span className="ml-2 text-xs text-gray-500">
+              · {formatDayCount(dayCountFor(absence))}
+            </span>
+          </p>
+          {absence.note && (
+            <p className="mt-0.5 truncate text-xs text-gray-500">
+              {absence.note}
+            </p>
+          )}
+          {absence.decisionNote && (
+            <p className="mt-0.5 text-xs text-gray-500">
+              <span className="font-medium">
+                {decisionNoteLabel(absence.status)}
+              </span>{" "}
+              {absence.decisionNote}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <StatusDotBadge label={meta.label} color={meta.color} />
+          {cancelable && (
+            <button
+              type="button"
+              onClick={() => onCancel(absence)}
+              className="text-xs font-medium text-red-600 hover:text-red-700"
+            >
+              Stornieren
+            </button>
+          )}
+        </div>
+      </div>
+      {showResubmit && onResubmitted && (
+        <ResubmitAbsenceForm
+          absence={absence}
+          onResubmitted={onResubmitted}
+        />
+      )}
+    </li>
+  );
+}
+
+// Inline answer form for a Rückfrage (#1419): the MA amends their note and
+// resubmits, moving the request back to "requested" for a final decision.
+function ResubmitAbsenceForm({
+  absence,
+  onResubmitted,
+}: {
+  readonly absence: StaffAbsence;
+  readonly onResubmitted: () => void;
+}) {
+  const [note, setNote] = useState(absence.note ?? "");
+  const [submitting, setSubmitting] = useState(false);
+  const toast = useToast();
+
+  const handleSubmit = async () => {
+    if (note.trim().length < 3) {
+      toast.error("Bitte gib eine kurze Antwort ein.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await timeTrackingService.resubmitAbsence(absence.id, note.trim());
+      toast.success("Antrag erneut eingereicht.");
+      onResubmitted();
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Antrag konnte nicht erneut eingereicht werden.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 border-t border-gray-100 pt-3">
+      <label
+        htmlFor={`resubmit-note-${absence.id}`}
+        className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
+      >
+        Deine Antwort
+      </label>
+      <Textarea
+        id={`resubmit-note-${absence.id}`}
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        rows={2}
+        maxLength={500}
+        placeholder="Antwort auf die Rückfrage ergänzen…"
+      />
+      <div className="mt-2 flex justify-end">
+        <Button
+          type="button"
+          variant="primary"
+          size="compact"
+          onClick={handleSubmit}
+          disabled={submitting}
+        >
+          {submitting ? "…" : "Antwort senden & erneut einreichen"}
+        </Button>
+      </div>
+    </div>
   );
 }
 

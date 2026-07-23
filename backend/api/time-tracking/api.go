@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -114,6 +115,7 @@ func (rs *Resource) Router() chi.Router {
 		// Vacation workflow (Tranche 4), MA-side
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/vacation/request", rs.requestVacation)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences/{id}/cancel", rs.cancelAbsence)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences/{id}/resubmit", rs.resubmitAbsence)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/vacation/quota", rs.getOwnVacationQuota)
 
 		// Presence map - for internal use by staff page
@@ -516,7 +518,8 @@ func (rs *Resource) exportSessions(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// listAbsences handles GET /api/time-tracking/absences?from=&to=
+// listAbsences handles GET /api/time-tracking/absences with an overlapping
+// date range, a status filter, or both.
 func (rs *Resource) listAbsences(w http.ResponseWriter, r *http.Request) {
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
@@ -525,14 +528,31 @@ func (rs *Resource) listAbsences(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	from, to, ok := parseDateRange(w, r)
-	if !ok {
+	query := r.URL.Query()
+	fromStr := query.Get("from")
+	toStr := query.Get("to")
+	status := strings.TrimSpace(query.Get("status"))
+	if (fromStr == "") != (toStr == "") {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query parameters must be provided together")))
 		return
 	}
 
-	absences, err := rs.StaffAbsenceService.GetAbsencesForRange(r.Context(), staffID, from, to)
+	filter := activeSvc.StaffAbsenceListFilter{Status: status}
+	if fromStr != "" {
+		from, to, ok := parseDateRange(w, r)
+		if !ok {
+			return
+		}
+		filter.From = &from
+		filter.To = &to
+	} else if status == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query parameters or status are required")))
+		return
+	}
+
+	absences, err := rs.StaffAbsenceService.ListAbsences(r.Context(), staffID, filter)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, classifyAbsenceError(err))
 		return
 	}
 
@@ -686,6 +706,39 @@ func (rs *Resource) cancelAbsence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.RespondNoContent(w, r)
+}
+
+// resubmitAbsence handles POST /api/time-tracking/absences/{id}/resubmit —
+// the MA answers a Rückfrage by amending their note and re-requesting (#1419).
+func (rs *Resource) resubmitAbsence(w http.ResponseWriter, r *http.Request) {
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	absenceID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid absence ID")
+	if !ok {
+		return
+	}
+	var req struct {
+		Note string `json:"note"`
+	}
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	tenantID := tenant.FromContext(r.Context())
+	var resp *activeSvc.StaffAbsenceResponse
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		resp, txErr = rs.StaffAbsenceService.ResubmitAbsence(ctx, staffID, int64(userClaims.ID), absenceID, req.Note)
+		return txErr
+	}); err != nil {
+		common.RenderError(w, r, classifyAbsenceError(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, resp, "Absence resubmitted")
 }
 
 // getOwnVacationQuota handles GET /api/time-tracking/vacation/quota?year=YYYY

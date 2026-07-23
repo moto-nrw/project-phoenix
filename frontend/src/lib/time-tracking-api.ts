@@ -339,6 +339,16 @@ class TimeTrackingService {
     return (result.data ?? []).map((a) => mapStaffAbsenceResponse(a as never));
   }
 
+  async getQuestionedAbsences(): Promise<StaffAbsence[]> {
+    const params = new URLSearchParams({ status: "question" });
+    const result = await this.request<StaffAbsence[]>(
+      `/absences?${params}`,
+      "GET",
+      "Failed to get questioned absences",
+    );
+    return (result.data ?? []).map((a) => mapStaffAbsenceResponse(a as never));
+  }
+
   async createAbsence(req: CreateAbsenceRequest): Promise<StaffAbsence> {
     const result = await this.request<StaffAbsence>(
       "/absences",
@@ -385,6 +395,17 @@ class TimeTrackingService {
       `/absences/${id}/cancel`,
       "POST",
       "Antrag konnte nicht storniert werden",
+    );
+  }
+
+  // Answer to a Rückfrage (#1419): amend the own note and move the absence
+  // back to "requested" for another decision round.
+  async resubmitAbsence(id: string, note: string): Promise<void> {
+    await this.request(
+      `/absences/${id}/resubmit`,
+      "POST",
+      "Antrag konnte nicht erneut eingereicht werden",
+      { note },
     );
   }
 

@@ -20,6 +20,10 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { isAdmin } from "~/lib/auth-utils";
+import {
+  StaffPendingInbox,
+  useStaffPendingInbox,
+} from "~/components/staff/staff-pending-inbox";
 import { StaffPageSkeleton } from "./page-skeleton";
 
 function StaffPageContent() {
@@ -68,6 +72,18 @@ function StaffPageContent() {
 
   const staff = staffData ?? [];
   const error = staffError ? "Fehler beim Laden der Personaldaten." : null;
+
+  // Open absence requests (#1419): feeds the inbox above the grid and the
+  // per-card pending indicators. Fetches only with vacation:approve.
+  const { rows: pendingAbsences, canReview: canReviewAbsences } =
+    useStaffPendingInbox();
+  const pendingByStaff = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const row of pendingAbsences) {
+      map.set(row.staff_id, (map.get(row.staff_id) ?? 0) + 1);
+    }
+    return map;
+  }, [pendingAbsences]);
 
   // Known non-room locations for the "Im Raum" filter
   const nonRoomLocations = new Set([
@@ -237,6 +253,11 @@ function StaffPageContent() {
         }}
       />
 
+      {/* Eingehende Anfragen (#1419) — only for approvers */}
+      {canReviewAbsences && (
+        <StaffPendingInbox rows={pendingAbsences} staffList={staff} />
+      )}
+
       {/* Error Display */}
       {error && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
@@ -337,15 +358,26 @@ function StaffPageContent() {
                           </p>
                         </div>
 
-                        <span
-                          className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${locationStatus.badgeColor}`}
-                          style={{
-                            backgroundColor: locationStatus.customBgColor,
-                            boxShadow: locationStatus.customShadow,
-                          }}
-                        >
-                          <span className="mr-2 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80"></span>
-                          {locationStatus.label}
+                        <span className="flex flex-shrink-0 flex-col items-end gap-1.5">
+                          <span
+                            className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${locationStatus.badgeColor}`}
+                            style={{
+                              backgroundColor: locationStatus.customBgColor,
+                              boxShadow: locationStatus.customShadow,
+                            }}
+                          >
+                            <span className="mr-2 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80"></span>
+                            {locationStatus.label}
+                          </span>
+                          {(pendingByStaff.get(Number(staffMember.id)) ?? 0) >
+                            0 && (
+                            <span className="inline-flex items-center rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white">
+                              {pendingByStaff.get(Number(staffMember.id))}{" "}
+                              {pendingByStaff.get(Number(staffMember.id)) === 1
+                                ? "Anfrage"
+                                : "Anfragen"}
+                            </span>
+                          )}
                         </span>
                       </div>
 

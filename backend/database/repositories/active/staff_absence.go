@@ -155,33 +155,40 @@ func (r *StaffAbsenceRepository) GetTodayAbsenceMap(ctx context.Context) (map[in
 	return result, nil
 }
 
-// ListByStatus returns all absences for the current tenant with the given status
-func (r *StaffAbsenceRepository) ListByStatus(ctx context.Context, status string) ([]*active.StaffAbsence, error) {
+// ListByStatuses returns all absences whose status is in the given set,
+// ordered by requested_at ASC (oldest request first).
+func (r *StaffAbsenceRepository) ListByStatuses(ctx context.Context, statuses []string) ([]*active.StaffAbsence, error) {
 	var absences []*active.StaffAbsence
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&absences).
 		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
-		Where(`"staff_absence".status = ?`, status).
+		Where(`"staff_absence".status IN (?)`, bun.List(statuses)).
 		OrderExpr(`"staff_absence".requested_at ASC`)
 
 	query = base.WithTenantFilter(ctx, query, "staff_absence")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list absences by status", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "list absences by statuses", Err: err}
 	}
 	return absences, nil
 }
 
 // DeleteNonHistoricalByStaffID hard-deletes absences that are still pending
-// ('requested') or not yet over (date_end >= from). Past decided absences stay
-// as history. Used by staff offboarding so offboarded staff no longer appear
-// in absence request lists and date maps. Returns the number of deleted rows.
+// ('requested' or 'question') or not yet over (date_end >= from). Past decided
+// absences stay as history. Used by staff offboarding so offboarded staff no
+// longer appear in absence request lists and date maps. Returns the number of
+// deleted rows.
 func (r *StaffAbsenceRepository) DeleteNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error) {
 	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*active.StaffAbsence)(nil)).
 		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
 		Where(`"staff_absence".staff_id = ?`, staffID).
-		Where(`("staff_absence".status = ? OR "staff_absence".date_end >= ?)`, active.AbsenceStatusRequested, from)
+		Where(
+			`("staff_absence".status IN (?, ?) OR "staff_absence".date_end >= ?)`,
+			active.AbsenceStatusRequested,
+			active.AbsenceStatusQuestion,
+			from,
+		)
 
 	query = base.WithTenantFilter(ctx, query, "staff_absence")
 
