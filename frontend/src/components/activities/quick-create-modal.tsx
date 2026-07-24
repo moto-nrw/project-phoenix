@@ -236,9 +236,11 @@ export function QuickCreateActivityModal({
             </div>
           </div>
 
-          {/* Category Card */}
-          <div className="relative overflow-hidden rounded-2xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-5">
-            <div className="absolute top-2 left-2 h-14 w-14 rounded-full bg-gray-100/20 blur-2xl"></div>
+          {/* Category Card — no overflow-hidden on the card itself: it would clip the CustomSelect menu */}
+          <div className="relative rounded-2xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-5">
+            <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
+              <div className="absolute top-2 left-2 h-14 w-14 rounded-full bg-gray-100/20 blur-2xl"></div>
+            </div>
             <div className="relative">
               <label
                 htmlFor="category_id"

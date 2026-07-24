@@ -398,9 +398,11 @@ export function ActivityManagementModal({
             </div>
           </div>
 
-          {/* Category Card - Compact */}
-          <div className="relative overflow-hidden rounded-xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-3 md:p-4">
-            <div className="absolute top-1 left-1 h-10 w-10 rounded-full bg-gray-100/20 blur-xl"></div>
+          {/* Category Card - Compact — no overflow-hidden on the card itself: it would clip the CustomSelect menu */}
+          <div className="relative rounded-xl border border-gray-200/50 bg-gradient-to-br from-gray-50/50 to-slate-50/50 p-3 md:p-4">
+            <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
+              <div className="absolute top-1 left-1 h-10 w-10 rounded-full bg-gray-100/20 blur-xl"></div>
+            </div>
             <div className="relative">
               <label
                 htmlFor="category_id"

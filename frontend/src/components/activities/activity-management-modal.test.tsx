@@ -327,6 +327,28 @@ describe("ActivityManagementModal", () => {
     });
   });
 
+  it("does not clip the open category menu with an overflow-hidden ancestor", async () => {
+    render(
+      <ActivityManagementModal
+        isOpen={true}
+        onClose={mockOnClose}
+        activity={mockActivity}
+      />,
+    );
+
+    const select = await screen.findByRole("combobox");
+    fireEvent.click(select);
+
+    const listbox = await screen.findByRole("listbox");
+    for (
+      let node = listbox.parentElement;
+      node && node !== document.body;
+      node = node.parentElement
+    ) {
+      expect(node.className).not.toMatch(/(?:^|\s)overflow-hidden(?:\s|$)/);
+    }
+  });
+
   it("disables inputs when read-only", () => {
     render(
       <ActivityManagementModal
