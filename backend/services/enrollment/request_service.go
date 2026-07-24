@@ -2872,7 +2872,45 @@ func (s *requestService) loadEditablePhaseWithLateInvite(ctx context.Context, ph
 			return nil, ErrLateInviteInvalid
 		}
 	}
+	// Only offer classes the submit-time eligibility gate will actually accept.
+	// A valid late invite bypasses that gate (AllowClosedPhase), so its recipient
+	// keeps the full offered list; everyone else sees the eligible subset (#1663).
+	if !hasValidLateInvite {
+		narrowOfferedClassesToEligibleForForm(phase)
+	}
 	return phase, nil
+}
+
+// narrowOfferedClassesToEligibleForForm restricts the phase's offered concrete
+// classes (available_school_classes) to those that are ALSO eligible, for the
+// self-service form-load paths. Phase.Validate only enforces eligible ⊆
+// available, so available may legitimately be a wider superset — and a stale
+// admin client or a direct API write can widen it further while the eligibility
+// list stays narrow. Offering a class the submit-time gate rejects would let a
+// parent complete the whole form only to fail with class_not_eligible, so
+// present exactly the eligible subset instead. Mutates a phase already cleared
+// for a self-service load; the caller excludes late-invite loads, which bypass
+// eligibility. No-op when no restriction is active. Submit reloads the phase
+// independently (loadPhaseForSubmission), so this narrowing never reaches
+// validation — and eligible ⊆ available guarantees every offered class still
+// passes the available check anyway (#1663).
+func narrowOfferedClassesToEligibleForForm(phase *enrollmentModels.Phase) {
+	if phase == nil || len(phase.EligibleSchoolClasses) == 0 {
+		return
+	}
+	eligible := make(map[string]struct{}, len(phase.EligibleSchoolClasses))
+	for _, c := range phase.EligibleSchoolClasses {
+		if t := strings.TrimSpace(c); t != "" {
+			eligible[t] = struct{}{}
+		}
+	}
+	narrowed := make([]string, 0, len(phase.AvailableSchoolClasses))
+	for _, c := range phase.AvailableSchoolClasses {
+		if _, ok := eligible[strings.TrimSpace(c)]; ok {
+			narrowed = append(narrowed, c)
+		}
+	}
+	phase.AvailableSchoolClasses = narrowed
 }
 
 // LoadPublicPhaseWithLateInvite is the anonymous public form-load gate: it

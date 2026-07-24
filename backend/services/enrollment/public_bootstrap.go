@@ -55,7 +55,14 @@ func isPublicGateError(err error) bool {
 	return errors.Is(err, ErrInvalidSubmission) ||
 		errors.Is(err, ErrEnrollmentDisabled) ||
 		errors.Is(err, ErrEnrollmentWindowClosed) ||
-		errors.Is(err, ErrLateInviteInvalid)
+		errors.Is(err, ErrLateInviteInvalid) ||
+		// An admin can flip a phase from open to linked_parents between the
+		// bootstrap's initial phase load and its later legal-text phase reload.
+		// The reload then returns ErrPhaseAudienceRestricted, which is the same
+		// anonymous not-found gate the initial load already renders as a 404 —
+		// classify it here too so the legal stage does not wrap it as a
+		// BootstrapStageError and surface it as a 500 (#1663).
+		errors.Is(err, ErrPhaseAudienceRestricted)
 }
 
 func (s *requestService) assemblePublicBootstrap(

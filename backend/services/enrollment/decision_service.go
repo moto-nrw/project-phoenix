@@ -1145,7 +1145,12 @@ func (s *decisionService) applyApproval(
 			slog.Int64("request_child_id", child.ID),
 			slog.Int64("student_id", *child.MatchedStudentID),
 		)
-		return s.attachApprovalToExistingStudent(ctx, child, phase, *child.MatchedStudentID)
+		// syncTargetedFields=true: an existing_students submission is a full
+		// parent form, so the submitted targeted fields (health info, departure/
+		// arrival schedules, contact lists, consent flags) must land on the
+		// matched student — unlike the annual rollover, which carries no fresh
+		// form (#1663).
+		return s.attachApprovalToExistingStudent(ctx, request, child, phase, *child.MatchedStudentID, reviewedBy, true)
 	}
 
 	// 1. Resolve or create the guardian profile (per-tenant).
@@ -1374,7 +1379,11 @@ func (s *decisionService) applyApprovalRollover(
 		slog.Int64("request_child_id", child.ID),
 		slog.Int64("student_id", *source.CreatedStudentID),
 	)
-	return s.attachApprovalToExistingStudent(ctx, child, phase, *source.CreatedStudentID)
+	// syncTargetedFields=false: a rolled-over request_child is carried forward
+	// from last year's approval without a fresh parent submission, so there are
+	// no newly submitted targeted fields to dispatch. reviewedBy isn't tracked
+	// on this path (see applyApprovalRollover's fallback note) — pass 0.
+	return s.attachApprovalToExistingStudent(ctx, request, child, phase, *source.CreatedStudentID, 0, false)
 }
 
 // attachApprovalToExistingStudent is the shared approval tail for a child that
@@ -1391,9 +1400,12 @@ func (s *decisionService) applyApprovalRollover(
 // child is a separate guardian-editor flow, not part of approval.
 func (s *decisionService) attachApprovalToExistingStudent(
 	ctx context.Context,
+	request *enrollmentModels.Request,
 	child *enrollmentModels.RequestChild,
 	phase *enrollmentModels.Phase,
 	studentID int64,
+	reviewedBy int64,
+	syncTargetedFields bool,
 ) (*PendingGuardianInvite, error) {
 	existing, err := s.StudentRepo.FindByID(ctx, studentID)
 	if err != nil {
@@ -1419,6 +1431,26 @@ func (s *decisionService) attachApprovalToExistingStudent(
 	}
 	if err := s.StudentRepo.Update(ctx, existing); err != nil {
 		return nil, fmt.Errorf("decision: update existing student: %w", err)
+	}
+
+	// Dispatch every targeted form field the parent submitted onto the existing
+	// record (health/extra info, departure + arrival schedules, contact lists,
+	// consent-flag propagation). Without this the existing-student approval
+	// silently drops everything the form collected beyond class/window/care
+	// offerings. guardian is nil: the student keeps the guardian relationships
+	// from its original enrollment, matching this helper's deliberate
+	// guardian-linkage skip. Best-effort, like the fresh-create path — a single
+	// field failure must not poison the approval. Rollover passes false because
+	// its request_child carries no fresh submission (#1663).
+	if syncTargetedFields {
+		if _, err := s.applyTargetedFields(ctx, request, child, existing, nil, reviewedBy, targetedFieldSyncOptions{}); err != nil {
+			s.Logger.Warn("decision: targeted-field dispatch on existing student had errors",
+				slog.Int64("request_id", request.ID),
+				slog.Int64("child_id", child.ID),
+				slog.Int64("student_id", studentID),
+				slog.String("error", err.Error()),
+			)
+		}
 	}
 
 	// Materialize the phase's care offerings under this student.
@@ -2732,7 +2764,11 @@ func (s *decisionService) applyTargetedFields(
 			}
 		}
 	}
-	if request.GuardianPhone != nil {
+	// guardian is nil on the existing-student re-enrollment path: that student
+	// already carries its guardian relationships (and their phone numbers) from
+	// the original enrollment, so there is no profile to enrich here — mirror
+	// the helper's deliberate guardian-linkage skip rather than nil-panic.
+	if request.GuardianPhone != nil && guardian != nil {
 		if err := s.createGuardianPhoneNumber(ctx, guardian.ID, *request.GuardianPhone); err != nil {
 			errs = append(errs, fmt.Sprintf("auto guardian_phone: %v", err))
 		}
