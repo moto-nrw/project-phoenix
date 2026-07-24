@@ -125,6 +125,7 @@
     "kindCustom": "Sonstiges",
     "closesAt": "Anmeldung bis {date}",
     "audienceNewStudents": "Nur neue Kinder",
+    "audienceExistingStudents": "Nur bereits angemeldete Kinder",
     "audienceLinkedParents": "Nur für verknüpfte Eltern",
     "rangeConnector": "bis",
     "openPhase": "Anmeldung öffnen"
@@ -515,6 +516,7 @@
     "serviceRange": "Betreuungszeitraum: {from} bis {to}",
     "start": "Anmeldung starten",
     "audienceNewStudents": "Nur für neue Kinder",
+    "audienceExistingStudents": "Nur für bereits angemeldete Kinder",
     "kind": {
       "school_year": "Schuljahr",
       "holiday": "Ferienbetreuung",

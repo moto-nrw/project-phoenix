@@ -125,6 +125,7 @@
     "kindCustom": "Other",
     "closesAt": "Registration until {date}",
     "audienceNewStudents": "New children only",
+    "audienceExistingStudents": "Enrolled children only",
     "audienceLinkedParents": "Linked parents only",
     "rangeConnector": "to",
     "openPhase": "Open enrollment"
@@ -515,6 +516,7 @@
     "serviceRange": "Care period: {from} to {to}",
     "start": "Start enrollment",
     "audienceNewStudents": "New children only",
+    "audienceExistingStudents": "Enrolled children only",
     "kind": {
       "school_year": "School year",
       "holiday": "Holiday care",

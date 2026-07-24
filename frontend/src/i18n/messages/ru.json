@@ -125,6 +125,7 @@
     "kindCustom": "Прочее",
     "closesAt": "Приём до {date}",
     "audienceNewStudents": "Только новые дети",
+    "audienceExistingStudents": "Только уже зачисленные дети",
     "audienceLinkedParents": "Только для связанных родителей",
     "rangeConnector": "по",
     "openPhase": "Открыть приём"
@@ -515,6 +516,7 @@
     "serviceRange": "Период ухода: {from} до {to}",
     "start": "Начать запись",
     "audienceNewStudents": "Только для новых детей",
+    "audienceExistingStudents": "Только для уже зачисленных детей",
     "kind": {
       "school_year": "Учебный год",
       "holiday": "Уход на каникулах",

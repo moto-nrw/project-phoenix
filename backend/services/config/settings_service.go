@@ -24,6 +24,23 @@ type settingsService struct {
 	schoolRepo platform.SchoolRepository
 	db         *bun.DB
 	logger     *slog.Logger
+	// classRestrictionGuard, when set, reports whether the tenant in
+	// context currently has an active enrollment phase that restricts
+	// eligibility to specific school classes. It gates disabling the
+	// concrete-class collection toggles so an admin cannot make every
+	// submission to such a phase fail (#1663). Optional: nil skips the
+	// guard (unit tests, callers that never wire enrollment). Injected via
+	// SetClassRestrictionGuard to keep the config package decoupled from
+	// the enrollment domain.
+	classRestrictionGuard func(ctx context.Context) (bool, error)
+}
+
+// SetClassRestrictionGuard wires the enrollment class-restriction probe used
+// by the concrete-class collection guard. Kept off the constructor (and off
+// the SettingsService interface) so existing call sites and tests are
+// unaffected; the factory sets it after construction (#1663).
+func (s *settingsService) SetClassRestrictionGuard(fn func(ctx context.Context) (bool, error)) {
+	s.classRestrictionGuard = fn
 }
 
 // NewSettingsService creates a new SettingsService.
@@ -482,6 +499,59 @@ func (s *settingsService) validateCrossField(ctx context.Context, key string, va
 	switch key {
 	case config.KeySlotListShortDayCutoff, config.KeySlotListLongDayCutoff:
 		return s.validateSlotListCutoffPair(ctx, key, value)
+	case config.KeyEnrollmentCollectGradeLevel, config.KeyEnrollmentCollectSchoolClass:
+		return s.validateClassCollectionGuard(ctx, key, value)
+	}
+	return nil
+}
+
+// validateClassCollectionGuard blocks disabling concrete-class collection
+// while an active enrollment phase restricts eligibility to specific school
+// classes. Concrete-class collection is effective only when BOTH
+// collect_grade_level and collect_school_class are on (a class without its
+// grade is ambiguous). When it turns off, the submit path forces every
+// child's class to nil, so a phase with a non-empty eligible_school_classes
+// gate rejects every submission with class_not_eligible. This is the inverse
+// of the phase-side validateEligibleClassesCollectable check: together they
+// keep the restricted-phase / class-collection pair consistent from either
+// edit direction (#1663). Best-effort: nil guard skips the check.
+func (s *settingsService) validateClassCollectionGuard(ctx context.Context, key string, value any) error {
+	if s.classRestrictionGuard == nil {
+		return nil
+	}
+	newVal, ok := value.(bool)
+	if !ok {
+		// Non-bool falls back to the registry default / is caught by
+		// validateValue; nothing to compare here.
+		return nil
+	}
+	// Compute the effective collection state with `value` applied to `key`
+	// and the sibling toggle resolved live (its current effective value).
+	collectGrade, collectClass := newVal, newVal
+	var err error
+	if key == config.KeyEnrollmentCollectGradeLevel {
+		collectClass, err = s.ResolveBool(ctx, config.KeyEnrollmentCollectSchoolClass)
+	} else {
+		collectGrade, err = s.ResolveBool(ctx, config.KeyEnrollmentCollectGradeLevel)
+	}
+	if err != nil {
+		return fmt.Errorf("resolve paired class-collection toggle: %w", err)
+	}
+	if collectGrade && collectClass {
+		// Collection stays effective — no restricted phase is endangered.
+		return nil
+	}
+	restricted, err := s.classRestrictionGuard(ctx)
+	if err != nil {
+		// Operational failure stays a plain error → surfaces as a 500, not a
+		// "your value is invalid" 400.
+		return fmt.Errorf("check class-restricted phases: %w", err)
+	}
+	if restricted {
+		return &InvalidValueError{
+			Key:    key,
+			Reason: "Die Klassen-Abfrage kann nicht deaktiviert werden, solange eine aktive Anmeldephase auf bestimmte Klassen beschränkt ist. Entfernen Sie zuerst die Klassenbeschränkung der betroffenen Phase.",
+		}
 	}
 	return nil
 }

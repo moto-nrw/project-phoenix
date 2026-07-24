@@ -2109,3 +2109,105 @@ func TestResetValue_SlotListCutoffPair_CrossFieldValidation(t *testing.T) {
 		assert.Equal(t, "14:30", short, "accepted reset falls back to the registry default")
 	})
 }
+
+// setClassRestrictionGuard wires the enrollment class-restriction probe on a
+// settings service via the exported setter on the concrete type (reachable
+// from this external test package through an interface assertion, the same
+// way the factory wires it).
+func setClassRestrictionGuard(t *testing.T, svc configSvc.SettingsService, restricted bool) {
+	t.Helper()
+	guarded, ok := svc.(interface {
+		SetClassRestrictionGuard(func(context.Context) (bool, error))
+	})
+	require.True(t, ok, "settings service must expose SetClassRestrictionGuard")
+	guarded.SetClassRestrictionGuard(func(context.Context) (bool, error) { return restricted, nil })
+}
+
+// TestSetValue_ClassCollectionGuard_CrossFieldValidation covers the #1663 fix:
+// disabling either concrete-class collection toggle must be refused while the
+// tenant has an active phase that restricts eligibility to specific classes —
+// otherwise validateAndNormalizeSchoolClasses erases every child's class and
+// the eligibility gate rejects every submission with class_not_eligible. This
+// is the inverse of the phase-side validateEligibleClassesCollectable guard.
+func TestSetValue_ClassCollectionGuard_CrossFieldValidation(t *testing.T) {
+	registerCollectionKeys := func() {
+		registerTestSetting(config.KeyEnrollmentCollectGradeLevel, config.FieldBoolean, true)
+		registerTestSetting(config.KeyEnrollmentCollectSchoolClass, config.FieldBoolean, true)
+	}
+
+	t.Run("disabling concrete-class collection is rejected while a restricted phase exists", func(t *testing.T) {
+		setupTest(t)
+		registerCollectionKeys()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setClassRestrictionGuard(t, svc, true)
+
+		err := svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass, false, nil, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Klassen-Abfrage")
+	})
+
+	t.Run("disabling grade-level collection is likewise rejected", func(t *testing.T) {
+		setupTest(t)
+		registerCollectionKeys()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setClassRestrictionGuard(t, svc, true)
+
+		err := svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectGradeLevel, false, nil, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Klassen-Abfrage")
+	})
+
+	t.Run("keeping collection effective is allowed even with a restricted phase", func(t *testing.T) {
+		setupTest(t)
+		registerCollectionKeys()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setClassRestrictionGuard(t, svc, true)
+
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass, true, nil, nil))
+	})
+
+	t.Run("disabling is allowed when no restricted phase exists", func(t *testing.T) {
+		setupTest(t)
+		registerCollectionKeys()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setClassRestrictionGuard(t, svc, false)
+
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass, false, nil, nil))
+	})
+
+	t.Run("no guard wired skips the check", func(t *testing.T) {
+		setupTest(t)
+		registerCollectionKeys()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass, false, nil, nil))
+	})
+}
+
+// TestResetValue_ClassCollectionGuard_CrossFieldValidation covers the reset
+// direction of the #1663 guard: resetting a collection toggle restores its
+// registry default, which can disable collection even though SetValue guards
+// it. The reset must be validated the same way and the override must survive.
+func TestResetValue_ClassCollectionGuard_CrossFieldValidation(t *testing.T) {
+	setupTest(t)
+	// grade default true, class default false: resetting class restores false,
+	// which disables concrete-class collection.
+	registerTestSetting(config.KeyEnrollmentCollectGradeLevel, config.FieldBoolean, true)
+	registerTestSetting(config.KeyEnrollmentCollectSchoolClass, config.FieldBoolean, false)
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	// Enable the class override first (no restricted phase yet, so allowed).
+	setClassRestrictionGuard(t, svc, false)
+	require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass, true, nil, nil))
+
+	// A restricted phase now exists; resetting class back to its false default
+	// would disable collection and must be refused, leaving the override intact.
+	setClassRestrictionGuard(t, svc, true)
+	err := svc.ResetValue(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass, nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Klassen-Abfrage")
+
+	got, err := svc.ResolveBool(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass)
+	require.NoError(t, err)
+	assert.True(t, got, "rejected reset must not delete the override")
+}

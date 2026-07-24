@@ -125,6 +125,7 @@
     "kindCustom": "Të tjera",
     "closesAt": "Regjistrimi deri më {date}",
     "audienceNewStudents": "Vetëm fëmijë të rinj",
+    "audienceExistingStudents": "Vetëm fëmijë të regjistruar",
     "audienceLinkedParents": "Vetëm për prindër të lidhur",
     "rangeConnector": "deri",
     "openPhase": "Hap regjistrimin"
@@ -515,6 +516,7 @@
     "serviceRange": "Periudha e përkujdesjes: {from} deri {to}",
     "start": "Nis regjistrimin",
     "audienceNewStudents": "Vetëm për fëmijë të rinj",
+    "audienceExistingStudents": "Vetëm për fëmijë të regjistruar",
     "kind": {
       "school_year": "Viti shkollor",
       "holiday": "Përkujdesje gjatë pushimeve",

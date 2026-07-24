@@ -86,8 +86,11 @@ export interface EnrollablePhase {
   // True when the parent already has a linked child at this school.
   readonly already_linked: boolean;
   // Who the phase is open to: "open" (anyone), "new_students" (children not yet
-  // linked), or "linked_parents" (only guardians with an existing linked child).
-  readonly audience: "open" | "new_students" | "linked_parents";
+  // enrolled), "existing_students" (only children already enrolled — a
+  // re-enrollment / renewal phase), or "linked_parents" (only guardians with an
+  // existing linked child). The backend can return any of these (#1663).
+  readonly audience:
+    "open" | "new_students" | "existing_students" | "linked_parents";
 }
 
 export interface ParentProfile {

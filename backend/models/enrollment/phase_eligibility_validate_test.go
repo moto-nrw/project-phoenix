@@ -56,8 +56,33 @@ func TestPhaseValidate_RejectsGrade1EligibleClass(t *testing.T) {
 
 func TestPhaseValidate_AcceptsGrade2PlusEligibleClasses(t *testing.T) {
 	p := makeEligibilityTestPhase()
+	// Every eligible class must also be offered by the phase (#1663), so the
+	// pick list mirrors the eligibility list here.
+	p.AvailableSchoolClasses = []string{"2a", "3b", "Bienen"}
 	p.EligibleSchoolClasses = []string{"2a", "3b", "Bienen"}
 	require.NoError(t, p.Validate())
+}
+
+func TestPhaseValidate_RejectsEligibleClassNotAvailable(t *testing.T) {
+	// A class listed as eligible but not offered by available_school_classes
+	// is unsatisfiable: the form never presents it, so every submission is
+	// rejected with class_not_eligible. Reject the disjoint config up front
+	// (#1663).
+	t.Run("disjoint lists", func(t *testing.T) {
+		p := makeEligibilityTestPhase()
+		p.AvailableSchoolClasses = []string{"2b"}
+		p.EligibleSchoolClasses = []string{"2a"}
+		err := p.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "available_school_classes")
+	})
+	t.Run("eligible without any available", func(t *testing.T) {
+		p := makeEligibilityTestPhase()
+		p.EligibleSchoolClasses = []string{"2a"}
+		err := p.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "available_school_classes")
+	})
 }
 
 func TestPhaseValidate_CoalescesNilEligibleSchoolClasses(t *testing.T) {

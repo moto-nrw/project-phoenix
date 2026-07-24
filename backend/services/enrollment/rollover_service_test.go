@@ -373,6 +373,10 @@ func TestRolloverService_CreatePhaseFromSource_CarriesEligibilityForward(t *test
 	ctx := testpkg.TenantContext(1)
 
 	env.sourcePhase.Audience = enrollmentModels.PhaseAudienceLinkedParents
+	// Eligible classes must also be offered by the phase (#1663); the
+	// successor inherits both lists, so seed available to match before the
+	// rollover re-validates the copied config.
+	env.sourcePhase.AvailableSchoolClasses = []string{"2a", "2b"}
 	env.sourcePhase.EligibleSchoolClasses = []string{"2a", "2b"}
 	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
 

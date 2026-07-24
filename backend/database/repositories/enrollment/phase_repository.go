@@ -171,6 +171,25 @@ func (r *PhaseRepository) ListWithExpiredRolloverDeadline(ctx context.Context, a
 	return rows, nil
 }
 
+// ExistsActiveWithEligibleClasses reports whether the tenant (via the RLS
+// tx in context) has any active phase whose eligible_school_classes carries
+// at least one non-blank entry. The blank filter mirrors the model's
+// hasNonEmptyEligibleClass so a stored [""] is not treated as a real
+// restriction. Backs the settings guard that refuses to disable
+// concrete-class collection while such a phase exists (#1663).
+func (r *PhaseRepository) ExistsActiveWithEligibleClasses(ctx context.Context) (bool, error) {
+	exists, err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*enrollment.Phase)(nil)).
+		ModelTableExpr(phaseTableExpr).
+		Where(`"phase".is_active = TRUE`).
+		Where(`EXISTS (SELECT 1 FROM jsonb_array_elements_text("phase".eligible_school_classes) AS elem WHERE btrim(elem) <> '')`).
+		Exists(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to check active phases with eligible classes: %w", err)
+	}
+	return exists, nil
+}
+
 // ExistsByFormSchemaID is the safety check the schema-delete path needs.
 // Returns true if any phase still references the given schema id.
 func (r *PhaseRepository) ExistsByFormSchemaID(ctx context.Context, schemaID int64) (bool, error) {

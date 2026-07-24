@@ -299,6 +299,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 		logger,
 	)
+	// Wire the enrollment class-restriction probe so the settings service can
+	// refuse disabling concrete-class collection while an active phase
+	// restricts eligibility to specific classes (#1663). Runs inside the
+	// caller's tenant tx, so the phase lookup is RLS-scoped.
+	if guarded, ok := settingsService.(interface {
+		SetClassRestrictionGuard(func(context.Context) (bool, error))
+	}); ok {
+		guarded.SetClassRestrictionGuard(func(ctx context.Context) (bool, error) {
+			return repos.Phase.ExistsActiveWithEligibleClasses(ctx)
+		})
+	}
 
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{

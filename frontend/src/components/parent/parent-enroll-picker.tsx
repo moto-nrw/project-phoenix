@@ -189,9 +189,11 @@ function PhaseRow({
   const audienceLabel =
     phase.audience === "new_students"
       ? t("audienceNewStudents")
-      : phase.audience === "linked_parents"
-        ? t("audienceLinkedParents")
-        : null;
+      : phase.audience === "existing_students"
+        ? t("audienceExistingStudents")
+        : phase.audience === "linked_parents"
+          ? t("audienceLinkedParents")
+          : null;
 
   return (
     <Link

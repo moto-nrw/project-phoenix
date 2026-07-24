@@ -271,16 +271,38 @@ func (p *Phase) Validate() error {
 	if p.EligibleSchoolClasses == nil {
 		p.EligibleSchoolClasses = []string{}
 	}
-	// A grade-1 concrete class ("1a") can never be declared on a
-	// submission: the form only ever collects the concrete class from
-	// grade 2 up (grade 1 is grade-level-only), so validateAndNormalize
-	// SchoolClasses forces it to nil. An eligible_school_classes entry
-	// targeting grade 1 is therefore unsatisfiable — every affected child
-	// would be rejected with class_not_eligible after completing the whole
-	// form. Reject the config here so the admin fixes it up front (#1663).
+	// Every eligible class must also be one the phase actually offers
+	// (available_school_classes). A disjoint pair — e.g.
+	// eligible=["2a"] while available=["2b"], or a non-empty eligible list
+	// with no available classes at all — is unsatisfiable: the form can
+	// only present available classes, so a child can never declare an
+	// eligible one, and every submission is rejected with
+	// class_not_eligible. Reject it up front rather than relying on the
+	// admin editor to keep the two lists in sync (#1663).
+	availableClasses := make(map[string]struct{}, len(p.AvailableSchoolClasses))
+	for _, c := range p.AvailableSchoolClasses {
+		if t := strings.TrimSpace(c); t != "" {
+			availableClasses[t] = struct{}{}
+		}
+	}
 	for _, c := range p.EligibleSchoolClasses {
-		if schoolclass.GradePrefix(strings.TrimSpace(c)) == "1" {
+		trimmed := strings.TrimSpace(c)
+		if trimmed == "" {
+			continue
+		}
+		// A grade-1 concrete class ("1a") can never be declared on a
+		// submission: the form only ever collects the concrete class from
+		// grade 2 up (grade 1 is grade-level-only), so
+		// validateAndNormalizeSchoolClasses forces it to nil. An
+		// eligible_school_classes entry targeting grade 1 is therefore
+		// unsatisfiable — every affected child would be rejected with
+		// class_not_eligible after completing the whole form. Reject the
+		// config here so the admin fixes it up front (#1663).
+		if schoolclass.GradePrefix(trimmed) == "1" {
 			return fmt.Errorf("eligible_school_classes may not target grade 1 (%q): a grade-1 concrete class is never collected, so the restriction can never be met", c)
+		}
+		if _, ok := availableClasses[trimmed]; !ok {
+			return fmt.Errorf("eligible_school_classes entry %q must also be listed in available_school_classes; the form can only offer available classes, so a restriction to a class it never presents rejects every submission", c)
 		}
 	}
 	return nil
@@ -336,4 +358,13 @@ type PhaseRepository interface {
 	// tenant whose rollover_deadline is set and not yet in the
 	// future. Powers the rollover deadline worker.
 	ListWithExpiredRolloverDeadline(ctx context.Context, asOf time.Time) ([]*Phase, error)
+
+	// ExistsActiveWithEligibleClasses reports whether the tenant has any
+	// active phase (is_active=TRUE) that restricts eligibility to specific
+	// school classes (a non-empty eligible_school_classes entry). The
+	// settings guard consults it to refuse disabling concrete-class
+	// collection while such a phase would then reject every submission
+	// with class_not_eligible (#1663). It is the inverse of the
+	// phase-side validateEligibleClassesCollectable check.
+	ExistsActiveWithEligibleClasses(ctx context.Context) (bool, error)
 }

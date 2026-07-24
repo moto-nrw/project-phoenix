@@ -63,6 +63,10 @@ func TestPhaseRepository_EligibilityColumnsRoundtrip(t *testing.T) {
 
 	p := makeValidPhase(name)
 	p.Audience = enrollmentModels.PhaseAudienceNewStudents
+	// Eligible classes must also be offered by the phase (#1663), so seed the
+	// pick list with every class the eligibility list (and the later update)
+	// references.
+	p.AvailableSchoolClasses = []string{"2a", "3b", "4c"}
 	p.EligibleSchoolClasses = []string{"2a", "3b"}
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
