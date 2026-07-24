@@ -97,10 +97,22 @@ describe("faviconManifest", () => {
         src: "/favicons/eltern/icon-192.png",
         sizes: "192x192",
         type: "image/png",
-        purpose: "maskable",
+        purpose: "any",
       },
       {
         src: "/favicons/eltern/icon-512.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: "/favicons/eltern/icon-maskable-192.png",
+        sizes: "192x192",
+        type: "image/png",
+        purpose: "maskable",
+      },
+      {
+        src: "/favicons/eltern/icon-maskable-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
