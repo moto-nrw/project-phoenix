@@ -85,6 +85,114 @@ func TestGradeTransitionService_Revert_RestoresOriginalStatus(t *testing.T) {
 		"revert must restore the pre-transition status, not blanket-activate")
 }
 
+// TestGradeTransitionService_Revert_EnforcesReverseOrder covers the P1 fix:
+// only the most recently applied transition may be reverted. Reverting an older
+// one out of order would replay its history over the classes a newer transition
+// has since written, so the server must reject it (409 → ErrNotLatestApplied)
+// until the newer one is reverted first.
+func TestGradeTransitionService_Revert_EnforcesReverseOrder(t *testing.T) {
+	service, db, cleanup := setupGradeTransitionServiceTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-reverse-order@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	classA1 := fmt.Sprintf("1order-%s", suffix)
+	classA2 := fmt.Sprintf("2order-%s", suffix)
+	classB1 := fmt.Sprintf("3order-%s", suffix)
+	classB2 := fmt.Sprintf("4order-%s", suffix)
+
+	studentA := testpkg.CreateTestStudent(t, db, "Order", "A", classA1)
+	studentB := testpkg.CreateTestStudent(t, db, "Order", "B", classB1)
+	defer testpkg.CleanupActivityFixtures(t, db, studentA.ID, studentB.ID)
+
+	// Apply the OLDER transition first, then a NEWER one on a different class.
+	older := testpkg.CreateTestGradeTransition(t, db, "2024-2025", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, older.ID, classA1, testpkg.StrPtr(classA2))
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, older.ID)
+	_, err := service.Apply(ctx, older.ID, account.ID)
+	require.NoError(t, err)
+
+	newer := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, newer.ID, classB1, testpkg.StrPtr(classB2))
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, newer.ID)
+	_, err = service.Apply(ctx, newer.ID, account.ID)
+	require.NoError(t, err)
+
+	// Reverting the older one while the newer is still applied is refused.
+	_, err = service.Revert(ctx, older.ID, account.ID)
+	require.ErrorIs(t, err, educationService.ErrNotLatestApplied)
+
+	// Reverting the latest works, and then the older one becomes revertable.
+	_, err = service.Revert(ctx, newer.ID, account.ID)
+	require.NoError(t, err)
+	_, err = service.Revert(ctx, older.ID, account.ID)
+	require.NoError(t, err)
+}
+
+// TestGradeTransitionService_Revert_PreservesLaterClassEdit covers the P2 fix:
+// a revert must not clobber a class a child was moved into after the transition.
+// A student promoted 1a -> 2a and then manually moved to 2b must stay in 2b when
+// the transition is reverted, because their current class no longer matches the
+// class the transition assigned.
+func TestGradeTransitionService_Revert_PreservesLaterClassEdit(t *testing.T) {
+	service, db, cleanup := setupGradeTransitionServiceTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-preserve-edit@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	fromClass := fmt.Sprintf("1edit-%s", suffix)
+	toClass := fmt.Sprintf("2edit-%s", suffix)
+	movedClass := fmt.Sprintf("2moved-%s", suffix)
+
+	student := testpkg.CreateTestStudent(t, db, "Moved", "Child", fromClass)
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, testpkg.StrPtr(toClass))
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	_, err := service.Apply(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	// Admin manually moves the child to another class after the transition.
+	_, err = db.NewUpdate().
+		TableExpr(`users.students`).
+		Set("school_class = ?", movedClass).
+		Where("id = ?", student.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	result, err := service.Revert(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	// The manual correction survives — revert must NOT force the child back to
+	// fromClass — and the skip is surfaced as a warning.
+	var classAfterRevert string
+	require.NoError(t, db.NewSelect().TableExpr(`users.students`).Column("school_class").
+		Where("id = ?", student.ID).Scan(ctx, &classAfterRevert))
+	assert.Equal(t, movedClass, classAfterRevert,
+		"a since-moved child must keep the newer class, not be clobbered by the revert")
+	assert.Equal(t, 0, result.StudentsPromoted, "the moved child is not counted as reverted")
+	require.NotEmpty(t, result.Warnings)
+	var warned bool
+	for _, w := range result.Warnings {
+		if strings.Contains(w, "class changed") {
+			warned = true
+		}
+	}
+	assert.True(t, warned, "expected a warning that a promoted student could not be reverted")
+}
+
 // TestGradeTransitionService_Apply_RejectsCheckedInGraduate covers the P1 fix:
 // a graduating child with an open visit would become an alumnus the kiosk can
 // no longer check out. The apply must be refused until they are checked out.

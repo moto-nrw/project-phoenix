@@ -361,6 +361,18 @@ func (s *CheckinService) processCheckin(ctx context.Context, student *users.Stud
 			)
 			return nil, nil, s.buildStudentAlreadyActiveConflict(ctx, student.ID)
 		}
+		// Graduation committed between resolving this student (as active) and
+		// creating the visit — a race with a concurrent grade-transition apply.
+		// CreateVisit's guard returns ErrStudentGraduated; surface it as the same
+		// 404 "not a student" the pre-resolution path already returns for an
+		// alumnus, instead of letting the generic wrapper below turn it into a 500
+		// that tells the kiosk to retry (#405).
+		if errors.Is(err, activeSvc.ErrStudentGraduated) {
+			s.getLogger().InfoContext(ctx, "check-in rejected: student graduated mid-scan",
+				slog.Int64("student_id", student.ID),
+			)
+			return nil, nil, newNotFoundError(checkinErrPersonNotStudent)
+		}
 		s.getLogger().ErrorContext(ctx, "failed to create visit",
 			slog.Int64("student_id", student.ID),
 			slog.String("error", err.Error()),

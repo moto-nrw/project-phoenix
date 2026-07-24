@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	checkin "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -367,4 +368,45 @@ func TestResolveStudentFromPerson_RejectsAlumnus(t *testing.T) {
 	gotAlum, err := tc.svc.ResolveStudentFromPerson(ctx, alumStudent.PersonID)
 	require.NoError(t, err)
 	assert.Nil(t, gotAlum)
+}
+
+// TestProcessStudentCheckin_RoomRejectsGraduatedRace covers the #405 fix for the
+// detailed room check-in: when graduation commits AFTER the student was resolved
+// as active but BEFORE the visit is created, CreateVisit returns
+// ErrStudentGraduated. The service must surface that as the same 404
+// "person is not a student" an unknown/absent student gets — not the generic
+// 500 "failed to create visit record" that tells PyrePortal to retry.
+func TestProcessStudentCheckin_RoomRejectsGraduatedRace(t *testing.T) {
+	tc := setupCheckinServiceTest(t)
+	ctx := testpkg.TenantContext(1)
+
+	activity := testpkg.CreateTestActivityGroup(t, tc.db, "grad-race-group")
+	room := testpkg.CreateTestRoom(t, tc.db, "GradRaceRoom")
+	device := testpkg.CreateTestDevice(t, tc.db, "grad-race-dev-001")
+	activeGroup := createTestActiveGroupWithDevice(t, tc.db, activity.ID, room.ID, device.ID)
+	student := testpkg.CreateTestStudent(t, tc.db, "Race", "Graduate", "4a")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, activity.ID, room.ID, device.ID, activeGroup.ID, student.ID)
+
+	// Simulate the race: student resolved as active, then a concurrent
+	// grade-transition apply graduated them before the visit write.
+	_, err := tc.db.NewUpdate().
+		TableExpr("users.students").
+		Set("status = ?", "alumnus").
+		Where("id = ?", student.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	person := &users.Person{FirstName: "Race", LastName: "Graduate"}
+	person.ID = student.PersonID
+
+	_, err = tc.svc.ProcessStudentCheckin(ctx, student, person, &checkin.CheckinProcessingInput{
+		RoomID:   &room.ID,
+		DeviceID: device.ID,
+	})
+	require.Error(t, err)
+
+	var ce *checkin.CheckinError
+	require.ErrorAs(t, err, &ce, "graduated race must surface a classified CheckinError, not a raw active error")
+	assert.Equal(t, "person is not a student", ce.Error(),
+		"detailed room check-in must map the graduated sentinel to the 404 unknown-student wire error, not a 500")
 }

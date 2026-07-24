@@ -23,6 +23,14 @@ import (
 // — never a 500 (#405).
 var ErrGraduatesCheckedIn = errors.New("graduating students are still checked in")
 
+// ErrNotLatestApplied is returned by Revert when the caller targets an applied
+// transition that is not the most recently applied one. Reverts must unwind in
+// strict reverse order — replaying an older transition's history would overwrite
+// classes or statuses a newer transition (or a manual edit) has since written.
+// It is a client-recoverable condition (refresh and revert the latest first), so
+// handlers map it to 409 Conflict, never a 500 (#405).
+var ErrNotLatestApplied = errors.New("only the most recently applied transition can be reverted")
+
 // CreateTransitionRequest contains data for creating a new transition
 type CreateTransitionRequest struct {
 	AcademicYear string           `json:"academic_year"`
@@ -753,6 +761,20 @@ func (s *GradeTransitionService) Revert(ctx context.Context, id int64, accountID
 		return nil, err
 	}
 
+	// Enforce reverse-order reverts on the server, not just in the UI. Lock the
+	// latest applied transition FOR UPDATE and refuse if it is not the one being
+	// reverted: a stale admin page (or a direct call to the authorized endpoint)
+	// could otherwise revert an older transition after a newer one has been
+	// applied, replaying its history over the newer classes/statuses. The lock
+	// also serializes two concurrent reverts of the same latest row (#405).
+	latest, err := s.transitionRepo.LockLatestApplied(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve latest applied transition: %w", err)
+	}
+	if latest == nil || latest.ID != id {
+		return nil, ErrNotLatestApplied
+	}
+
 	history, err := s.transitionRepo.GetHistory(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get transition history: %w", err)
@@ -826,7 +848,8 @@ func (s *GradeTransitionService) revertPromotedStudents(
 			if reverted {
 				result.StudentsPromoted++
 			} else {
-				// Student was deleted after promotion - track for warning
+				// Student was deleted, or moved to a different class since
+				// promotion (manual edit or a later transition) - track for warning
 				missingStudentCount++
 			}
 		case h.WasGraduated():
@@ -836,7 +859,7 @@ func (s *GradeTransitionService) revertPromotedStudents(
 
 	if missingStudentCount > 0 {
 		result.Warnings = append(result.Warnings,
-			fmt.Sprintf("%d promoted students could not be reverted (may have been deleted since promotion)",
+			fmt.Sprintf("%d promoted students could not be reverted (deleted or class changed since promotion)",
 				missingStudentCount))
 	}
 
@@ -887,26 +910,33 @@ func (s *GradeTransitionService) revertGraduatedStudents(
 	return nil
 }
 
-// revertStudentClass updates a student back to their original class.
-// Returns (true, nil) if successful, (false, nil) if student no longer exists,
-// or (false, error) if a real database error occurred.
+// revertStudentClass moves a promoted student back to their original class,
+// but only while their current class still equals the class this transition
+// assigned (h.ToClass). Returns (true, nil) if reverted, (false, nil) if the
+// student no longer exists OR was moved to a different class since promotion
+// (a manual correction or a later transition — either must be preserved), or
+// (false, error) on a real database error.
 func (s *GradeTransitionService) revertStudentClass(
 	ctx context.Context,
 	h *education.GradeTransitionHistory,
 ) (bool, error) {
-	student := &users.Student{}
-	student.ID = h.StudentID
-	student.SchoolClass = h.FromClass
-	student.UpdatedAt = time.Now()
+	// A promoted history row always carries the destination class; guard against
+	// a malformed row rather than reverting to an empty-string guard value.
+	if h.ToClass == nil {
+		return false, nil
+	}
 
-	// The repository joins the transition transaction via the context.
-	rowsAffected, err := s.studentRepo.UpdateColumns(ctx, student, "school_class", "updated_at")
+	// The repository joins the transition transaction via the context. The
+	// to_class equality guard lives in the UPDATE's WHERE, so a since-moved child
+	// yields 0 rows affected and is left untouched.
+	rowsAffected, err := s.transitionRepo.RevertStudentClass(ctx, h.StudentID, h.FromClass, *h.ToClass)
 	if err != nil {
 		// Real database error - return it to trigger rollback
 		return false, err
 	}
 
-	// No rows affected means student was deleted - not an error, just a skip
+	// No rows affected means the student was deleted or moved to another class
+	// since promotion - not an error, just a skip the caller reports as a warning.
 	return rowsAffected > 0, nil
 }
 

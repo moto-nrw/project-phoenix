@@ -115,6 +115,12 @@ type GradeTransitionRepository interface {
 	List(ctx context.Context, options *base.QueryOptions) ([]*GradeTransition, int, error)
 	FindByAcademicYear(ctx context.Context, year string) ([]*GradeTransition, error)
 	FindByStatus(ctx context.Context, status string) ([]*GradeTransition, error)
+	// LockLatestApplied returns the most recently applied transition (highest
+	// applied_at, id as tiebreaker) with a FOR UPDATE lock, or nil when none is
+	// applied. Reverts call it inside their transaction to enforce a strict
+	// reverse-order unwind: only the latest applied transition may be reverted,
+	// and the lock serializes concurrent reverts of the same row.
+	LockLatestApplied(ctx context.Context) (*GradeTransition, error)
 
 	// Mapping operations
 	CreateMapping(ctx context.Context, m *GradeTransitionMapping) error
@@ -133,6 +139,12 @@ type GradeTransitionRepository interface {
 	GetStudentCountByClass(ctx context.Context, className string) (int, error)
 	GetStudentsByClasses(ctx context.Context, classes []string) ([]*StudentClassInfo, error)
 	UpdateStudentClasses(ctx context.Context, transitionID int64) (int64, error)
+	// RevertStudentClass moves a promoted student back to fromClass, but ONLY
+	// while their current class still equals toClass (the class this transition
+	// assigned). A student manually moved to another class since — or promoted
+	// again by a later transition — is left untouched (0 rows affected) so the
+	// revert never clobbers a newer correction.
+	RevertStudentClass(ctx context.Context, studentID int64, fromClass, toClass string) (int64, error)
 	GraduateStudentsByClasses(ctx context.Context, classes []string) (int64, error)
 	ReactivateStudentsByIDs(ctx context.Context, studentIDs []int64) (int64, error)
 	ReactivateStudentsToStatus(ctx context.Context, studentIDs []int64, targetStatus string) (int64, error)

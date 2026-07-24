@@ -421,6 +421,14 @@ func (rs *GradeTransitionResource) revert(w http.ResponseWriter, r *http.Request
 		result, txErr = rs.service.Revert(ctx, id, accountID)
 		return txErr
 	}); err != nil {
+		// Reverting anything but the latest applied transition is a client-
+		// recoverable ordering conflict (the admin's list was stale), not a server
+		// fault: return 409 with a stable code so the UI can refresh and revert the
+		// newest first, instead of a bare 500 (#405).
+		if errors.Is(err, educationService.ErrNotLatestApplied) {
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, "not_latest_transition"))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}

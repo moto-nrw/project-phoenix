@@ -47,6 +47,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -574,6 +575,20 @@ func (s *materializationService) copyEnrollments(
 		if !isEnrollmentValidOn(e, date, periodID) {
 			continue
 		}
+		// A graduated (alumnus) student is soft-deleted: their enrollment rows
+		// survive for transition reverts, but future planning must never copy
+		// them into a new instance_students row — otherwise upcoming cards,
+		// staffing ratios, slot-list exports and instance completion keep
+		// counting a departed child. Historical rows already materialized before
+		// graduation stay untouched (this service is insert-only). (#405)
+		if enrollmentStudentIsAlumnus(e) {
+			s.getLogger().Debug("skipping graduated student on materialization",
+				slog.Int64("instance_id", instanceID),
+				slog.Int64("student_id", e.StudentID),
+				slog.String("date", date.String()),
+			)
+			continue
+		}
 		if _, dup := seen[e.StudentID]; dup {
 			s.getLogger().Warn("student listed twice on template — skipping duplicate",
 				slog.Int64("instance_id", instanceID),
@@ -717,6 +732,17 @@ func resolveWindow(baseDate timezone.Date, weeksAhead int) (from, to timezone.Da
 //     whose valid_until equals the instance date is NO LONGER contributing)
 //   - calendar_period_id IS NULL OR calendar_period_id == periodID
 //   - selected_weekdays IS NULL/empty OR contains date's ISO weekday
+//
+// enrollmentStudentIsAlumnus reports whether the enrollment's joined student
+// row is a graduated (alumnus) soft-delete. FindByGroupID hydrates Student
+// (incl. status); enrollments built without that join return false, so callers
+// that only need the valid-on-date predicate are unaffected. Graduated students
+// keep their enrollment rows for transition reverts but must drop off every
+// current/future planning surface (#405).
+func enrollmentStudentIsAlumnus(e *activities.StudentEnrollment) bool {
+	return e != nil && e.Student != nil && e.Student.Status == usersModel.StudentStatusAlumnus
+}
+
 func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, periodID int64) bool {
 	if e == nil {
 		return false

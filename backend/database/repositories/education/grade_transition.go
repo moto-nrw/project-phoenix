@@ -229,6 +229,38 @@ func (r *GradeTransitionRepository) FindByAcademicYear(ctx context.Context, year
 	return transitions, nil
 }
 
+// LockLatestApplied returns the most recently applied transition with a
+// FOR UPDATE row lock, or (nil, nil) when no transition is currently applied.
+// Ordering matches the frontend's latest-revertable gate: applied_at DESC
+// (NULLS LAST for legacy rows without a timestamp), id DESC as a stable
+// tiebreaker. The lock is held for the caller's transaction so two concurrent
+// reverts of the same row serialize instead of both replaying history.
+func (r *GradeTransitionRepository) LockLatestApplied(ctx context.Context) (*education.GradeTransition, error) {
+	t := new(education.GradeTransition)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(t).
+		ModelTableExpr(tableGradeTransitions+` AS "grade_transition"`).
+		Where(`"grade_transition".status = ?`, education.TransitionStatusApplied).
+		OrderExpr(`"grade_transition".applied_at DESC NULLS LAST, "grade_transition".id DESC`).
+		Limit(1).
+		For("UPDATE")
+
+	query = base.WithTenantFilter(ctx, query, "grade_transition")
+
+	err := query.Scan(ctx)
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{
+			Op:  "lock latest applied grade transition",
+			Err: err,
+		}
+	}
+
+	return t, nil
+}
+
 // FindByStatus retrieves grade transitions with a specific status
 func (r *GradeTransitionRepository) FindByStatus(ctx context.Context, status string) ([]*education.GradeTransition, error) {
 	var transitions []*education.GradeTransition
@@ -564,6 +596,42 @@ func (r *GradeTransitionRepository) UpdateStudentClasses(ctx context.Context, tr
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "update student classes",
+			Err: err,
+		}
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "get rows affected",
+			Err: err,
+		}
+	}
+
+	return affected, nil
+}
+
+// RevertStudentClass moves a single promoted student back to fromClass, guarded
+// on the student still being in toClass (the class this transition assigned).
+// The equality guard is what preserves a post-transition correction: if an
+// admin moved the child to a different class — or a later transition promoted
+// them again — school_class no longer equals toClass, the WHERE matches nothing,
+// and 0 rows are affected so the older revert cannot clobber the newer value.
+func (r *GradeTransitionRepository) RevertStudentClass(ctx context.Context, studentID int64, fromClass, toClass string) (int64, error) {
+	updQuery := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*users.Student)(nil)).
+		ModelTableExpr(`users.students AS "student"`).
+		Set("school_class = ?", fromClass).
+		Set("updated_at = NOW()").
+		Where(`"student".id = ?`, studentID).
+		Where(`"student".school_class = ?`, toClass)
+
+	updQuery = base.WithTenantFilter(ctx, updQuery, "student")
+
+	result, err := updQuery.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "revert student class",
 			Err: err,
 		}
 	}
