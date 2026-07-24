@@ -210,6 +210,9 @@ func (m *mockStaffAbsenceService) CreateAbsence(ctx context.Context, staffID int
 	}
 	return &activeSvc.StaffAbsenceResponse{}, nil
 }
+func (m *mockStaffAbsenceService) CreateOwnAbsence(ctx context.Context, staffID int64, _ *int64, req activeSvc.CreateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
+	return m.CreateAbsence(ctx, staffID, req)
+}
 func (m *mockStaffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, req activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
 	if m.updateAbsenceFn != nil {
 		return m.updateAbsenceFn(ctx, staffID, actorAccountID, absenceID, req)
@@ -221,6 +224,9 @@ func (m *mockStaffAbsenceService) DeleteAbsence(ctx context.Context, staffID int
 		return m.deleteAbsenceFn(ctx, staffID, absenceID)
 	}
 	return nil
+}
+func (m *mockStaffAbsenceService) DeleteOwnAbsence(ctx context.Context, staffID int64, _ *int64, absenceID int64) error {
+	return m.DeleteAbsence(ctx, staffID, absenceID)
 }
 
 // The #1843 *For variants delegate to the existing fn fields so the tests
@@ -1730,6 +1736,28 @@ func TestClassifyAbsenceError(t *testing.T) {
 			assert.Equal(t, tt.wantStatus, w.Code)
 		})
 	}
+
+	t.Run("manager-controlled absence returns coded forbidden", func(t *testing.T) {
+		renderer := classifyAbsenceError(activeSvc.ErrManagerControlledAbsence)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		err := render.Render(w, r, renderer)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusForbidden, w.Code)
+		assert.JSONEq(t, `{"status":"error","error":"absence type is manager-controlled","code":"manager_controlled_absence"}`, w.Body.String())
+	})
+
+	t.Run("wrapped comp-time overdraft returns coded conflict", func(t *testing.T) {
+		serviceErr := fmt.Errorf("validate comp_time absence: %w", activeSvc.ErrCompTimeExceedsBalance)
+		renderer := classifyAbsenceError(serviceErr)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		err := render.Render(w, r, renderer)
+		require.NoError(t, err)
+
+		require.Equal(t, http.StatusConflict, w.Code)
+		assert.JSONEq(t, `{"status":"error","error":"validate comp_time absence: comp_time absence exceeds accrued balance","code":"comp_time_exceeds_balance"}`, w.Body.String())
+	})
 }
 
 // --- parseDateRange tests ---

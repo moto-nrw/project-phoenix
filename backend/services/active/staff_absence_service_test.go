@@ -186,6 +186,10 @@ type absWorkSessionRepoMock struct {
 	updateBreakMinutesFunc  func(ctx context.Context, id int64, breakMinutes int) error
 }
 
+func (m *absWorkSessionRepoMock) LockStaffBalanceWrites(context.Context, int64) error {
+	return nil
+}
+
 func (m *absWorkSessionRepoMock) Create(ctx context.Context, entity *activeModels.WorkSession) error {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, entity)
@@ -368,6 +372,115 @@ func TestAbsCreateAbsence_BlocksVacationType(t *testing.T) {
 	assert.Contains(t, err.Error(), "vacation flow")
 }
 
+func TestAbsCompTimeRequiresManagerControl(t *testing.T) {
+	const (
+		staffID   = int64(100)
+		managerID = int64(200)
+	)
+	req := CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   "2026-07-20",
+		DateEnd:     "2026-07-20",
+		HalfDay:     true,
+		Note:        "Freizeitausgleich",
+	}
+
+	t.Run("own create rejected", func(t *testing.T) {
+		svc, absRepo, _ := absSetupService()
+		absRepo.createFunc = func(context.Context, *activeModels.StaffAbsence) error {
+			t.Fatal("self-service comp time must not be persisted")
+			return nil
+		}
+
+		result, err := svc.CreateOwnAbsence(context.Background(), staffID, nil, req)
+
+		require.ErrorIs(t, err, ErrManagerControlledAbsence)
+		assert.Nil(t, result)
+	})
+
+	t.Run("manager create allowed", func(t *testing.T) {
+		svc, absRepo, _ := absSetupService()
+		absRepo.getByStaffAndDateRangeFunc = func(context.Context, int64, timezone.Date, timezone.Date) ([]*activeModels.StaffAbsence, error) {
+			return nil, nil
+		}
+		absRepo.createFunc = func(_ context.Context, absence *activeModels.StaffAbsence) error {
+			assert.Equal(t, activeModels.AbsenceTypeCompTime, absence.AbsenceType)
+			assert.Equal(t, activeModels.AbsenceStatusReported, absence.Status)
+			assert.Equal(t, managerID, absence.CreatedBy)
+			assert.True(t, absence.HalfDay)
+			absence.ID = 77
+			return nil
+		}
+
+		result, err := svc.CreateAbsenceFor(context.Background(), staffID, managerID, nil, req)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, int64(77), result.ID)
+	})
+
+	t.Run("own update of manager-created comp time rejected", func(t *testing.T) {
+		svc, absRepo, _ := absSetupService()
+		absRepo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) {
+			return &activeModels.StaffAbsence{
+				StaffID:     staffID,
+				AbsenceType: activeModels.AbsenceTypeCompTime,
+			}, nil
+		}
+		absRepo.updateFunc = func(context.Context, *activeModels.StaffAbsence) error {
+			t.Fatal("self-service comp time must not be updated")
+			return nil
+		}
+		note := "Geändert"
+
+		result, err := svc.UpdateAbsence(context.Background(), staffID, nil, 77, UpdateAbsenceRequest{Note: &note})
+
+		require.ErrorIs(t, err, ErrManagerControlledAbsence)
+		assert.Nil(t, result)
+	})
+
+	t.Run("own conversion into comp time rejected", func(t *testing.T) {
+		svc, absRepo, _ := absSetupService()
+		absRepo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) {
+			return &activeModels.StaffAbsence{
+				StaffID:     staffID,
+				AbsenceType: activeModels.AbsenceTypeOther,
+			}, nil
+		}
+		compTime := activeModels.AbsenceTypeCompTime
+
+		result, err := svc.UpdateAbsence(context.Background(), staffID, nil, 77, UpdateAbsenceRequest{AbsenceType: &compTime})
+
+		require.ErrorIs(t, err, ErrManagerControlledAbsence)
+		assert.Nil(t, result)
+	})
+
+	t.Run("own delete rejected and manager delete allowed", func(t *testing.T) {
+		svc, absRepo, _ := absSetupService()
+		absence := &activeModels.StaffAbsence{
+			StaffID:     staffID,
+			AbsenceType: activeModels.AbsenceTypeCompTime,
+		}
+		absence.ID = 77
+		absRepo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) {
+			return absence, nil
+		}
+		deleteCalls := 0
+		absRepo.deleteFunc = func(context.Context, any) error {
+			deleteCalls++
+			return nil
+		}
+
+		err := svc.DeleteOwnAbsence(context.Background(), staffID, nil, absence.ID)
+		require.ErrorIs(t, err, ErrManagerControlledAbsence)
+		assert.Zero(t, deleteCalls)
+
+		err = svc.DeleteAbsenceFor(context.Background(), staffID, managerID, nil, absence.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, deleteCalls)
+	})
+}
+
 func TestAbsCreateAbsence_InvalidDateStart(t *testing.T) {
 	svc, _, _ := absSetupService()
 
@@ -396,6 +509,21 @@ func TestAbsCreateAbsence_InvalidDateEnd(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "invalid date_end format")
+}
+
+func TestAbsCreateAbsence_ReversedDateRange(t *testing.T) {
+	svc, _, _ := absSetupService()
+
+	req := CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   "2026-02-12",
+		DateEnd:     "2026-02-10",
+	}
+
+	result, err := svc.CreateAbsenceFor(context.Background(), 1, 2, nil, req)
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "invalid date range")
 }
 
 func TestAbsCreateAbsence_OverlapDifferentType(t *testing.T) {
@@ -1478,6 +1606,102 @@ func TestAbsCreateAbsenceFor_RejectsMultiDayHalfDaySickReport(t *testing.T) {
 	assert.Empty(t, syncer.markCalls)
 }
 
+func TestAbsCreateAbsenceFor_RejectsMultiDayHalfDayCompTime(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	createCalled := false
+	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+		createCalled = true
+		return nil
+	}
+
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 100, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   "2026-02-10",
+		DateEnd:     "2026-02-11",
+		HalfDay:     true,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "half-day reports must cover exactly one date")
+	assert.False(t, createCalled)
+	assert.Empty(t, syncer.markCalls)
+}
+
+// A comp_time absence dated before the account start would show up in the
+// history without ever reducing the Stundenkonto: balance aggregation begins
+// at the anchor. The create must reject it, mirroring the balance-adjustment
+// guard (#1420).
+func TestAbsCreateAbsenceFor_RejectsCompTimeBeforeAccountStart(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	svc.settings = &wtmMockSettings{accountStart: "2026-08-01"}
+	createCalled := false
+	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+		createCalled = true
+		return nil
+	}
+
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   "2026-07-31",
+		DateEnd:     "2026-07-31",
+		Note:        "Freizeitausgleich",
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid comp_time absence")
+	assert.Contains(t, err.Error(), "before the account start")
+	assert.False(t, createCalled)
+	assert.Empty(t, syncer.markCalls)
+}
+
+func TestAbsCreateAbsenceFor_AllowsCompTimeOnAccountStart(t *testing.T) {
+	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc.settings = &wtmMockSettings{accountStart: "2026-08-01"}
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return nil, nil
+	}
+	absRepo.createFunc = func(_ context.Context, absence *activeModels.StaffAbsence) error {
+		absence.ID = 88
+		return nil
+	}
+
+	result, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   "2026-08-01",
+		DateEnd:     "2026-08-01",
+		Note:        "Freizeitausgleich",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(88), result.ID)
+}
+
+// Non-comp_time absences may legitimately predate the account start (a sick
+// day from before the Stundenkonto existed is still a fact worth recording).
+func TestAbsCreateAbsenceFor_AllowsSickBeforeAccountStart(t *testing.T) {
+	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc.settings = &wtmMockSettings{accountStart: "2026-08-01"}
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return nil, nil
+	}
+	absRepo.createFunc = func(_ context.Context, absence *activeModels.StaffAbsence) error {
+		absence.ID = 89
+		return nil
+	}
+
+	result, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   "2026-07-31",
+		DateEnd:     "2026-07-31",
+		HalfDay:     true,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(89), result.ID)
+}
+
 func TestAbsUpdateAbsence_RejectsMultiDayHalfDaySickReport(t *testing.T) {
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	existing := &activeModels.StaffAbsence{
@@ -1821,6 +2045,66 @@ func TestAbsCreateAbsenceFor_RejectsHalfDayExtensionOfFullDaySickReport(t *testi
 	assert.Contains(t, err.Error(), "half-day and full-day reports cannot be merged")
 	assert.Equal(t, "2026-02-10", fullDayExisting.DateEnd.String(), "a rejected merge must not widen the stored report")
 	assert.Empty(t, syncer.markCalls, "half-day dates must not inherit the full-day cascade")
+}
+
+// A full-day comp_time create overlapping a stored half-day comp_time must
+// not merge: the merge keeps the primary's HalfDay flag, so it would extend a
+// half-day row across multiple days and deduct the wrong Stundenkonto amount.
+func TestAbsCreateAbsenceFor_RejectsMixedDurationCompTimeMerge(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	halfDayExisting := &activeModels.StaffAbsence{
+		StaffID:     100,
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   timezone.NewDate(2026, 2, 10),
+		DateEnd:     timezone.NewDate(2026, 2, 10),
+		HalfDay:     true,
+		Status:      activeModels.AbsenceStatusReported,
+	}
+	halfDayExisting.ID = 42
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return []*activeModels.StaffAbsence{halfDayExisting}, nil
+	}
+
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 100, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   "2026-02-10",
+		DateEnd:     "2026-02-12",
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid comp_time absence: half-day and full-day entries cannot be merged")
+	assert.True(t, halfDayExisting.HalfDay, "a rejected merge must not mutate the stored absence")
+	assert.Equal(t, "2026-02-10", halfDayExisting.DateEnd.String(), "a rejected merge must not widen the stored absence")
+	assert.Empty(t, syncer.markCalls)
+}
+
+// The mirror case: a half-day comp_time create overlapping a stored full-day
+// comp_time must not silently shrink the requested full day to a half day.
+func TestAbsCreateAbsenceFor_RejectsHalfDayExtensionOfFullDayCompTime(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	fullDayExisting := &activeModels.StaffAbsence{
+		StaffID:     100,
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   timezone.NewDate(2026, 2, 10),
+		DateEnd:     timezone.NewDate(2026, 2, 10),
+		Status:      activeModels.AbsenceStatusReported,
+	}
+	fullDayExisting.ID = 42
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return []*activeModels.StaffAbsence{fullDayExisting}, nil
+	}
+
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 100, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   "2026-02-10",
+		DateEnd:     "2026-02-10",
+		HalfDay:     true,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid comp_time absence: half-day and full-day entries cannot be merged")
+	assert.False(t, fullDayExisting.HalfDay, "a rejected merge must not mutate the stored absence")
+	assert.Empty(t, syncer.markCalls)
 }
 
 func TestAbsCreateAbsenceFor_RejectsOversizedSickRange(t *testing.T) {
@@ -2326,4 +2610,293 @@ func TestAbsEmails_SettingDisabled_NoSend(t *testing.T) {
 
 	assert.False(t, mailer.WaitForMessages(1, 300*time.Millisecond), "no email when setting is off")
 	assert.Empty(t, mailer.Messages())
+}
+
+// ============================================================================
+// comp_time overdraft guard (#1420 review)
+// ============================================================================
+
+// absMonthServiceMock stubs the WorkTimeMonthService reads the comp_time
+// overdraft guard performs; every other method panics via the nil embed.
+type absMonthServiceMock struct {
+	WorkTimeMonthService
+	capacity       int
+	capacityDate   timezone.Date
+	deduction      int
+	deductions     []int
+	deductionCalls int
+}
+
+func (m *absMonthServiceMock) GetCompTimeDeductionMinutes(context.Context, int64, timezone.Date, timezone.Date, bool) (int, error) {
+	if m.deductionCalls < len(m.deductions) {
+		deduction := m.deductions[m.deductionCalls]
+		m.deductionCalls++
+		return deduction, nil
+	}
+	return m.deduction, nil
+}
+
+func (m *absMonthServiceMock) GetBalanceReductionCapacity(_ context.Context, _ int64, effectiveDate timezone.Date) (int, error) {
+	m.capacityDate = effectiveDate
+	return m.capacity, nil
+}
+
+// A multi-day comp_time absence deducting more daily-target minutes than the
+// Stundenkonto has accrued must be rejected — the same overdraft guard the
+// payout/comp-time adjustments enforce.
+func TestAbsCreateAbsenceFor_RejectsCompTimeAboveBalance(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
+	svc.monthService = &absMonthServiceMock{capacity: 480, deduction: 960}
+	createCalled := false
+	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+		createCalled = true
+		return nil
+	}
+
+	start := timezone.TodayDate().AddDays(1)
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   start.String(),
+		DateEnd:     start.AddDays(1).String(),
+		Note:        "Freizeitausgleich",
+	})
+
+	require.ErrorIs(t, err, ErrCompTimeExceedsBalance)
+	assert.False(t, createCalled)
+	assert.Empty(t, syncer.markCalls)
+}
+
+func TestAbsCreateAbsenceFor_AllowsCompTimeWithinBalance(t *testing.T) {
+	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
+	svc.monthService = &absMonthServiceMock{capacity: 960, deduction: 960}
+	absRepo.createFunc = func(_ context.Context, absence *activeModels.StaffAbsence) error {
+		absence.ID = 90
+		return nil
+	}
+
+	start := timezone.TodayDate().AddDays(1)
+	result, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   start.String(),
+		DateEnd:     start.AddDays(1).String(),
+		Note:        "Freizeitausgleich",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(90), result.ID)
+}
+
+func TestAbsCreateAbsenceFor_AllowsWorkedHalfCoveredByAccruedBalance(t *testing.T) {
+	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
+	// The current closing balance is zero after four accrued hours pay for the
+	// four unworked target hours. The half-day deduction is already reflected
+	// in that closing balance and must not be charged a second time.
+	svc.monthService = &absMonthServiceMock{capacity: 0, deduction: 240}
+	absRepo.createFunc = func(_ context.Context, absence *activeModels.StaffAbsence) error {
+		absence.ID = 91
+		return nil
+	}
+
+	today := timezone.TodayDate()
+	result, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   today.String(),
+		DateEnd:     today.String(),
+		HalfDay:     true,
+		Note:        "Halber Freizeitausgleich",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(91), result.ID)
+}
+
+func TestAbsCreateAbsenceFor_AllowsFullDayCoveredByAccruedBalance(t *testing.T) {
+	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
+	// The current closing balance is zero after one accrued day pays for the
+	// unworked target. The full-day deduction is already reflected in that
+	// closing balance and must not be charged a second time.
+	svc.monthService = &absMonthServiceMock{capacity: 0, deduction: 480}
+	absRepo.createFunc = func(_ context.Context, absence *activeModels.StaffAbsence) error {
+		absence.ID = 92
+		return nil
+	}
+
+	today := timezone.TodayDate()
+	result, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   today.String(),
+		DateEnd:     today.String(),
+		Note:        "Ganzer Freizeitausgleich",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(92), result.ID)
+}
+
+func TestAbsCreateAbsenceFor_RejectsWorkedHalfWithExistingDeficit(t *testing.T) {
+	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
+	svc.monthService = &absMonthServiceMock{capacity: -1, deduction: 240}
+	createCalled := false
+	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+		createCalled = true
+		return nil
+	}
+
+	today := timezone.TodayDate()
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   today.String(),
+		DateEnd:     today.String(),
+		HalfDay:     true,
+		Note:        "Halber Freizeitausgleich",
+	})
+
+	require.ErrorIs(t, err, ErrCompTimeExceedsBalance)
+	assert.False(t, createCalled)
+}
+
+// The timeline capacity includes same-day and later ledger reductions. The
+// shared staff lock serializes both writes, so the second debit must see the
+// first and reject their combined overdraft.
+func TestAbsCreateAbsenceFor_RejectsCompTimeCombinedWithSameDayAdjustment(t *testing.T) {
+	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
+	svc.monthService = &absMonthServiceMock{
+		capacity:  360,
+		deduction: 480,
+	}
+	createCalled := false
+	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+		createCalled = true
+		return nil
+	}
+
+	start := timezone.TodayDate().AddDays(1)
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   start.String(),
+		DateEnd:     start.String(),
+		Note:        "Freizeitausgleich",
+	})
+
+	require.ErrorIs(t, err, ErrCompTimeExceedsBalance)
+	assert.Contains(t, err.Error(), "only 360 minutes remain available")
+	assert.False(t, createCalled)
+}
+
+// On the account-start day no credit exists to cover the target.
+func TestAbsCreateAbsenceFor_RejectsCompTimeOnAccountStartWithoutAccrual(t *testing.T) {
+	svc, _, _ := absSetupServiceWithSyncer()
+	today := timezone.TodayDate()
+	svc.settings = &wtmMockSettings{accountStart: today.String()}
+	// The day's missing target has already lowered the closing balance to
+	// -480. Adding that realized deduction back leaves no available credit.
+	svc.monthService = &absMonthServiceMock{capacity: -480, deduction: 480}
+
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   today.String(),
+		DateEnd:     today.String(),
+		Note:        "Freizeitausgleich",
+	})
+
+	require.ErrorIs(t, err, ErrCompTimeExceedsBalance)
+	assert.Contains(t, err.Error(), "only 0 minutes remain available")
+}
+
+// Extending an existing comp_time absence via the merge path must consume
+// capacity only for the newly added part; the existing row is already
+// reserved by the timeline capacity calculation.
+func TestAbsCreateAbsenceFor_RejectsCompTimeMergeAboveBalance(t *testing.T) {
+	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
+	svc.monthService = &absMonthServiceMock{
+		capacity:   479,
+		deductions: []int{960, 480},
+	}
+	start := timezone.TodayDate().AddDays(1)
+	existing := &activeModels.StaffAbsence{
+		StaffID:     100,
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   start,
+		DateEnd:     start,
+		Status:      activeModels.AbsenceStatusReported,
+	}
+	existing.ID = 700
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return []*activeModels.StaffAbsence{existing}, nil
+	}
+	updateCalled := false
+	absRepo.updateFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+		updateCalled = true
+		return nil
+	}
+
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   start.AddDays(1).String(),
+		DateEnd:     start.AddDays(1).String(),
+		Note:        "Verlängerung",
+	})
+
+	require.ErrorIs(t, err, ErrCompTimeExceedsBalance)
+	assert.False(t, updateCalled, "an overdrafting merge must not persist")
+}
+
+func TestAbsCreateAbsenceFor_RejectsCompTimeAgainstLaterLedgerCapacity(t *testing.T) {
+	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
+	monthService := &absMonthServiceMock{capacity: 300, deduction: 480}
+	svc.monthService = monthService
+	createCalled := false
+	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+		createCalled = true
+		return nil
+	}
+
+	start := timezone.TodayDate().AddDays(1)
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   start.String(),
+		DateEnd:     start.String(),
+		Note:        "Vor späterer Auszahlung",
+	})
+
+	require.ErrorIs(t, err, ErrCompTimeExceedsBalance)
+	assert.Equal(t, start, monthService.capacityDate)
+	assert.False(t, createCalled)
+}
+
+// The timeline capacity has no defined result beyond the carry-chain horizon,
+// so far-future comp_time must be a client error, not a 500.
+func TestAbsCreateAbsenceFor_RejectsFarFutureCompTime(t *testing.T) {
+	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
+	svc.monthService = &absMonthServiceMock{capacity: 10000, deduction: 480}
+	createCalled := false
+	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+		createCalled = true
+		return nil
+	}
+
+	start := timezone.TodayDate().AddDays(420)
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   start.String(),
+		DateEnd:     start.String(),
+		Note:        "Freizeitausgleich",
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid comp_time absence")
+	assert.Contains(t, err.Error(), "months ahead")
+	assert.False(t, createCalled)
 }

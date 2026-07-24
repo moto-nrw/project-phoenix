@@ -486,6 +486,11 @@ func (rs *Resource) getStaffAbsences(w http.ResponseWriter, r *http.Request) {
 // (no sentinels), so most rules match on the message; the sick cascade wraps
 // schedule sentinels, matched via errors.Is.
 var adminAbsenceErrorRules = []common.ErrorRule{
+	// 409 with a stable code so the frontend can show the overdraft message
+	// (#1420 review) — mirrors balance_adjustment_exceeds_balance.
+	{Target: activeSvc.ErrCompTimeExceedsBalance, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "comp_time_exceeds_balance")
+	}},
 	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
 	{Match: absenceMsgIs("can only delete own absences"), Render: common.ErrorForbidden},
 	{Match: absenceMsgPrefix("absence overlaps"), Render: common.ErrorConflict},

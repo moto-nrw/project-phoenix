@@ -46,8 +46,9 @@ func (r *StaffAbsenceRepository) List(ctx context.Context, options *modelBase.Qu
 }
 
 // LockStaffAbsenceWrites serializes overlap-sensitive absence writes for one
-// tenant/staff pair. The transaction-scoped lock stays held through any sick
-// plan cascade or reversal performed by the service.
+// tenant/staff pair. It takes the shared balance lock first because effective
+// absence mutations also change the Stundenkonto. The transaction-scoped
+// locks stay held through any sick plan cascade or reversal.
 func (r *StaffAbsenceRepository) LockStaffAbsenceWrites(ctx context.Context, staffID int64) error {
 	if staffID <= 0 {
 		return errors.New("staff id is required")
@@ -55,6 +56,9 @@ func (r *StaffAbsenceRepository) LockStaffAbsenceWrites(ctx context.Context, sta
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
 		return errors.New("tenant id is required")
+	}
+	if err := lockStaffBalanceWrites(ctx, r.db, staffID); err != nil {
+		return err
 	}
 	key := fmt.Sprintf("staff-absence:%d:%d", tenantID, staffID)
 	if err := base.AcquireXactLock(ctx, r.db, key); err != nil {
@@ -116,7 +120,8 @@ func (r *StaffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID 
 }
 
 // GetTodayAbsenceMap returns a map of staff IDs to their absence type for today.
-// Priority order when multiple absences exist: sick > training > vacation > other
+// Priority order when multiple absences exist:
+// sick > training > vacation > comp_time > other.
 func (r *StaffAbsenceRepository) GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error) {
 	var absences []*active.StaffAbsence
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -136,11 +141,12 @@ func (r *StaffAbsenceRepository) GetTodayAbsenceMap(ctx context.Context) (map[in
 		}
 	}
 
-	// Priority: sick > training > vacation > other
+	// Priority: sick > training > vacation > comp_time > other.
 	priority := map[string]int{
-		active.AbsenceTypeSick:     4,
-		active.AbsenceTypeTraining: 3,
-		active.AbsenceTypeVacation: 2,
+		active.AbsenceTypeSick:     5,
+		active.AbsenceTypeTraining: 4,
+		active.AbsenceTypeVacation: 3,
+		active.AbsenceTypeCompTime: 2,
 		active.AbsenceTypeOther:    1,
 	}
 

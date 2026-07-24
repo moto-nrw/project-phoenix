@@ -248,6 +248,22 @@ func TestWSBuildExportRows_AbsencesOnly(t *testing.T) {
 	assert.Contains(t, rows[0].Row[8], "Flu")                       // Bemerkungen
 }
 
+func TestWSBuildExportRows_CompTimeUsesGermanLabel(t *testing.T) {
+	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
+	date := timezone.NewDate(2026, time.July, 24)
+
+	rows := svc.buildExportRows(nil, []*activeModels.StaffAbsence{{
+		StaffID:     100,
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   date,
+		DateEnd:     date,
+		Status:      activeModels.AbsenceStatusApproved,
+	}})
+
+	require.Len(t, rows, 1)
+	assert.Contains(t, rows[0].Row[6], "Freizeitausgleich")
+}
+
 func TestWSBuildExportRows_Mixed(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 

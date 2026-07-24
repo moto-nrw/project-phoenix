@@ -1808,6 +1808,9 @@ describe("TimeTrackingPage", () => {
       fireEvent.click(screen.getByText("Abwesend"));
       fireEvent.click(screen.getByLabelText("Abwesenheit melden"));
       expect(screen.getByText("Art der Abwesenheit")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("option", { name: "Freizeitausgleich" }),
+      ).not.toBeInTheDocument();
     });
 
     it("shows date inputs in create modal", () => {
@@ -2834,6 +2837,34 @@ describe("TimeTrackingPage", () => {
         expect(screen.getByText("Halber Tag")).toBeInTheDocument();
         expect(screen.getByText("Abwesenheit löschen")).toBeInTheDocument();
       });
+    });
+
+    it("shows manager-entered comp time as read-only", async () => {
+      const compTimeAbsence: StaffAbsence = {
+        ...mockAbsence,
+        absenceType: "comp_time",
+        dateStart: weekdayISO,
+        dateEnd: weekdayISO,
+        halfDay: true,
+        note: "Überstundenabbau",
+      };
+
+      await openEditModal(makePastSession(), {
+        absences: [compTimeAbsence],
+      });
+      fireEvent.click(screen.getByText("Abwesenheit"));
+
+      expect(
+        await screen.findByText(
+          /Freizeitausgleich wird von der Leitung eingetragen/,
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Halber Tag")).toBeInTheDocument();
+      expect(screen.getByText("Überstundenabbau")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Von")).not.toBeInTheDocument();
+      expect(screen.queryByText("Abwesenheit löschen")).not.toBeInTheDocument();
+      expect(screen.queryByText("Speichern")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Schließen" })).toBeEnabled();
     });
 
     it("calls updateAbsence when absence tab saved", async () => {
