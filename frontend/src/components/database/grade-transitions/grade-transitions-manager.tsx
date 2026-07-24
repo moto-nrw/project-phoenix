@@ -177,6 +177,24 @@ export function GradeTransitionsManager({
     setEditorOpen(true);
   }, []);
 
+  // Only the most-recently-applied transition may be reverted. Reverting an
+  // older one writes each student's recorded from_class back, clobbering the
+  // class a later transition (or a manual edit) has since assigned. Gating the
+  // action to the latest applied row enforces a strict reverse-order unwind:
+  // once it is reverted the previous transition becomes the latest and can be
+  // reverted in turn.
+  const latestRevertableId = useMemo(() => {
+    if (!transitions) return null;
+    let latest: GradeTransition | null = null;
+    for (const t of transitions) {
+      if (!t.canRevert || t.status !== "applied") continue;
+      if (latest === null || (t.appliedAt ?? "") > (latest.appliedAt ?? "")) {
+        latest = t;
+      }
+    }
+    return latest?.id ?? null;
+  }, [transitions]);
+
   const columns = useMemo<DataTableColumn<GradeTransition>[]>(
     () => [
       {
@@ -253,7 +271,7 @@ export function GradeTransitionsManager({
                 Löschen
               </Button>
             )}
-            {t.canRevert && permissions.canApply && (
+            {t.id === latestRevertableId && permissions.canApply && (
               <Button
                 type="button"
                 variant="ghost"
@@ -267,7 +285,7 @@ export function GradeTransitionsManager({
         ),
       },
     ],
-    [openEditorFor, permissions],
+    [openEditorFor, permissions, latestRevertableId],
   );
 
   return (
