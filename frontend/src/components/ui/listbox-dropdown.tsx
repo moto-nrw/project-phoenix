@@ -24,6 +24,7 @@ interface ListboxDropdownProps<K extends string> {
   readonly onChange: (next: K) => void;
   readonly id?: string;
   readonly ariaLabel?: string;
+  readonly ariaDescribedBy?: string;
   readonly containerClassName?: string;
   readonly containerStyle?: CSSProperties;
   readonly className?: string;
@@ -88,6 +89,7 @@ export function ListboxDropdown<K extends string>({
   onChange,
   id,
   ariaLabel,
+  ariaDescribedBy,
   containerClassName = "relative",
   containerStyle,
   className = "",
@@ -252,6 +254,7 @@ export function ListboxDropdown<K extends string>({
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
         aria-label={ariaLabel}
+        aria-describedby={ariaDescribedBy}
         aria-required={required || undefined}
         aria-invalid={invalid || undefined}
         role={triggerRole === "combobox" ? "combobox" : undefined}

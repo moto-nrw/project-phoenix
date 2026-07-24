@@ -137,6 +137,9 @@ export function StepTermin({
           >
             <CustomSelect
               id="event_category"
+              ariaDescribedBy={
+                fieldErrors.categoryId ? "event_category_error" : undefined
+              }
               value={form.categoryId}
               options={categories.map((category) => ({
                 value: category.id,
@@ -194,6 +197,7 @@ export function StepTermin({
       >
         <CustomSelect
           id="event_room"
+          ariaDescribedBy={fieldErrors.roomId ? "event_room_error" : undefined}
           value={form.roomId}
           options={rooms.map((room) => ({
             value: String(room.id),

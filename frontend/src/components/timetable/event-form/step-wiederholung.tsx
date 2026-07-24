@@ -202,6 +202,11 @@ export function StepWiederholung({
               >
                 <CustomSelect
                   id="event_period"
+                  ariaDescribedBy={
+                    fieldErrors.calendarPeriodId
+                      ? "event_period_error"
+                      : undefined
+                  }
                   value={form.calendarPeriodId}
                   options={calendarPeriods.map((period) => ({
                     value: period.id,

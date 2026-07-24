@@ -98,6 +98,7 @@ export function StepPersonalKinder({
   preservesGradeAboveTenantCap,
   studentBulkOptions,
   targetClassOptions,
+  targetClassDescriptionIDs,
   targetCohort,
   missingTargetCohortCount,
   targetCohortButtonLabel,
@@ -239,6 +240,11 @@ export function StepPersonalKinder({
               >
                 <CustomSelect
                   id="event_target_grade_level"
+                  ariaDescribedBy={
+                    fieldErrors.targetGradeLevel
+                      ? "event_target_grade_level_error"
+                      : undefined
+                  }
                   value={form.targetGradeLevel}
                   options={targetGradeOptions}
                   onChange={(next) => update("targetGradeLevel", next)}
@@ -267,6 +273,7 @@ export function StepPersonalKinder({
               >
                 <CustomSelect
                   id="event_target_school_class"
+                  ariaDescribedBy={targetClassDescriptionIDs || undefined}
                   value={form.targetSchoolClass}
                   options={targetClassOptions.map((schoolClass) => ({
                     value: schoolClass,
@@ -303,6 +310,11 @@ export function StepPersonalKinder({
               >
                 <CustomSelect
                   id="event_target_gruppe"
+                  ariaDescribedBy={
+                    fieldErrors.educationGroupId
+                      ? "event_target_gruppe_error"
+                      : undefined
+                  }
                   value={form.educationGroupId}
                   options={groups.map((group) => ({
                     value: group.id,

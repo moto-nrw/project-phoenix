@@ -25,6 +25,23 @@ describe("CustomSelect", () => {
     );
   });
 
+  it("forwards ariaDescribedBy to the trigger", () => {
+    render(
+      <CustomSelect
+        value="first"
+        options={options}
+        onChange={vi.fn()}
+        ariaLabel="Auswahl"
+        ariaDescribedBy="auswahl-error auswahl-hint"
+      />,
+    );
+
+    expect(screen.getByRole("combobox", { name: "Auswahl" })).toHaveAttribute(
+      "aria-describedby",
+      "auswahl-error auswahl-hint",
+    );
+  });
+
   it("opens and selects an option", () => {
     const onChange = vi.fn();
     render(

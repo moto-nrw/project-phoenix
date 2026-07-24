@@ -16,6 +16,7 @@ interface CustomSelectProps {
   readonly id?: string;
   readonly name?: string;
   readonly ariaLabel?: string;
+  readonly ariaDescribedBy?: string;
   readonly labelId?: string;
   readonly placeholder?: string;
   readonly disabled?: boolean;
@@ -41,6 +42,7 @@ export function CustomSelect({
   id,
   name,
   ariaLabel,
+  ariaDescribedBy,
   labelId,
   placeholder = "Bitte wählen",
   disabled = false,
@@ -60,6 +62,7 @@ export function CustomSelect({
         options={options}
         onChange={onChange}
         ariaLabel={ariaLabel}
+        ariaDescribedBy={ariaDescribedBy}
         required={required}
         invalid={invalid}
         disabled={disabled}
