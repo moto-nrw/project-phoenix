@@ -72,6 +72,10 @@ type WorkTimeMonthService interface {
 	// dates lie in [from, to]. Comp-time availability uses it to include
 	// same-day payouts without treating same-day work as already accrued.
 	GetBalanceAdjustmentMinutes(ctx context.Context, staffID int64, from, to timezone.Date) (int, error)
+	// GetBalanceReductionCapacity returns the largest debit that can become
+	// effective at the start of effectiveDate without invalidating an existing
+	// later debit or comp-time commitment.
+	GetBalanceReductionCapacity(ctx context.Context, staffID int64, effectiveDate timezone.Date) (int, error)
 	// GetCompTimeDeductionMinutes returns how much a comp_time absence over
 	// [start, end] reduces the Stundenkonto: the sum of the contractual daily
 	// targets in the range (a single-day half-day absence deducts half). It
@@ -785,6 +789,171 @@ func (s *workTimeMonthService) GetBalanceAdjustmentMinutes(ctx context.Context, 
 	total := 0
 	for _, adjustment := range adjustments {
 		total += adjustment.MinutesDelta
+	}
+	return total, nil
+}
+
+// GetBalanceReductionCapacity treats adjustments as start-of-day ledger
+// entries. It checks the opening balance on effectiveDate, every later debit
+// already in the ledger, current balance for backdated entries, and every
+// effective comp-time absence commitment through the supported future
+// horizon. The caller holds the shared staff-balance lock, so these reads
+// cannot race another balance-affecting write.
+func (s *workTimeMonthService) GetBalanceReductionCapacity(ctx context.Context, staffID int64, effectiveDate timezone.Date) (int, error) {
+	if staffID <= 0 || effectiveDate.IsZero() {
+		return 0, errors.New("staff id and effective date are required")
+	}
+
+	today := s.today()
+	last := monthOf(today).addMonths(maxFutureMonths).lastDay()
+	if effectiveDate.After(last) {
+		return 0, fmt.Errorf("effective date %s is outside the supported balance horizon", effectiveDate.String())
+	}
+
+	checkpointSet := map[timezone.Date]struct{}{effectiveDate: {}}
+	if err := s.addAdjustmentReductionCheckpoints(ctx, staffID, effectiveDate, last, checkpointSet); err != nil {
+		return 0, err
+	}
+	compTimeAbsences, err := s.addCompTimeReductionCheckpoints(ctx, staffID, effectiveDate, last, checkpointSet)
+	if err != nil {
+		return 0, err
+	}
+
+	checkpoints := make([]timezone.Date, 0, len(checkpointSet))
+	for checkpoint := range checkpointSet {
+		checkpoints = append(checkpoints, checkpoint)
+	}
+	sort.Slice(checkpoints, func(i, j int) bool {
+		return checkpoints[i].Before(checkpoints[j])
+	})
+
+	capacity, err := s.minimumOpeningReductionCapacity(ctx, staffID, checkpoints, compTimeAbsences)
+	if err != nil {
+		return 0, err
+	}
+
+	if effectiveDate.Before(today) {
+		currentBalance, err := s.GetClosingBalanceAsOf(ctx, staffID, today)
+		if err != nil {
+			return 0, fmt.Errorf("failed to compute current balance for reduction validation: %w", err)
+		}
+		remainingCommitment, err := s.getRemainingCompTimeCommitment(ctx, staffID, today.AddDays(1), compTimeAbsences)
+		if err != nil {
+			return 0, err
+		}
+		capacity = min(capacity, currentBalance-remainingCommitment)
+	}
+
+	return capacity, nil
+}
+
+func (s *workTimeMonthService) addAdjustmentReductionCheckpoints(
+	ctx context.Context,
+	staffID int64,
+	effectiveDate, last timezone.Date,
+	checkpoints map[timezone.Date]struct{},
+) error {
+	if s.adjustmentRepo == nil {
+		return nil
+	}
+	adjustments, err := s.adjustmentRepo.GetByStaffAndDateRange(ctx, staffID, effectiveDate, last)
+	if err != nil {
+		return fmt.Errorf("failed to load balance adjustments for reduction validation: %w", err)
+	}
+	for _, adjustment := range adjustments {
+		if adjustment.MinutesDelta < 0 && adjustment.EffectiveDate.After(effectiveDate) {
+			checkpoints[adjustment.EffectiveDate] = struct{}{}
+		}
+	}
+	return nil
+}
+
+func (s *workTimeMonthService) addCompTimeReductionCheckpoints(
+	ctx context.Context,
+	staffID int64,
+	effectiveDate, last timezone.Date,
+	checkpoints map[timezone.Date]struct{},
+) ([]*activeModels.StaffAbsence, error) {
+	if s.absenceRepo == nil {
+		return nil, nil
+	}
+	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, effectiveDate, last)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load comp-time absences for reduction validation: %w", err)
+	}
+	compTimeAbsences := make([]*activeModels.StaffAbsence, 0, len(absences))
+	for _, absence := range absences {
+		if absence.AbsenceType != activeModels.AbsenceTypeCompTime ||
+			(absence.Status != activeModels.AbsenceStatusReported && absence.Status != activeModels.AbsenceStatusApproved) {
+			continue
+		}
+		compTimeAbsences = append(compTimeAbsences, absence)
+		checkpoint := absence.DateStart
+		if checkpoint.Before(effectiveDate) {
+			checkpoint = effectiveDate
+		}
+		checkpoints[checkpoint] = struct{}{}
+	}
+	return compTimeAbsences, nil
+}
+
+func (s *workTimeMonthService) minimumOpeningReductionCapacity(
+	ctx context.Context,
+	staffID int64,
+	checkpoints []timezone.Date,
+	compTimeAbsences []*activeModels.StaffAbsence,
+) (int, error) {
+	capacity := int(^uint(0) >> 1)
+	for _, checkpoint := range checkpoints {
+		available, err := s.getOpeningBalanceOnDate(ctx, staffID, checkpoint)
+		if err != nil {
+			return 0, err
+		}
+		commitment, err := s.getRemainingCompTimeCommitment(ctx, staffID, checkpoint, compTimeAbsences)
+		if err != nil {
+			return 0, err
+		}
+		capacity = min(capacity, available-commitment)
+	}
+	return capacity, nil
+}
+
+func (s *workTimeMonthService) getOpeningBalanceOnDate(ctx context.Context, staffID int64, date timezone.Date) (int, error) {
+	anchor, err := s.chainAnchor(ctx, monthOf(s.today()))
+	if err != nil {
+		return 0, fmt.Errorf("failed to resolve account start for reduction validation: %w", err)
+	}
+
+	available := 0
+	if cutoff := date.AddDays(-1); !cutoff.Before(anchor) {
+		available, err = s.GetClosingBalanceAsOf(ctx, staffID, cutoff)
+		if err != nil {
+			return 0, fmt.Errorf("failed to compute opening balance on %s: %w", date.String(), err)
+		}
+	}
+	sameDayAdjustments, err := s.GetBalanceAdjustmentMinutes(ctx, staffID, date, date)
+	if err != nil {
+		return 0, fmt.Errorf("failed to compute adjustments on %s: %w", date.String(), err)
+	}
+	return available + sameDayAdjustments, nil
+}
+
+func (s *workTimeMonthService) getRemainingCompTimeCommitment(
+	ctx context.Context,
+	staffID int64,
+	from timezone.Date,
+	absences []*activeModels.StaffAbsence,
+) (int, error) {
+	total := 0
+	for _, absence := range absences {
+		if from.Before(absence.DateStart) || from.After(absence.DateEnd) {
+			continue
+		}
+		deduction, err := s.GetCompTimeDeductionMinutes(ctx, staffID, from, absence.DateEnd, absence.HalfDay)
+		if err != nil {
+			return 0, fmt.Errorf("failed to compute comp-time commitment from %s: %w", from.String(), err)
+		}
+		total += deduction
 	}
 	return total, nil
 }

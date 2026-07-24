@@ -54,12 +54,23 @@ func (r *recordingBalanceAdjustmentRepo) List(context.Context, *modelBase.QueryO
 
 type recordingBalanceMonthService struct {
 	WorkTimeMonthService
-	events  *[]string
-	balance int
+	events    *[]string
+	balance   int
+	capacity  *int
+	effective timezone.Date
 }
 
 func (s *recordingBalanceMonthService) GetClosingBalanceAsOf(context.Context, int64, timezone.Date) (int, error) {
 	*s.events = append(*s.events, "as-of")
+	return s.balance, nil
+}
+
+func (s *recordingBalanceMonthService) GetBalanceReductionCapacity(_ context.Context, _ int64, effectiveDate timezone.Date) (int, error) {
+	*s.events = append(*s.events, "capacity")
+	s.effective = effectiveDate
+	if s.capacity != nil {
+		return *s.capacity, nil
+	}
 	return s.balance, nil
 }
 
@@ -97,7 +108,7 @@ func TestStaffBalanceAdjustmentService_LocksEveryMutation(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		assert.Equal(t, []string{"lock", "list", "as-of", "create"}, events)
+		assert.Equal(t, []string{"lock", "list", "capacity", "create"}, events)
 	})
 
 	t.Run("delete locks before lookup and delete", func(t *testing.T) {
@@ -230,7 +241,7 @@ func TestStaffBalanceAdjustmentService_RejectsWritesThatPrecedeReset(t *testing.
 		})
 
 		require.NoError(t, err)
-		assert.Equal(t, []string{"lock", "list", "as-of", "create"}, events)
+		assert.Equal(t, []string{"lock", "list", "capacity", "create"}, events)
 	})
 }
 
@@ -259,10 +270,38 @@ func TestStaffBalanceAdjustmentService_RejectsAdjustmentAboveClosingBalance(t *t
 			})
 
 			require.ErrorIs(t, err, ErrAdjustmentExceedsBalance)
-			assert.Contains(t, err.Error(), "closing balance of 59 minutes")
-			assert.Equal(t, []string{"lock", "list", "as-of"}, events)
+			assert.Contains(t, err.Error(), "available capacity of 59 minutes")
+			assert.Equal(t, []string{"lock", "list", "capacity"}, events)
 		})
 	}
+}
+
+func TestStaffBalanceAdjustmentService_UsesTimelineReductionCapacity(t *testing.T) {
+	const (
+		staffID   = int64(41)
+		decidedBy = int64(42)
+	)
+	effectiveDate := timezone.NewDate(2026, time.July, 7)
+	capacity := 30
+	events := []string{}
+	repo := &recordingBalanceAdjustmentRepo{events: &events}
+	monthService := &recordingBalanceMonthService{
+		events:   &events,
+		balance:  300,
+		capacity: &capacity,
+	}
+	service := newRecordingBalanceAdjustmentService(&events, repo, monthService)
+
+	_, err := service.CreateAdjustment(context.Background(), staffID, decidedBy, CreateBalanceAdjustmentRequest{
+		Type:          activeModels.BalanceAdjustmentTypePayout,
+		MinutesDelta:  -60,
+		EffectiveDate: effectiveDate,
+		Note:          "Nicht gedeckter Abzug",
+	})
+
+	require.ErrorIs(t, err, ErrAdjustmentExceedsBalance)
+	assert.Equal(t, effectiveDate, monthService.effective)
+	assert.Equal(t, []string{"lock", "list", "capacity"}, events)
 }
 
 func TestStaffBalanceAdjustmentService_RejectsOutOfRangeAmounts(t *testing.T) {
@@ -394,6 +433,36 @@ func TestStaffBalanceAdjustmentService_BlocksDeleteWhenLaterResetDependsOnAdjust
 
 	require.ErrorIs(t, err, ErrAdjustmentHasDependentReset)
 	assert.Equal(t, []string{"lock", "find", "list"}, events)
+}
+
+func TestStaffBalanceAdjustmentService_BlocksPositiveResetDeletionWhenLaterDebitsDependOnIt(t *testing.T) {
+	const staffID = int64(41)
+	events := []string{}
+	effectiveDate := timezone.NewDate(2026, time.July, 1)
+	reset := &activeModels.StaffBalanceAdjustment{
+		StaffID:       staffID,
+		Type:          activeModels.BalanceAdjustmentTypeReset,
+		MinutesDelta:  120,
+		EffectiveDate: effectiveDate,
+	}
+	reset.ID = 10
+	repo := &recordingBalanceAdjustmentRepo{
+		events:     &events,
+		adjustment: reset,
+		resets:     []*activeModels.StaffBalanceAdjustment{reset},
+	}
+	capacity := 60
+	monthService := &recordingBalanceMonthService{
+		events:   &events,
+		capacity: &capacity,
+	}
+	service := newRecordingBalanceAdjustmentService(&events, repo, monthService)
+
+	err := service.DeleteAdjustment(context.Background(), staffID, reset.ID)
+
+	require.ErrorIs(t, err, ErrAdjustmentExceedsBalance)
+	assert.Equal(t, effectiveDate, monthService.effective)
+	assert.Equal(t, []string{"lock", "find", "list", "capacity"}, events)
 }
 
 // Far-future effective dates have no defined closing balance (the carry

@@ -1252,6 +1252,11 @@ class StaffBalanceAdjustmentService {
           "Die Buchung liegt vor einem vorhandenen Reset und kann deshalb nicht gelöscht werden.",
         );
       }
+      if (error.code === "balance_adjustment_exceeds_balance") {
+        throw new Error(
+          "Die Buchung kann nicht gelöscht werden, weil spätere Abzüge vom dadurch entstehenden Guthaben abhängen.",
+        );
+      }
       throw new Error(error.message);
     }
   }

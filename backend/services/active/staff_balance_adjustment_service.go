@@ -163,17 +163,17 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 		)
 	}
 
-	closingBalance, err := s.monthService.GetClosingBalanceAsOf(ctx, staffID, req.EffectiveDate)
+	reductionCapacity, err := s.monthService.GetBalanceReductionCapacity(ctx, staffID, req.EffectiveDate)
 	if err != nil {
-		return nil, fmt.Errorf("failed to compute balance for adjustment: %w", err)
+		return nil, fmt.Errorf("failed to compute reduction capacity for adjustment: %w", err)
 	}
 	requestedMinutes := -req.MinutesDelta
-	if requestedMinutes > closingBalance {
+	if requestedMinutes > reductionCapacity {
 		return nil, fmt.Errorf(
-			"%w: requested reduction of %d minutes exceeds closing balance of %d minutes on %s",
+			"%w: requested reduction of %d minutes exceeds available capacity of %d minutes from %s onward",
 			ErrAdjustmentExceedsBalance,
 			requestedMinutes,
-			closingBalance,
+			reductionCapacity,
 			req.EffectiveDate.String(),
 		)
 	}
@@ -226,6 +226,9 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 	if dependent {
 		return fmt.Errorf("%w: adjustment id %d", ErrAdjustmentHasDependentReset, adjustmentID)
 	}
+	if err := s.validatePositiveAdjustmentDeletion(ctx, adjustment); err != nil {
+		return err
+	}
 	if err := s.adjustmentRepo.Delete(ctx, adjustmentID); err != nil {
 		return fmt.Errorf("failed to delete balance adjustment: %w", err)
 	}
@@ -236,6 +239,27 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 		"minutes_delta", adjustment.MinutesDelta,
 	)
 	return nil
+}
+
+func (s *staffBalanceAdjustmentService) validatePositiveAdjustmentDeletion(ctx context.Context, adjustment *activeModels.StaffBalanceAdjustment) error {
+	if adjustment.MinutesDelta <= 0 {
+		return nil
+	}
+	reductionCapacity, err := s.monthService.GetBalanceReductionCapacity(ctx, adjustment.StaffID, adjustment.EffectiveDate)
+	if err != nil {
+		return fmt.Errorf("failed to compute reduction capacity for adjustment deletion: %w", err)
+	}
+	if adjustment.MinutesDelta <= reductionCapacity {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: deleting adjustment %d removes %d minutes but only %d minutes remain available from %s onward",
+		ErrAdjustmentExceedsBalance,
+		adjustment.ID,
+		adjustment.MinutesDelta,
+		reductionCapacity,
+		adjustment.EffectiveDate.String(),
+	)
 }
 
 func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, carryoverMinutes int, note string) (*activeModels.StaffBalanceAdjustment, error) {

@@ -2247,6 +2247,27 @@ describe("staff-api", () => {
       );
     });
 
+    it("explains when deleting a positive reset would overdraw later entries", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              error: "balance adjustment exceeds accrued balance",
+              code: "balance_adjustment_exceeds_balance",
+            }),
+          ),
+      } as Response);
+
+      await expect(
+        staffBalanceAdjustmentService.delete("4", "17"),
+      ).rejects.toThrow(
+        "Die Buchung kann nicht gelöscht werden, weil spätere Abzüge vom dadurch entstehenden Guthaben abhängen.",
+      );
+    });
+
     it("surfaces list, create, delete, reset, and coded reset conflicts", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch

@@ -149,6 +149,55 @@ func TestWTMAdjustments_BalanceAdjustmentMinutesUsesRequestedRange(t *testing.T)
 	assert.Equal(t, -150, minutes)
 }
 
+func TestWTMAdjustments_ReductionCapacityProtectsFutureLedgerAndCompTime(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-01"
+	compTimeDate := timezone.NewDate(2026, time.July, 20)
+	f.absences.absences = []*activeModels.StaffAbsence{{
+		StaffID:     wtmStaffID,
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   compTimeDate,
+		DateEnd:     compTimeDate,
+		Status:      activeModels.AbsenceStatusReported,
+	}}
+	f.svc.SetAdjustmentReader(&wtmMockAdjustmentReader{adjustments: []*activeModels.StaffBalanceAdjustment{
+		wtmAdjustment(1, activeModels.BalanceAdjustmentTypeReset, 2_000, timezone.NewDate(2026, time.July, 1)),
+		wtmAdjustment(2, activeModels.BalanceAdjustmentTypePayout, -100, compTimeDate),
+	}})
+
+	capacity, err := f.svc.GetBalanceReductionCapacity(
+		context.Background(),
+		wtmStaffID,
+		timezone.NewDate(2026, time.July, 10),
+	)
+
+	require.NoError(t, err)
+	// At the start of July 20 the reset carryover has paid two Monday targets
+	// and the existing payout: 2,000 - 960 - 100 = 940. The full comp-time
+	// day reserves another 480 minutes, leaving 460 for a backdated debit.
+	assert.Equal(t, 460, capacity)
+}
+
+func TestWTMAdjustments_ReductionCapacityUsesOpeningBalanceOnEffectiveDate(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-01"
+	effectiveDate := timezone.NewDate(2026, time.July, 20)
+	f.sessions.sessions = []*activeModels.WorkSession{
+		wtmSession(effectiveDate, 9, 1_000, 0),
+	}
+	f.svc.SetAdjustmentReader(&wtmMockAdjustmentReader{adjustments: []*activeModels.StaffBalanceAdjustment{
+		wtmAdjustment(1, activeModels.BalanceAdjustmentTypeReset, 2_000, timezone.NewDate(2026, time.July, 1)),
+		wtmAdjustment(2, activeModels.BalanceAdjustmentTypePayout, -100, effectiveDate),
+	}})
+
+	capacity, err := f.svc.GetBalanceReductionCapacity(context.Background(), wtmStaffID, effectiveDate)
+
+	require.NoError(t, err)
+	// Adjustments are effective before the day's target and work: the opening
+	// capacity is 2,000 - 960 - 100, without July 20's Soll or future session.
+	assert.Equal(t, 940, capacity)
+}
+
 // A reset row turns the closing balance into the carry-over value: with a
 // closing balance of B before the reset, delta = carryover − B yields exactly
 // carryover afterwards (#1420 5c).
