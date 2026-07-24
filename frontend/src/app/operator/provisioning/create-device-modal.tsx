@@ -206,6 +206,7 @@ export function CreateDeviceModal({
         <FormField label="Schule" htmlFor="device-school" required>
           <CustomSelect
             id="device-school"
+            ariaLabel="Schule"
             value={schoolId}
             options={
               schools?.map((school) => ({
@@ -235,6 +236,7 @@ export function CreateDeviceModal({
         <FormField label="Typ" htmlFor="device-type" required>
           <CustomSelect
             id="device-type"
+            ariaLabel="Typ"
             value={deviceType}
             options={Object.entries(DEVICE_TYPE_OPTIONS).map(
               ([value, label]) => ({ value, label }),

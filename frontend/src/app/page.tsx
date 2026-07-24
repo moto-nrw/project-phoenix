@@ -91,6 +91,7 @@ export default function RootPage() {
           <>
             <div className="text-left">
               <label
+                id="tenant-select-label"
                 htmlFor="tenant-select"
                 className="mb-1 block text-sm font-medium text-gray-700"
               >
@@ -98,6 +99,7 @@ export default function RootPage() {
               </label>
               <CustomSelect
                 id="tenant-select"
+                ariaLabelledBy="tenant-select-label"
                 value={selectedSlug}
                 disabled={loading || isNavigating}
                 onChange={setSelectedSlug}

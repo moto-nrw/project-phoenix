@@ -867,6 +867,7 @@ function SubstitutionPageContent() {
           {/* Group selection */}
           <div>
             <label
+              id="substitution-group-select-label"
               htmlFor="substitution-group-select"
               className="mb-2 block text-sm font-medium text-gray-700"
             >
@@ -874,6 +875,7 @@ function SubstitutionPageContent() {
             </label>
             <CustomSelect
               id="substitution-group-select"
+              ariaLabelledBy="substitution-group-select-label"
               value={selectedGroup}
               onChange={setSelectedGroup}
               placeholder="Gruppe auswählen..."

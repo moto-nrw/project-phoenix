@@ -114,6 +114,7 @@ export function StepWiederholung({
         <Field label="Wiederholt sich" htmlFor="event_quick_repeat">
           <CustomSelect
             id="event_quick_repeat"
+            ariaLabel="Wiederholt sich"
             value={quickPreset}
             options={[
               { value: "einmalig", label: "Einmalig" },
@@ -202,6 +203,7 @@ export function StepWiederholung({
               >
                 <CustomSelect
                   id="event_period"
+                  ariaLabel="Planungszeitraum"
                   ariaDescribedBy={
                     fieldErrors.calendarPeriodId
                       ? "event_period_error"

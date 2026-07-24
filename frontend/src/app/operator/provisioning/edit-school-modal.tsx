@@ -188,6 +188,7 @@ export function EditSchoolModal({
         <FormField label="Träger" htmlFor="edit-school-org" required>
           <CustomSelect
             id="edit-school-org"
+            ariaLabel="Träger"
             value={schoolOrgId}
             options={
               organizations?.map((org) => ({

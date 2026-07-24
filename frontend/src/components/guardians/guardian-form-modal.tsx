@@ -934,6 +934,7 @@ export default function GuardianFormModal({
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                 <div>
                   <label
+                    id={`guardian-language-${entry.id}-label`}
                     htmlFor={`guardian-language-${entry.id}`}
                     className="mb-1 block text-xs font-medium text-gray-700"
                   >
@@ -941,6 +942,7 @@ export default function GuardianFormModal({
                   </label>
                   <CustomSelect
                     id={`guardian-language-${entry.id}`}
+                    ariaLabelledBy={`guardian-language-${entry.id}-label`}
                     value={entry.languagePreference}
                     options={LANGUAGE_PREFERENCES}
                     onChange={(next) =>

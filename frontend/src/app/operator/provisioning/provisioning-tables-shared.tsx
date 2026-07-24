@@ -39,6 +39,7 @@ export function OrgSchoolFilter({
     <div className="mt-4 mb-4 flex flex-col gap-3 sm:flex-row sm:items-end">
       <div className="flex-1">
         <label
+          id={`filter-${idPrefix}-org-label`}
           htmlFor={`filter-${idPrefix}-org`}
           className="mb-1 block text-xs font-medium text-gray-500"
         >
@@ -46,6 +47,7 @@ export function OrgSchoolFilter({
         </label>
         <CustomSelect
           id={`filter-${idPrefix}-org`}
+          ariaLabelledBy={`filter-${idPrefix}-org-label`}
           value={filterOrgId}
           options={orgOptions}
           onChange={onOrgChange}
@@ -53,6 +55,7 @@ export function OrgSchoolFilter({
       </div>
       <div className="flex-1">
         <label
+          id={`filter-${idPrefix}-school-label`}
           htmlFor={`filter-${idPrefix}-school`}
           className="mb-1 block text-xs font-medium text-gray-500"
         >
@@ -60,6 +63,7 @@ export function OrgSchoolFilter({
         </label>
         <CustomSelect
           id={`filter-${idPrefix}-school`}
+          ariaLabelledBy={`filter-${idPrefix}-school-label`}
           value={selectedSchool?.id ?? ""}
           options={schoolOptions}
           onChange={onSchoolChange}

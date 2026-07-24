@@ -357,6 +357,7 @@ export function TeacherForm({
             {!initialData.id && (
               <div>
                 <label
+                  id="role-select-label"
                   htmlFor="role-select"
                   className="mb-1 block text-xs font-medium text-gray-700"
                 >
@@ -364,6 +365,7 @@ export function TeacherForm({
                 </label>
                 <CustomSelect
                   id="role-select"
+                  ariaLabelledBy="role-select-label"
                   value={roleId === undefined ? "" : String(roleId)}
                   onChange={(next) =>
                     setRoleId(next === "" ? undefined : Number(next))
@@ -393,6 +395,7 @@ export function TeacherForm({
             {showRFID && (
               <div>
                 <label
+                  id="tagId-label"
                   htmlFor="tagId"
                   className="mb-1 block text-sm font-medium text-gray-500"
                 >
@@ -400,6 +403,7 @@ export function TeacherForm({
                 </label>
                 <CustomSelect
                   id="tagId"
+                  ariaLabelledBy="tagId-label"
                   value=""
                   onChange={(next) => setTagId(next)}
                   options={[{ value: "", label: "RFID-Funktion deaktiviert" }]}

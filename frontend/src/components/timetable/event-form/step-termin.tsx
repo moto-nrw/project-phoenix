@@ -137,6 +137,7 @@ export function StepTermin({
           >
             <CustomSelect
               id="event_category"
+              ariaLabel="Kategorie"
               ariaDescribedBy={
                 fieldErrors.categoryId ? "event_category_error" : undefined
               }
@@ -169,6 +170,7 @@ export function StepTermin({
         <Field label="Listenart" htmlFor="event_list_kind">
           <CustomSelect
             id="event_list_kind"
+            ariaLabel="Listenart"
             value={form.listKind}
             options={[
               { value: "", label: "Keine" },
@@ -197,6 +199,7 @@ export function StepTermin({
       >
         <CustomSelect
           id="event_room"
+          ariaLabel="Raum"
           ariaDescribedBy={fieldErrors.roomId ? "event_room_error" : undefined}
           value={form.roomId}
           options={rooms.map((room) => ({

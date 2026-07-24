@@ -210,6 +210,7 @@ function SelectInput({
   return (
     <div>
       <label
+        id={`${selectId}-label`}
         htmlFor={selectId}
         className="mb-1 block text-xs font-medium text-gray-700"
       >
@@ -217,6 +218,7 @@ function SelectInput({
       </label>
       <CustomSelect
         id={selectId}
+        ariaLabelledBy={`${selectId}-label`}
         value={value}
         options={options}
         onChange={onChange}

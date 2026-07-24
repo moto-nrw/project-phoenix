@@ -243,6 +243,7 @@ export function QuickCreateActivityModal({
             </div>
             <div className="relative">
               <label
+                id="category_id-label"
                 htmlFor="category_id"
                 className={`mb-3 block flex items-center gap-2 text-sm font-semibold ${errorFieldName === "category_id" ? "text-red-600" : "text-gray-700"}`}
               >
@@ -254,6 +255,7 @@ export function QuickCreateActivityModal({
               <CustomSelect
                 id="category_id"
                 name="category_id"
+                ariaLabelledBy="category_id-label"
                 value={form.category_id}
                 onChange={(next) => {
                   setForm((prev) => ({ ...prev, category_id: next }));

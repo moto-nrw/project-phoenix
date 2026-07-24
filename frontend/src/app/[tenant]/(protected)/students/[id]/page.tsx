@@ -913,6 +913,7 @@ function StudentDetailPageContent() {
     return (
       <CustomSelect
         id="room-select"
+        ariaLabelledBy="room-select-label"
         value={selectedActiveGroupId}
         options={activeGroups.map((group) => ({
           value: group.id,
@@ -1034,6 +1035,7 @@ function StudentDetailPageContent() {
           </p>
           <div>
             <label
+              id="room-select-label"
               htmlFor="room-select"
               className="mb-2 block text-sm font-medium text-gray-700"
             >

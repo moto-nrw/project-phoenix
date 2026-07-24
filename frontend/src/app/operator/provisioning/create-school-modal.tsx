@@ -193,6 +193,7 @@ export function CreateSchoolModal({
         <FormField label="Träger" htmlFor="school-org" required>
           <CustomSelect
             id="school-org"
+            ariaLabel="Träger"
             value={schoolOrgId}
             options={
               organizations?.map((org) => ({

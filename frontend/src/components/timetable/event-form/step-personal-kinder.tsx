@@ -190,6 +190,7 @@ export function StepPersonalKinder({
           <Field label="Zuständige Person" htmlFor="event_primary_staff">
             <CustomSelect
               id="event_primary_staff"
+              ariaLabel="Zuständige Person"
               value={form.primaryStaffId}
               options={[
                 { value: "", label: "Keine Auswahl" },
@@ -240,6 +241,7 @@ export function StepPersonalKinder({
               >
                 <CustomSelect
                   id="event_target_grade_level"
+                  ariaLabel="Jahrgang"
                   ariaDescribedBy={
                     fieldErrors.targetGradeLevel
                       ? "event_target_grade_level_error"
@@ -273,6 +275,7 @@ export function StepPersonalKinder({
               >
                 <CustomSelect
                   id="event_target_school_class"
+                  ariaLabel="Klasse"
                   ariaDescribedBy={targetClassDescriptionIDs || undefined}
                   value={form.targetSchoolClass}
                   options={targetClassOptions.map((schoolClass) => ({
@@ -310,6 +313,7 @@ export function StepPersonalKinder({
               >
                 <CustomSelect
                   id="event_target_gruppe"
+                  ariaLabel="Gruppe"
                   ariaDescribedBy={
                     fieldErrors.educationGroupId
                       ? "event_target_gruppe_error"

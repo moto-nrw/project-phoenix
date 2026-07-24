@@ -30,6 +30,7 @@ export function RelationshipTypeSelect({
   return (
     <div>
       <label
+        id={`${id}-label`}
         htmlFor={id}
         className="mb-1 block text-xs font-medium text-gray-700"
       >
@@ -37,6 +38,7 @@ export function RelationshipTypeSelect({
       </label>
       <CustomSelect
         id={id}
+        ariaLabelledBy={`${id}-label`}
         value={value}
         options={RELATIONSHIP_TYPES}
         onChange={onChange}
@@ -62,6 +64,7 @@ export function GuardianRoleSelect({
   return (
     <div>
       <label
+        id={`${id}-label`}
         htmlFor={id}
         className="mb-1 block text-xs font-medium text-gray-700"
       >
@@ -69,6 +72,7 @@ export function GuardianRoleSelect({
       </label>
       <CustomSelect
         id={id}
+        ariaLabelledBy={`${id}-label`}
         value={value}
         options={GUARDIAN_ROLE_OPTIONS}
         onChange={(next) => onChange(next as GuardianRole)}

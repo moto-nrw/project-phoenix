@@ -306,6 +306,7 @@ export function FilterPanel({
         return (
           <CustomSelect
             id={`mobile-filter-${filter.id}`}
+            ariaLabel={filter.label}
             testId={`filter-${filter.id}`}
             value={filter.value as string}
             onChange={(next) => filter.onChange(next)}

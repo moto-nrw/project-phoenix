@@ -405,6 +405,7 @@ export function ActivityManagementModal({
             </div>
             <div className="relative">
               <label
+                id="category_id-label"
                 htmlFor="category_id"
                 className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
               >
@@ -416,6 +417,7 @@ export function ActivityManagementModal({
               <CustomSelect
                 id="category_id"
                 name="category_id"
+                ariaLabelledBy="category_id-label"
                 value={form.category_id}
                 onChange={(next) => {
                   setForm((prev) => ({ ...prev, category_id: next }));

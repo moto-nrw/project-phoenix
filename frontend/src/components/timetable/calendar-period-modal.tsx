@@ -408,6 +408,7 @@ export function CalendarPeriodModal({
         <Field label="Art" htmlFor="period_type" required>
           <CustomSelect
             id="period_type"
+            ariaLabel="Art"
             value={form.periodType}
             options={PERIOD_TYPES.map((t) => ({
               value: t,

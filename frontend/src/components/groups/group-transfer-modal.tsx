@@ -276,6 +276,7 @@ export function GroupTransferModal({
         {/* User Dropdown */}
         <div>
           <label
+            id="transfer-user-select-label"
             htmlFor="transfer-user-select"
             className="mb-2 block text-sm font-medium text-gray-700"
           >
@@ -283,6 +284,7 @@ export function GroupTransferModal({
           </label>
           <CustomSelect
             id="transfer-user-select"
+            ariaLabelledBy="transfer-user-select-label"
             value={selectedPersonId}
             onChange={setSelectedPersonId}
             options={availableUsers.map((user) => ({

@@ -2601,6 +2601,7 @@ function EditSessionModal({
                 ) : (
                   <div>
                     <label
+                      id="edit-break-label"
                       htmlFor="edit-break"
                       className="mb-1 block text-sm font-medium text-gray-700"
                     >
@@ -2608,6 +2609,7 @@ function EditSessionModal({
                     </label>
                     <CustomSelect
                       id="edit-break"
+                      ariaLabelledBy="edit-break-label"
                       value={breakMins}
                       onChange={setBreakMins}
                       options={[0, 15, 30, 45, 60].map((m) => ({
@@ -2620,6 +2622,7 @@ function EditSessionModal({
               </div>
               <div>
                 <label
+                  id="edit-status-label"
                   htmlFor="edit-status"
                   className="mb-1 block text-sm font-medium text-gray-700"
                 >
@@ -2627,6 +2630,7 @@ function EditSessionModal({
                 </label>
                 <CustomSelect
                   id="edit-status"
+                  ariaLabelledBy="edit-status-label"
                   value={status}
                   onChange={(next) => setStatus(next as SessionStatus)}
                   options={[
@@ -2695,6 +2699,7 @@ function EditSessionModal({
             {/* Absence type */}
             <div>
               <label
+                id="edit-abs-type-label"
                 htmlFor="edit-abs-type"
                 className="mb-1 block text-sm font-medium text-gray-700"
               >
@@ -2702,6 +2707,7 @@ function EditSessionModal({
               </label>
               <CustomSelect
                 id="edit-abs-type"
+                ariaLabelledBy="edit-abs-type-label"
                 value={absType}
                 onChange={(next) => setAbsType(next as AbsenceType)}
                 options={ABSENCE_TYPE_OPTIONS}
@@ -2899,6 +2905,7 @@ function CreateAbsenceModal({
         {/* Absence type */}
         <div>
           <label
+            id="absence-type-label"
             htmlFor="absence-type"
             className="mb-1 block text-sm font-medium text-gray-700"
           >
@@ -2906,6 +2913,7 @@ function CreateAbsenceModal({
           </label>
           <CustomSelect
             id="absence-type"
+            ariaLabelledBy="absence-type-label"
             value={absenceType}
             onChange={(next) => setAbsenceType(next as AbsenceType)}
             options={ABSENCE_TYPE_OPTIONS}

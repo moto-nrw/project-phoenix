@@ -161,6 +161,7 @@ export function PermissionSelector({
       {/* Resource Dropdown */}
       <div>
         <label
+          id="permission-resource-label"
           htmlFor="permission-resource"
           className="mb-1.5 block text-xs font-medium text-gray-700"
         >
@@ -168,6 +169,7 @@ export function PermissionSelector({
         </label>
         <CustomSelect
           id="permission-resource"
+          ariaLabelledBy="permission-resource-label"
           value={resource}
           onChange={handleResourceChange}
           options={RESOURCES.map((r) => ({ value: r.value, label: r.label }))}
@@ -179,6 +181,7 @@ export function PermissionSelector({
       {/* Action Dropdown */}
       <div>
         <label
+          id="permission-action-label"
           htmlFor="permission-action"
           className="mb-1.5 block text-xs font-medium text-gray-700"
         >
@@ -186,6 +189,7 @@ export function PermissionSelector({
         </label>
         <CustomSelect
           id="permission-action"
+          ariaLabelledBy="permission-action-label"
           value={action}
           onChange={handleActionChange}
           options={availableActions.map((a) => ({

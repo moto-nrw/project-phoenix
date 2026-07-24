@@ -239,6 +239,7 @@ export function InvitationForm({
 
         <div>
           <label
+            id="invitation-role-label"
             htmlFor="invitation-role"
             className={`mb-1 block text-sm font-medium ${errorFieldName === "roleId" ? "text-red-600" : "text-gray-700"}`}
           >
@@ -246,6 +247,7 @@ export function InvitationForm({
           </label>
           <CustomSelect
             id="invitation-role"
+            ariaLabelledBy="invitation-role-label"
             value={form.roleId === undefined ? "" : String(form.roleId)}
             onChange={(next) =>
               handleChange("roleId")(Number(next) || undefined)

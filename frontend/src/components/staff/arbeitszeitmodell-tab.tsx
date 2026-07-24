@@ -601,6 +601,7 @@ function TemplateSelector({
   return (
     <div className="space-y-3">
       <label
+        id="arbeitszeitmodell-template-select-label"
         htmlFor="arbeitszeitmodell-template-select"
         className="block text-xs font-semibold tracking-wider text-gray-500 uppercase"
       >
@@ -608,6 +609,7 @@ function TemplateSelector({
       </label>
       <CustomSelect
         id="arbeitszeitmodell-template-select"
+        ariaLabelledBy="arbeitszeitmodell-template-select-label"
         value={selectedId}
         onChange={onSelect}
         options={templates.map((t) => ({
@@ -711,6 +713,7 @@ function CustomEditor({
     <div className="space-y-4">
       <div>
         <label
+          id="arbeitszeitmodell-rotation-select-label"
           htmlFor="arbeitszeitmodell-rotation-select"
           className="mb-2 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
         >
@@ -718,6 +721,7 @@ function CustomEditor({
         </label>
         <CustomSelect
           id="arbeitszeitmodell-rotation-select"
+          ariaLabelledBy="arbeitszeitmodell-rotation-select-label"
           value={String(rotationLength)}
           onChange={(next) => onRotationChange(Number.parseInt(next, 10))}
           options={ROTATION_OPTIONS.map((opt) => ({

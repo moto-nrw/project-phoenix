@@ -24,6 +24,7 @@ interface ListboxDropdownProps<K extends string> {
   readonly onChange: (next: K) => void;
   readonly id?: string;
   readonly ariaLabel?: string;
+  readonly ariaLabelledBy?: string;
   readonly ariaDescribedBy?: string;
   readonly containerClassName?: string;
   readonly containerStyle?: CSSProperties;
@@ -126,6 +127,7 @@ export function ListboxDropdown<K extends string>({
   onChange,
   id,
   ariaLabel,
+  ariaLabelledBy,
   ariaDescribedBy,
   containerClassName = "relative",
   containerStyle,
@@ -345,6 +347,7 @@ export function ListboxDropdown<K extends string>({
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
         aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledBy}
         aria-describedby={ariaDescribedBy}
         aria-required={required || undefined}
         aria-invalid={invalid || undefined}
@@ -368,6 +371,11 @@ export function ListboxDropdown<K extends string>({
           role="listbox"
           className={menuClassName}
           aria-label={ariaLabel}
+          // Points at the field's label element, never at the trigger: a
+          // combobox referenced via aria-labelledby contributes its VALUE
+          // (accname step 2E), which would name the popup after the current
+          // selection instead of the field.
+          aria-labelledby={ariaLabelledBy}
         >
           {options.map((option, index) => {
             const isActive = option.value === value;

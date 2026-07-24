@@ -489,6 +489,7 @@ export default function StudentImportPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <div className="flex-1">
             <label
+              id="format-select-label"
               htmlFor="format-select"
               className="mb-2 block text-sm font-medium text-gray-700"
             >
@@ -496,6 +497,7 @@ export default function StudentImportPage() {
             </label>
             <CustomSelect
               id="format-select"
+              ariaLabelledBy="format-select-label"
               value={templateFormat}
               options={[
                 { value: "csv", label: "CSV (Komma-getrennt)" },

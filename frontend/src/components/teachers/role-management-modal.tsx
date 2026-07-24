@@ -165,6 +165,7 @@ export function RoleManagementModal({
 
           <div>
             <label
+              id="target-role-select-label"
               htmlFor="target-role-select"
               className="mb-1 block text-xs font-medium text-gray-700"
             >
@@ -172,6 +173,7 @@ export function RoleManagementModal({
             </label>
             <CustomSelect
               id="target-role-select"
+              ariaLabelledBy="target-role-select-label"
               value={targetRoleId === undefined ? "" : String(targetRoleId)}
               onChange={(next) =>
                 setTargetRoleId(next === "" ? undefined : Number(next))

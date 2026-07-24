@@ -42,6 +42,26 @@ describe("CustomSelect", () => {
     );
   });
 
+  it("names the trigger and the popup listbox from an external label via ariaLabelledBy", () => {
+    render(
+      <>
+        <span id="rolle-label">Rolle</span>
+        <CustomSelect
+          value="first"
+          options={options}
+          onChange={vi.fn()}
+          id="rolle"
+          ariaLabelledBy="rolle-label"
+        />
+      </>,
+    );
+
+    const trigger = screen.getByRole("combobox", { name: "Rolle" });
+    fireEvent.click(trigger);
+
+    expect(screen.getByRole("listbox", { name: "Rolle" })).toBeInTheDocument();
+  });
+
   it("opens and selects an option", () => {
     const onChange = vi.fn();
     render(
