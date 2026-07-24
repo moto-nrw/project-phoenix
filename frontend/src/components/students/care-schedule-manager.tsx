@@ -313,23 +313,43 @@ export function CareScheduleManager({
   // the server at a later point, so its data is at least as fresh.
   const careDataRequestId = useRef(0);
 
-  const fetchCareDataInto = useCallback(async () => {
-    const requestId = ++careDataRequestId.current;
-    const [arrival, pickup] = await Promise.all([
-      fetchArrivalData(studentId),
-      fetchStudentPickupData(studentId),
-    ]);
-    // Superseded while in flight — drop the result rather than clobber newer state.
-    if (requestId !== careDataRequestId.current) return;
-    setArrivalData(arrival);
-    setPickupData(pickup);
-  }, [studentId]);
+  // Claims the next id for a fetch. The caller keeps it so BOTH the success and
+  // the failure path can ask whether they are still the newest attempt.
+  const claimCareDataRequest = useCallback(
+    () => ++careDataRequestId.current,
+    [],
+  );
+  const isNewestCareDataRequest = useCallback(
+    (requestId: number) => requestId === careDataRequestId.current,
+    [],
+  );
+
+  const fetchCareDataInto = useCallback(
+    async (requestId: number) => {
+      const [arrival, pickup] = await Promise.all([
+        fetchArrivalData(studentId),
+        fetchStudentPickupData(studentId),
+      ]);
+      // Superseded while in flight — drop the result rather than clobber newer state.
+      if (!isNewestCareDataRequest(requestId)) return;
+      setArrivalData(arrival);
+      setPickupData(pickup);
+      // A newer read succeeded, so any banner or spinner an older attempt is
+      // still going to leave behind is already obsolete. Clearing here (rather
+      // than only in loadCareData) is what lets the failure path below bail out
+      // without stranding the UI.
+      setError(null);
+      setIsLoading(false);
+    },
+    [studentId, isNewestCareDataRequest],
+  );
 
   const loadCareData = useCallback(async () => {
+    const requestId = claimCareDataRequest();
     try {
       setIsLoading(true);
       setError(null);
-      await fetchCareDataInto();
+      await fetchCareDataInto(requestId);
     } catch (err) {
       const message =
         err instanceof Error
@@ -339,16 +359,30 @@ export function CareScheduleManager({
         error: message,
         student_id: studentId,
       });
+      // Same ordering rule as the success path: a failed attempt that a newer
+      // fetch has already overtaken must not raise an error banner over the
+      // fresh data that newer fetch just rendered.
+      if (!isNewestCareDataRequest(requestId)) return;
       setError(message);
     } finally {
+      // Deliberately NOT gated on the request id: this is the only path that
+      // sets isLoading, so skipping it for a superseded attempt could strand the
+      // spinner forever when the superseding fetch also fails (the remote
+      // refresh path reports failures to the log only). Clearing it early at
+      // worst hides the spinner a moment before newer data lands.
       setIsLoading(false);
     }
-  }, [fetchCareDataInto, studentId]);
+  }, [
+    claimCareDataRequest,
+    fetchCareDataInto,
+    isNewestCareDataRequest,
+    studentId,
+  ]);
 
   const refreshCareData = useCallback(async () => {
-    await fetchCareDataInto();
+    await fetchCareDataInto(claimCareDataRequest());
     onUpdate?.();
-  }, [fetchCareDataInto, onUpdate]);
+  }, [claimCareDataRequest, fetchCareDataInto, onUpdate]);
 
   useEffect(() => {
     loadCareData().catch(() => undefined);
@@ -368,13 +402,15 @@ export function CareScheduleManager({
   const hasDeferredRemoteRefresh = useRef(false);
 
   const refreshFromRemote = useCallback(() => {
-    fetchCareDataInto().catch((err) => {
+    // Background refresh: a failure is logged, never surfaced — the user did not
+    // ask for it, and the data already on screen stays valid.
+    fetchCareDataInto(claimCareDataRequest()).catch((err) => {
       logger.debug("care_schedule_remote_refresh_failed", {
         error: err instanceof Error ? err.message : String(err),
         student_id: studentId,
       });
     });
-  }, [fetchCareDataInto, studentId]);
+  }, [claimCareDataRequest, fetchCareDataInto, studentId]);
 
   // React to REMOTE arrival/pickup changes. This editor keeps its arrival/pickup
   // in local state (not SWR) and stays force-mounted across tabs, so the global

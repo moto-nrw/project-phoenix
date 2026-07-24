@@ -481,6 +481,58 @@ describe("CareScheduleManager", () => {
     expect(screen.getAllByText("17:17").length).toBeGreaterThan(0);
   });
 
+  it("does not raise an error banner from a request a newer refresh already overtook", async () => {
+    // The initial load hangs, a remote refresh overtakes it and renders fresh
+    // data, and only then does the initial load fail. Its error belongs to state
+    // that is no longer on screen, so surfacing it would put a failure banner
+    // over perfectly good data.
+    const freshPickup: PickupData = {
+      ...pickupData,
+      exceptions: [
+        {
+          ...pickupData.exceptions[0]!,
+          pickupTime: "17:17",
+          reason: "aktuell",
+        },
+      ],
+    };
+
+    let failInitial: (reason: Error) => void = () => undefined;
+    mockFetchStudentPickupData.mockImplementationOnce(
+      () =>
+        new Promise<PickupData>((_resolve, reject) => {
+          failInitial = reject;
+        }),
+    );
+    mockFetchStudentPickupData.mockImplementationOnce(() =>
+      Promise.resolve(freshPickup),
+    );
+
+    render(
+      <CareScheduleManager studentId="42" statusDays={statusDays} readOnly />,
+    );
+
+    // The remote refresh overtakes the still-pending initial load.
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("phoenix:care-schedule-stale"));
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("17:17").length).toBeGreaterThan(0);
+    });
+
+    // Now let the superseded initial load reject.
+    await act(async () => {
+      failInitial(new Error("Netzwerkfehler"));
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText("Netzwerkfehler")).not.toBeInTheDocument();
+    expect(screen.getAllByText("17:17").length).toBeGreaterThan(0);
+    // And the spinner is gone — a superseded failure must not strand the view.
+    expect(document.querySelector(".animate-spin")).not.toBeInTheDocument();
+  });
+
   it("reports the newly visible week range when navigating", async () => {
     const onVisibleDateRangeChange = vi.fn();
 

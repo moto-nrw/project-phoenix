@@ -148,12 +148,23 @@ function resolveActiveTab(
   return allowed.find((tab) => tab === param) ?? DEFAULT_TAB;
 }
 
+/**
+ * @param hasStudentReadAccess the backend's READ predicate for this child,
+ *   `has_full_access` on the student response. Despite the wire name this is
+ *   NOT the strict supervisor/admin check — that one is `has_write_access`.
+ *   It resolves to `authorize.CanReadStudent`, which honours
+ *   `gdpr.student_data_scope`: under `all_staff` EVERY staff member gets `true`
+ *   here, under `group_supervisors_only` only the child's supervisors (and
+ *   admins) do. See api/students/authorization.go — `checkStudentReadAccess`
+ *   (scope-aware, this flag) vs `checkStudentFullAccess` (scope-ignoring, the
+ *   write flag).
+ */
 function studentTabs(
-  hasFullAccess: boolean,
+  hasStudentReadAccess: boolean,
   canViewEnrollments: boolean,
   canViewCarePlan: boolean,
 ): StudentTabId[] {
-  const base = hasFullAccess
+  const base = hasStudentReadAccess
     ? canViewEnrollments
       ? FULL_ACCESS_TABS_WITH_ENROLLMENTS
       : FULL_ACCESS_BASE_TABS
@@ -165,14 +176,15 @@ function studentTabs(
   // the user can't open a tab that only returns 403s.
   //
   // It is absent from the limited-access sets for the SAME reason, not as an
-  // oversight: those routes also run authorize.CanReadStudent per student
-  // (resolveStudentForRead in api/timetable/student_day.go), which is the exact
-  // predicate behind has_full_access on the student response
-  // (api/students/authorization.go checkStudentReadAccess). hasFullAccess=false
-  // therefore means the care-plan endpoints answer 403 for this child, so
-  // widening the tab here would only surface a permanently failing panel — and
-  // ?tab=betreuungsplan is clamped away for the same reason. Widening staff
-  // access to a child's plan is a backend (gdpr.student_data_scope) decision.
+  // oversight: those routes gate on read access per student too
+  // (resolveStudentForRead → authorize.CanReadStudent in
+  // api/timetable/student_day.go) — the SAME predicate behind the flag above,
+  // so the two can never disagree. A staff member who may read the child under
+  // `all_staff` therefore lands in the full-access set and DOES get the tab;
+  // one who may not gets 403 from the care-plan endpoints, so widening the tab
+  // would only surface a permanently failing panel, and ?tab=betreuungsplan is
+  // clamped away for the same reason. Widening staff access to a child's plan
+  // is a backend (gdpr.student_data_scope) decision, not a frontend one.
   return canViewCarePlan
     ? base
     : base.filter((tab) => tab !== "betreuungsplan");
