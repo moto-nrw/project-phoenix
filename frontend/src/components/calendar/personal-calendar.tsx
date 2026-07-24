@@ -902,6 +902,10 @@ function TimeGridDayBody({
           />
         ),
       )}
+      {/* Das gesamte Dienst-Band ist der klickbare Bereich (z-0, unter den
+          Terminblöcken): Termine (z-10) gewinnen immer in ihrer eigenen
+          Fläche, jeder sichtbare Band-Pixel öffnet den Dienst — so bleiben
+          beide auch bei Überlappung bedienbar. */}
       {shiftBands.map((event) => {
         const tone = sourceTone[event.source];
         const startMinutes = clockToMinutes(event.start_time);
@@ -910,41 +914,14 @@ function TimeGridDayBody({
           startMinutes + 30,
         );
         return (
-          <div
-            key={`${event.id}-band`}
-            aria-hidden
-            className="absolute inset-x-0.5 z-0 rounded-md border"
-            style={{
-              top: ((startMinutes - gridStartMinutes) / 60) * HOUR_PX + 1,
-              height: ((endMinutes - startMinutes) / 60) * HOUR_PX - 2,
-              backgroundColor: tone.bg,
-              borderColor: `${tone.bar}55`,
-            }}
-          />
-        );
-      })}
-      {timed.map((placement) => (
-        <TimeGridEventBlock
-          key={placement.event.id}
-          placement={placement}
-          gridStartMinutes={gridStartMinutes}
-          actions={actions}
-        />
-      ))}
-      {/* Klickbare Dienst-Labels NACH den Terminblöcken (z-20), damit
-          überlappende Termine (z-10) den Dienst nicht unbedienbar machen —
-          die Fläche selbst bleibt als dekoratives Band im Hintergrund. */}
-      {shiftBands.map((event) => {
-        const tone = sourceTone[event.source];
-        const startMinutes = clockToMinutes(event.start_time);
-        return (
           <button
             key={event.id}
             type="button"
             onClick={() => actions.onSelect?.(event)}
-            className="absolute inset-x-0.5 z-20 overflow-hidden rounded-md border px-1.5 py-1 text-left transition-[filter] hover:brightness-95"
+            className="absolute inset-x-0.5 z-0 flex flex-col overflow-hidden rounded-md border px-1.5 py-1 text-left transition-[filter] hover:brightness-95"
             style={{
               top: ((startMinutes - gridStartMinutes) / 60) * HOUR_PX + 1,
+              height: ((endMinutes - startMinutes) / 60) * HOUR_PX - 2,
               backgroundColor: tone.bg,
               borderColor: `${tone.bar}55`,
             }}
@@ -956,6 +933,14 @@ function TimeGridDayBody({
           </button>
         );
       })}
+      {timed.map((placement) => (
+        <TimeGridEventBlock
+          key={placement.event.id}
+          placement={placement}
+          gridStartMinutes={gridStartMinutes}
+          actions={actions}
+        />
+      ))}
     </div>
   );
 }
