@@ -282,6 +282,7 @@ const (
 	ErrCodeEnrollmentClassNotEligible     = "enrollment.class_not_eligible"
 	ErrCodeEnrollmentChildAlreadyEnrolled = "enrollment.child_already_enrolled"
 	ErrCodeEnrollmentChildNotEnrolled     = "enrollment.child_not_enrolled"
+	ErrCodeEnrollmentChildAmbiguous       = "enrollment.child_ambiguous"
 )
 
 // MapSubmitError translates service-layer sentinel errors into HTTP
@@ -303,6 +304,8 @@ func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentChildAlreadyEnrolled))
 	case errors.Is(err, enrollmentService.ErrChildNotEnrolled):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentChildNotEnrolled))
+	case errors.Is(err, enrollmentService.ErrChildEnrollmentAmbiguous):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentChildAmbiguous))
 	case errors.Is(err, enrollmentService.ErrCareOfferingUnavailable):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingUnavailable))
 	case errors.Is(err, enrollmentService.ErrCareOfferingMissing):

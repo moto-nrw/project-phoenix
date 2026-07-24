@@ -28,6 +28,82 @@ func (s *stubEligibilityStudentRepo) ExistsEnrolledByNameAndBirthday(_ context.C
 	return s.exists, s.err
 }
 
+// stubMatchStudentRepo backs resolveMatchedStudentID: it implements the
+// unambiguous single-match lookup (matchID) plus the existence probe (exists)
+// the resolver falls back to when the lookup is nil, to distinguish a genuine
+// zero match from an ambiguous multi-match.
+type stubMatchStudentRepo struct {
+	users.StudentRepository
+	matchID *int64
+	exists  bool
+	err     error
+}
+
+func (s *stubMatchStudentRepo) FindEnrolledStudentIDByNameAndBirthday(_ context.Context, _ int64, _, _ string, _ timezone.Date) (*int64, error) {
+	return s.matchID, s.err
+}
+
+func (s *stubMatchStudentRepo) ExistsEnrolledByNameAndBirthday(_ context.Context, _ int64, _, _ string, _ timezone.Date) (bool, error) {
+	return s.exists, s.err
+}
+
+func int64PtrEligibility(v int64) *int64 { return &v }
+
+// An ambiguous match (the unambiguous lookup returns nil but a match still
+// exists) must be rejected rather than silently taking the fresh-create path,
+// which would add a third duplicate to the colliding records (#1663).
+func TestResolveMatchedStudentID_AmbiguousRejected(t *testing.T) {
+	repo := &stubMatchStudentRepo{matchID: nil, exists: true}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
+	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
+
+	id, err := svc.resolveMatchedStudentID(context.Background(), int64(7001), phase, 2,
+		SubmitChild{FirstName: "Kim", LastName: "Test", DateOfBirth: timezone.NewDate(2019, 4, 12)})
+	require.ErrorIs(t, err, ErrChildEnrollmentAmbiguous)
+	require.ErrorIs(t, err, ErrInvalidSubmission, "ambiguous error must keep the 400 category")
+	assert.Nil(t, id)
+}
+
+// A genuine zero match (no enrolled student) stays nil so the fresh-create path
+// runs — legitimate for admin-manual / late-invite which bypass the gate.
+func TestResolveMatchedStudentID_ZeroMatchAllowsFreshCreate(t *testing.T) {
+	repo := &stubMatchStudentRepo{matchID: nil, exists: false}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
+	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
+
+	id, err := svc.resolveMatchedStudentID(context.Background(), int64(7002), phase, 0,
+		SubmitChild{FirstName: "Kim", LastName: "Test", DateOfBirth: timezone.NewDate(2019, 4, 12)})
+	require.NoError(t, err)
+	assert.Nil(t, id)
+}
+
+// An unambiguous single match pins the concrete student so approval renews it.
+func TestResolveMatchedStudentID_SingleMatchReturnsID(t *testing.T) {
+	want := int64PtrEligibility(555)
+	repo := &stubMatchStudentRepo{matchID: want}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
+	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
+
+	id, err := svc.resolveMatchedStudentID(context.Background(), int64(7003), phase, 0,
+		SubmitChild{FirstName: "Kim", LastName: "Test", DateOfBirth: timezone.NewDate(2019, 4, 12)})
+	require.NoError(t, err)
+	require.NotNil(t, id)
+	assert.Equal(t, int64(555), *id)
+}
+
+// Non-existing_students audiences never resolve a match (and never probe the
+// repo), so the child always takes the fresh-create path.
+func TestResolveMatchedStudentID_NonExistingAudienceSkips(t *testing.T) {
+	repo := &stubMatchStudentRepo{matchID: int64PtrEligibility(1), exists: true}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
+	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceOpen)
+
+	id, err := svc.resolveMatchedStudentID(context.Background(), int64(7004), phase, 0,
+		SubmitChild{FirstName: "Kim", LastName: "Test", DateOfBirth: timezone.NewDate(2019, 4, 12)})
+	require.NoError(t, err)
+	assert.Nil(t, id)
+}
+
 func eligibilityTestPhase(audience string, eligibleClasses ...string) *enrollmentModels.Phase {
 	return &enrollmentModels.Phase{
 		Audience:              audience,

@@ -1818,6 +1818,58 @@ describe("PhasesEditor", () => {
     });
   });
 
+  it("hides the untokenized public actions for a linked_parents phase but keeps the late-invite action (#1663)", async () => {
+    mocks.listPhases.mockResolvedValue([
+      phase({ id: "12", name: "Nur Konto", audience: "linked_parents" }),
+    ]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    // The row-level copy-link button is gone: the plain /enroll/{id} URL is
+    // rejected by the backend without a late-invite token, so copying it would
+    // hand out a 404.
+    await screen.findByRole("button", { name: "Aktionen für Nur Konto" });
+    expect(
+      screen.queryByRole("button", { name: "Elternlink kopieren" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Nur Konto" }),
+    );
+
+    // "Formular ansehen" (the untokenized public form) is hidden...
+    expect(
+      screen.queryByRole("menuitem", { name: "Formular ansehen" }),
+    ).not.toBeInTheDocument();
+    // ...while the tokenized "Nachzügler-Link erstellen" action stays available.
+    expect(
+      await screen.findByRole("menuitem", {
+        name: "Nachzügler-Link erstellen",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the public form actions for an open phase (#1663)", async () => {
+    mocks.listPhases.mockResolvedValue([
+      phase({ id: "12", name: "Offene Phase", audience: "open" }),
+    ]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    expect(
+      await screen.findByRole("button", { name: "Elternlink kopieren" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Offene Phase" }),
+    );
+    expect(
+      await screen.findByRole("menuitem", { name: "Formular ansehen" }),
+    ).toBeInTheDocument();
+  });
+
   it("round-trips the Zielgruppe audience and eligible classes into the create payload (#1663)", async () => {
     mocks.listPhases.mockResolvedValue([]);
     mocks.listSchemas.mockResolvedValue([schema()]);

@@ -965,6 +965,12 @@ function PhaseActions({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const hasReviewList = tenantSlug && phase.rollover_source_phase_id;
+  // linked_parents phases are never publicly reachable: the backend rejects the
+  // plain /enroll/{id} URL unless it carries a valid late-invite token, so the
+  // untokenized public actions ("Formular ansehen", the copy-link button) would
+  // send users to a 404. Hide them for this audience while keeping the tokenized
+  // "Nachzügler-Link erstellen" action, which appends the accepted token (#1663).
+  const isLinkedParentsOnly = phase.audience === "linked_parents";
   const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId: phase.id });
   const enrollmentsHref = tenantPath(
     `/admin/enrollments/phases/${encodeURIComponent(phase.id)}`,
@@ -1058,18 +1064,20 @@ function PhaseActions({
         Bearbeiten
       </button>
 
-      <a
-        href={`/enroll/${encodeURIComponent(phase.id)}`}
-        target="_blank"
-        rel="noreferrer"
-        role="menuitem"
-        tabIndex={0}
-        onClick={() => setOpen(false)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
-      >
-        <ExternalLink className="h-4 w-4 text-gray-500" aria-hidden />
-        Formular ansehen
-      </a>
+      {!isLinkedParentsOnly ? (
+        <a
+          href={`/enroll/${encodeURIComponent(phase.id)}`}
+          target="_blank"
+          rel="noreferrer"
+          role="menuitem"
+          tabIndex={0}
+          onClick={() => setOpen(false)}
+          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
+        >
+          <ExternalLink className="h-4 w-4 text-gray-500" aria-hidden />
+          Formular ansehen
+        </a>
+      ) : null}
 
       <button
         type="button"
@@ -1186,7 +1194,7 @@ function PhaseActions({
   return (
     <>
       <div className="flex justify-end gap-1.5">
-        {phaseUrl ? (
+        {phaseUrl && !isLinkedParentsOnly ? (
           <PublicLinkCopyButton
             url={phaseUrl}
             componentId={`PhaseActions:${phase.id}`}

@@ -98,6 +98,14 @@ var (
 	// inverse of ErrChildAlreadyEnrolled: a phase open only to already
 	// enrolled students rejects a child with no matching enrolled record.
 	ErrChildNotEnrolled = fmt.Errorf("%w: child is not enrolled at this school", ErrInvalidSubmission)
+	// ErrChildEnrollmentAmbiguous rejects an existing_students submission
+	// whose child matches MORE THAN ONE already-enrolled record by
+	// name+birthday. The enrolled gate passes (at least one match exists) but
+	// the matched-student resolver refuses to guess which record to renew, so
+	// approval would silently take the fresh-create path and add yet another
+	// duplicate on top of the colliding records. The school must resolve the
+	// duplicate students first (#1663).
+	ErrChildEnrollmentAmbiguous = fmt.Errorf("%w: child matches multiple enrolled students at this school", ErrInvalidSubmission)
 	// ErrPhaseAudienceRestricted is the public form-load gate for
 	// audience-restricted phases (#1663): a linked_parents phase cannot be
 	// bootstrapped anonymously, so the unauthenticated public path rejects
@@ -830,7 +838,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 				ActivationMode:    enrollmentModels.ChildActivationScheduled,
 				SortOrder:         i,
 			}
-			matchedStudentID, err := s.resolveMatchedStudentID(txCtx, req.TenantID, phase, child)
+			matchedStudentID, err := s.resolveMatchedStudentID(txCtx, req.TenantID, phase, i, child)
 			if err != nil {
 				return err
 			}
@@ -2170,7 +2178,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 			// through the rollover source chain, which takes precedence at
 			// approval, so a redundant match here would be dead data.
 			if row.RolloverSourceChildID == nil {
-				matchedStudentID, err := s.resolveMatchedStudentID(txCtx, req.TenantID, phase, child)
+				matchedStudentID, err := s.resolveMatchedStudentID(txCtx, req.TenantID, phase, i, child)
 				if err != nil {
 					return err
 				}
@@ -3310,13 +3318,20 @@ func isTrustedEnrollmentSource(source string) bool {
 
 // resolveMatchedStudentID returns the already-enrolled student a submitted
 // child was matched to, but only for existing_students phases and only when the
-// name+birthday lookup is unambiguous (#1663). Every other audience, a missing
-// StudentRepo, or a zero/ambiguous match returns nil so the child takes the
-// fresh-create path on approval. The result is stamped onto request_children so
-// approval renews the matched student instead of creating a duplicate
-// Person/Student — the eligibility gate already proved at least one enrolled
-// student matches, this pins the concrete one.
-func (s *requestService) resolveMatchedStudentID(ctx context.Context, tenantID int64, phase *enrollmentModels.Phase, child SubmitChild) (*int64, error) {
+// name+birthday lookup is unambiguous (#1663). The result is stamped onto
+// request_children so approval renews the matched student instead of creating a
+// duplicate Person/Student.
+//
+// The repository returns a non-nil ID ONLY for exactly one enrolled match and
+// collapses both "no match" and "ambiguous multi-match" to nil. Those two nil
+// cases are NOT equivalent: a genuine zero match is a legitimate fresh-create
+// (admin-manual / late-invite bypass the enrolled gate and may deliberately
+// create), but an ambiguous match must be rejected — left as nil it would flow
+// to the decision service's fresh-create branch and add a THIRD duplicate on
+// top of the two records that already collide, the exact data this flow exists
+// to prevent. So on a nil ID we probe existence to tell the two apart and
+// reject only the ambiguous case.
+func (s *requestService) resolveMatchedStudentID(ctx context.Context, tenantID int64, phase *enrollmentModels.Phase, childIndex int, child SubmitChild) (*int64, error) {
 	if s.StudentRepo == nil || phase.Audience != enrollmentModels.PhaseAudienceExistingStudents {
 		return nil, nil
 	}
@@ -3325,7 +3340,20 @@ func (s *requestService) resolveMatchedStudentID(ctx context.Context, tenantID i
 	if err != nil {
 		return nil, fmt.Errorf("submit: resolve matched student: %w", err)
 	}
-	return id, nil
+	if id != nil {
+		return id, nil
+	}
+	exists, err := s.StudentRepo.ExistsEnrolledByNameAndBirthday(ctx, tenantID,
+		child.FirstName, child.LastName, child.DateOfBirth)
+	if err != nil {
+		return nil, fmt.Errorf("submit: resolve matched student ambiguity: %w", err)
+	}
+	if exists {
+		// A match exists but the resolver could not pin a single record:
+		// the identity is ambiguous, so reject rather than duplicate.
+		return nil, fmt.Errorf("%w: child %d", ErrChildEnrollmentAmbiguous, childIndex)
+	}
+	return nil, nil
 }
 
 // hasRolloverGeneratedChild reports whether any of the persisted children was
