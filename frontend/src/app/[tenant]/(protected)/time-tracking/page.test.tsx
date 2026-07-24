@@ -349,6 +349,7 @@ vi.mock("react-dom", async (importOriginal) => {
 });
 
 vi.mock("lucide-react", () => ({
+  ChevronDown: () => <span data-testid="chevron-down" />,
   ChevronLeft: () => <span data-testid="chevron-left" />,
   ChevronRight: () => <span data-testid="chevron-right" />,
   Download: () => <span data-testid="download-icon" />,
@@ -512,6 +513,11 @@ async function waitForLastSaveButtonEnabled() {
 function clickQuickEditReason(reason: string) {
   const buttons = screen.getAllByRole("button", { name: reason });
   fireEvent.click(buttons[buttons.length - 1]!);
+}
+
+function chooseSelectOption(trigger: HTMLElement, optionLabel: string) {
+  fireEvent.click(trigger);
+  fireEvent.click(screen.getByRole("option", { name: optionLabel }));
 }
 
 function setupDefaultMocks(overrides?: {
@@ -2550,15 +2556,15 @@ describe("TimeTrackingPage", () => {
     it("changing break dropdown works", async () => {
       await openEditModal(makePastSession({ breaks: [] }));
       const breakSelect = screen.getByLabelText("Pause (Min)");
-      fireEvent.change(breakSelect, { target: { value: "45" } });
-      expect((breakSelect as HTMLSelectElement).value).toBe("45");
+      chooseSelectOption(breakSelect, "45 min");
+      expect(breakSelect).toHaveTextContent("45 min");
     });
 
     it("changing status selector works", async () => {
       await openEditModal(makePastSession());
       const statusSelect = screen.getByLabelText("Ort");
-      fireEvent.change(statusSelect, { target: { value: "home_office" } });
-      expect((statusSelect as HTMLSelectElement).value).toBe("home_office");
+      chooseSelectOption(statusSelect, "Homeoffice");
+      expect(statusSelect).toHaveTextContent("Homeoffice");
     });
 
     it("shows compliance warning when work > 10h", async () => {
@@ -2567,7 +2573,7 @@ describe("TimeTrackingPage", () => {
       const endInput = screen.getByLabelText("Ende");
       // Set break to 0 first
       const breakSelect = screen.getByLabelText("Pause (Min)");
-      fireEvent.change(breakSelect, { target: { value: "0" } });
+      chooseSelectOption(breakSelect, "0 min");
       fireEvent.change(startInput, { target: { value: "06:00" } });
       fireEvent.change(endInput, { target: { value: "17:00" } });
       // 11h work, > 10h
@@ -2581,7 +2587,7 @@ describe("TimeTrackingPage", () => {
       const startInput = screen.getByLabelText("Start");
       const endInput = screen.getByLabelText("Ende");
       const breakSelect = screen.getByLabelText("Pause (Min)");
-      fireEvent.change(breakSelect, { target: { value: "15" } });
+      chooseSelectOption(breakSelect, "15 min");
       fireEvent.change(startInput, { target: { value: "08:00" } });
       fireEvent.change(endInput, { target: { value: "15:30" } });
       // 7.5h gross - 15min break = 7h15m net > 6h, break < 30
@@ -2597,7 +2603,7 @@ describe("TimeTrackingPage", () => {
       const startInput = screen.getByLabelText("Start");
       const endInput = screen.getByLabelText("Ende");
       const breakSelect = screen.getByLabelText("Pause (Min)");
-      fireEvent.change(breakSelect, { target: { value: "30" } });
+      chooseSelectOption(breakSelect, "30 min");
       fireEvent.change(startInput, { target: { value: "06:00" } });
       fireEvent.change(endInput, { target: { value: "16:30" } });
       // 10.5h gross - 30min = 10h net > 9h, break 30 < 45
@@ -2731,12 +2737,12 @@ describe("TimeTrackingPage", () => {
       await openEditModal(sessionWithBreaks);
 
       // Change break duration via select
-      const breakSelects = screen
+      const breakTrigger = screen
         .getByText("Pausen")
         .closest("div")!
-        .querySelectorAll("select");
-      if (breakSelects[0]) {
-        fireEvent.change(breakSelects[0], { target: { value: "45" } });
+        .querySelector<HTMLElement>('[role="combobox"]');
+      if (breakTrigger) {
+        chooseSelectOption(breakTrigger, "45 min");
       }
 
       clickQuickEditReason("Zeitkorrektur");
@@ -2931,7 +2937,7 @@ describe("TimeTrackingPage", () => {
       const startInput = screen.getByLabelText("Start");
       const endInput = screen.getByLabelText("Ende");
       const breakSelect = screen.getByLabelText("Pause (Min)");
-      fireEvent.change(breakSelect, { target: { value: "0" } });
+      chooseSelectOption(breakSelect, "0 min");
       fireEvent.change(startInput, { target: { value: "08:00" } });
       fireEvent.change(endInput, { target: { value: "13:00" } });
       // 5h work, no warnings expected
@@ -3591,11 +3597,12 @@ describe("TimeTrackingPage", () => {
     it("resets form on open (absence type defaults to sick)", () => {
       openAbsenceModal();
       const typeSelect = screen.getByLabelText("Art der Abwesenheit");
-      expect((typeSelect as HTMLSelectElement).value).toBe("sick");
+      expect(typeSelect).toHaveTextContent("Krank");
     });
 
     it("shows all absence type options", () => {
       openAbsenceModal();
+      fireEvent.click(screen.getByLabelText("Art der Abwesenheit"));
       expect(screen.getAllByText("Krank").length).toBeGreaterThan(0);
       expect(screen.getAllByText("Urlaub").length).toBeGreaterThan(0);
       expect(screen.getAllByText("Fortbildung").length).toBeGreaterThan(0);
@@ -3605,8 +3612,8 @@ describe("TimeTrackingPage", () => {
     it("changes absence type via select", () => {
       openAbsenceModal();
       const typeSelect = screen.getByLabelText("Art der Abwesenheit");
-      fireEvent.change(typeSelect, { target: { value: "vacation" } });
-      expect((typeSelect as HTMLSelectElement).value).toBe("vacation");
+      chooseSelectOption(typeSelect, "Urlaub");
+      expect(typeSelect).toHaveTextContent("Urlaub");
     });
 
     it("toggles half day switch", () => {

@@ -12,9 +12,9 @@ import { ArrowRight } from "lucide-react";
 import {
   AuthShell,
   MotoIconBrand,
-  authInputClassName,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { listAllTenants } from "~/lib/tenant-api";
 import type { TenantListResult, TenantSummary } from "~/lib/tenant-api";
 import { createLogger } from "~/lib/logger";
@@ -96,22 +96,17 @@ export default function RootPage() {
               >
                 Einrichtung
               </label>
-              <select
+              <CustomSelect
                 id="tenant-select"
                 value={selectedSlug}
                 disabled={loading || isNavigating}
-                onChange={(e) => setSelectedSlug(e.target.value)}
-                className={`moto-select ${authInputClassName}`}
-              >
-                <option value="">
-                  {loading ? "Laden..." : "Bitte auswählen..."}
-                </option>
-                {tenants.map((tenant) => (
-                  <option key={tenant.slug} value={tenant.slug}>
-                    {tenant.name}
-                  </option>
-                ))}
-              </select>
+                onChange={setSelectedSlug}
+                placeholder={loading ? "Laden..." : "Bitte auswählen..."}
+                options={tenants.map((tenant) => ({
+                  value: tenant.slug,
+                  label: tenant.name,
+                }))}
+              />
             </div>
 
             <button

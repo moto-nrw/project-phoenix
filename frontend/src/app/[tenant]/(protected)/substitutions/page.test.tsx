@@ -707,7 +707,8 @@ describe("SubstitutionsPage", () => {
 
       // Select a group
       const groupSelect = within(modal).getByRole("combobox");
-      fireEvent.change(groupSelect, { target: { value: "Gruppe 1A" } });
+      fireEvent.click(groupSelect);
+      fireEvent.click(within(modal).getByRole("option", { name: "Gruppe 1A" }));
 
       // Click assign button (the one inside the modal with exact text "Zuweisen")
       const assignButton = within(modal).getByRole("button", {
