@@ -244,11 +244,15 @@ type parentSubmitOutcome struct {
 }
 
 // runParentEnrollmentSubmit resolves the slug to a tenant, resolves the
-// caller's guardian submit facts, and runs the submit — all inside one
+// caller's guardian submit facts, and runs the submit, all inside one
 // admin-tx so the service's inner TxHandler reuses this transaction.
-// Failures inside the submit (parse/submit) are captured in submitErr but do
-// not roll the closure back, matching the pre-existing behavior; only
-// tenant-resolve failures return an error from the closure.
+// A submit failure is both captured in submitErr AND returned from the closure
+// so WithAdminTx rolls the shared transaction back: the service can fail (e.g.
+// the #1663 ambiguous existing-student match) only after enrollment.requests /
+// request_guardians rows are already inserted in this same tx, and returning
+// nil would commit those orphans while the handler responds with an error.
+// respondParentEnrollment uses the dedicated submitErr field to tell a
+// rolled-back submit apart from a genuine tenant-resolve failure.
 func (rs *Resource) runParentEnrollmentSubmit(r *http.Request, accountID int64, slug string, wireReq *enrollmentAPI.SubmitEnrollmentRequest) parentSubmitOutcome {
 	var out parentSubmitOutcome
 	out.resolveErr = tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
@@ -272,7 +276,11 @@ func (rs *Resource) runParentEnrollmentSubmit(r *http.Request, accountID int64, 
 		}
 
 		out.result, out.submitErr = rs.submitEnrollmentForTenant(adminCtx, school.ID, accountID, status.HasSubmitPermission, wireReq, getClientIP(r))
-		return nil
+		// Return the submit error so WithAdminTx rolls back any rows the
+		// service already inserted before failing (see the function doc).
+		// nil is returned on success. respondParentEnrollment maps the
+		// failure via the dedicated submitErr field, not resolveErr.
+		return out.submitErr
 	})
 	return out
 }
@@ -291,19 +299,22 @@ func (rs *Resource) submitEnrollmentForTenant(adminCtx context.Context, schoolID
 	return rs.RequestService.Submit(tenant.WithTenantID(adminCtx, schoolID), serviceReq)
 }
 
-// respondParentEnrollment maps the submit outcome to the HTTP response. The
-// priority (resolve → forbidden → submit → success) matches the original flow.
+// respondParentEnrollment maps the submit outcome to the HTTP response.
+// Priority: submit → forbidden → resolve → success. submitErr is checked first
+// because a submit failure now rolls the admin-tx back, so WithAdminTx also
+// surfaces that same error as resolveErr; the dedicated submitErr field lets us
+// map it to its real status (e.g. 400 ambiguous) instead of the resolve 404.
 func (rs *Resource) respondParentEnrollment(w http.ResponseWriter, r *http.Request, out parentSubmitOutcome) {
-	if out.resolveErr != nil {
-		common.RenderError(w, r, common.ErrorNotFound(out.resolveErr))
+	if out.submitErr != nil {
+		enrollmentAPI.MapSubmitError(w, r, out.submitErr)
 		return
 	}
 	if out.forbidden {
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("enrollment submission is not permitted for this account at this school")))
 		return
 	}
-	if out.submitErr != nil {
-		enrollmentAPI.MapSubmitError(w, r, out.submitErr)
+	if out.resolveErr != nil {
+		common.RenderError(w, r, common.ErrorNotFound(out.resolveErr))
 		return
 	}
 
