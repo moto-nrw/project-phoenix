@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mutate } from "swr";
 import {
   CalendarDays,
@@ -303,16 +303,33 @@ export function CareScheduleManager({
     setSelectedDateKey(formatDateISO((today ?? days[0])!.date));
   }, [days, selectedDateKey]);
 
+  // Monotonic id claimed by every care-data fetch. Only the newest claim may
+  // write state: arrival and pickup are fetched as two independent requests and
+  // several fetches can be in flight at once (two SSE announcements, or an SSE
+  // announcement racing the refetch after a local save). They resolve in
+  // arbitrary order, so without this an older response could land last and
+  // overwrite newer schedule data — including reverting a save the user just
+  // made. Start order is the correct ordering key: a later-started fetch reads
+  // the server at a later point, so its data is at least as fresh.
+  const careDataRequestId = useRef(0);
+
+  const fetchCareDataInto = useCallback(async () => {
+    const requestId = ++careDataRequestId.current;
+    const [arrival, pickup] = await Promise.all([
+      fetchArrivalData(studentId),
+      fetchStudentPickupData(studentId),
+    ]);
+    // Superseded while in flight — drop the result rather than clobber newer state.
+    if (requestId !== careDataRequestId.current) return;
+    setArrivalData(arrival);
+    setPickupData(pickup);
+  }, [studentId]);
+
   const loadCareData = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const [arrival, pickup] = await Promise.all([
-        fetchArrivalData(studentId),
-        fetchStudentPickupData(studentId),
-      ]);
-      setArrivalData(arrival);
-      setPickupData(pickup);
+      await fetchCareDataInto();
     } catch (err) {
       const message =
         err instanceof Error
@@ -326,48 +343,69 @@ export function CareScheduleManager({
     } finally {
       setIsLoading(false);
     }
-  }, [studentId]);
+  }, [fetchCareDataInto, studentId]);
 
   const refreshCareData = useCallback(async () => {
-    const [arrival, pickup] = await Promise.all([
-      fetchArrivalData(studentId),
-      fetchStudentPickupData(studentId),
-    ]);
-    setArrivalData(arrival);
-    setPickupData(pickup);
+    await fetchCareDataInto();
     onUpdate?.();
-  }, [studentId, onUpdate]);
+  }, [fetchCareDataInto, onUpdate]);
 
   useEffect(() => {
     loadCareData().catch(() => undefined);
   }, [loadCareData]);
+
+  // An open modal holds an unsaved draft that is seeded from arrivalData /
+  // pickupData: CareWeeklyPlanModal re-runs its row-building effect whenever
+  // those props change identity, so writing them mid-edit silently discards
+  // whatever the user has typed.
+  const isEditorOpen = isWeeklyPlanModalOpen || editingDayDate !== null;
+  // Read through a ref inside the listener so opening/closing a modal does not
+  // resubscribe it, and so the check uses the state at event time.
+  const isEditorOpenRef = useRef(isEditorOpen);
+  useEffect(() => {
+    isEditorOpenRef.current = isEditorOpen;
+  }, [isEditorOpen]);
+  const hasDeferredRemoteRefresh = useRef(false);
+
+  const refreshFromRemote = useCallback(() => {
+    fetchCareDataInto().catch((err) => {
+      logger.debug("care_schedule_remote_refresh_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        student_id: studentId,
+      });
+    });
+  }, [fetchCareDataInto, studentId]);
 
   // React to REMOTE arrival/pickup changes. This editor keeps its arrival/pickup
   // in local state (not SWR) and stays force-mounted across tabs, so the global
   // SSE hook's SWR invalidation never reaches it. It announces staleness on this
   // window event instead; re-fetch quietly (no spinner, no onUpdate — that would
   // ripple a parent refresh for a change the parent already heard about).
+  //
+  // While a modal is open the refresh is DEFERRED, not dropped: someone else's
+  // edit must never cost this user their in-progress work, and the update is
+  // still applied the moment the editor closes. Local saves keep refreshing
+  // immediately — that path is the user's own action, and the day-override modal
+  // needs to see its own write.
   useEffect(() => {
     const onStale = () => {
-      Promise.all([
-        fetchArrivalData(studentId),
-        fetchStudentPickupData(studentId),
-      ])
-        .then(([arrival, pickup]) => {
-          setArrivalData(arrival);
-          setPickupData(pickup);
-        })
-        .catch((err) => {
-          logger.debug("care_schedule_remote_refresh_failed", {
-            error: err instanceof Error ? err.message : String(err),
-            student_id: studentId,
-          });
-        });
+      if (isEditorOpenRef.current) {
+        hasDeferredRemoteRefresh.current = true;
+        return;
+      }
+      refreshFromRemote();
     };
     window.addEventListener("phoenix:care-schedule-stale", onStale);
     return () =>
       window.removeEventListener("phoenix:care-schedule-stale", onStale);
-  }, [studentId]);
+  }, [refreshFromRemote]);
+
+  // Drain a refresh that arrived while the user was editing.
+  useEffect(() => {
+    if (isEditorOpen || !hasDeferredRemoteRefresh.current) return;
+    hasDeferredRemoteRefresh.current = false;
+    refreshFromRemote();
+  }, [isEditorOpen, refreshFromRemote]);
 
   const handleUpdateWeeklyPlan = async (data: {
     arrivalSchedules: ArrivalScheduleFormEntry[];

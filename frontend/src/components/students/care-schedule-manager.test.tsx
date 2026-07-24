@@ -383,6 +383,104 @@ describe("CareScheduleManager", () => {
     });
   });
 
+  it("defers a remote refresh while the weekly-plan editor is open, then applies it on close", async () => {
+    // The modal seeds its rows from arrivalData/pickupData and re-seeds whenever
+    // those change identity, so refreshing mid-edit would silently discard the
+    // user's typing. Someone else's edit must not cost this user their work —
+    // but the update must not be lost either.
+    render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
+    await screen.findByText("Betreuungsplan");
+    expect(mockFetchArrivalData).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByLabelText("Wochenplan bearbeiten"));
+    expect(screen.getByTestId("weekly-plan-modal")).toBeInTheDocument();
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("phoenix:care-schedule-stale"));
+      await Promise.resolve();
+    });
+
+    // Draft preserved: no refetch happened while the modal was open.
+    expect(mockFetchArrivalData).toHaveBeenCalledTimes(1);
+    expect(mockFetchStudentPickupData).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Schließen"));
+      await Promise.resolve();
+    });
+
+    // Deferred, not dropped — the update lands once the editor is closed.
+    await waitFor(() => {
+      expect(mockFetchArrivalData).toHaveBeenCalledTimes(2);
+      expect(mockFetchStudentPickupData).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("ignores a superseded in-flight refresh so it cannot overwrite newer data", async () => {
+    // Two refreshes in flight at once (two SSE announcements, or one racing the
+    // refetch after a local save) can resolve in either order. The older one
+    // must not land last and revert the newer schedule state.
+    const stalePickup: PickupData = {
+      ...pickupData,
+      exceptions: [
+        {
+          ...pickupData.exceptions[0]!,
+          pickupTime: "09:09",
+          reason: "veraltet",
+        },
+      ],
+    };
+    const freshPickup: PickupData = {
+      ...pickupData,
+      exceptions: [
+        {
+          ...pickupData.exceptions[0]!,
+          pickupTime: "17:17",
+          reason: "aktuell",
+        },
+      ],
+    };
+
+    render(
+      <CareScheduleManager studentId="42" statusDays={statusDays} readOnly />,
+    );
+    await screen.findByText("Betreuungsplan");
+
+    // Hold the FIRST (older) response open; let the second resolve immediately.
+    let releaseStale: (value: PickupData) => void = () => undefined;
+    mockFetchStudentPickupData.mockImplementationOnce(
+      () =>
+        new Promise<PickupData>((resolve) => {
+          releaseStale = resolve;
+        }),
+    );
+    mockFetchStudentPickupData.mockImplementationOnce(() =>
+      Promise.resolve(freshPickup),
+    );
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("phoenix:care-schedule-stale"));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("phoenix:care-schedule-stale"));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText("17:17").length).toBeGreaterThan(0);
+    });
+
+    // Now let the stale request finish last — it must be discarded.
+    await act(async () => {
+      releaseStale(stalePickup);
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText("09:09")).not.toBeInTheDocument();
+    expect(screen.getAllByText("17:17").length).toBeGreaterThan(0);
+  });
+
   it("reports the newly visible week range when navigating", async () => {
     const onVisibleDateRangeChange = vi.fn();
 
