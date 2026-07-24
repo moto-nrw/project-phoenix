@@ -361,6 +361,32 @@ func TestRolloverService_CreatePhaseFromSource_OptOutHappyPath(t *testing.T) {
 	require.NotNil(t, children[0].RolloverSourceChildID)
 }
 
+// TestRolloverService_CreatePhaseFromSource_CarriesEligibilityForward proves
+// the successor phase inherits the source's audience + eligible-class gate.
+// Without the explicit copy, Phase.Validate defaults the successor to
+// audience=open with an empty class list, silently making a rolled
+// linked/class-restricted phase public — and the successor is the active
+// phase parents actually submit to (#1663).
+func TestRolloverService_CreatePhaseFromSource_CarriesEligibilityForward(t *testing.T) {
+	env, cleanup := setupRolloverTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.sourcePhase.Audience = enrollmentModels.PhaseAudienceLinkedParents
+	env.sourcePhase.EligibleSchoolClasses = []string{"2a", "2b"}
+	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+
+	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.Phase)
+
+	assert.Equal(t, enrollmentModels.PhaseAudienceLinkedParents, result.Phase.Audience,
+		"successor must inherit the source audience, not default to open")
+	assert.Equal(t, []string{"2a", "2b"}, result.Phase.EligibleSchoolClasses,
+		"successor must inherit the eligible-class gate")
+}
+
 func TestRolloverService_CreatePhaseFromSource_OptInLandsInPendingRenewal(t *testing.T) {
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()

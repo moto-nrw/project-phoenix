@@ -279,6 +279,26 @@ func validSubmission(phaseID int64) enrollmentService.SubmitRequest {
 
 // --- Submit ---
 
+// TestRequestService_Submit_RejectsCrossTenantPhase proves a phase_id from
+// another school cannot be submitted against the caller's tenant. The parent
+// portal resolves the phase under an admin transaction (RLS bypassed), so
+// without the tenant-binding guard a phase belonging to tenant 2 would load
+// cleanly and get stamped with tenant 1's tenant_id (#1663). SkipRateLimit
+// avoids writing a rate-limit row for the nonexistent claimed tenant.
+func TestRequestService_Submit_RejectsCrossTenantPhase(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	req := validSubmission(env.phaseID) // phase belongs to tenant 1
+	req.TenantID = 2                    // ...but the submission claims tenant 2
+	req.SkipRateLimit = true
+
+	_, err := env.svc.Submit(ctx, req)
+	require.ErrorIs(t, err, enrollmentService.ErrInvalidSubmission,
+		"a phase from another tenant must be rejected as not found")
+}
+
 func TestRequestService_Submit_PersistsRequestChildAndEnqueuesEmails(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()

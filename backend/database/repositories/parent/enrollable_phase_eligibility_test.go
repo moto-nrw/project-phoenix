@@ -45,6 +45,17 @@ func revokeGuardianSubmitPermission(t *testing.T, db *bun.DB, studentID int64) {
 	require.NoError(t, err)
 }
 
+// deactivateAccountTenantMapping flips the account's account_tenants row to
+// inactive, simulating a guardian whose school membership was revoked while
+// the historical guardian-profile / students_guardians rows linger.
+func deactivateAccountTenantMapping(t *testing.T, db *bun.DB, accountID int64) {
+	t.Helper()
+	_, err := db.NewRaw(`
+		UPDATE auth.account_tenants SET status = 'inactive' WHERE account_id = ?
+	`, accountID).Exec(context.Background())
+	require.NoError(t, err)
+}
+
 func listEnrollableAsAdmin(t *testing.T, db *bun.DB, accountID int64) []*parentModels.EnrollablePhase {
 	t.Helper()
 	repo := parentRepo.NewEnrollablePhaseRepository(db)
@@ -126,7 +137,46 @@ func TestEnrollablePhaseRepository_ListEnrollable_RevokedSubmitPermissionHidesSc
 		"a guardian whose links all lack enrollment.submit must not see the school's phases at all")
 }
 
+func TestEnrollablePhaseRepository_ListEnrollable_DeactivatedMappingHidesLinkedPhase(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
+	enableEnrollmentForTenant(t, db, chain.TenantID)
+	// Full permission set stays on the guardian link; only the membership
+	// mapping is deactivated. The linked_parents phase must still disappear.
+	deactivateAccountTenantMapping(t, db, chain.AccountID)
+
+	linkedName := fmt.Sprintf("eligibility-deactivated-%d", time.Now().UnixNano())
+	defer wipePhasesForTenant(db, chain.TenantID, "eligibility-deactivated")
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, linkedName, enrollmentModels.PhaseAudienceLinkedParents)
+
+	names := phaseNamesOf(listEnrollableAsAdmin(t, db, chain.AccountID))
+	assert.NotContains(t, names, linkedName,
+		"a former guardian whose account_tenants mapping is deactivated must not see linked_parents phases")
+}
+
 // --- GuardianSubmitStatus ----------------------------------------------
+
+func TestEnrollablePhaseRepository_GuardianSubmitStatus_DeactivatedMappingDropsSubmitPermission(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
+	deactivateAccountTenantMapping(t, db, chain.AccountID)
+
+	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	var status *parentModels.GuardianSubmitStatus
+	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+		var sErr error
+		status, sErr = repo.GuardianSubmitStatus(ctx, chain.AccountID, chain.TenantID)
+		return sErr
+	}))
+	assert.False(t, status.Linked, "a deactivated mapping is not active")
+	assert.True(t, status.HasGuardianLink, "historical guardian rows still exist")
+	assert.False(t, status.HasSubmitPermission,
+		"submit permission must require an active account_tenants mapping, not just a permission-granting guardian link")
+}
 
 func TestEnrollablePhaseRepository_GuardianSubmitStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)

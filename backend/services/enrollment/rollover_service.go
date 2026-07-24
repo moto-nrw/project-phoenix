@@ -346,12 +346,19 @@ func (s *rolloverService) createRolloverPhase(ctx context.Context, tenantID int6
 		CareOfferingSelectionMode: source.CareOfferingSelectionMode,
 		AvailableSchoolClasses:    source.AvailableSchoolClasses,
 		RequireSchoolClass:        source.RequireSchoolClass,
-		IsActive:                  true,
-		RolloverSourcePhaseID:     &source.ID,
-		RolloverMode:              &mode,
-		RolloverAutoApprove:       req.RolloverAutoApprove,
-		RolloverDeadline:          &deadline,
-		RolloverBumpsGrade:        req.RolloverBumpsGrade,
+		// Carry the eligibility config forward. Without this the successor
+		// silently defaults to audience=open with no class gate (Phase.Validate
+		// fills those in), turning a rolled linked/class-restricted phase
+		// public — the active successor is what parents actually submit to
+		// (#1663).
+		Audience:              source.Audience,
+		EligibleSchoolClasses: source.EligibleSchoolClasses,
+		IsActive:              true,
+		RolloverSourcePhaseID: &source.ID,
+		RolloverMode:          &mode,
+		RolloverAutoApprove:   req.RolloverAutoApprove,
+		RolloverDeadline:      &deadline,
+		RolloverBumpsGrade:    req.RolloverBumpsGrade,
 	}
 	phase.SetTenantID(tenantID)
 	if err := phase.Validate(); err != nil {

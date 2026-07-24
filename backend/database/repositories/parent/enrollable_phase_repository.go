@@ -32,11 +32,16 @@ func NewEnrollablePhaseRepository(db *bun.DB) parentModels.EnrollablePhaseReposi
 // so each row carries an already_linked flag.
 //
 // Eligibility (#1663): a phase with audience=linked_parents is listed
-// only when the account holds a guardian relationship at the school
-// that grants parent_portal.enrollment.submit. Independently, a school
-// where the account HAS guardian relationships but NONE grants that
-// permission is dropped for every audience — an explicitly revoked
-// submit permission must not be bypassable through the picker.
+// only when the account holds a guardian relationship at the school —
+// backed by an ACTIVE auth.account_tenants mapping — that grants
+// parent_portal.enrollment.submit. The active-mapping conjunction stops
+// a former guardian, whose historical guardian rows linger after the
+// mapping was deactivated, from still submitting linked_parents phases.
+// Independently, a school where the account HAS guardian relationships
+// but NONE grants that permission (via an active mapping) is dropped for
+// every audience — an explicitly revoked or lapsed submit permission
+// must not be bypassable through the picker. Genuinely new-school
+// applicants (no guardian rows at all) still see open phases.
 //
 // Cross-tenant query — must run inside tenant.WithAdminTx.
 func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountID int64) ([]*parentModels.EnrollablePhase, error) {
@@ -108,6 +113,10 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 					JOIN users.students_guardians AS sg
 						ON sg.guardian_profile_id = gp.id
 						AND sg.tenant_id = gp.tenant_id
+					JOIN auth.account_tenants AS act
+						ON act.tenant_id  = gp.tenant_id
+						AND act.account_id = gp.account_id
+						AND act.status     = 'active'
 					WHERE gp.tenant_id = ph.tenant_id
 						AND gp.account_id = ?
 						AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
@@ -155,7 +164,10 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 
 // GuardianSubmitStatus resolves the (account, school) facts the parent
 // enrollment submit path gates on (#1663). One round trip, three
-// EXISTS probes. Cross-tenant — must run inside tenant.WithAdminTx.
+// EXISTS probes. HasSubmitPermission additionally requires an ACTIVE
+// auth.account_tenants mapping so a deactivated guardian's lingering
+// guardian rows cannot report submit authority. Cross-tenant — must run
+// inside tenant.WithAdminTx.
 func (r *EnrollablePhaseRepository) GuardianSubmitStatus(ctx context.Context, accountID, tenantID int64) (*parentModels.GuardianSubmitStatus, error) {
 	if accountID <= 0 || tenantID <= 0 {
 		return nil, fmt.Errorf("parent: account_id and tenant_id must be positive")
@@ -187,6 +199,10 @@ func (r *EnrollablePhaseRepository) GuardianSubmitStatus(ctx context.Context, ac
 				JOIN users.students_guardians AS sg
 					ON sg.guardian_profile_id = gp.id
 					AND sg.tenant_id = gp.tenant_id
+				JOIN auth.account_tenants AS act
+					ON act.tenant_id  = gp.tenant_id
+					AND act.account_id = gp.account_id
+					AND act.status     = 'active'
 				WHERE gp.tenant_id = ? AND gp.account_id = ?
 					AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
 			) AS has_submit_permission

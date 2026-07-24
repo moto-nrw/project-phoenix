@@ -354,6 +354,27 @@ export function PhasesEditor() {
           "Schließung des Anmeldefensters muss nach der Öffnung liegen.",
         );
       }
+      // A "Nur für Klassen" restriction can only be met with a class the
+      // form actually offers, and the form offers exactly the "Konkrete
+      // Klassen" (available_school_classes) list. An eligible class that is
+      // not offered can never be sent, so every regular submission would fail
+      // with class_not_eligible even though the phase saved. Expose each
+      // eligible class as an offered option so the form can collect it
+      // (#1663). The tenant-wide Klassen-Abfrage must still be active for the
+      // pick to appear — surfaced in the field hint, not enforceable here.
+      const eligibleClasses = (payload.eligible_school_classes ?? [])
+        .map((cls) => cls.trim())
+        .filter((cls) => cls.length > 0);
+      if (eligibleClasses.length > 0) {
+        const offered = (payload.available_school_classes ?? [])
+          .map((cls) => cls.trim())
+          .filter((cls) => cls.length > 0);
+        const offeredSet = new Set(offered);
+        const additions = eligibleClasses.filter((cls) => !offeredSet.has(cls));
+        if (additions.length > 0) {
+          payload.available_school_classes = [...offered, ...additions];
+        }
+      }
       if (editingId === "new") {
         const created = await createPhase(payload);
         toast.success(`Anmeldephase „${created.name}" erstellt.`);
@@ -1629,7 +1650,9 @@ function PhaseForm(props: PhaseFormProps) {
           </span>
           <p className="mt-1 text-xs leading-5 text-gray-500">
             Leer lassen für keine Einschränkung. Kinder müssen eine dieser
-            Klassen angeben.
+            Klassen angeben. Diese Klassen werden automatisch als „Konkrete
+            Klassen“ zur Auswahl angeboten und sind ab Klasse 2 bei aktiver
+            Klassen-Abfrage in den Einstellungen wählbar.
           </p>
           <SchoolClassListEditor
             value={draft.eligible_school_classes ?? []}

@@ -137,6 +137,37 @@ func TestValidatePhaseEligibility_NewStudentsAcceptsUnknownChild(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestPhaseEligibility_ClassBypassClosedAfterCanonicalization proves the
+// class-eligibility gate can no longer be bypassed by declaring an eligible
+// class the form can never actually collect. Submit runs
+// validateAndNormalizeSchoolClasses (which erases the class for grade 1 or
+// when concrete-class collection is off) BEFORE validatePhaseEligibility, so
+// the gate sees the persisted nil and rejects (#1663).
+func TestPhaseEligibility_ClassBypassClosedAfterCanonicalization(t *testing.T) {
+	phase := &enrollmentModels.Phase{
+		Audience:               enrollmentModels.PhaseAudienceOpen,
+		EligibleSchoolClasses:  []string{"2a"},
+		AvailableSchoolClasses: []string{"2a"},
+	}
+
+	// Grade-1 child crafts an eligible "2a"; canonicalization drops it
+	// because grade 1 never declares a concrete class.
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{Settings: schoolClassSettingsStub{collect: true}}}
+	children := []SubmitChild{{FirstName: "Kim", LastName: "Test", TargetGradeLevel: grade(1), TargetSchoolClass: classPtr("2a")}}
+	require.NoError(t, svc.validateAndNormalizeSchoolClasses(context.Background(), phase, children))
+	require.Nil(t, children[0].TargetSchoolClass, "grade 1 must not keep a concrete class")
+	err := svc.validatePhaseEligibility(context.Background(), phase, SubmitRequest{Children: children})
+	require.ErrorIs(t, err, ErrChildClassNotEligible, "canonicalized empty class must fail eligibility")
+
+	// Concrete-class collection disabled tenant-wide: same erase-then-reject.
+	svcOff := &requestService{RequestServiceConfig: RequestServiceConfig{Settings: schoolClassSettingsStub{collect: false}}}
+	children2 := []SubmitChild{{FirstName: "Kim", LastName: "Test", TargetGradeLevel: grade(2), TargetSchoolClass: classPtr("2a")}}
+	require.NoError(t, svcOff.validateAndNormalizeSchoolClasses(context.Background(), phase, children2))
+	require.Nil(t, children2[0].TargetSchoolClass, "collection off must drop the class")
+	err = svcOff.validatePhaseEligibility(context.Background(), phase, SubmitRequest{Children: children2})
+	require.ErrorIs(t, err, ErrChildClassNotEligible, "collection-off must not bypass the class gate")
+}
+
 func TestValidatePhaseEligibility_NewStudentsLookupErrorPropagates(t *testing.T) {
 	repo := &stubEligibilityStudentRepo{err: errors.New("boom")}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}

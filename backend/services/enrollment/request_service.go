@@ -510,12 +510,19 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err != nil {
 		return nil, err
 	}
+	// Bind the phase to the submission's tenant. The parent submit path
+	// resolves the phase under an admin transaction (RLS bypassed), so a
+	// phase_id belonging to another school would otherwise load cleanly and
+	// get stamped with THIS school's tenant_id. Reject the cross-tenant
+	// reference before any window / eligibility / permission decision
+	// consumes it — mirroring the "not found" shape so a probe can't
+	// distinguish another tenant's phase from a nonexistent one (#1663).
+	if phase.TenantID != req.TenantID {
+		return nil, fmt.Errorf("%w: phase %d not found", ErrInvalidSubmission, req.PhaseID)
+	}
 	now := time.Now()
 	if !req.AllowClosedPhase && !IsEnrollmentWindowOpen(phase, now) {
 		return nil, ErrEnrollmentWindowClosed
-	}
-	if err := s.validatePhaseEligibility(ctx, phase, req); err != nil {
-		return nil, err
 	}
 	capabilities, err := s.FormCapabilities(ctx)
 	if err != nil {
@@ -605,6 +612,16 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	// the tenant setting, so they run here rather than in validateSubmission.
 	// Mutates req.Children[i].TargetSchoolClass to the persisted value.
 	if err := s.validateAndNormalizeSchoolClasses(ctx, phase, req.Children); err != nil {
+		return nil, err
+	}
+	// Phase eligibility runs AFTER class canonicalization so it validates
+	// the persisted TargetSchoolClass, not the raw client value. Otherwise a
+	// crafted request could declare an eligible class for a grade-1 child (or
+	// with concrete-class collection disabled), pass the class gate, and then
+	// have validateAndNormalizeSchoolClasses erase the class — letting an
+	// ineligible submission through (#1663). No DB writes happen before the
+	// write tx below, so the later rejection stays clean.
+	if err := s.validatePhaseEligibility(ctx, phase, req); err != nil {
 		return nil, err
 	}
 	// consent_flags is legally meaningful data: persist only keys the
