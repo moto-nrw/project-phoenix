@@ -133,6 +133,22 @@ func TestWTMAdjustments_ClosingBalanceAsOfHistoricalCutoff(t *testing.T) {
 	assert.NotEqual(t, todaySummary.ClosingBalanceMinutes, balance)
 }
 
+func TestWTMAdjustments_BalanceAdjustmentMinutesUsesRequestedRange(t *testing.T) {
+	f := newWTMFixture()
+	date := timezone.NewDate(2026, time.July, 7)
+	f.svc.SetAdjustmentReader(&wtmMockAdjustmentReader{adjustments: []*activeModels.StaffBalanceAdjustment{
+		wtmAdjustment(1, activeModels.BalanceAdjustmentTypePayout, -60, date.AddDays(-1)),
+		wtmAdjustment(2, activeModels.BalanceAdjustmentTypePayout, -120, date),
+		wtmAdjustment(3, activeModels.BalanceAdjustmentTypeCompTime, -30, date),
+		wtmAdjustment(4, activeModels.BalanceAdjustmentTypePayout, -240, date.AddDays(1)),
+	}})
+
+	minutes, err := f.svc.GetBalanceAdjustmentMinutes(context.Background(), wtmStaffID, date, date)
+
+	require.NoError(t, err)
+	assert.Equal(t, -150, minutes)
+}
+
 // A reset row turns the closing balance into the carry-over value: with a
 // closing balance of B before the reset, delta = carryover − B yields exactly
 // carryover afterwards (#1420 5c).

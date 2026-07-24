@@ -432,7 +432,7 @@ func (s *staffAbsenceService) rejectPreAccountCompTime(ctx context.Context, abse
 }
 
 // validateCompTimeBalance rejects a comp_time absence whose total daily-target
-// deduction exceeds the balance accrued before the absence starts. It must run
+// deduction exceeds the balance available when the absence starts. It must run
 // under the staff balance lock (lockStaffAbsenceWrites takes it), mirroring
 // the overdraft guard on payout/comp-time adjustments (#1420 review). The
 // merged range is validated as a whole: the total granted Freizeitausgleich
@@ -463,9 +463,18 @@ func (s *staffAbsenceService) validateCompTimeBalance(ctx context.Context, staff
 			return fmt.Errorf("failed to compute balance for comp_time absence: %w", err)
 		}
 	}
+	// Ledger entries become effective at the start of their date. Include them
+	// while keeping same-day work, target, and absence activity out of the
+	// opening balance. The shared staff lock makes this read authoritative
+	// against concurrent adjustment writes.
+	sameDayAdjustments, err := s.monthService.GetBalanceAdjustmentMinutes(ctx, staffID, start, start)
+	if err != nil {
+		return fmt.Errorf("failed to compute same-day balance adjustments for comp_time absence: %w", err)
+	}
+	available += sameDayAdjustments
 	if deduction > available {
 		return fmt.Errorf(
-			"%w: comp_time absence deducts %d minutes but only %d minutes are accrued before %s",
+			"%w: comp_time absence deducts %d minutes but only %d minutes are accrued before %s after same-day adjustments",
 			ErrCompTimeExceedsBalance, deduction, available, start.String(),
 		)
 	}

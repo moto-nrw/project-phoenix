@@ -2624,8 +2624,9 @@ func TestAbsEmails_SettingDisabled_NoSend(t *testing.T) {
 // overdraft guard performs; every other method panics via the nil embed.
 type absMonthServiceMock struct {
 	WorkTimeMonthService
-	balance   int
-	deduction int
+	balance            int
+	sameDayAdjustments int
+	deduction          int
 }
 
 func (m *absMonthServiceMock) GetCompTimeDeductionMinutes(context.Context, int64, timezone.Date, timezone.Date, bool) (int, error) {
@@ -2634,6 +2635,10 @@ func (m *absMonthServiceMock) GetCompTimeDeductionMinutes(context.Context, int64
 
 func (m *absMonthServiceMock) GetClosingBalanceAsOf(context.Context, int64, timezone.Date) (int, error) {
 	return m.balance, nil
+}
+
+func (m *absMonthServiceMock) GetBalanceAdjustmentMinutes(context.Context, int64, timezone.Date, timezone.Date) (int, error) {
+	return m.sameDayAdjustments, nil
 }
 
 // A multi-day comp_time absence deducting more daily-target minutes than the
@@ -2682,6 +2687,36 @@ func TestAbsCreateAbsenceFor_AllowsCompTimeWithinBalance(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, int64(90), result.ID)
+}
+
+// Same-day ledger reductions are effective before the absence deduction. The
+// shared staff lock serializes both writes, so the second debit must see the
+// first and reject their combined overdraft.
+func TestAbsCreateAbsenceFor_RejectsCompTimeCombinedWithSameDayAdjustment(t *testing.T) {
+	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
+	svc.monthService = &absMonthServiceMock{
+		balance:            960,
+		sameDayAdjustments: -600,
+		deduction:          480,
+	}
+	createCalled := false
+	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+		createCalled = true
+		return nil
+	}
+
+	start := timezone.TodayDate().AddDays(1)
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   start.String(),
+		DateEnd:     start.String(),
+		Note:        "Freizeitausgleich",
+	})
+
+	require.ErrorIs(t, err, ErrCompTimeExceedsBalance)
+	assert.Contains(t, err.Error(), "only 360 minutes are accrued")
+	assert.False(t, createCalled)
 }
 
 // On the account-start day nothing is accrued yet: the guard clamps the

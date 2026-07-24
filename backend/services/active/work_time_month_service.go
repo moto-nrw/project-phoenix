@@ -68,6 +68,10 @@ type WorkTimeMonthService interface {
 	// GetClosingBalanceAsOf returns the live carry-chain balance through cutoff.
 	// Unlike GetMonthSummary, it never includes activity later in cutoff's month.
 	GetClosingBalanceAsOf(ctx context.Context, staffID int64, cutoff timezone.Date) (int, error)
+	// GetBalanceAdjustmentMinutes returns the signed ledger total whose effective
+	// dates lie in [from, to]. Comp-time availability uses it to include
+	// same-day payouts without treating same-day work as already accrued.
+	GetBalanceAdjustmentMinutes(ctx context.Context, staffID int64, from, to timezone.Date) (int, error)
 	// GetCompTimeDeductionMinutes returns how much a comp_time absence over
 	// [start, end] reduces the Stundenkonto: the sum of the contractual daily
 	// targets in the range (a single-day half-day absence deducts half). It
@@ -763,6 +767,26 @@ func (s *workTimeMonthService) GetClosingBalanceAsOf(ctx context.Context, staffI
 		return 0, err
 	}
 	return summary.ClosingBalanceMinutes, nil
+}
+
+// GetBalanceAdjustmentMinutes returns the signed ledger effect over a date
+// range without folding in work sessions, targets, or absences from those days.
+func (s *workTimeMonthService) GetBalanceAdjustmentMinutes(ctx context.Context, staffID int64, from, to timezone.Date) (int, error) {
+	if from.IsZero() || to.IsZero() || to.Before(from) {
+		return 0, errors.New("from and to must form a valid range")
+	}
+	if s.adjustmentRepo == nil {
+		return 0, nil
+	}
+	adjustments, err := s.adjustmentRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
+	if err != nil {
+		return 0, fmt.Errorf("failed to load balance adjustments: %w", err)
+	}
+	total := 0
+	for _, adjustment := range adjustments {
+		total += adjustment.MinutesDelta
+	}
+	return total, nil
 }
 
 // GetCompTimeDeductionMinutes sums the daily targets a comp_time absence
