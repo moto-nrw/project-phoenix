@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	absenceCompTimeTypeVersion     = "1.15.219"
+	absenceCompTimeTypeVersion     = "1.15.220"
 	absenceCompTimeTypeDescription = "Add 'comp_time' (Freizeitausgleich) absence type to active.staff_absences type check (#1420 5b)"
 )
 
@@ -36,7 +36,7 @@ func init() {
 // credited by the Monatskarte, so the Stundenkonto drops by the day's
 // contractual target when the absence is approved.
 func absenceCompTimeTypeUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.219: Adding 'comp_time' to staff_absences type check...")
+	fmt.Println("Migration 1.15.220: Adding 'comp_time' to staff_absences type check...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -69,7 +69,7 @@ func absenceCompTimeTypeUp(ctx context.Context, db *bun.DB) error {
 }
 
 func absenceCompTimeTypeDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.219: Removing 'comp_time' from staff_absences type check...")
+	fmt.Println("Rolling back migration 1.15.220: Removing 'comp_time' from staff_absences type check...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	staffBalanceAdjustmentTenantFKsVersion     = "1.15.220"
+	staffBalanceAdjustmentTenantFKsVersion     = "1.15.221"
 	staffBalanceAdjustmentTenantFKsDescription = "Enforce tenant-safe staff references on balance adjustments (#1420)"
 )
 
@@ -35,7 +35,7 @@ func init() {
 }
 
 func staffBalanceAdjustmentTenantFKsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.220: Enforcing tenant-safe balance-adjustment staff references...")
+	fmt.Println("Migration 1.15.221: Enforcing tenant-safe balance-adjustment staff references...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -72,7 +72,7 @@ func staffBalanceAdjustmentTenantFKsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func staffBalanceAdjustmentTenantFKsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.220: Restoring global balance-adjustment staff references...")
+	fmt.Println("Rolling back migration 1.15.221: Restoring global balance-adjustment staff references...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

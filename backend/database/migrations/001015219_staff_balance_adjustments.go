@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	staffBalanceAdjustmentsVersion     = "1.15.218"
+	staffBalanceAdjustmentsVersion     = "1.15.219"
 	staffBalanceAdjustmentsDescription = "Create active.staff_balance_adjustments - Stundenkonto payout/comp-time/reset transactions (#1420)"
 )
 
@@ -43,7 +43,7 @@ func init() {
 // double-clicked reset must fail on the second insert instead of deducting
 // the balance twice.
 func staffBalanceAdjustmentsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.218: Creating active.staff_balance_adjustments...")
+	fmt.Println("Migration 1.15.219: Creating active.staff_balance_adjustments...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -104,7 +104,7 @@ func staffBalanceAdjustmentsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func staffBalanceAdjustmentsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.218: Dropping active.staff_balance_adjustments...")
+	fmt.Println("Rolling back migration 1.15.219: Dropping active.staff_balance_adjustments...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
