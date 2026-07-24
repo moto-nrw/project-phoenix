@@ -77,10 +77,10 @@ type WorkTimeMonthService interface {
 	// later debit or comp-time commitment.
 	GetBalanceReductionCapacity(ctx context.Context, staffID int64, effectiveDate timezone.Date) (int, error)
 	// GetCompTimeDeductionMinutes returns how much a comp_time absence over
-	// [start, end] reduces the Stundenkonto: the sum of the contractual daily
-	// targets in the range (a single-day half-day absence deducts half). It
-	// mirrors creditAbsenceDays, where comp_time days keep their Soll and
-	// credit nothing (#1420).
+	// [start, end] can reduce the Stundenkonto without recorded work: the sum
+	// of the contractual daily targets in the range. Half-day comp_time also
+	// credits nothing, so validation must reserve the full target until the
+	// worked half is recorded (#1420).
 	GetCompTimeDeductionMinutes(ctx context.Context, staffID int64, start, end timezone.Date, halfDay bool) (int, error)
 	GetDailyTargets(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyTarget, error)
 	// SetHolidayReader injects the public-holiday resolver (#1418 3a) —
@@ -814,7 +814,11 @@ func (s *workTimeMonthService) GetBalanceReductionCapacity(ctx context.Context, 
 	if err := s.addAdjustmentReductionCheckpoints(ctx, staffID, effectiveDate, last, checkpointSet); err != nil {
 		return 0, err
 	}
-	compTimeAbsences, err := s.addCompTimeReductionCheckpoints(ctx, staffID, effectiveDate, last, checkpointSet)
+	compTimeFrom := effectiveDate
+	if tomorrow := today.AddDays(1); effectiveDate.After(today) {
+		compTimeFrom = tomorrow
+	}
+	compTimeAbsences, err := s.addCompTimeReductionCheckpoints(ctx, staffID, compTimeFrom, last, checkpointSet)
 	if err != nil {
 		return 0, err
 	}
@@ -827,21 +831,17 @@ func (s *workTimeMonthService) GetBalanceReductionCapacity(ctx context.Context, 
 		return checkpoints[i].Before(checkpoints[j])
 	})
 
-	capacity, err := s.minimumOpeningReductionCapacity(ctx, staffID, checkpoints, compTimeAbsences)
+	capacity, err := s.minimumOpeningReductionCapacity(ctx, staffID, checkpoints, compTimeAbsences, today)
 	if err != nil {
 		return 0, err
 	}
 
-	if effectiveDate.Before(today) {
+	if !effectiveDate.After(today) {
 		currentBalance, err := s.GetClosingBalanceAsOf(ctx, staffID, today)
 		if err != nil {
 			return 0, fmt.Errorf("failed to compute current balance for reduction validation: %w", err)
 		}
-		remainingCommitment, err := s.getRemainingCompTimeCommitment(ctx, staffID, today.AddDays(1), compTimeAbsences)
-		if err != nil {
-			return 0, err
-		}
-		capacity = min(capacity, currentBalance-remainingCommitment)
+		capacity = min(capacity, currentBalance)
 	}
 
 	return capacity, nil
@@ -902,10 +902,11 @@ func (s *workTimeMonthService) minimumOpeningReductionCapacity(
 	staffID int64,
 	checkpoints []timezone.Date,
 	compTimeAbsences []*activeModels.StaffAbsence,
+	today timezone.Date,
 ) (int, error) {
 	capacity := int(^uint(0) >> 1)
 	for _, checkpoint := range checkpoints {
-		available, err := s.getOpeningBalanceOnDate(ctx, staffID, checkpoint)
+		available, err := s.getOpeningBalanceOnDate(ctx, staffID, checkpoint, today, compTimeAbsences)
 		if err != nil {
 			return 0, err
 		}
@@ -918,13 +919,43 @@ func (s *workTimeMonthService) minimumOpeningReductionCapacity(
 	return capacity, nil
 }
 
-func (s *workTimeMonthService) getOpeningBalanceOnDate(ctx context.Context, staffID int64, date timezone.Date) (int, error) {
-	anchor, err := s.chainAnchor(ctx, monthOf(s.today()))
+func (s *workTimeMonthService) getOpeningBalanceOnDate(
+	ctx context.Context,
+	staffID int64,
+	date, today timezone.Date,
+	compTimeAbsences []*activeModels.StaffAbsence,
+) (int, error) {
+	anchor, err := s.chainAnchor(ctx, monthOf(today))
 	if err != nil {
 		return 0, fmt.Errorf("failed to resolve account start for reduction validation: %w", err)
 	}
 
 	available := 0
+	if date.After(today) {
+		if !today.Before(anchor) {
+			available, err = s.GetClosingBalanceAsOf(ctx, staffID, today)
+			if err != nil {
+				return 0, fmt.Errorf("failed to compute current balance for reduction validation: %w", err)
+			}
+		}
+		futureAdjustments, err := s.GetBalanceAdjustmentMinutes(ctx, staffID, today.AddDays(1), date)
+		if err != nil {
+			return 0, fmt.Errorf("failed to compute adjustments through %s: %w", date.String(), err)
+		}
+		available += futureAdjustments
+		priorCompTime, err := s.getCompTimeDeductionInRange(
+			ctx,
+			staffID,
+			today.AddDays(1),
+			date.AddDays(-1),
+			compTimeAbsences,
+		)
+		if err != nil {
+			return 0, err
+		}
+		return available - priorCompTime, nil
+	}
+
 	if cutoff := date.AddDays(-1); !cutoff.Before(anchor) {
 		available, err = s.GetClosingBalanceAsOf(ctx, staffID, cutoff)
 		if err != nil {
@@ -936,6 +967,37 @@ func (s *workTimeMonthService) getOpeningBalanceOnDate(ctx context.Context, staf
 		return 0, fmt.Errorf("failed to compute adjustments on %s: %w", date.String(), err)
 	}
 	return available + sameDayAdjustments, nil
+}
+
+func (s *workTimeMonthService) getCompTimeDeductionInRange(
+	ctx context.Context,
+	staffID int64,
+	from, to timezone.Date,
+	absences []*activeModels.StaffAbsence,
+) (int, error) {
+	if to.Before(from) {
+		return 0, nil
+	}
+	total := 0
+	for _, absence := range absences {
+		start := absence.DateStart
+		if start.Before(from) {
+			start = from
+		}
+		end := absence.DateEnd
+		if end.After(to) {
+			end = to
+		}
+		if end.Before(start) {
+			continue
+		}
+		deduction, err := s.GetCompTimeDeductionMinutes(ctx, staffID, start, end, absence.HalfDay)
+		if err != nil {
+			return 0, fmt.Errorf("failed to compute comp-time commitment from %s: %w", start.String(), err)
+		}
+		total += deduction
+	}
+	return total, nil
 }
 
 func (s *workTimeMonthService) getRemainingCompTimeCommitment(
@@ -958,11 +1020,11 @@ func (s *workTimeMonthService) getRemainingCompTimeCommitment(
 	return total, nil
 }
 
-// GetCompTimeDeductionMinutes sums the daily targets a comp_time absence
-// over [start, end] removes from the Stundenkonto. Half-day comp_time is
-// restricted to a single date at the service layer, so the halfDay flag
-// halves exactly that one day (floor, matching creditAbsenceDays).
-func (s *workTimeMonthService) GetCompTimeDeductionMinutes(ctx context.Context, staffID int64, start, end timezone.Date, halfDay bool) (int, error) {
+// GetCompTimeDeductionMinutes sums the daily targets a comp_time absence can
+// remove from the Stundenkonto when no work is recorded. A half-day absence
+// also credits nothing, so its safe reservation is the full daily target; the
+// worked half reduces the eventual balance effect once its session exists.
+func (s *workTimeMonthService) GetCompTimeDeductionMinutes(ctx context.Context, staffID int64, start, end timezone.Date, _ bool) (int, error) {
 	if start.IsZero() || end.IsZero() || end.Before(start) {
 		return 0, errors.New("start and end must form a valid range")
 	}
@@ -975,9 +1037,6 @@ func (s *workTimeMonthService) GetCompTimeDeductionMinutes(ctx context.Context, 
 		target := resolver.targetFor(d)
 		if target <= 0 {
 			continue
-		}
-		if halfDay && start == end {
-			target /= 2
 		}
 		total += target
 	}

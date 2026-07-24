@@ -198,6 +198,52 @@ func TestWTMAdjustments_ReductionCapacityUsesOpeningBalanceOnEffectiveDate(t *te
 	assert.Equal(t, 940, capacity)
 }
 
+func TestWTMAdjustments_FutureReductionUsesCurrentAccruedBalance(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-01"
+	effectiveDate := timezone.NewDate(2026, time.July, 27)
+	f.svc.SetAdjustmentReader(&wtmMockAdjustmentReader{adjustments: []*activeModels.StaffBalanceAdjustment{
+		wtmAdjustment(1, activeModels.BalanceAdjustmentTypeReset, 2_000, timezone.NewDate(2026, time.July, 1)),
+		wtmAdjustment(2, activeModels.BalanceAdjustmentTypePayout, -100, effectiveDate),
+	}})
+
+	capacity, err := f.svc.GetBalanceReductionCapacity(context.Background(), wtmStaffID, effectiveDate)
+
+	require.NoError(t, err)
+	// Today is July 15: only the July 6 and 13 targets have accrued. The
+	// unworked July 20 target is not a commitment and must not reduce a payout
+	// scheduled for July 27.
+	assert.Equal(t, 940, capacity)
+}
+
+func TestWTMAdjustments_HalfDayCompTimeReservesFullNoWorkExposure(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-01"
+	compTimeDate := timezone.NewDate(2026, time.July, 20)
+	f.absences.absences = []*activeModels.StaffAbsence{{
+		StaffID:     wtmStaffID,
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   compTimeDate,
+		DateEnd:     compTimeDate,
+		HalfDay:     true,
+		Status:      activeModels.AbsenceStatusReported,
+	}}
+	f.svc.SetAdjustmentReader(&wtmMockAdjustmentReader{adjustments: []*activeModels.StaffBalanceAdjustment{
+		wtmAdjustment(1, activeModels.BalanceAdjustmentTypeReset, 2_000, timezone.NewDate(2026, time.July, 1)),
+	}})
+
+	capacity, err := f.svc.GetBalanceReductionCapacity(
+		context.Background(),
+		wtmStaffID,
+		timezone.NewDate(2026, time.July, 16),
+	)
+
+	require.NoError(t, err)
+	// Half-day comp_time credits nothing. Until the worked half is recorded,
+	// the safe reservation is the full 480-minute target.
+	assert.Equal(t, 560, capacity)
+}
+
 // A reset row turns the closing balance into the carry-over value: with a
 // closing balance of B before the reset, delta = carryover − B yields exactly
 // carryover afterwards (#1420 5c).
