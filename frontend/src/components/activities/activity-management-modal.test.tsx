@@ -2,7 +2,7 @@
  * Tests for ActivityManagementModal Component
  * Tests the rendering, update functionality, and error message handling
  */
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import {
@@ -314,9 +314,16 @@ describe("ActivityManagementModal", () => {
       />,
     );
 
+    const select = await screen.findByRole("combobox");
+    fireEvent.click(select);
+
     await waitFor(() => {
-      expect(screen.getByText("Category 1")).toBeInTheDocument();
-      expect(screen.getByText("Category 2")).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Category 1" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Category 2" }),
+      ).toBeInTheDocument();
     });
   });
 

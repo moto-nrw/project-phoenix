@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "~/contexts/ToastContext";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { authService } from "~/lib/auth-service";
@@ -243,41 +244,20 @@ export function InvitationForm({
           >
             Rolle
           </label>
-          <div className="relative">
-            <select
-              id="invitation-role"
-              className={`w-full appearance-none rounded-lg border ${errorFieldName === "roleId" ? "border-red-400" : "border-gray-200"} bg-white px-3 py-2 pr-10 text-sm text-gray-900 transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500`}
-              value={form.roleId ?? ""}
-              onChange={(event) =>
-                handleChange("roleId")(Number(event.target.value) || undefined)
-              }
-              disabled={isSubmitting || isLoadingRoles}
-            >
-              <option value="" disabled>
-                Rolle auswählen...
-              </option>
-              {roles.map((role) => (
-                <option key={role.id} value={role.id}>
-                  {role.name}
-                </option>
-              ))}
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-              <svg
-                className="h-4 w-4 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </div>
-          </div>
+          <CustomSelect
+            id="invitation-role"
+            value={form.roleId === undefined ? "" : String(form.roleId)}
+            onChange={(next) =>
+              handleChange("roleId")(Number(next) || undefined)
+            }
+            options={roles.map((role) => ({
+              value: String(role.id),
+              label: role.name,
+            }))}
+            placeholder="Rolle auswählen..."
+            invalid={errorFieldName === "roleId"}
+            disabled={isSubmitting || isLoadingRoles}
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

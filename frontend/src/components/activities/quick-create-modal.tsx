@@ -8,6 +8,7 @@ import { useActivityForm } from "~/hooks/useActivityForm";
 import { useToast } from "~/contexts/ToastContext";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { FormModal } from "~/components/ui/form-modal";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { getApiErrorMessage } from "~/lib/api-error-message";
@@ -248,47 +249,22 @@ export function QuickCreateActivityModal({
                 </div>
                 Kategorie
               </label>
-              <div className="relative">
-                <select
-                  id="category_id"
-                  name="category_id"
-                  value={form.category_id}
-                  onChange={handleInputChange}
-                  className={`block w-full cursor-pointer appearance-none rounded-xl border-0 bg-white/80 px-4 py-3.5 pr-10 text-base text-gray-900 shadow-sm ring-1 ${errorFieldName === "category_id" ? "ring-red-400" : "ring-gray-200/50"} backdrop-blur-sm transition-all duration-200 ring-inset focus:bg-white focus:ring-2 focus:ring-gray-700 focus:ring-inset`}
-                  required
-                >
-                  <option value="">Kategorie wählen...</option>
-                  {/* Categories are fetched from backend. Expected values:
-                      - Gruppenraum
-                      - Hausaufgaben
-                      - Kreatives/Musik
-                      - Bewegen/Entspannen
-                      - Natur
-                      - HW/Technik
-                      - Spielen
-                      - Lernen
-                  */}
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                  <svg
-                    className="h-5 w-5 text-gray-400"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-              </div>
+              <CustomSelect
+                id="category_id"
+                name="category_id"
+                value={form.category_id}
+                onChange={(next) => {
+                  setForm((prev) => ({ ...prev, category_id: next }));
+                  setError(null);
+                }}
+                options={categories.map((category) => ({
+                  value: category.id,
+                  label: category.name,
+                }))}
+                placeholder="Kategorie wählen..."
+                invalid={errorFieldName === "category_id"}
+                required
+              />
             </div>
           </div>
 

@@ -153,6 +153,8 @@ describe("CaregiverBlockerResolutionModal", () => {
       expect(mockGetAllAvailableStaff).toHaveBeenCalled();
     });
 
+    fireEvent.click(screen.getByRole("combobox"));
+
     expect(
       screen.queryByRole("option", { name: "Current Caregiver" }),
     ).not.toBeInTheDocument();
@@ -250,13 +252,11 @@ describe("CaregiverBlockerResolutionModal", () => {
     );
 
     await waitFor(() => {
-      expect(
-        screen.getByRole("option", { name: "Other Caregiver" }),
-      ).toBeInTheDocument();
+      expect(screen.getByRole("combobox")).not.toBeDisabled();
     });
 
-    const select = screen.getByRole("combobox");
-    fireEvent.change(select, { target: { value: "21" } });
+    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByRole("option", { name: "Other Caregiver" }));
     fireEvent.click(screen.getByText("Übertragen"));
 
     await waitFor(() => {
@@ -405,12 +405,11 @@ describe("CaregiverBlockerResolutionModal", () => {
     );
 
     await waitFor(() => {
-      expect(
-        screen.getByRole("option", { name: "Other Caregiver" }),
-      ).toBeInTheDocument();
+      expect(screen.getByRole("combobox")).not.toBeDisabled();
     });
 
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "21" } });
+    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByRole("option", { name: "Other Caregiver" }));
     fireEvent.click(screen.getByText("Übertragen"));
 
     await waitFor(() => {

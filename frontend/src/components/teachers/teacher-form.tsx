@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import type { Teacher } from "@/lib/teacher-api";
 import { authService } from "@/lib/auth-service";
 import { toAssignableRoleOptions, type RoleOption } from "@/lib/auth-helpers";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { createLogger } from "~/lib/logger";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 
@@ -361,46 +362,22 @@ export function TeacherForm({
                 >
                   System-Rolle <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
-                  <select
-                    id="role-select"
-                    value={roleId ?? ""}
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
-                      setRoleId(e.target.value === "" ? undefined : value);
-                    }}
-                    className={`w-full appearance-none rounded-lg border ${
-                      errors.roleId
-                        ? "border-red-300 bg-red-50"
-                        : "border-gray-200 bg-white focus:border-[#F78C10] focus:ring-1 focus:ring-[#F78C10]"
-                    } px-3 py-2 pr-10 text-sm transition-colors`}
-                    disabled={isLoading || isLoadingRoles}
-                  >
-                    <option value="" disabled>
-                      {isLoadingRoles ? "Lade Rollen..." : "Rolle auswählen..."}
-                    </option>
-                    {roles.map((role) => (
-                      <option key={role.id} value={role.id}>
-                        {role.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                    <svg
-                      className="h-4 w-4 text-gray-400"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </div>
-                </div>
+                <CustomSelect
+                  id="role-select"
+                  value={roleId === undefined ? "" : String(roleId)}
+                  onChange={(next) =>
+                    setRoleId(next === "" ? undefined : Number(next))
+                  }
+                  options={roles.map((role) => ({
+                    value: String(role.id),
+                    label: role.name,
+                  }))}
+                  placeholder={
+                    isLoadingRoles ? "Lade Rollen..." : "Rolle auswählen..."
+                  }
+                  disabled={isLoading || isLoadingRoles}
+                  invalid={Boolean(errors.roleId)}
+                />
                 {errors.roleId && (
                   <p className="mt-1 text-xs text-red-600">{errors.roleId}</p>
                 )}
@@ -421,20 +398,16 @@ export function TeacherForm({
                 >
                   RFID-Karte (Funktion nicht verfügbar)
                 </label>
-                <div className="relative">
-                  <select
-                    id="tagId"
-                    value=""
-                    onChange={(e) => setTagId(e.target.value)}
-                    className="w-full cursor-not-allowed rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-gray-500"
-                    disabled={true}
-                  >
-                    <option value="">RFID-Funktion deaktiviert</option>
-                  </select>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Die RFID-Kartenzuweisung ist derzeit nicht verfügbar
-                  </p>
-                </div>
+                <CustomSelect
+                  id="tagId"
+                  value=""
+                  onChange={(next) => setTagId(next)}
+                  options={[{ value: "", label: "RFID-Funktion deaktiviert" }]}
+                  disabled={true}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Die RFID-Kartenzuweisung ist derzeit nicht verfügbar
+                </p>
               </div>
             )}
 

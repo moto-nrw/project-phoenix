@@ -147,10 +147,19 @@ describe("QuickCreateActivityModal", () => {
   it("renders category options", async () => {
     render(<QuickCreateActivityModal isOpen={true} onClose={mockOnClose} />);
 
+    const select = await screen.findByRole("combobox");
+    fireEvent.click(select);
+
     await waitFor(() => {
-      expect(screen.getByText("Gruppenraum")).toBeInTheDocument();
-      expect(screen.getByText("Hausaufgaben")).toBeInTheDocument();
-      expect(screen.getByText("Kreatives/Musik")).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Gruppenraum" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Hausaufgaben" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Kreatives/Musik" }),
+      ).toBeInTheDocument();
     });
   });
 
