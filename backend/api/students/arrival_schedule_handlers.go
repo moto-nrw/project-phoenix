@@ -352,6 +352,20 @@ func buildArrivalDataResponse(data *scheduleService.StudentArrivalData) ArrivalD
 	return response
 }
 
+// broadcastArrivalScheduleChanged tells every open staff tab that a child's
+// arrival plan changed.
+//
+// MUST be called from a tenant.RegisterAfterCommit hook, never inline. Handler
+// writes run in a WithTenantTx that merely reuses the still-open
+// TenantTxMiddleware transaction, so at handler return nothing is committed
+// yet: a client woken inline refetches the PREVIOUS plan, and because this is
+// the only invalidation the arrival caches get, nothing corrects it afterwards.
+// A write that a later 5xx rolls back would leave every tab showing data that
+// never existed. RegisterAfterCommit runs the callback immediately when no
+// transaction is registered, so the hook is safe on every path.
+//
+// studentID is for the log line only — the event carries no student id (it is
+// a tenant-wide staff broadcast; see the pickup sibling for the GDPR reasoning).
 func (rs *Resource) broadcastArrivalScheduleChanged(studentID int64) {
 	if rs.Broadcaster == nil {
 		return
@@ -408,13 +422,16 @@ func (rs *Resource) updateStudentArrivalSchedules(w http.ResponseWriter, r *http
 		return
 	}
 
-	rs.broadcastArrivalScheduleChanged(student.ID)
-	// Wake the child's guardians so an open parents-app tab refetches the arrival
-	// change live; the tenant-wide arrival_schedule_changed above never reaches
-	// the parent SSE stream (#1725). Defer to the OUTER request tx's commit — the
-	// handler WithTenantTx is a nested reuse of the TenantTxMiddleware tx and has
-	// NOT committed on return, so a woken client must not refetch yet (#1725 review).
+	// Both wakes defer to the OUTER request tx's commit — the handler
+	// WithTenantTx is a nested reuse of the TenantTxMiddleware tx and has NOT
+	// committed on return, so a woken client must not refetch yet (#1725 review).
+	// This binds the STAFF broadcast as much as the guardian wake: a client that
+	// refetches pre-commit reads the previous plan and nothing invalidates it a
+	// second time, and a later 5xx rolls the write back after every open tab has
+	// already refreshed to it. The guardian fan-out is separate because the
+	// tenant-wide arrival_schedule_changed never reaches the parent SSE stream.
 	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastArrivalScheduleChanged(student.ID)
 		rs.wakeChildGuardians(tenantID, student.ID)
 	})
 	response := buildArrivalDataResponse(data)
@@ -457,12 +474,14 @@ func (rs *Resource) createStudentArrivalException(w http.ResponseWriter, r *http
 		return
 	}
 
-	rs.broadcastArrivalScheduleChanged(student.ID)
-	// Wake the child's guardians so the "Heute" tile reflects a staff arrival
-	// override (a no-show arrival_absent resolves the tile as absent) live; defer
-	// to the outer request tx's commit (the service write runs in a nested tx not
-	// committed on return) (#1725 review).
+	// Deferred to the outer request tx's commit — the service write runs in a
+	// nested tx that has NOT committed on return, so neither the staff broadcast
+	// nor the guardian wake may fire yet (#1725 review; see the schedules
+	// handler above for why pre-commit staff invalidation strands stale data).
+	// The guardian wake is what makes the "Heute" tile reflect a staff arrival
+	// override (a no-show arrival_absent resolves the tile as absent).
 	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastArrivalScheduleChanged(student.ID)
 		rs.wakeChildGuardians(tenantID, student.ID)
 	})
 	common.Respond(w, r, http.StatusCreated, mapArrivalExceptionToResponse(exception), "Arrival exception created successfully")
@@ -510,11 +529,11 @@ func (rs *Resource) updateStudentArrivalException(w http.ResponseWriter, r *http
 		return
 	}
 
-	rs.broadcastArrivalScheduleChanged(student.ID)
-	// Wake the child's guardians so the edited arrival override refetches live;
-	// defer to the outer request tx's commit (the service write runs in a nested
-	// tx not committed on return) (#1725 review).
+	// Deferred to the outer request tx's commit so neither the staff broadcast
+	// nor the guardian wake can make a client refetch the pre-edit override (the
+	// service write runs in a nested tx, not committed on return) (#1725 review).
 	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastArrivalScheduleChanged(student.ID)
 		rs.wakeChildGuardians(tenantID, student.ID)
 	})
 	common.Respond(w, r, http.StatusOK, mapArrivalExceptionToResponse(exception), "Arrival exception updated successfully")
@@ -558,11 +577,11 @@ func (rs *Resource) deleteStudentArrivalException(w http.ResponseWriter, r *http
 		return
 	}
 
-	rs.broadcastArrivalScheduleChanged(student.ID)
-	// Wake the child's guardians so the removed arrival override refetches live;
-	// defer to the outer request tx's commit (nested handler WithTenantTx is not
-	// committed on return) (#1725 review).
+	// Deferred to the outer request tx's commit so neither the staff broadcast
+	// nor the guardian wake can make a client refetch an override the delete has
+	// not committed yet (nested handler WithTenantTx) (#1725 review).
 	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastArrivalScheduleChanged(student.ID)
 		rs.wakeChildGuardians(tenantID, student.ID)
 	})
 	common.Respond(w, r, http.StatusOK, nil, "Arrival exception deleted successfully")
@@ -603,7 +622,12 @@ func (rs *Resource) createStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	rs.broadcastArrivalScheduleChanged(student.ID)
+	// After commit, not inline: the handler WithTenantTx above only reuses the
+	// still-open TenantTxMiddleware tx, so a client woken here would read the
+	// note-less day and never be invalidated again (#1725 review).
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastArrivalScheduleChanged(student.ID)
+	})
 	common.Respond(w, r, http.StatusCreated, mapArrivalNoteToResponse(note), "Arrival note created successfully")
 }
 
@@ -649,7 +673,10 @@ func (rs *Resource) updateStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	rs.broadcastArrivalScheduleChanged(student.ID)
+	// After commit — same nested-tx reason as the create path above.
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastArrivalScheduleChanged(student.ID)
+	})
 	common.Respond(w, r, http.StatusOK, mapArrivalNoteToResponse(note), "Arrival note updated successfully")
 }
 
@@ -678,7 +705,10 @@ func (rs *Resource) deleteStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	rs.broadcastArrivalScheduleChanged(student.ID)
+	// After commit — same nested-tx reason as the create path above.
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastArrivalScheduleChanged(student.ID)
+	})
 	common.Respond(w, r, http.StatusOK, nil, "Arrival note deleted successfully")
 }
 
@@ -703,15 +733,16 @@ func (rs *Resource) bulkUpsertArrivalSchedules(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	rs.broadcastArrivalScheduleChanged(0)
-	// Wake each affected child's guardians so an open parents-app tab refetches
-	// the class-wide arrival change live; the tenant-wide arrival_schedule_changed
-	// above never reaches the parent SSE stream (#1725). Bounded to one class.
-	// Defer to the OUTER request tx's commit: BulkUpsertBySchoolClass runs inside
-	// the TenantTxMiddleware tx, which is still open here, so waking now would let
-	// a client refetch before the writes are visible (#1725 review).
+	// Deferred to the OUTER request tx's commit: BulkUpsertBySchoolClass runs
+	// inside the TenantTxMiddleware tx, which is still open here, so waking now
+	// would let a client refetch before the writes are visible (#1725 review) —
+	// true for the staff broadcast and the guardian wake alike, and worst here
+	// where one rollback would strand a whole class of stale plans. The guardian
+	// fan-out is separate (tenant-wide events never reach the parent SSE stream,
+	// #1725) and bounded to the one class.
 	affected := result.AffectedStudentIDs
 	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastArrivalScheduleChanged(0)
 		for _, studentID := range affected {
 			rs.wakeChildGuardians(tenantID, studentID)
 		}

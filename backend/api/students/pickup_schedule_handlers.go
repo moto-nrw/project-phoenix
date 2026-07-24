@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -386,6 +387,70 @@ func buildPickupDataResponse(data *scheduleService.StudentPickupData) PickupData
 	return response
 }
 
+// broadcastPickupScheduleChanged tells the affected school's open STAFF tabs
+// that this child's Gehzeit plan changed. Without it the guardian wake below is
+// the only signal a pickup write emits, so the parents app refreshes live while
+// staff views that disable focus revalidation (per-child Betreuungsplan,
+// student lists) keep showing the previous time until a manual reload.
+//
+// Scoped to the writing tenant (BroadcastToTenant, like broadcastStudentUpdated
+// — deliberately NOT the BroadcastToAll its arrival sibling still uses): only
+// that school can read the affected child, so a global fan-out would make every
+// other school refetch student and care-plan data for a write they can never
+// see. Tenant scope loses no recipient — the hub indexes every staff client
+// under its tenant at connect time, including zero-topic admins.
+//
+// Call it from an after-commit hook: the handler's WithTenantTx only REUSES the
+// tx opened by TenantTxMiddleware, so at handler return the write is not yet
+// visible to the refetch this wakes (#1725 review). Delivery is
+// fire-and-forget; a failure only costs other tabs an auto-refresh, so it is
+// logged, never surfaced.
+func (rs *Resource) broadcastPickupScheduleChanged(tenantID, studentID int64) {
+	if rs.Broadcaster == nil {
+		return
+	}
+	if tenantID <= 0 {
+		// Defensive, mirroring broadcastStudentUpdated: without a tenant we do
+		// not know whose clients should invalidate, and guessing by going
+		// global is exactly the cross-tenant traffic this scoping removes.
+		if rs.Logger != nil {
+			rs.Logger.Warn(
+				"skipping pickup_schedule_changed broadcast, no tenant context",
+				"student_id", studentID,
+			)
+		}
+		return
+	}
+
+	// No student_id on the payload — deliberately, for GDPR. This is a
+	// TENANT-WIDE broadcast: every staff client in the school receives it,
+	// including those who under gdpr.student_data_scope=group_supervisors_only
+	// may NOT read this child. A student_id in that raw SSE stream would leak
+	// which children have pickup-plan activity to staff outside their scope.
+	// The rule this follows: only GROUP-topic events (student_checkin/checkout
+	// via BroadcastToGroup, whose audience is already the child's room) may
+	// carry the id; tenant-wide staff events must not — the arrival sibling is
+	// id-less for the same reason, and parent_message scrubs the id for its
+	// staff fan-out (staffSafeParentMessage). The cost is that each client
+	// re-checks its pickup-derived caches rather than only the affected one, but
+	// every refetch is itself server-access-filtered per student, so nothing
+	// leaks and no unauthorized data is returned.
+	source := "manual"
+	event := realtime.NewEvent(
+		realtime.EventPickupScheduleChanged,
+		"",
+		realtime.EventData{Source: &source},
+	)
+	if err := rs.Broadcaster.BroadcastToTenant(tenantID, event); err != nil && rs.Logger != nil {
+		rs.Logger.Warn(
+			"failed to broadcast pickup schedule change",
+			"tenant_id", tenantID,
+			"student_id", studentID,
+			"error", err.Error(),
+		)
+	}
+}
+
 // updateStudentPickupSchedules handles PUT /students/{id}/pickup-schedules
 func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.Request) {
 	student := rs.requirePickupWriteAccess(w, r, "update pickup schedules")
@@ -426,6 +491,7 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 	// back (#1725 review).
 	tenant.RegisterAfterCommit(r.Context(), func() {
 		rs.wakeChildGuardians(tenantID, student.ID)
+		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
 	})
 
 	// Fetch updated data
@@ -484,6 +550,7 @@ func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.
 	// later 5xx rolls back (#1725 review).
 	tenant.RegisterAfterCommit(r.Context(), func() {
 		rs.wakeChildGuardians(tenantID, student.ID)
+		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
 	})
 
 	common.Respond(w, r, http.StatusCreated, mapExceptionToResponse(exception), "Pickup exception created successfully")
@@ -537,6 +604,7 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 	// (#1725 review).
 	tenant.RegisterAfterCommit(r.Context(), func() {
 		rs.wakeChildGuardians(tenantID, student.ID)
+		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
 	})
 
 	common.Respond(w, r, http.StatusOK, mapExceptionToResponse(exception), "Pickup exception updated successfully")
@@ -585,6 +653,7 @@ func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.
 	// WithTenantTx is not committed on return) (#1725 review).
 	tenant.RegisterAfterCommit(r.Context(), func() {
 		rs.wakeChildGuardians(tenantID, student.ID)
+		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
 	})
 
 	common.Respond(w, r, http.StatusOK, nil, "Pickup exception deleted successfully")
@@ -624,6 +693,13 @@ func (rs *Resource) createStudentPickupNote(w http.ResponseWriter, r *http.Reque
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+
+	// A day note rides along in the same pickup payload the detail header and
+	// the Betreuungszeiten editor render, so it goes stale the same way a time
+	// does — after commit, for the same nested-tx reason as above.
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
+	})
 
 	common.Respond(w, r, http.StatusCreated, mapNoteToResponse(note), "Pickup note created successfully")
 }
@@ -670,6 +746,10 @@ func (rs *Resource) updateStudentPickupNote(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
+	})
+
 	common.Respond(w, r, http.StatusOK, mapNoteToResponse(note), "Pickup note updated successfully")
 }
 
@@ -697,6 +777,10 @@ func (rs *Resource) deleteStudentPickupNote(w http.ResponseWriter, r *http.Reque
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
+	})
 
 	common.Respond(w, r, http.StatusOK, nil, "Pickup note deleted successfully")
 }

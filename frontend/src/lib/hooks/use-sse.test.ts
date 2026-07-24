@@ -55,4 +55,33 @@ describe("useSSE — named event registration", () => {
     expect(es!.registered).toContain("parent_message");
     expect(es!.registered).toContain("student_updated");
   });
+
+  it("registers every event type useGlobalSSE handles, so no branch is dead", async () => {
+    // The registration list and the handler switch drifted apart twice already
+    // (staffing_deviation_changed and student_companions_changed both shipped
+    // with a handler no event could ever reach — the backend sends every event
+    // NAMED, so an unregistered name is silently dropped and the only symptom
+    // is a view that never refreshes). Deriving the expected set from the
+    // handler source makes the next omission fail here instead of in
+    // production.
+    const { readFile } = await import("node:fs/promises");
+    const path = await import("node:path");
+    // Resolved from the vitest root (the frontend package dir), not
+    // import.meta.url: under the jsdom environment that URL is not a file: URL,
+    // so readFile rejects it.
+    const source = await readFile(
+      path.resolve(process.cwd(), "src/lib/hooks/use-global-sse.ts"),
+      "utf8",
+    );
+    // The file has exactly one switch, and it switches on event.type.
+    const handled = [...source.matchAll(/case "([a-z_]+)":/g)]
+      .map((m) => m[1])
+      .filter((type): type is string => type !== undefined);
+    expect(handled.length).toBeGreaterThan(10);
+
+    renderHook(() => useSSE("/api/sse/events", { onMessage: () => undefined }));
+    const registered = MockEventSource.instances.at(-1)!.registered;
+
+    expect(handled.filter((type) => !registered.includes(type))).toEqual([]);
+  });
 });

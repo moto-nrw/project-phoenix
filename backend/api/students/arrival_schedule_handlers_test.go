@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -1182,5 +1183,76 @@ func TestGetBulkArrivalTimes(t *testing.T) {
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
+	})
+}
+
+// TestStaffArrivalWrite_BroadcastsArrivalScheduleChanged pins that every staff
+// arrival write reaches the staff SSE bus at all — the broadcasts now run from
+// tenant.RegisterAfterCommit hooks, and a hook that is never registered or never
+// drained produces no event here, so this fails loudly if the wiring is dropped.
+//
+// Scope, stated plainly: it does NOT prove the broadcast happens AFTER the
+// commit — an inline call would satisfy it too. Ordering itself is covered by
+// the tenant package (aftercommit_test.go / rollback_middleware_test.go); the
+// contract for callers is documented on broadcastArrivalScheduleChanged.
+//
+// The note paths are covered explicitly: they carried no after-commit hook at
+// all before, so they are the easiest place for the wiring to be dropped again.
+func TestStaffArrivalWrite_BroadcastsArrivalScheduleChanged(t *testing.T) {
+	tc := setupTestContext(t)
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ArrCast", "Teacher")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+	claims := testutil.AdminTestClaims(int(account.ID))
+
+	sawArrivalBroadcast := func() bool {
+		for _, c := range tc.broadcaster.CallsByMethod("all") {
+			if c.Event.Type == realtime.EventArrivalScheduleChanged {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("weekly_schedule_update", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "ArrCast", "Weekly", "AC1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+		defer func() {
+			_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentArrivalSchedule)(nil)).
+				ModelTableExpr("schedule.student_arrival_schedules").
+				Where("student_id = ?", student.ID).
+				Exec(context.Background())
+		}()
+
+		tc.broadcaster.Reset()
+		body := map[string]any{
+			"schedules": []map[string]any{{"weekday": 1, "expected_arrival": "07:45"}},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-schedules", student.ID), body)
+		rr := authExec(t, tc, req, claims, []string{"admin:*"})
+		require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+
+		assert.True(t, sawArrivalBroadcast(),
+			"an arrival schedule update must broadcast arrival_schedule_changed after commit")
+	})
+
+	t.Run("day_note_create", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "ArrCast", "Note", "AC2")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+		defer func() {
+			_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentArrivalNote)(nil)).
+				ModelTableExpr("schedule.student_arrival_notes").
+				Where("student_id = ?", student.ID).
+				Exec(context.Background())
+		}()
+
+		tc.broadcaster.Reset()
+		body := map[string]any{"note_date": "2026-03-15", "content": "Kommt mit dem Bus"}
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-notes", student.ID), body)
+		rr := authExec(t, tc, req, claims, []string{"admin:*"})
+		require.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
+
+		assert.True(t, sawArrivalBroadcast(),
+			"an arrival day note must broadcast arrival_schedule_changed after commit")
 	})
 }

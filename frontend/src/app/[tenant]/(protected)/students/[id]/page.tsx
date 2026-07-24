@@ -55,6 +55,7 @@ import {
 import { performImmediateCheckin } from "~/lib/checkin-api";
 import { createLogger } from "~/lib/logger";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
+import { CarePlanView } from "~/components/students/care-plan-view";
 import { CareScheduleManager } from "~/components/students/care-schedule-manager";
 import { PlannedStatusDaysModal } from "~/components/students/planned-status-days-modal";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
@@ -91,6 +92,7 @@ type StudentTabId =
   | "stammdaten"
   | "nachrichten"
   | "erziehungsberechtigte"
+  | "betreuungsplan"
   | "betreuungszeiten"
   | "anmeldungen"
   | "historie";
@@ -99,6 +101,7 @@ const TAB_LABELS: Record<StudentTabId, string> = {
   stammdaten: "Stammdaten",
   nachrichten: "Nachrichten",
   erziehungsberechtigte: "Erziehungsberechtigte",
+  betreuungsplan: "Betreuungsplan",
   betreuungszeiten: "Betreuungszeiten",
   anmeldungen: "Anmeldungen",
   historie: "Historie",
@@ -111,6 +114,7 @@ const FULL_ACCESS_BASE_TABS: StudentTabId[] = [
   "stammdaten",
   "nachrichten",
   "erziehungsberechtigte",
+  "betreuungsplan",
   "betreuungszeiten",
   "historie",
 ];
@@ -123,6 +127,7 @@ const FULL_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
   "stammdaten",
   "nachrichten",
   "erziehungsberechtigte",
+  "betreuungsplan",
   "betreuungszeiten",
   "anmeldungen",
   "historie",
@@ -143,18 +148,46 @@ function resolveActiveTab(
   return allowed.find((tab) => tab === param) ?? DEFAULT_TAB;
 }
 
+/**
+ * @param hasStudentReadAccess the backend's READ predicate for this child,
+ *   `has_full_access` on the student response. Despite the wire name this is
+ *   NOT the strict supervisor/admin check — that one is `has_write_access`.
+ *   It resolves to `authorize.CanReadStudent`, which honours
+ *   `gdpr.student_data_scope`: under `all_staff` EVERY staff member gets `true`
+ *   here, under `group_supervisors_only` only the child's supervisors (and
+ *   admins) do. See api/students/authorization.go — `checkStudentReadAccess`
+ *   (scope-aware, this flag) vs `checkStudentFullAccess` (scope-ignoring, the
+ *   write flag).
+ */
 function studentTabs(
-  hasFullAccess: boolean,
+  hasStudentReadAccess: boolean,
   canViewEnrollments: boolean,
+  canViewCarePlan: boolean,
 ): StudentTabId[] {
-  if (hasFullAccess) {
-    return canViewEnrollments
+  const base = hasStudentReadAccess
+    ? canViewEnrollments
       ? FULL_ACCESS_TABS_WITH_ENROLLMENTS
-      : FULL_ACCESS_BASE_TABS;
-  }
-  return canViewEnrollments
-    ? LIMITED_ACCESS_TABS_WITH_ENROLLMENTS
-    : LIMITED_ACCESS_BASE_TABS;
+      : FULL_ACCESS_BASE_TABS
+    : canViewEnrollments
+      ? LIMITED_ACCESS_TABS_WITH_ENROLLMENTS
+      : LIMITED_ACCESS_BASE_TABS;
+  // The Betreuungsplan tab reads the timetable (backend requires schedules:read
+  // on /timetable/student/{id}/day|week); hide it without that permission so
+  // the user can't open a tab that only returns 403s.
+  //
+  // It is absent from the limited-access sets for the SAME reason, not as an
+  // oversight: those routes gate on read access per student too
+  // (resolveStudentForRead → authorize.CanReadStudent in
+  // api/timetable/student_day.go) — the SAME predicate behind the flag above,
+  // so the two can never disagree. A staff member who may read the child under
+  // `all_staff` therefore lands in the full-access set and DOES get the tab;
+  // one who may not gets 403 from the care-plan endpoints, so widening the tab
+  // would only surface a permanently failing panel, and ?tab=betreuungsplan is
+  // clamped away for the same reason. Widening staff access to a child's plan
+  // is a backend (gdpr.student_data_scope) decision, not a frontend one.
+  return canViewCarePlan
+    ? base
+    : base.filter((tab) => tab !== "betreuungsplan");
 }
 
 // Shared classes for every tab panel. forceMount (below) keeps inactive panels
@@ -308,9 +341,12 @@ function StudentDetailPageContent() {
   const canViewEnrollments =
     sessionStatus === "authenticated" &&
     hasPermission(session, "config:manage");
+  const canViewCarePlan =
+    sessionStatus === "authenticated" &&
+    hasPermission(session, "schedules:read");
   const visibleTabs = useMemo(
-    () => studentTabs(hasFullAccess, canViewEnrollments),
-    [canViewEnrollments, hasFullAccess],
+    () => studentTabs(hasFullAccess, canViewEnrollments, canViewCarePlan),
+    [canViewEnrollments, canViewCarePlan, hasFullAccess],
   );
   const tabResolutionTabs =
     sessionStatus === "loading"
@@ -386,12 +422,17 @@ function StudentDetailPageContent() {
   const [activeGroups, setActiveGroups] = useState<ActiveGroup[]>([]);
   const [loadingActiveGroups, setLoadingActiveGroups] = useState(false);
 
-  // Today's pickup info (for header display)
-  const [todayPickup, setTodayPickup] = useState<{
-    time?: string;
-    note?: string;
-    isException?: boolean;
-  }>({});
+  // Today's pickup info (for header display). SWR-cached under a
+  // "pickup-data-" key like its arrival twin below, so a Gehzeit write
+  // elsewhere in the school reaches this header: the global SSE hook
+  // invalidates that key prefix on pickup_schedule_changed. A plain
+  // fetch-on-mount effect could not be woken that way and left the header
+  // showing the previous pickup time until a manual reload.
+  const { data: pickupData } = useSWRAuth(
+    hasFullAccess && studentId ? `pickup-data-${studentId}` : null,
+    async () => fetchStudentPickupData(studentId),
+    { revalidateOnFocus: false },
+  );
 
   const { data: arrivalData } = useSWRAuth(
     hasFullAccess && studentId ? `arrival-data-${studentId}` : null,
@@ -451,44 +492,34 @@ function StudentDetailPageContent() {
     void loadActiveGroups();
   }, [showConfirmCheckin]);
 
-  // Load today's pickup time for header (requires read access to student data)
-  useEffect(() => {
-    if (!hasFullAccess || !studentId) {
-      setTodayPickup({});
-      return;
+  // Today's pickup slot for the header. Mirrors todayArrival below: a failed
+  // fetch (e.g. permission denied for non-full-access users) leaves pickupData
+  // undefined, which renders the same empty header as "no pickup planned".
+  const todayPickup = useMemo<{
+    time?: string;
+    note?: string;
+    isException?: boolean;
+  }>(() => {
+    if (!hasFullAccess || !pickupData) return {};
+
+    const dayData = getDayData(
+      new Date(),
+      pickupData.schedules,
+      pickupData.exceptions,
+      student?.sick ?? false,
+      pickupData.notes,
+      student?.excused ?? false,
+    );
+
+    if (dayData.effectiveTime) {
+      return {
+        time: formatPickupTime(dayData.effectiveTime),
+        note: dayData.effectiveNotes,
+        isException: dayData.isException,
+      };
     }
-
-    const loadTodayPickup = async () => {
-      try {
-        const data = await fetchStudentPickupData(studentId);
-        const today = new Date();
-
-        const dayData = getDayData(
-          today,
-          data.schedules,
-          data.exceptions,
-          student?.sick ?? false,
-          data.notes,
-          student?.excused ?? false,
-        );
-
-        if (dayData.effectiveTime) {
-          setTodayPickup({
-            time: formatPickupTime(dayData.effectiveTime),
-            note: dayData.effectiveNotes,
-            isException: dayData.isException,
-          });
-        } else {
-          setTodayPickup({});
-        }
-      } catch {
-        // Silently handle errors (e.g., permission denied for non-full-access users)
-        setTodayPickup({});
-      }
-    };
-
-    void loadTodayPickup();
-  }, [hasFullAccess, studentId, student?.sick, student?.excused]);
+    return {};
+  }, [pickupData, hasFullAccess, student?.sick, student?.excused]);
 
   const todayArrival = useMemo<TodayArrival>(() => {
     if (!hasFullAccess || !arrivalData) return {};
@@ -980,6 +1011,7 @@ function StudentDetailPageContent() {
             activeTab={activeTab}
             tabs={visibleTabs}
             canViewEnrollments={canViewEnrollments}
+            canViewCarePlan={canViewCarePlan}
             onTabChange={handleTabChange}
             statusDays={statusDays}
             onDeleteStatusDay={handleDeletePlannedStatus}
@@ -1297,6 +1329,7 @@ interface FullAccessViewProps {
   activeTab: StudentTabId;
   tabs: StudentTabId[];
   canViewEnrollments: boolean;
+  canViewCarePlan: boolean;
   onTabChange: (tab: string) => void;
   statusDays: StudentStatusDay[];
   onDeleteStatusDay: (statusDayId: string) => Promise<void>;
@@ -1328,6 +1361,7 @@ function FullAccessView({
   activeTab,
   tabs,
   canViewEnrollments,
+  canViewCarePlan,
   onTabChange,
   statusDays,
   onDeleteStatusDay,
@@ -1440,6 +1474,27 @@ function FullAccessView({
             onUpdate={hasWriteAccess ? onRefreshData : undefined}
           />
         </TabsContent>
+
+        {canViewCarePlan ? (
+          <TabsContent
+            value="betreuungsplan"
+            forceMount
+            className={TAB_CONTENT_CLASS}
+          >
+            {/* forceMounted for deep-linking; `active` gates the SWR read so it
+                only fires when the tab is actually open. Only rendered with
+                schedules:read, so the timetable fetch never 403s. */}
+            <CarePlanView
+              studentId={studentId}
+              statusDays={statusDays}
+              isSick={student.sick}
+              isExcused={student.excused}
+              onEditSchedule={() => onTabChange("betreuungszeiten")}
+              onVisibleDateRangeChange={onVisibleDateRangeChange}
+              active={activeTab === "betreuungsplan"}
+            />
+          </TabsContent>
+        ) : null}
 
         <TabsContent
           value="betreuungszeiten"

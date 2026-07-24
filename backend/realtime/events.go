@@ -81,6 +81,23 @@ const (
 	// bulk arrival-time lookups across student list/detail pages.
 	EventArrivalScheduleChanged EventType = "arrival_schedule_changed"
 
+	// EventPickupScheduleChanged is the pickup-side counterpart of
+	// EventArrivalScheduleChanged: a staff write changed a child's weekly
+	// pickup plan, a date-specific pickup exception, or a day note (Gehzeit —
+	// all three travel in the same pickup payload). It is its own
+	// event rather than a reuse of the arrival one so clients can invalidate
+	// only the pickup-derived caches, and so the arrival name keeps meaning
+	// what it says.
+	//
+	// It exists BECAUSE the staff pickup handlers previously woke only the
+	// child's guardians (#1725): the parents app updated live while every OTHER
+	// staff tab — the per-child Betreuungsplan, the student list's Gehzeit
+	// column — kept the old time indefinitely (those views disable focus
+	// revalidation, so nothing else would refetch). Broadcast to ALL like its
+	// arrival sibling: pickup times are read across tenants' dashboards and
+	// list pages, and the payload carries no student data.
+	EventPickupScheduleChanged EventType = "pickup_schedule_changed"
+
 	// EventChangeRequestsChanged is a tenant-wide staff signal that a parent
 	// change-request queue changed — a request was created, decided, or withdrawn
 	// (excused absence today; care-schedule / master-data can adopt it too). Staff
