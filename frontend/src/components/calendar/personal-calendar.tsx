@@ -1012,7 +1012,11 @@ function AgendaRow({
 }: Readonly<{ event: CalendarEvent; actions: CalendarEventActions }>) {
   const tone = sourceTone[event.source];
   const cancelled = event.cancelled === true;
-  const allDay = isAllDayLike(event);
+  // Präsentation hängt an event.all_day, nicht an der Datumsspanne: ein
+  // mehrtägiger Termin MIT Uhrzeiten zeigt seine Zeiten, nur echte
+  // Ganztägig-Einträge zeigen „ganztg.“ (isAllDayLike regelt nur die
+  // Positionierung, nicht die Darstellung).
+  const allDay = event.all_day;
   const badge = cancelled
     ? { label: "Abgesagt", cls: "bg-[#FF3130]/10 text-[#CC2626]" }
     : event.response_status

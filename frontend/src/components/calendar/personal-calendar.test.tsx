@@ -310,6 +310,34 @@ describe("PersonalCalendar", () => {
     expect(screen.getByRole("button", { name: "Löschen" })).toBeInTheDocument();
   });
 
+  it("shows times instead of ganztg. for multi-day timed events in the agenda", () => {
+    const multiDayTimed: CalendarEvent = {
+      ...appointment,
+      id: "appointment:4:2026-01-05",
+      appointment_id: "4",
+      title: "Klassenfahrt",
+      start_date: "2026-01-05",
+      end_date: "2026-01-07",
+      start_time: "09:00",
+      end_time: "15:00",
+      all_day: false,
+    };
+    render(
+      <PersonalCalendar
+        title="Mein Kalender"
+        events={[multiDayTimed]}
+        weekStart={new Date(2026, 0, 5)}
+        onWeekChange={vi.fn()}
+      />,
+    );
+
+    // The mobile agenda must respect all_day: a timed multi-day appointment
+    // renders its start/end times, never the ganztg. label.
+    expect(screen.queryByText("ganztg.")).not.toBeInTheDocument();
+    expect(screen.getAllByText("09:00").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("15:00").length).toBeGreaterThan(0);
+  });
+
   it("shows empty and error states", () => {
     render(
       <PersonalCalendar
