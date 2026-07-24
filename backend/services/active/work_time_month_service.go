@@ -68,6 +68,12 @@ type WorkTimeMonthService interface {
 	// GetClosingBalanceAsOf returns the live carry-chain balance through cutoff.
 	// Unlike GetMonthSummary, it never includes activity later in cutoff's month.
 	GetClosingBalanceAsOf(ctx context.Context, staffID int64, cutoff timezone.Date) (int, error)
+	// GetCompTimeDeductionMinutes returns how much a comp_time absence over
+	// [start, end] reduces the Stundenkonto: the sum of the contractual daily
+	// targets in the range (a single-day half-day absence deducts half). It
+	// mirrors creditAbsenceDays, where comp_time days keep their Soll and
+	// credit nothing (#1420).
+	GetCompTimeDeductionMinutes(ctx context.Context, staffID int64, start, end timezone.Date, halfDay bool) (int, error)
 	GetDailyTargets(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyTarget, error)
 	// SetHolidayReader injects the public-holiday resolver (#1418 3a) —
 	// wired in the factory after construction, like
@@ -757,6 +763,32 @@ func (s *workTimeMonthService) GetClosingBalanceAsOf(ctx context.Context, staffI
 		return 0, err
 	}
 	return summary.ClosingBalanceMinutes, nil
+}
+
+// GetCompTimeDeductionMinutes sums the daily targets a comp_time absence
+// over [start, end] removes from the Stundenkonto. Half-day comp_time is
+// restricted to a single date at the service layer, so the halfDay flag
+// halves exactly that one day (floor, matching creditAbsenceDays).
+func (s *workTimeMonthService) GetCompTimeDeductionMinutes(ctx context.Context, staffID int64, start, end timezone.Date, halfDay bool) (int, error) {
+	if start.IsZero() || end.IsZero() || end.Before(start) {
+		return 0, errors.New("start and end must form a valid range")
+	}
+	resolver, err := s.buildTargetResolver(ctx, staffID, start, end)
+	if err != nil {
+		return 0, err
+	}
+	total := 0
+	for d := start; !d.After(end); d = d.AddDays(1) {
+		target := resolver.targetFor(d)
+		if target <= 0 {
+			continue
+		}
+		if halfDay && start == end {
+			target /= 2
+		}
+		total += target
+	}
+	return total, nil
 }
 
 func (s *workTimeMonthService) getMonthSummaryThrough(ctx context.Context, staffID int64, key monthKey, through timezone.Date) (*MonthSummary, error) {

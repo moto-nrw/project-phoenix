@@ -1936,6 +1936,32 @@ describe("staff-api", () => {
       ).rejects.toThrow("overlapping absence");
     });
 
+    it("maps the comp_time overdraft conflict to a German message (#1420)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              code: "comp_time_exceeds_balance",
+              error: "comp_time absence exceeds accrued balance",
+            }),
+          ),
+      } as Response);
+
+      await expect(
+        staffAbsenceService.createAbsence("1", {
+          absence_type: "comp_time",
+          date_start: "2026-07-27",
+          date_end: "2026-07-28",
+          note: "FZA",
+        }),
+      ).rejects.toThrow(
+        "Der Freizeitausgleich übersteigt die vor dem Startdatum verfügbaren Plus-Stunden.",
+      );
+    });
+
     it("deletes an absence (#1843)", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({ ok: true } as Response);

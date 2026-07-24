@@ -19,6 +19,11 @@ import (
 // only a time-tracking manager may create, change, or delete.
 var ErrManagerControlledAbsence = errors.New("absence type is manager-controlled")
 
+// ErrCompTimeExceedsBalance prevents a comp_time absence from deducting more
+// daily-target minutes than the Stundenkonto has accrued before the absence
+// starts — the same overdraft guard the balance adjustments enforce (#1420).
+var ErrCompTimeExceedsBalance = errors.New("comp_time absence exceeds accrued balance")
+
 // CreateAbsenceRequest defines the request for creating an absence
 type CreateAbsenceRequest struct {
 	AbsenceType string `json:"absence_type"`
@@ -140,6 +145,9 @@ type staffAbsenceService struct {
 	quotaRepo       activeModels.StaffVacationQuotaRepository
 	auditRepo       activeModels.StaffAbsenceAuditRepository
 	settings        monthSettingsResolver
+	// monthService provides the daily-target and closing-balance math for
+	// the comp_time overdraft guard; nil in bare-constructed unit tests.
+	monthService    WorkTimeMonthService
 	shiftPlanSyncer ShiftPlanSyncer
 	// emailDeps is nil unless SetAbsenceEmailDeps wired it (factory only);
 	// nil means no absence emails are sent (#1419 4d).
@@ -168,6 +176,7 @@ func NewStaffAbsenceService(
 	quotaRepo activeModels.StaffVacationQuotaRepository,
 	auditRepo activeModels.StaffAbsenceAuditRepository,
 	settings monthSettingsResolver,
+	monthService WorkTimeMonthService,
 ) StaffAbsenceService {
 	return &staffAbsenceService{
 		absenceRepo:     absenceRepo,
@@ -175,6 +184,7 @@ func NewStaffAbsenceService(
 		quotaRepo:       quotaRepo,
 		auditRepo:       auditRepo,
 		settings:        settings,
+		monthService:    monthService,
 	}
 }
 
@@ -214,7 +224,7 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 	if err := validateSickAbsenceRange(req.AbsenceType, dateStart, dateEnd); err != nil {
 		return nil, err
 	}
-	if err := s.rejectPreAccountCompTime(ctx, req.AbsenceType, dateStart); err != nil {
+	if err := s.rejectPreAccountCompTime(ctx, req.AbsenceType, dateStart, dateEnd); err != nil {
 		return nil, err
 	}
 	if err := s.lockStaffAbsenceWrites(ctx, subjectStaffID); err != nil {
@@ -233,6 +243,11 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 	} else {
 		if err := validateSingleDayHalfDayAbsence(req.AbsenceType, req.HalfDay, dateStart, dateEnd); err != nil {
 			return nil, err
+		}
+		if req.AbsenceType == activeModels.AbsenceTypeCompTime {
+			if err := s.validateCompTimeBalance(ctx, subjectStaffID, dateStart, dateEnd, req.HalfDay); err != nil {
+				return nil, err
+			}
 		}
 		s.warnIfWorkSessionsExist(ctx, subjectStaffID, dateStart, dateEnd)
 		resp, err = s.createNewAbsence(ctx, subjectStaffID, createdByStaffID, dateStart, dateEnd, req)
@@ -310,6 +325,11 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	}
 	if err := validateSingleDayHalfDayAbsence(req.AbsenceType, req.HalfDay, mergedStart, mergedEnd); err != nil {
 		return nil, err
+	}
+	if req.AbsenceType == activeModels.AbsenceTypeCompTime {
+		if err := s.validateCompTimeBalance(ctx, existing[0].StaffID, mergedStart, mergedEnd, req.HalfDay); err != nil {
+			return nil, err
+		}
 	}
 
 	// Update the primary absence with merged range
@@ -391,7 +411,7 @@ func validateSingleDayHalfDayAbsence(absenceType string, halfDay bool, start, en
 // start: balance aggregation begins at the anchor, so such an absence would
 // appear in the history without ever reducing the Stundenkonto (mirrors
 // rejectPreAccountDate on balance adjustments, #1420).
-func (s *staffAbsenceService) rejectPreAccountCompTime(ctx context.Context, absenceType string, dateStart timezone.Date) error {
+func (s *staffAbsenceService) rejectPreAccountCompTime(ctx context.Context, absenceType string, dateStart, dateEnd timezone.Date) error {
 	if absenceType != activeModels.AbsenceTypeCompTime {
 		return nil
 	}
@@ -401,6 +421,53 @@ func (s *staffAbsenceService) rejectPreAccountCompTime(ctx context.Context, abse
 	}
 	if dateStart.Before(anchor) {
 		return fmt.Errorf("invalid comp_time absence: date_start %s lies before the account start %s", dateStart.String(), anchor.String())
+	}
+	// Mirror the Monatskarte's future bound: the overdraft guard reads the
+	// closing balance before dateStart, which has no defined result beyond
+	// the carry-chain horizon (#1420 review).
+	if horizon := monthOf(timezone.TodayDate()).addMonths(maxFutureMonths); horizon.before(monthOf(dateEnd)) {
+		return fmt.Errorf("invalid comp_time absence: date_end %s is more than %d months ahead", dateEnd.String(), maxFutureMonths)
+	}
+	return nil
+}
+
+// validateCompTimeBalance rejects a comp_time absence whose total daily-target
+// deduction exceeds the balance accrued before the absence starts. It must run
+// under the staff balance lock (lockStaffAbsenceWrites takes it), mirroring
+// the overdraft guard on payout/comp-time adjustments (#1420 review). The
+// merged range is validated as a whole: the total granted Freizeitausgleich
+// must be covered at its start.
+func (s *staffAbsenceService) validateCompTimeBalance(ctx context.Context, staffID int64, start, end timezone.Date, halfDay bool) error {
+	if s.monthService == nil {
+		// Bare-constructed unit tests without month math; the factory always
+		// wires the real service.
+		return nil
+	}
+	deduction, err := s.monthService.GetCompTimeDeductionMinutes(ctx, staffID, start, end, halfDay)
+	if err != nil {
+		return fmt.Errorf("failed to compute comp_time deduction: %w", err)
+	}
+	if deduction <= 0 {
+		return nil
+	}
+	anchor, err := resolveAccountAnchor(ctx, s.settings, slog.Default(), monthOf(timezone.TodayDate()))
+	if err != nil {
+		return fmt.Errorf("failed to resolve account start for comp_time absence: %w", err)
+	}
+	available := 0
+	// On the account-start day itself nothing is accrued yet; a cutoff
+	// before the anchor would read a pre-account chain.
+	if cutoff := start.AddDays(-1); !cutoff.Before(anchor) {
+		available, err = s.monthService.GetClosingBalanceAsOf(ctx, staffID, cutoff)
+		if err != nil {
+			return fmt.Errorf("failed to compute balance for comp_time absence: %w", err)
+		}
+	}
+	if deduction > available {
+		return fmt.Errorf(
+			"%w: comp_time absence deducts %d minutes but only %d minutes are accrued before %s",
+			ErrCompTimeExceedsBalance, deduction, available, start.String(),
+		)
 	}
 	return nil
 }

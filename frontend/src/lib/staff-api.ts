@@ -885,8 +885,16 @@ class StaffAbsenceService {
       body: JSON.stringify(body),
     });
     if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new Error(text || "Krankmeldung fehlgeschlagen");
+      const error = await readStaffAPIError(
+        response,
+        "Krankmeldung fehlgeschlagen",
+      );
+      if (error.code === "comp_time_exceeds_balance") {
+        throw new Error(
+          "Der Freizeitausgleich übersteigt die vor dem Startdatum verfügbaren Plus-Stunden.",
+        );
+      }
+      throw new Error(error.message);
     }
     const json = (await response.json()) as { data: StaffAbsenceRow };
     return json.data;
