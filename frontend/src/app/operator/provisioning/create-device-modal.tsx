@@ -62,7 +62,19 @@ export function CreateDeviceModal({
   const handleCreate = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!schoolId || !deviceId.trim() || !deviceType) return;
+      // CustomSelect's `required` is ARIA-only — it does not join native form
+      // constraint validation, so an Enter-submit with school or device type
+      // unset lands here and must produce a visible error instead of a silent
+      // return. The device-ID text input keeps its native `required`.
+      if (!schoolId) {
+        setError("Bitte wählen Sie eine Schule aus.");
+        return;
+      }
+      if (!deviceType) {
+        setError("Bitte wählen Sie einen Gerätetyp aus.");
+        return;
+      }
+      if (!deviceId.trim()) return;
 
       setIsSaving(true);
       setError("");

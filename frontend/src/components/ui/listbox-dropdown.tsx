@@ -210,6 +210,15 @@ export function ListboxDropdown<K extends string>({
       // Above the modal/dialog overlays (z-[9999]) so menus opened from
       // dialog forms stack on top of the dialog instead of behind it.
       zIndex: 10000,
+      // Vaul/Radix dialogs run in modal mode set `body { pointer-events: none }`
+      // and only re-enable it on the dialog content. Because this menu is
+      // portaled to document.body (a sibling of that content), it would inherit
+      // `none` and its options would be unclickable inside slide-overs. Forcing
+      // `auto` restores selection; dismissal is not triggered because the menu
+      // stays in the ListboxDropdown React subtree, so React's synthetic
+      // pointerdown propagates through the portal and Vaul registers the press
+      // as inside the dialog rather than an outside interaction.
+      pointerEvents: "auto",
       minWidth: rect.width,
       maxWidth: viewportWidth - 2 * MENU_VIEWPORT_MARGIN_PX,
       maxHeight,
