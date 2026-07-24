@@ -37,12 +37,15 @@ type CreateTemplateInput struct {
 	TargetGroupType   string
 	TargetGradeLevel  *int16
 	TargetSchoolClass *string
-	Notes             *string
-	StudentIDs        []int64
-	StaffIDs          []int64
-	PrimaryStaffID    *int64
-	CreatedBy         *int64
-	RosterValidFrom   timezone.Date
+	// ListKind classifies the template for printable daily lists (#1565);
+	// nil = no list kind.
+	ListKind        *string
+	Notes           *string
+	StudentIDs      []int64
+	StaffIDs        []int64
+	PrimaryStaffID  *int64
+	CreatedBy       *int64
+	RosterValidFrom timezone.Date
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max, used to cap Jahrgang targets.
 	GradeLevelMax int
@@ -161,6 +164,7 @@ func (s *TimetableDataService) createTemplateLocked(
 		TargetGroupType:   in.TargetGroupType,
 		TargetGradeLevel:  in.TargetGradeLevel,
 		TargetSchoolClass: in.TargetSchoolClass,
+		ListKind:          in.ListKind,
 		Notes:             in.Notes,
 	}
 	group.SetTenantID(tenantID)

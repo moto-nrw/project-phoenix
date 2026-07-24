@@ -79,6 +79,7 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		TargetGroupType:       row.TargetGroupType,
 		TargetGradeLevel:      nullableTemplateInt16(row.TargetGradeLevel.Valid, row.TargetGradeLevel.Int16),
 		TargetSchoolClass:     nullableTemplateString(row.TargetSchoolClass.Valid, row.TargetSchoolClass.String),
+		ListKind:              nullableTemplateString(row.ListKind.Valid, row.ListKind.String),
 		Notes:                 nullableTemplateString(row.Notes.Valid, row.Notes.String),
 		ShiftTypeName:         row.ShiftTypeName,
 		ShiftTypeColor:        row.ShiftTypeColor,
@@ -180,6 +181,9 @@ type templateResponse struct {
 	TargetGroupType   string  `json:"target_group_type"`
 	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
 	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	// ListKind classifies the template for printable daily lists (#1565);
+	// nil when the template has no list kind.
+	ListKind *string `json:"list_kind,omitempty"`
 	// Notes is the template's durable Wochennotiz (#1837 follow-up), nil when
 	// no series note is set. Lets the planner prefill the field on a series edit.
 	Notes *string `json:"notes,omitempty"`

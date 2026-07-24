@@ -124,13 +124,21 @@ type TemplateSplitInput struct {
 	// is true; otherwise the successor inherits the source template's note. Same
 	// omitted-vs-null split as RequiredStaff so a "this and following" edit can
 	// actually CLEAR the series note.
-	Notes           *string
-	NotesProvided   bool
-	StudentIDs      []int64
-	StaffIDs        []int64
-	PrimaryStaffID  *int64
-	MaterializeFrom *timezone.Date
-	MaterializeTo   *timezone.Date
+	Notes         *string
+	NotesProvided bool
+	// ListKind classifies the successor for printable daily lists (#1565),
+	// already normalized (nil = clear). Same omitted-vs-null split as
+	// RequiredStaff/Notes: only applied when ListKindProvided is true,
+	// otherwise the successor inherits the source template's list kind —
+	// without this a plain "this and following" edit would silently drop the
+	// series from its automatic Randstunden/Lernzeit/AG/Mensa list.
+	ListKind         *string
+	ListKindProvided bool
+	StudentIDs       []int64
+	StaffIDs         []int64
+	PrimaryStaffID   *int64
+	MaterializeFrom  *timezone.Date
+	MaterializeTo    *timezone.Date
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max. Missing or out-of-range values are rejected.
 	GradeLevelMax int
@@ -927,6 +935,13 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 	if in.NotesProvided {
 		notes = in.Notes
 	}
+	// Listenart (#1565): same omitted-vs-null carry-over — inherit the source
+	// template's list kind unless the request explicitly carried the field (a
+	// null then clears it).
+	listKind := old.ListKind
+	if in.ListKindProvided {
+		listKind = in.ListKind
+	}
 	seriesRootID := old.ID
 	if old.SeriesRootID != nil {
 		seriesRootID = *old.SeriesRootID
@@ -948,6 +963,7 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 		TargetGroupType:   in.TargetGroupType,
 		TargetGradeLevel:  in.TargetGradeLevel,
 		TargetSchoolClass: in.TargetSchoolClass,
+		ListKind:          listKind,
 		Notes:             notes,
 	}
 	group.SetTenantID(tenantID)

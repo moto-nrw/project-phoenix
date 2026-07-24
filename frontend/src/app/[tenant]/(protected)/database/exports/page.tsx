@@ -25,6 +25,8 @@ import {
 
 import { StudentExportModal } from "~/components/students/student-export-modal";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
+import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
+import { getSettingValue } from "~/lib/settings-api";
 import { Button } from "~/components/ui/button";
 import { InfoCard } from "~/components/ui/info-card";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -91,11 +93,27 @@ const STUDENT_LIST_ICONS: Record<StudentExportPreset, ReactNode> = {
 export default function DatabaseExportsPage() {
   const isMobile = useIsMobile();
   const toast = useToast();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  // Slot lists are part of the timetable feature; hide the entry when a tenant
+  // has explicitly disabled it (#1565 review), mirroring the sidebar and the
+  // Betreuungsplan/Vertretung route guards. getSettingValue returns undefined
+  // when the user cannot read settings, so the card stays visible by default.
+  const { data: settingsSchema } = useSettingsSchema(
+    status === "authenticated",
+    { revalidateOnFocus: false, revalidateOnReconnect: false },
+  );
+  const timetableDisabled =
+    getSettingValue(settingsSchema, "timetable.enabled") === false;
   // "Wer ist wo" hits POST /api/rooms/export, which requires rooms:read on top
   // of the users:read that gates this page. Without rooms:read the export 403s,
   // so hide the card rather than offer a button that always fails.
   const canReadRooms = isAdmin(session) || hasPermission(session, "rooms:read");
+  // Slot lists expose named children + presence, so the backend requires
+  // schedules:read AND users:read (#1565) — mirror that here.
+  const canUseSlotLists =
+    isAdmin(session) ||
+    (hasPermission(session, "schedules:read") &&
+      hasPermission(session, "users:read"));
   const [studentModal, setStudentModal] = useState<StudentModalConfig | null>(
     null,
   );
@@ -243,6 +261,19 @@ export default function DatabaseExportsPage() {
         </ExportSection>
 
         <ExportSection title="Auf anderen Seiten">
+          {canUseSlotLists && !timetableDisabled && (
+            <InfoCard
+              title="Tageslisten"
+              icon={<CalendarClock className="h-5 w-5" />}
+            >
+              <ExportDescription>
+                Listen aus geplanten Angeboten wie Mensa, Lernzeit, AG oder
+                Ganztag: Plan, Ist und Abgleich für ein Datum. Der Einstieg
+                liegt im Bereich Planung.
+              </ExportDescription>
+              <ExportLink href="/lists">Zu den Tageslisten</ExportLink>
+            </InfoCard>
+          )}
           {/* /admin/enrollments redirects non-admins to /dashboard (useRequireAdmin),
               so only offer the link to admins rather than send others to a dead end. */}
           {isAdmin(session) && (

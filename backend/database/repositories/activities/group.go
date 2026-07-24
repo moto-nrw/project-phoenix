@@ -449,6 +449,7 @@ const templateListSelect = `
 			g.target_group_type,
 			g.target_grade_level,
 			g.target_school_class,
+			g.list_kind,
 			g.notes,
 			COALESCE(st.name, '') AS shift_type_name,
 			COALESCE(st.color, '') AS shift_type_color,
@@ -774,6 +775,7 @@ func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fi
 		Set("target_group_type = ?", targetGroupType).
 		Set("target_grade_level = ?", fields.TargetGradeLevel).
 		Set("target_school_class = ?", fields.TargetSchoolClass).
+		Set("list_kind = ?", fields.ListKind).
 		Set("notes = ?", fields.Notes).
 		Set("updated_at = ?", time.Now()).
 		Where("tenant_id = ?", tenantID).

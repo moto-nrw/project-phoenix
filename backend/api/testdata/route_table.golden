@@ -611,6 +611,9 @@ POST /api/timetable/instances/{id}/complete
 POST /api/timetable/instances/{id}/deviations
 POST /api/timetable/instances/{id}/move-staff
 POST /api/timetable/instances/{id}/start
+POST /api/timetable/lists/export
+POST /api/timetable/lists/options
+POST /api/timetable/lists/preview
 POST /api/timetable/materialize
 POST /api/timetable/operations/instances/{id}/complete
 POST /api/timetable/operations/instances/{id}/start

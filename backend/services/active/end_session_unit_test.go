@@ -244,6 +244,10 @@ func (m *mockVisitRepository) FindByActiveGroupID(ctx context.Context, activeGro
 	return []*active.Visit{}, nil
 }
 
+func (m *mockVisitRepository) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*active.Visit, error) {
+	return nil, nil
+}
+
 func (m *mockVisitRepository) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Visit, error) {
 	return nil, nil
 }

@@ -109,6 +109,11 @@ type VisitRepository interface {
 	// FindByActiveGroupID finds all visits for a specific active group
 	FindByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*Visit, error)
 
+	// FindByActiveGroupIDs finds all visits belonging to any of the given active
+	// groups in a single query — the bulk form of FindByActiveGroupID for callers
+	// resolving many groups at once (e.g. a full day of slots).
+	FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*Visit, error)
+
 	// FindByTimeRange finds all visits active during a specific time range
 	FindByTimeRange(ctx context.Context, start, end time.Time) ([]*Visit, error)
 

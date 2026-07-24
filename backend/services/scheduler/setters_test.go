@@ -793,6 +793,10 @@ func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, 
 	return 0, nil
 }
 
+func (f *fakeInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
 func (f *fakeInstanceRepo) UpdateColumns(context.Context, *scheduleModel.ActivityInstance, ...string) (int64, error) {
 	return 0, nil
 }

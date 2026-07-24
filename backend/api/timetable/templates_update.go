@@ -33,6 +33,9 @@ type updateTemplateRequest struct {
 	TargetGroupType   string  `json:"target_group_type,omitempty"`
 	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
 	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	// ListKind classifies the template for printable daily lists (#1565);
+	// omitted/null/empty clears it.
+	ListKind *string `json:"list_kind,omitempty"`
 	// Notes is the durable Wochennotiz for the template; omitted/null clears it.
 	Notes          *string `json:"notes,omitempty"`
 	StudentIDs     []int64 `json:"student_ids,omitempty"`
@@ -78,6 +81,11 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	}
 	req.TargetGroupType = target.TargetGroupType
 	req.TargetSchoolClass = target.TargetSchoolClass
+	listKind, err := normalizeTemplateListKind(req.ListKind)
+	if err != nil {
+		return err
+	}
+	req.ListKind = listKind
 	return nil
 }
 
@@ -229,6 +237,7 @@ func buildUpdateTemplateInput(
 			TargetGroupType:   req.TargetGroupType,
 			TargetGradeLevel:  req.TargetGradeLevel,
 			TargetSchoolClass: req.TargetSchoolClass,
+			ListKind:          req.ListKind,
 			Notes:             normalizeNotes(req.Notes),
 		},
 		Weekdays:         req.Weekdays,

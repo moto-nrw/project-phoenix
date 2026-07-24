@@ -166,6 +166,11 @@ type InstanceStudentRepository interface {
 	// FindByInstanceID returns all attendance rows for an instance.
 	FindByInstanceID(ctx context.Context, instanceID int64) ([]*InstanceStudent, error)
 
+	// FindByInstanceIDs returns every attendance row (all statuses) for any
+	// of the given instance IDs in one query, tenant-scoped. Empty input
+	// returns an empty slice without hitting the DB (#1565 list options).
+	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*InstanceStudent, error)
+
 	// FindExpectedByInstanceIDs returns every instance_students row with
 	// status='expected' for any of the given instance IDs, tenant-scoped.
 	// Returns an empty slice (not nil) when instanceIDs is empty. Used by

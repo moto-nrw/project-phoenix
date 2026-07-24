@@ -87,10 +87,10 @@ describe("StudentExportModal", () => {
   it("updates title and active columns when a preset is selected", async () => {
     await openModal();
 
-    fireEvent.click(screen.getByRole("button", { name: /Tagesliste/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Tagesplanung/ }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Titel")).toHaveValue("Tagesliste");
+      expect(screen.getByLabelText("Titel")).toHaveValue("Tagesplanung");
     });
     expect(screen.getByText("7 aktiv")).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: /Tagesstatus/ })).toBeChecked();
@@ -364,7 +364,7 @@ describe("StudentExportModal", () => {
       ).toBeInTheDocument();
 
       expect(screen.queryByText("Vorlage")).not.toBeInTheDocument();
-      for (const other of ["OGS Wochenliste", "Klassenliste", "Tagesliste"]) {
+      for (const other of ["OGS Wochenliste", "Klassenliste", "Tagesplanung"]) {
         expect(
           screen.queryByRole("button", { name: new RegExp(`^${other}`) }),
         ).not.toBeInTheDocument();

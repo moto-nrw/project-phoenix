@@ -509,6 +509,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		CareDayService:         api.Services.CareDay,
 		UserContextService:     api.Services.UserContext,
 		SettingsService:        api.Services.Settings,
+		SlotListsService:       api.Services.SlotLists,
 		Broadcaster:            api.Services.RealtimeHub,
 		Logger:                 logger.With("handler", "timetable"),
 		DB:                     db,

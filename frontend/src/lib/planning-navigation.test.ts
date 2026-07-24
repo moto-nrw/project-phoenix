@@ -31,6 +31,7 @@ describe("planning navigation", () => {
     expect(getPlanningMobileActivePaths("/betreuungsplan")).toEqual([
       "/betreuungsplan",
       "/timetables",
+      "/lists",
       "/calendar-periods",
     ]);
   });

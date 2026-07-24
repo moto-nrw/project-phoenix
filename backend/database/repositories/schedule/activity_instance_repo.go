@@ -393,3 +393,55 @@ func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx con
 	deleted, _ := res.RowsAffected() // nil-driver-safe: fall through with 0
 	return deleted, nil
 }
+
+// PropagateListKindToFutureInstances re-classifies the future template-backed
+// planned instances of one template whose list_kind still matches the series'
+// previous value, returning the number of rows changed. It closes the gap where
+// editing a series' Listenart (activities.groups.list_kind) left already
+// materialized future occurrences carrying the stale value the classified daily
+// lists filter on, so the series stayed absent from its list until a manual
+// re-plan (#1565 review).
+//
+// Only rows a series edit is allowed to touch are updated:
+//   - date strictly after `after` (today): the materialization/re-plan invariant
+//     that the current and past days are never rewritten is preserved, so a list
+//     already in use today is not reshuffled underneath its readers;
+//   - status = 'planned' and is_spontaneous = false: started/completed/cancelled
+//     and spontaneous rows are never rewritten by a series edit;
+//   - list_kind still equal to `previousKind` (NULL and empty treated alike): an
+//     occurrence individually re-classified via the instance PUT diverges from
+//     the series value and is a single-occurrence edit (EditedChangeListKind that
+//     ReplanWeek reports as lost) — it is left untouched.
+//
+// Custom method (backend-conventions Rule 2): a multi-predicate series-scoped
+// column rewrite the generic filter API cannot express.
+func (r *ActivityInstanceRepository) PropagateListKindToFutureInstances(
+	ctx context.Context,
+	activityGroupID int64,
+	previousKind *string,
+	newKind *string,
+	after timezone.Date,
+) (int64, error) {
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*schedule.ActivityInstance)(nil)).
+		ModelTableExpr(modelTblActivityInstance).
+		Set(`list_kind = ?`, newKind).
+		Set(`updated_at = ?`, time.Now()).
+		Where(`"activity_instance".activity_group_id = ?`, activityGroupID).
+		Where(`"activity_instance".date > ?`, after).
+		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
+		Where(`"activity_instance".is_spontaneous = ?`, false).
+		Where(`COALESCE("activity_instance".list_kind, '') = COALESCE(?, '')`, previousKind)
+
+	q = base.WithTenantFilter(ctx, q, aliasActivityInstance)
+
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "propagate list kind to future instances",
+			Err: err,
+		}
+	}
+	updated, _ := res.RowsAffected() // nil-driver-safe: fall through with 0
+	return updated, nil
+}

@@ -18,22 +18,24 @@ import (
 
 // Mock is a func-field test double for config.SettingsService.
 type Mock struct {
-	GetSchemaFn              func(ctx context.Context, userPermissions []string) (*config.SettingsSchema, error)
-	GetSchemaForOperatorFn   func(ctx context.Context, userPermissions []string) (*config.SettingsSchema, error)
-	ResolveFn                func(ctx context.Context, key string) (any, error)
-	ResolveStringFn          func(ctx context.Context, key string) (string, error)
-	ResolveStringForTenantFn func(ctx context.Context, tenantID int64, key string) (string, error)
-	ResolveBoolFn            func(ctx context.Context, key string) (bool, error)
-	ResolveBoolForTenantFn   func(ctx context.Context, tenantID int64, key string) (bool, error)
-	ResolveIntFn             func(ctx context.Context, key string) (int, error)
-	ResolveIntForTenantFn    func(ctx context.Context, tenantID int64, key string) (int, error)
-	HasTenantOverrideFn      func(ctx context.Context, key string) (bool, error)
-	SetValueFn               func(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error
-	ResetValueFn             func(ctx context.Context, key string, changedBy *int64, userPermissions []string) error
-	CheckOperatorWritableFn  func(key string) error
-	GetLoginImageURLFn       func(ctx context.Context, tenantID int64) (string, error)
-	SetLoginImageURLFn       func(ctx context.Context, tenantID int64, imageURL string) (string, error)
-	ClearLoginImageURLFn     func(ctx context.Context, tenantID int64) (string, error)
+	GetSchemaFn                    func(ctx context.Context, userPermissions []string) (*config.SettingsSchema, error)
+	GetSchemaForOperatorFn         func(ctx context.Context, userPermissions []string) (*config.SettingsSchema, error)
+	ResolveFn                      func(ctx context.Context, key string) (any, error)
+	ResolveStringFn                func(ctx context.Context, key string) (string, error)
+	ResolveStringForTenantFn       func(ctx context.Context, tenantID int64, key string) (string, error)
+	ResolveBoolFn                  func(ctx context.Context, key string) (bool, error)
+	ResolveBoolForTenantFn         func(ctx context.Context, tenantID int64, key string) (bool, error)
+	ResolveIntFn                   func(ctx context.Context, key string) (int, error)
+	ResolveIntForTenantFn          func(ctx context.Context, tenantID int64, key string) (int, error)
+	HasTenantOverrideFn            func(ctx context.Context, key string) (bool, error)
+	SetValueFn                     func(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error
+	ResetValueFn                   func(ctx context.Context, key string, changedBy *int64, userPermissions []string) error
+	CheckOperatorWritableFn        func(key string) error
+	GetLoginImageURLFn             func(ctx context.Context, tenantID int64) (string, error)
+	SetLoginImageURLFn             func(ctx context.Context, tenantID int64, imageURL string) (string, error)
+	ClearLoginImageURLFn           func(ctx context.Context, tenantID int64) (string, error)
+	LockSlotListCutoffPairFn       func(ctx context.Context) error
+	LockSlotListCutoffPairSharedFn func(ctx context.Context) error
 }
 
 var _ config.SettingsService = (*Mock)(nil)
@@ -148,4 +150,18 @@ func (m *Mock) ClearLoginImageURL(ctx context.Context, tenantID int64) (string, 
 		return m.ClearLoginImageURLFn(ctx, tenantID)
 	}
 	return "", nil
+}
+
+func (m *Mock) LockSlotListCutoffPair(ctx context.Context) error {
+	if m.LockSlotListCutoffPairFn != nil {
+		return m.LockSlotListCutoffPairFn(ctx)
+	}
+	return nil
+}
+
+func (m *Mock) LockSlotListCutoffPairShared(ctx context.Context) error {
+	if m.LockSlotListCutoffPairSharedFn != nil {
+		return m.LockSlotListCutoffPairSharedFn(ctx)
+	}
+	return nil
 }

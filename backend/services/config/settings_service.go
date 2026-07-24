@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -262,6 +264,16 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 		return &SettingsError{Op: "set_value", Err: fmt.Errorf("no tenant context")}
 	}
 
+	// Cross-field invariants the per-field validation above cannot express.
+	// Rejecting the pair here is what keeps an unusable configuration from ever
+	// being persisted (#1565 review: an inverted Ganztag cutoff pair passed
+	// FieldTime validation and then 500'd every pickup list, options and export).
+	if err := s.validateCrossField(ctx, key, value); err != nil {
+		// validateCrossField returns *InvalidValueError only for a genuinely
+		// invalid pair (→ 400); lock/lookup failures stay operational (→ 500).
+		return &SettingsError{Op: "set_value", Err: err}
+	}
+
 	// Read current value for audit
 	existing, err := s.valueRepo.FindByTenantAndKey(ctx, tenantID, key)
 	if err != nil {
@@ -324,6 +336,17 @@ func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy 
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
 		return &SettingsError{Op: "reset_value", Err: fmt.Errorf("no tenant context")}
+	}
+
+	// Resetting restores the registry default, which can invert a cross-field
+	// invariant even though SetValue guards it (e.g. resetting the long Ganztag
+	// cutoff to its 16:00 default while a 18:00 short-cutoff override stays put).
+	// Validate the effective pair with the default in place before deleting, so a
+	// reset can never persist an unusable configuration that then 500s every
+	// pickup list (#1565 review).
+	if err := s.validateCrossField(ctx, key, def.Default); err != nil {
+		// See SetValue: only an inverted pair is a 400; operational failures 500.
+		return &SettingsError{Op: "reset_value", Err: err}
 	}
 
 	// Read current value for audit
@@ -448,6 +471,114 @@ func validateValue(def *config.Definition, value any) error {
 	}
 
 	return nil
+}
+
+// validateCrossField enforces invariants that span more than one setting, using
+// the sibling setting's currently effective value (the new value is not yet
+// persisted). There is always an edit order that reaches any valid target pair,
+// so a rejection here only asks the admin to set the values in a consistent
+// order — never blocks a reachable configuration.
+func (s *settingsService) validateCrossField(ctx context.Context, key string, value any) error {
+	switch key {
+	case config.KeySlotListShortDayCutoff, config.KeySlotListLongDayCutoff:
+		return s.validateSlotListCutoffPair(ctx, key, value)
+	}
+	return nil
+}
+
+// validateSlotListCutoffPair rejects a Ganztag cutoff pair where the long-day
+// cutoff is not strictly after the short-day cutoff — the pickup buckets are
+// [.., short] and (short, long], so an inverted or equal pair leaves the
+// long-day bucket empty and, before this guard, made every pickup list fail.
+func (s *settingsService) validateSlotListCutoffPair(ctx context.Context, key string, value any) error {
+	newVal, ok := value.(string)
+	if !ok || newVal == "" {
+		// A non-string or empty value falls back to the registry default, which
+		// is a valid pair; format errors are already caught by validateValue.
+		return nil
+	}
+	// Serialize the read-validate-write of the cutoff pair against a concurrent
+	// write of the sibling cutoff (#1565 review). Without this, two requests that
+	// both start from a valid pair each read the OLD sibling, both pass this
+	// check, and then commit an inverted pair (e.g. short=15:30 alongside
+	// long=15:00) that 500s every pickup list, preview and export. The
+	// transaction-scoped advisory lock — held until the request tx commits after
+	// the upsert — forces the second writer to block, then read the first's
+	// committed value and reject.
+	if err := s.LockSlotListCutoffPair(ctx); err != nil {
+		return err
+	}
+	short, long := newVal, newVal
+	var err error
+	if key == config.KeySlotListShortDayCutoff {
+		long, err = s.ResolveString(ctx, config.KeySlotListLongDayCutoff)
+	} else {
+		short, err = s.ResolveString(ctx, config.KeySlotListShortDayCutoff)
+	}
+	if err != nil {
+		return fmt.Errorf("resolve paired Ganztag cutoff: %w", err)
+	}
+	shortT, err := time.Parse("15:04", strings.TrimSpace(short))
+	if err != nil {
+		return nil // sibling is unparseable/empty; nothing to compare against yet
+	}
+	longT, err := time.Parse("15:04", strings.TrimSpace(long))
+	if err != nil {
+		return nil
+	}
+	if !longT.After(shortT) {
+		// Only the inverted pair is a client validation error (→ 400). The lock
+		// and sibling-resolve failures above are operational and stay plain
+		// errors so they surface as a 500, not as "your time is invalid"
+		// (#1565 review).
+		return &InvalidValueError{
+			Key:    key,
+			Reason: fmt.Sprintf("der lange Ganztag (%s) muss nach dem kurzen Ganztag (%s) liegen", long, short),
+		}
+	}
+	return nil
+}
+
+// LockSlotListCutoffPair takes the per-tenant transaction-scoped advisory lock
+// that guards the Ganztag pickup-cutoff pair. Both the pair validator on the
+// write path (validateSlotListCutoffPair) and the slot-list reader on the read
+// path (services/slotlists pickupBuckets) take it, so a concurrent lowering of
+// both cutoffs cannot interleave with a read and expose an inverted short/long
+// pair under READ COMMITTED (#1565 review). Best-effort: without an ambient
+// transaction the xact lock is meaningless — the settings read/write paths always
+// run inside a tenant tx (the RLS-scoped repos require one) — so it is skipped
+// rather than failing.
+func (s *settingsService) LockSlotListCutoffPair(ctx context.Context) error {
+	if _, hasTx := modelBase.TxFromContext(ctx); !hasTx {
+		return nil
+	}
+	if err := base.AcquireXactLock(ctx, s.db, slotListCutoffLockKey(ctx)); err != nil {
+		return fmt.Errorf("lock Ganztag cutoff pair: %w", err)
+	}
+	return nil
+}
+
+// LockSlotListCutoffPairShared takes the SHARED variant of the Ganztag cutoff
+// lock for read paths (services/slotlists pickupBuckets). Shared holders never
+// block one another, so concurrent /options, pickup-preview and export requests
+// no longer serialize behind a single exclusive lock — a slow export scanning
+// rosters or rendering a PDF/XLSX cannot stall every other reader in the tenant.
+// It still conflicts with the exclusive writer lock, so a cutoff update can never
+// commit a partial pair while a reader observes the two cutoffs (#1565 review).
+func (s *settingsService) LockSlotListCutoffPairShared(ctx context.Context) error {
+	if _, hasTx := modelBase.TxFromContext(ctx); !hasTx {
+		return nil
+	}
+	if err := base.AcquireXactLockShared(ctx, s.db, slotListCutoffLockKey(ctx)); err != nil {
+		return fmt.Errorf("lock Ganztag cutoff pair (shared): %w", err)
+	}
+	return nil
+}
+
+// slotListCutoffLockKey is the per-tenant advisory-lock key shared by the
+// exclusive writer lock and the shared reader lock so the two conflict.
+func slotListCutoffLockKey(ctx context.Context) string {
+	return fmt.Sprintf("slot-list-cutoff:%d", tenant.FromContext(ctx))
 }
 
 // validateTimeFormat checks that a string is a valid HH:MM time.

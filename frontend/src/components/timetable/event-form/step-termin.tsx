@@ -14,7 +14,7 @@ import { Field } from "./field";
 import { isoWeekday } from "./form-model";
 import type { EventFormState } from "./form-model";
 import type { RoomOption } from "./use-event-form";
-import type { ActivityType } from "~/lib/timetable-types";
+import type { ActivityType, TimetableListKind } from "~/lib/timetable-types";
 
 const FORM_SELECT_CLASS = timetableSelectClass;
 
@@ -26,6 +26,18 @@ const TYPE_OPTIONS: Array<{
   { value: "care", label: "Betreuung", hint: "Mensa, Lernzeit, Freispiel" },
   { value: "activity", label: "AG", hint: "Yoga, Bouldern, …" },
   { value: "external", label: "Extern", hint: "DAZ, Musikschule" },
+];
+
+// Listenart (#1565): optional classification driving the printable
+// Tageslisten (Planung → Tageslisten).
+const LIST_KIND_OPTIONS: Array<{
+  value: TimetableListKind;
+  label: string;
+}> = [
+  { value: "edge_hours", label: "Randstunden" },
+  { value: "learning_time", label: "Lernzeit" },
+  { value: "activity", label: "AG-Angebote" },
+  { value: "mensa", label: "Mensa" },
 ];
 
 export interface StepTerminProps {
@@ -41,6 +53,10 @@ export interface StepTerminProps {
   expanded: boolean;
   isSeriesFlow: boolean;
   quickPreset: string;
+  // Flipped true the moment the user changes Listenart, so an all/following
+  // series edit writes the new value instead of echoing the fetched template
+  // (#1565 review).
+  listKindTouched: React.RefObject<boolean>;
 }
 
 /**
@@ -60,6 +76,7 @@ export function StepTermin({
   expanded,
   isSeriesFlow,
   quickPreset,
+  listKindTouched,
 }: Readonly<StepTerminProps>) {
   return (
     <>
@@ -143,6 +160,42 @@ export function StepTermin({
             </select>
           </Field>
         </>
+      )}
+
+      {/* Listenart (#1565): visible in every flow that writes an occurrence's
+          own list_kind — a one-off create, a standalone-instance edit, and the
+          "Nur diesen Termin" scope (all persist form.listKind via instanceBody)
+          — plus the expanded series flow (seriesBody). An "Alle/folgende" series
+          edit still echoes the template's classification and ignores this field.
+          Without this the field only rendered under expanded && isSeriesFlow, so
+          spontaneous/one-off slots could not be classified nor an occurrence
+          override cleared (#1565 review pass 1 P2). */}
+      {(!isSeriesFlow || expanded) && (
+        <Field label="Listenart" htmlFor="event_list_kind">
+          <select
+            id="event_list_kind"
+            value={form.listKind}
+            onChange={(event) => {
+              listKindTouched.current = true;
+              update(
+                "listKind",
+                event.target.value as EventFormState["listKind"],
+              );
+            }}
+            className={FORM_SELECT_CLASS}
+          >
+            <option value="">Keine</option>
+            {LIST_KIND_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[11px] leading-4 text-gray-500">
+            Ordnet den Termin einer druckbaren Tagesliste zu (Planung →
+            Tageslisten).
+          </p>
+        </Field>
       )}
 
       <Field

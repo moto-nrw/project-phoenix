@@ -129,7 +129,14 @@ func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in Temp
 	if err != nil {
 		return err
 	}
+	// Capture the series' current Listenart before the field write so the
+	// instance propagation can tell an untouched occurrence (still carrying the
+	// series value) from a per-occurrence override.
+	previousListKind := existing.ListKind
 	if err := s.updateTemplateFields(ctx, in); err != nil {
+		return err
+	}
+	if err := s.propagateListKindToInstances(ctx, in.TemplateID, previousListKind, in.Fields.ListKind); err != nil {
 		return err
 	}
 	if err := s.replaceTemplateSchedules(ctx, in, tenantID, validFrom, validUntil); err != nil {
@@ -185,6 +192,30 @@ func (s *TimetableDataService) updateTemplateFields(ctx context.Context, in Temp
 			Op:  updateTemplateFieldsOp,
 			Err: fmt.Errorf("expected one template row to change, got %d", updated),
 		}
+	}
+	return nil
+}
+
+// propagateListKindToInstances carries a series Listenart change onto the
+// template's already-materialized future occurrences. Without it a list_kind
+// edit reaches only occurrences materialized AFTER the edit, so the classified
+// daily lists (#1565) omitted the series until a manual re-plan. It is a no-op
+// when the classification is unchanged or the instance repository is not wired
+// (read-only test facades). Runs inside the caller's tenant transaction and
+// recurrence gate; the repository predicate preserves today/past rows,
+// non-planned/spontaneous rows, and per-occurrence classification overrides.
+func (s *TimetableDataService) propagateListKindToInstances(
+	ctx context.Context,
+	templateID int64,
+	previousKind, newKind *string,
+) error {
+	if s.deps.ActivityInstanceRepo == nil || sameListKind(previousKind, newKind) {
+		return nil
+	}
+	if _, err := s.deps.ActivityInstanceRepo.PropagateListKindToFutureInstances(
+		ctx, templateID, previousKind, newKind, timezone.TodayDate(),
+	); err != nil {
+		return &ScheduleError{Op: "update template: propagate list kind", Err: err}
 	}
 	return nil
 }

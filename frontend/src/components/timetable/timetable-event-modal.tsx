@@ -44,6 +44,7 @@ const EDIT_CHANGE_LABELS: Record<EditedChange, string> = {
   time: "Zeit/Datum",
   staff: "Personal",
   students: "Kinder",
+  list_kind: "Listenart",
   deleted: "Gelöschter Termin",
 };
 
@@ -182,6 +183,7 @@ export function TimetableEventModal({
     title,
     requiredStaffTouched,
     staffRosterTouched,
+    listKindTouched,
     manualWeekPattern,
   } = useEventForm({
     isOpen,
@@ -329,6 +331,7 @@ export function TimetableEventModal({
                 expanded={expanded}
                 isSeriesFlow={isSeriesFlow}
                 quickPreset={quickPreset}
+                listKindTouched={listKindTouched}
               />
             )}
 

@@ -204,6 +204,10 @@ func (f *fakeInstanceStudentRepo) FindByInstanceID(context.Context, int64) ([]*s
 	panic("unused")
 }
 
+func (f *fakeInstanceStudentRepo) FindByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStudent, error) {
+	panic("unused")
+}
+
 func (f *fakeInstanceStudentRepo) FindExpectedByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStudent, error) {
 	panic("unused")
 }
@@ -868,6 +872,10 @@ func (f *fakeInstanceStudentRepo) ListStudentInstanceRefsBefore(context.Context,
 }
 
 func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, *timezone.Date, *int64, bool) (int64, error) {
+	return 0, nil
+}
+
+func (f *fakeInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, timezone.Date) (int64, error) {
 	return 0, nil
 }
 

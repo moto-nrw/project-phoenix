@@ -570,6 +570,12 @@ func (r *fakeStatusDayRepo) FindActiveByStudentIDsAndDate(_ context.Context, stu
 	return r.findByIDsRows, nil
 }
 
+func (r *fakeStatusDayRepo) FindSignedOffByStudentIDsAndDate(_ context.Context, studentIDs []int64, date timezone.Date) ([]*active.StudentStatusDay, error) {
+	r.findByIDsStudentIDs = append([]int64(nil), studentIDs...)
+	r.findByIDsDate = date
+	return r.findByIDsRows, nil
+}
+
 func (r *fakeStatusDayRepo) FindByStudentAndDateRange(_ context.Context, _ int64, _, _ timezone.Date) ([]*active.StudentStatusDay, error) {
 	return nil, nil
 }

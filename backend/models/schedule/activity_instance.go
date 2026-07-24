@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -47,7 +48,10 @@ type ActivityInstance struct {
 	RequiredStaff *int   `bun:"required_staff" json:"required_staff,omitempty"`
 	Status        string `bun:"status,notnull,default:'planned'" json:"status"`
 	ActiveGroupID *int64 `bun:"active_group_id" json:"active_group_id,omitempty"`
-	IsSpontaneous bool   `bun:"is_spontaneous,notnull,default:false" json:"is_spontaneous"`
+	// ListKind classifies the instance for printable daily lists (issue #1565).
+	// Copied from the template at materialization time; NULL means no list kind.
+	ListKind      *string `bun:"list_kind" json:"list_kind,omitempty"`
+	IsSpontaneous bool    `bun:"is_spontaneous,notnull,default:false" json:"is_spontaneous"`
 	// UnderstaffedAck records that an admin deliberately accepts this block
 	// running with zero staff (Vertretungsplan, issue #1840). When true the gap
 	// detector reports the block as an acknowledged shortfall instead of an open
@@ -92,6 +96,16 @@ func (i *ActivityInstance) Validate() error {
 	}
 	if i.RequiredStaff != nil && *i.RequiredStaff < 0 {
 		return errors.New("required_staff cannot be negative")
+	}
+	// Canonicalize a non-nil pointer to "" to NULL so it satisfies the DB's
+	// `list_kind IS NULL OR list_kind IN (...)` CHECK instead of hitting a
+	// constraint error (IsValidListKind("") stays true for the slot-list
+	// filter, where empty means "any kind").
+	if i.ListKind != nil && *i.ListKind == "" {
+		i.ListKind = nil
+	}
+	if i.ListKind != nil && !activitiesModel.IsValidListKind(*i.ListKind) {
+		return errors.New("invalid list kind")
 	}
 	return nil
 }
@@ -173,6 +187,16 @@ type ActivityInstanceRepository interface {
 	// (#1840): true for re-plan, false for the destructive template
 	// split/end series operation — see the implementation for why.
 	DeletePlannedNonSpontaneousInWindow(ctx context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64, preserveDeviations bool) (int64, error)
+
+	// PropagateListKindToFutureInstances re-classifies future template-backed
+	// planned instances of one template whose list_kind still equals the
+	// series' previous value (NULL and '' treated alike), returning the number
+	// of rows changed. It carries a series Listenart edit onto already
+	// materialized future occurrences so the classified daily lists (#1565)
+	// reflect it without a manual re-plan, while leaving today/past rows,
+	// non-planned/spontaneous rows, and per-occurrence classification overrides
+	// untouched. `after` is today; only rows dated strictly after it change.
+	PropagateListKindToFutureInstances(ctx context.Context, activityGroupID int64, previousKind, newKind *string, after timezone.Date) (int64, error)
 
 	// UpdateColumns is the generic partial-update helper promoted from the
 	// embedded base repository: updates only the named columns by primary

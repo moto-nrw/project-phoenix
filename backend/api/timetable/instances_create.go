@@ -17,6 +17,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
@@ -36,6 +37,7 @@ type createInstanceRequest struct {
 	Notes           *string `json:"notes,omitempty"`
 	RoomID          int64   `json:"room_id"`
 	ActivityGroupID *int64  `json:"activity_group_id,omitempty"`
+	ListKind        *string `json:"list_kind,omitempty"`
 	StaffIDs        []int64 `json:"staff_ids,omitempty"`
 	StudentIDs      []int64 `json:"student_ids,omitempty"`
 	// RequiredStaff is the optional per-occurrence Personalbedarf pin (#1839);
@@ -112,6 +114,20 @@ func parseClockTime(hhmm string) (time.Time, error) {
 	return time.Date(2000, 1, 1, t.Hour(), t.Minute(), 0, 0, time.UTC), nil
 }
 
+func normalizeInstanceListKind(raw *string) (*string, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	kind := strings.TrimSpace(*raw)
+	if kind == "" {
+		return nil, nil
+	}
+	if !activitiesModel.IsValidListKind(kind) {
+		return nil, fmt.Errorf("invalid list_kind %q", kind)
+	}
+	return &kind, nil
+}
+
 func bindCreateInstanceRequest(w http.ResponseWriter, r *http.Request) (*parsedCreateInstanceRequest, bool) {
 	req := &createInstanceRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -164,6 +180,11 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req := parsed.req
+	listKind, err := normalizeInstanceListKind(req.ListKind)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 
 	createdBy := rs.resolveStartedByStaffID(r.Context())
 	var createdByPtr *int64
@@ -181,6 +202,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		Notes:            req.Notes,
 		RoomID:           req.RoomID,
 		ActivityGroupID:  req.ActivityGroupID,
+		ListKind:         listKind,
 		StaffIDs:         req.StaffIDs,
 		StudentIDs:       req.StudentIDs,
 		CreatedByStaffID: createdByPtr,

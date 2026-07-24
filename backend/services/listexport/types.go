@@ -48,6 +48,8 @@ const (
 	ColumnGuardianContacts  ColumnID = "guardian_contacts"
 	ColumnBirthday          ColumnID = "birthday"
 	ColumnAge               ColumnID = "age"
+	ColumnSlot              ColumnID = "slot"
+	ColumnPresenceStatus    ColumnID = "presence_status"
 )
 
 type Preset string

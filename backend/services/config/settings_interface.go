@@ -82,6 +82,23 @@ type SettingsService interface {
 	// Uses WithAdminTx because platform.schools requires the phoenix_admin role.
 	// Returns the previous loginImageUrl (if any) so the caller can clean up the old file.
 	ClearLoginImageURL(ctx context.Context, tenantID int64) (oldURL string, err error)
+
+	// LockSlotListCutoffPair takes the per-tenant transaction-scoped advisory lock
+	// that guards the Ganztag pickup-cutoff pair. The cutoff writer holds it while
+	// it validates the pair; a reader that must observe both cutoffs consistently
+	// (services/slotlists) takes it before resolving them, so a concurrent lowering
+	// of both boundaries cannot interleave with the read and expose an inverted
+	// short/long pair under READ COMMITTED. Best-effort: without an ambient
+	// transaction the xact lock is meaningless, so it is skipped rather than failing.
+	LockSlotListCutoffPair(ctx context.Context) error
+
+	// LockSlotListCutoffPairShared is the SHARED-mode counterpart taken by read
+	// paths (services/slotlists pickupBuckets). Shared holders do not block one
+	// another, so concurrent option loads, pickup previews and exports run in
+	// parallel instead of serializing behind the exclusive writer lock; it still
+	// conflicts with LockSlotListCutoffPair so a cutoff write cannot expose a
+	// partial pair to a reader. Same best-effort tx semantics.
+	LockSlotListCutoffPairShared(ctx context.Context) error
 }
 
 // --- Response types ---

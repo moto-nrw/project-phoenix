@@ -206,4 +206,34 @@ func init() {
 		SortOrder:       41,
 		DependsOn:       timetableEnabledDependency,
 	})
+
+	// --- Slot-list pickup buckets (operations tab) ---
+
+	config.Register(config.Definition{
+		Key:             config.KeySlotListShortDayCutoff,
+		Label:           "Kurzer Ganztag bis",
+		Description:     "Abholzeit-Grenze für die kurze Ganztagsliste. Kinder mit Abholzeit bis einschließlich dieser Uhrzeit erscheinen in dieser Kohorte.",
+		Type:            config.FieldTime,
+		Default:         "14:30",
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "stundenplan",
+		SortOrder:       42,
+		DependsOn:       timetableEnabledDependency,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeySlotListLongDayCutoff,
+		Label:           "Langer Ganztag bis",
+		Description:     "Abholzeit-Grenze für die lange Ganztagsliste. Kinder nach dem kurzen Ganztag und bis einschließlich dieser Uhrzeit erscheinen in dieser Kohorte.",
+		Type:            config.FieldTime,
+		Default:         "16:00",
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "stundenplan",
+		SortOrder:       43,
+		DependsOn:       timetableEnabledDependency,
+	})
 }

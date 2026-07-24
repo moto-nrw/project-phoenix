@@ -343,6 +343,76 @@ func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, secondDelW.Code)
 }
 
+// #1565 review: changing a series' Listenart must reach the occurrences that
+// were already materialized for future dates — otherwise the classified daily
+// list omits the series until someone re-plans the week. Per-occurrence
+// classification overrides and past/today rows must survive the propagation.
+func TestTemplateUpdatePropagatesListKindToFutureInstances(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	// Create the series already classified as "mensa".
+	body := createTemplateBody(s, fmt.Sprintf("Tpl-ListKind-%d", time.Now().UnixNano()))
+	body["list_kind"] = activitiesModel.ListKindMensa
+	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+	created := decodeTemplateData[createTemplateResponse](t, w)
+	require.NotZero(t, created.TemplateID)
+
+	instanceRepo := scheduleRepo.NewActivityInstanceRepository(s.db)
+	today := timezone.TodayDate()
+	mkInstance := func(name string, date timezone.Date, hour int, listKind *string) *scheduleModel.ActivityInstance {
+		tmplID := created.TemplateID
+		inst := &scheduleModel.ActivityInstance{
+			Date:            date,
+			ActivityGroupID: &tmplID,
+			Title:           name,
+			StartTime:       time.Date(2024, 1, 1, hour, 0, 0, 0, time.UTC),
+			EndTime:         time.Date(2024, 1, 1, hour+1, 0, 0, 0, time.UTC),
+			RoomID:          s.roomID,
+			Status:          scheduleModel.InstanceStatusPlanned,
+			ListKind:        listKind,
+		}
+		inst.SetTenantID(tenant.FromContext(s.ctx))
+		require.NoError(t, instanceRepo.Create(s.ctx, inst))
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+		return inst
+	}
+
+	// futureRow still carries the series value → should adopt the new kind.
+	futureRow := mkInstance("Future", today.AddDays(7), 8, testpkg.StrPtr(activitiesModel.ListKindMensa))
+	// overriddenRow was individually re-classified → must be preserved.
+	overriddenRow := mkInstance("Overridden", today.AddDays(7), 9, testpkg.StrPtr(activitiesModel.ListKindActivity))
+	// pastRow is elapsed → must be preserved.
+	pastRow := mkInstance("Past", today.AddDays(-7), 8, testpkg.StrPtr(activitiesModel.ListKindMensa))
+
+	// Re-classify the series to "learning_time" via the template PUT.
+	updateBody := createTemplateBody(s, "Tpl-ListKind-Updated")
+	updateBody["list_kind"] = activitiesModel.ListKindLearningTime
+	updateW := doTemplateJSON(t, router, http.MethodPut, fmt.Sprintf("/templates/%d", created.TemplateID), updateBody)
+	require.Equal(t, http.StatusOK, updateW.Code, "body=%s", updateW.Body.String())
+
+	gotFuture, err := instanceRepo.FindByID(s.ctx, futureRow.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotFuture.ListKind)
+	assert.Equal(t, activitiesModel.ListKindLearningTime, *gotFuture.ListKind,
+		"future occurrence must adopt the series' new Listenart")
+
+	gotOverridden, err := instanceRepo.FindByID(s.ctx, overriddenRow.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotOverridden.ListKind)
+	assert.Equal(t, activitiesModel.ListKindActivity, *gotOverridden.ListKind,
+		"per-occurrence override must survive the series edit")
+
+	gotPast, err := instanceRepo.FindByID(s.ctx, pastRow.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotPast.ListKind)
+	assert.Equal(t, activitiesModel.ListKindMensa, *gotPast.ListKind,
+		"past occurrence must be left untouched")
+}
+
 func TestListTemplates_CapacityFields(t *testing.T) {
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)

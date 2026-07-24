@@ -265,7 +265,9 @@ export const STUDENT_EXPORT_PRESETS: Array<{
   },
   {
     id: "daily_planning",
-    label: "Tagesliste",
+    // "Tagesplanung", nicht "Tagesliste": der Name kollidierte mit den
+    // slot-basierten Tageslisten aus dem Betreuungsplan (#1565, /lists).
+    label: "Tagesplanung",
     description: "Planungsdaten für den heutigen Tag mit Hinweisen.",
     columns: [
       "name",

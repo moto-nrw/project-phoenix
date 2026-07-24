@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
@@ -63,6 +64,10 @@ type createTemplateRequest struct {
 	TargetGroupType   string  `json:"target_group_type,omitempty"`
 	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
 	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	// ListKind classifies the template for printable daily lists (#1565):
+	// one of activitiesModel.ListKind* ("edge_hours" | "learning_time" |
+	// "activity" | "mensa") or omitted/empty for none.
+	ListKind *string `json:"list_kind,omitempty"`
 	// Notes is the optional durable Wochennotiz for the template; it shows on
 	// every materialized instance and survives Re-Plan/Split.
 	Notes           *string `json:"notes,omitempty"`
@@ -116,7 +121,28 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 	}
 	req.TargetGroupType = target.TargetGroupType
 	req.TargetSchoolClass = target.TargetSchoolClass
+	listKind, err := normalizeTemplateListKind(req.ListKind)
+	if err != nil {
+		return err
+	}
+	req.ListKind = listKind
 	return nil
+}
+
+// normalizeTemplateListKind trims and validates an optional list_kind value
+// (#1565). Empty/whitespace-only values normalize to nil ("no list kind").
+func normalizeTemplateListKind(raw *string) (*string, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	kind := strings.TrimSpace(*raw)
+	if kind == "" {
+		return nil, nil
+	}
+	if !activitiesModel.IsValidListKind(kind) {
+		return nil, fmt.Errorf("invalid list_kind %q", kind)
+	}
+	return &kind, nil
 }
 
 // createTemplateResponse describes what the caller needs to update the
@@ -250,6 +276,7 @@ func buildCreateTemplateInput(
 		TargetGroupType:   req.TargetGroupType,
 		TargetGradeLevel:  req.TargetGradeLevel,
 		TargetSchoolClass: req.TargetSchoolClass,
+		ListKind:          req.ListKind,
 		Notes:             normalizeNotes(req.Notes),
 		StudentIDs:        req.StudentIDs,
 		StaffIDs:          req.StaffIDs,
