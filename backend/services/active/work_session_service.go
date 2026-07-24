@@ -374,6 +374,21 @@ func (s *workSessionService) lockStaffBalanceWrites(ctx context.Context, staffID
 	return nil
 }
 
+func (s *workSessionService) lockStaffBalanceWritesOrdered(ctx context.Context, staffIDs []int64) error {
+	unique := make(map[int64]struct{}, len(staffIDs))
+	for _, staffID := range staffIDs {
+		unique[staffID] = struct{}{}
+	}
+	ordered := slices.Collect(maps.Keys(unique))
+	slices.Sort(ordered)
+	for _, staffID := range ordered {
+		if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // NewWorkSessionService creates a new work session service
 func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, staffRepo userModels.StaffRepository, scheduleRepo configModels.StaffWorkScheduleRepository, workModelRepo configModels.WorkTimeModelRepository, settings settingsResolver, logger *slog.Logger) WorkSessionService {
 	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, settings: settings, logger: logger}
@@ -1817,12 +1832,16 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 	if err != nil {
 		return 0, fmt.Errorf("failed to get open sessions: %w", err)
 	}
+	staffIDs := make([]int64, 0, len(openSessions))
+	for _, session := range openSessions {
+		staffIDs = append(staffIDs, session.StaffID)
+	}
+	if err := s.lockStaffBalanceWritesOrdered(ctx, staffIDs); err != nil {
+		return 0, err
+	}
 
 	count := 0
 	for _, session := range openSessions {
-		if err := s.lockStaffBalanceWrites(ctx, session.StaffID); err != nil {
-			return count, err
-		}
 		// Set check-out time to 23:59:59 of the session date in Berlin timezone.
 		endOfDay := session.Date.EndOfDay()
 
@@ -1863,6 +1882,13 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 	if len(openSessions) == 0 {
 		return 0, nil
 	}
+	staffIDs := make([]int64, 0, len(openSessions))
+	for _, session := range openSessions {
+		staffIDs = append(staffIDs, session.StaffID)
+	}
+	if err := s.lockStaffBalanceWritesOrdered(ctx, staffIDs); err != nil {
+		return 0, err
+	}
 
 	// Batch the shift lookups per session date; latest shift end per staff wins.
 	latestEndByDate := make(map[timezone.Date]map[int64]*scheduleModels.StaffShift)
@@ -1894,9 +1920,6 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 	tenantID := tenant.FromContext(ctx)
 	count := 0
 	for _, listedSession := range openSessions {
-		if err := s.lockStaffBalanceWrites(ctx, listedSession.StaffID); err != nil {
-			return count, err
-		}
 		session, err := s.repo.LockOpenByIDForUpdate(ctx, listedSession.ID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -2341,12 +2364,20 @@ func (s *workSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, err
 	if len(expiredBreaks) == 0 {
 		return 0, nil
 	}
+	staffIDs := make([]int64, 0, len(expiredBreaks))
+	for _, brk := range expiredBreaks {
+		session, err := s.repo.FindByID(ctx, brk.SessionID)
+		if err != nil {
+			return 0, fmt.Errorf("failed to resolve work session for balance lock: %w", err)
+		}
+		staffIDs = append(staffIDs, session.StaffID)
+	}
+	if err := s.lockStaffBalanceWritesOrdered(ctx, staffIDs); err != nil {
+		return 0, err
+	}
 
 	count := 0
 	for _, brk := range expiredBreaks {
-		if err := s.repo.LockStaffBalanceWritesForSession(ctx, brk.SessionID); err != nil {
-			return count, fmt.Errorf("failed to lock staff balance writes: %w", err)
-		}
 		// Use planned_end_time as the end time for accurate duration
 		endTime := *brk.PlannedEndTime
 		duration := int(math.Round(endTime.Sub(brk.StartedAt).Minutes()))

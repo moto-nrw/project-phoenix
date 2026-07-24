@@ -1474,6 +1474,10 @@ func TestWSAutoEndExpiredBreaks_UsesPlannedEndAndRecalculatesBreakMinutes(t *tes
 			},
 		}, nil
 	}
+	sessionRepo.findByIDFunc = func(_ context.Context, id any) (*activeModels.WorkSession, error) {
+		assert.Equal(t, sessionID, id)
+		return &activeModels.WorkSession{StaffID: 100}, nil
+	}
 	breakRepo.endBreakFunc = func(_ context.Context, id int64, endedAt time.Time, durationMinutes int) error {
 		assert.Equal(t, breakID, id)
 		assert.True(t, plannedEnd.Equal(endedAt))
@@ -1494,6 +1498,20 @@ func TestWSAutoEndExpiredBreaks_UsesPlannedEndAndRecalculatesBreakMinutes(t *tes
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
+}
+
+func TestWSLockStaffBalanceWritesOrdered_SortsAndDeduplicates(t *testing.T) {
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	var locked []int64
+	sessionRepo.lockBalanceWritesFunc = func(_ context.Context, staffID int64) error {
+		locked = append(locked, staffID)
+		return nil
+	}
+
+	err := svc.lockStaffBalanceWritesOrdered(context.Background(), []int64{30, 10, 30, 20, 10})
+
+	require.NoError(t, err)
+	assert.Equal(t, []int64{10, 20, 30}, locked)
 }
 
 // ============================================================================

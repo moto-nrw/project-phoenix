@@ -244,6 +244,59 @@ func TestWTMAdjustments_HalfDayCompTimeReservesFullNoWorkExposure(t *testing.T) 
 	assert.Equal(t, 560, capacity)
 }
 
+func TestWTMAdjustments_BackdatedReductionProtectsMinimumDailyClosing(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-01"
+	effectiveDate := timezone.NewDate(2026, time.July, 6)
+	f.sessions.sessions = []*activeModels.WorkSession{
+		wtmSession(timezone.NewDate(2026, time.July, 13), 9, 600, 0),
+	}
+	f.svc.SetAdjustmentReader(&wtmMockAdjustmentReader{adjustments: []*activeModels.StaffBalanceAdjustment{
+		wtmAdjustment(1, activeModels.BalanceAdjustmentTypeReset, 600, timezone.NewDate(2026, time.July, 1)),
+	}})
+
+	capacity, err := f.svc.GetBalanceReductionCapacity(context.Background(), wtmStaffID, effectiveDate)
+
+	require.NoError(t, err)
+	// July 6 closes at 120 minutes after its target. Work on July 13 repairs
+	// today's balance to 240, but a backdated debit must still preserve the
+	// lower historical closing balance.
+	assert.Equal(t, 120, capacity)
+}
+
+func TestWTMAdjustments_DailyMinimumMatchesCarryChain(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-01"
+	from := timezone.NewDate(2026, time.July, 6)
+	to := timezone.NewDate(2026, time.July, 15)
+	f.sessions.sessions = []*activeModels.WorkSession{
+		wtmSession(from, 9, 300, 0),
+	}
+	f.absences.absences = []*activeModels.StaffAbsence{{
+		StaffID:     wtmStaffID,
+		AbsenceType: activeModels.AbsenceTypeVacation,
+		DateStart:   timezone.NewDate(2026, time.July, 13),
+		DateEnd:     timezone.NewDate(2026, time.July, 13),
+		HalfDay:     true,
+		Status:      activeModels.AbsenceStatusApproved,
+	}}
+	f.svc.SetAdjustmentReader(&wtmMockAdjustmentReader{adjustments: []*activeModels.StaffBalanceAdjustment{
+		wtmAdjustment(1, activeModels.BalanceAdjustmentTypeReset, 1_000, timezone.NewDate(2026, time.July, 1)),
+		wtmAdjustment(2, activeModels.BalanceAdjustmentTypePayout, -100, timezone.NewDate(2026, time.July, 7)),
+	}})
+
+	minimum, err := f.svc.getMinimumDailyClosingBalance(context.Background(), wtmStaffID, from, to)
+	require.NoError(t, err)
+
+	want := int(^uint(0) >> 1)
+	for d := from; !d.After(to); d = d.AddDays(1) {
+		closing, err := f.svc.GetClosingBalanceAsOf(context.Background(), wtmStaffID, d)
+		require.NoError(t, err)
+		want = min(want, closing)
+	}
+	assert.Equal(t, want, minimum)
+}
+
 // A reset row turns the closing balance into the carry-over value: with a
 // closing balance of B before the reset, delta = carryover − B yields exactly
 // carryover afterwards (#1420 5c).

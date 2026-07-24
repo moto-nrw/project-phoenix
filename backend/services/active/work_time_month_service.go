@@ -842,6 +842,11 @@ func (s *workTimeMonthService) GetBalanceReductionCapacity(ctx context.Context, 
 			return 0, fmt.Errorf("failed to compute current balance for reduction validation: %w", err)
 		}
 		capacity = min(capacity, currentBalance)
+		minimumHistoricalClosing, err := s.getMinimumDailyClosingBalance(ctx, staffID, effectiveDate, today)
+		if err != nil {
+			return 0, err
+		}
+		capacity = min(capacity, minimumHistoricalClosing)
 	}
 
 	return capacity, nil
@@ -998,6 +1003,145 @@ func (s *workTimeMonthService) getCompTimeDeductionInRange(
 		total += deduction
 	}
 	return total, nil
+}
+
+// getMinimumDailyClosingBalance returns the lowest end-of-day balance in the
+// historical range. A backdated debit lowers every closing balance from its
+// effective date onward, so checking only that day's opening and today's
+// closing can miss an intervening deficit that later work repaired.
+func (s *workTimeMonthService) getMinimumDailyClosingBalance(
+	ctx context.Context,
+	staffID int64,
+	from, to timezone.Date,
+) (int, error) {
+	anchor, err := s.chainAnchor(ctx, monthOf(to))
+	if err != nil {
+		return 0, fmt.Errorf("failed to resolve account start for daily reduction validation: %w", err)
+	}
+
+	balance := 0
+	if cutoff := from.AddDays(-1); !cutoff.Before(anchor) {
+		balance, err = s.GetClosingBalanceAsOf(ctx, staffID, cutoff)
+		if err != nil {
+			return 0, fmt.Errorf("failed to compute balance before %s: %w", from.String(), err)
+		}
+	}
+
+	deltas, err := s.getDailyBalanceDeltas(ctx, staffID, from, to)
+	if err != nil {
+		return 0, err
+	}
+	minimum := int(^uint(0) >> 1)
+	for d := from; !d.After(to); d = d.AddDays(1) {
+		balance += deltas[d]
+		minimum = min(minimum, balance)
+	}
+	return minimum, nil
+}
+
+func (s *workTimeMonthService) getDailyBalanceDeltas(
+	ctx context.Context,
+	staffID int64,
+	from, to timezone.Date,
+) (map[timezone.Date]int, error) {
+	resolver, err := s.buildTargetResolver(ctx, staffID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	deltas := make(map[timezone.Date]int, from.DaysUntil(to)+1)
+	for d := from; !d.After(to); d = d.AddDays(1) {
+		deltas[d] = -resolver.targetFor(d)
+	}
+	if err := s.addDailyActualMinutes(ctx, staffID, from, to, deltas); err != nil {
+		return nil, err
+	}
+	if err := s.addDailyAbsenceCredits(ctx, staffID, from, to, resolver, deltas); err != nil {
+		return nil, err
+	}
+	if err := s.addDailyAdjustments(ctx, staffID, from, to, deltas); err != nil {
+		return nil, err
+	}
+	return deltas, nil
+}
+
+func (s *workTimeMonthService) addDailyActualMinutes(
+	ctx context.Context,
+	staffID int64,
+	from, to timezone.Date,
+	deltas map[timezone.Date]int,
+) error {
+	sessions, err := s.sessionRepo.GetHistoryByStaffID(ctx, staffID, from, to)
+	if err != nil {
+		return fmt.Errorf("failed to load work sessions for daily reduction validation: %w", err)
+	}
+	now := time.Now()
+	for _, session := range sessions {
+		if session.Date.Before(from) || session.Date.After(to) {
+			continue
+		}
+		minutes := workedMinutesUpTo(session, now)
+		running, err := s.runningBreakMinutes(ctx, session, now)
+		if err != nil {
+			return err
+		}
+		deltas[session.Date] += max(0, minutes-running)
+	}
+	return nil
+}
+
+func (s *workTimeMonthService) addDailyAbsenceCredits(
+	ctx context.Context,
+	staffID int64,
+	from, to timezone.Date,
+	resolver *dailyTargetResolver,
+	deltas map[timezone.Date]int,
+) error {
+	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
+	if err != nil {
+		return fmt.Errorf("failed to load absences for daily reduction validation: %w", err)
+	}
+	sort.Slice(absences, func(i, j int) bool { return absences[i].ID < absences[j].ID })
+	credited := make(map[timezone.Date]bool)
+	for _, absence := range absences {
+		if absence.Status != activeModels.AbsenceStatusReported && absence.Status != activeModels.AbsenceStatusApproved {
+			continue
+		}
+		startHalf, endHalf := effectiveAbsenceBoundaryHalves(absence)
+		for d := absence.DateStart; !d.After(absence.DateEnd); d = d.AddDays(1) {
+			if d.Before(from) || d.After(to) || credited[d] {
+				continue
+			}
+			credited[d] = true
+			target := resolver.targetFor(d)
+			if target <= 0 || absence.AbsenceType == activeModels.AbsenceTypeCompTime {
+				continue
+			}
+			if isHalfAbsenceDay(absence, d, startHalf, endHalf) {
+				target /= 2
+			}
+			deltas[d] += target
+		}
+	}
+	return nil
+}
+
+func (s *workTimeMonthService) addDailyAdjustments(
+	ctx context.Context,
+	staffID int64,
+	from, to timezone.Date,
+	deltas map[timezone.Date]int,
+) error {
+	if s.adjustmentRepo == nil {
+		return nil
+	}
+	adjustments, err := s.adjustmentRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
+	if err != nil {
+		return fmt.Errorf("failed to load adjustments for daily reduction validation: %w", err)
+	}
+	for _, adjustment := range adjustments {
+		deltas[adjustment.EffectiveDate] += adjustment.MinutesDelta
+	}
+	return nil
 }
 
 func (s *workTimeMonthService) getRemainingCompTimeCommitment(
