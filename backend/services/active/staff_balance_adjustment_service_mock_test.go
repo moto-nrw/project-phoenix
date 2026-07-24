@@ -461,6 +461,7 @@ func TestStaffBalanceAdjustmentService_BlocksPositiveResetDeletionWhenLaterDebit
 	err := service.DeleteAdjustment(context.Background(), staffID, reset.ID)
 
 	require.ErrorIs(t, err, ErrAdjustmentExceedsBalance)
+	assert.Contains(t, err.Error(), "would leave capacity of -60 minutes")
 	assert.Equal(t, effectiveDate, monthService.effective)
 	assert.Equal(t, []string{"lock", "find", "list", "capacity"}, events)
 }

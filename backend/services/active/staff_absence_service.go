@@ -245,7 +245,7 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 			return nil, err
 		}
 		if req.AbsenceType == activeModels.AbsenceTypeCompTime {
-			if err := s.validateCompTimeBalance(ctx, subjectStaffID, dateStart, dateEnd, req.HalfDay); err != nil {
+			if err := s.validateCompTimeBalance(ctx, subjectStaffID, dateStart, dateEnd, req.HalfDay, nil); err != nil {
 				return nil, err
 			}
 		}
@@ -327,7 +327,7 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 		return nil, err
 	}
 	if req.AbsenceType == activeModels.AbsenceTypeCompTime {
-		if err := s.validateCompTimeBalance(ctx, existing[0].StaffID, mergedStart, mergedEnd, req.HalfDay); err != nil {
+		if err := s.validateCompTimeBalance(ctx, existing[0].StaffID, mergedStart, mergedEnd, req.HalfDay, existing); err != nil {
 			return nil, err
 		}
 	}
@@ -431,13 +431,19 @@ func (s *staffAbsenceService) rejectPreAccountCompTime(ctx context.Context, abse
 	return nil
 }
 
-// validateCompTimeBalance rejects a comp_time absence whose total daily-target
-// deduction exceeds the balance available when the absence starts. It must run
-// under the staff balance lock (lockStaffAbsenceWrites takes it), mirroring
-// the overdraft guard on payout/comp-time adjustments (#1420 review). The
-// merged range is validated as a whole: the total granted Freizeitausgleich
-// must be covered at its start.
-func (s *staffAbsenceService) validateCompTimeBalance(ctx context.Context, staffID int64, start, end timezone.Date, halfDay bool) error {
+// validateCompTimeBalance rejects a comp_time absence whose additional
+// daily-target deduction would invalidate an existing later ledger debit or
+// comp-time commitment. It must run under the shared staff balance lock
+// (lockStaffAbsenceWrites takes it), mirroring the adjustment overdraft guard.
+// Existing rows are already reserved by GetBalanceReductionCapacity during a
+// merge, so only the newly added part of the merged range consumes capacity.
+func (s *staffAbsenceService) validateCompTimeBalance(
+	ctx context.Context,
+	staffID int64,
+	start, end timezone.Date,
+	halfDay bool,
+	existing []*activeModels.StaffAbsence,
+) error {
 	if s.monthService == nil {
 		// Bare-constructed unit tests without month math; the factory always
 		// wires the real service.
@@ -450,32 +456,37 @@ func (s *staffAbsenceService) validateCompTimeBalance(ctx context.Context, staff
 	if deduction <= 0 {
 		return nil
 	}
-	anchor, err := resolveAccountAnchor(ctx, s.settings, slog.Default(), monthOf(timezone.TodayDate()))
-	if err != nil {
-		return fmt.Errorf("failed to resolve account start for comp_time absence: %w", err)
-	}
-	available := 0
-	// On the account-start day itself nothing is accrued yet; a cutoff
-	// before the anchor would read a pre-account chain.
-	if cutoff := start.AddDays(-1); !cutoff.Before(anchor) {
-		available, err = s.monthService.GetClosingBalanceAsOf(ctx, staffID, cutoff)
+
+	reservedDeduction := 0
+	for _, absence := range existing {
+		reserved, err := s.monthService.GetCompTimeDeductionMinutes(
+			ctx,
+			staffID,
+			absence.DateStart,
+			absence.DateEnd,
+			absence.HalfDay,
+		)
 		if err != nil {
-			return fmt.Errorf("failed to compute balance for comp_time absence: %w", err)
+			return fmt.Errorf("failed to compute existing comp_time deduction: %w", err)
 		}
+		reservedDeduction += reserved
 	}
-	// Ledger entries become effective at the start of their date. Include them
-	// while keeping same-day work, target, and absence activity out of the
-	// opening balance. The shared staff lock makes this read authoritative
-	// against concurrent adjustment writes.
-	sameDayAdjustments, err := s.monthService.GetBalanceAdjustmentMinutes(ctx, staffID, start, start)
+	additionalDeduction := deduction - reservedDeduction
+	if additionalDeduction <= 0 {
+		return nil
+	}
+
+	reductionCapacity, err := s.monthService.GetBalanceReductionCapacity(ctx, staffID, start)
 	if err != nil {
-		return fmt.Errorf("failed to compute same-day balance adjustments for comp_time absence: %w", err)
+		return fmt.Errorf("failed to compute reduction capacity for comp_time absence: %w", err)
 	}
-	available += sameDayAdjustments
-	if deduction > available {
+	if additionalDeduction > reductionCapacity {
 		return fmt.Errorf(
-			"%w: comp_time absence deducts %d minutes but only %d minutes are accrued before %s after same-day adjustments",
-			ErrCompTimeExceedsBalance, deduction, available, start.String(),
+			"%w: comp_time absence adds %d minutes but only %d minutes remain available from %s onward",
+			ErrCompTimeExceedsBalance,
+			additionalDeduction,
+			reductionCapacity,
+			start.String(),
 		)
 	}
 	return nil

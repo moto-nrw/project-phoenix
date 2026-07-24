@@ -249,15 +249,20 @@ func (s *staffBalanceAdjustmentService) validatePositiveAdjustmentDeletion(ctx c
 	if err != nil {
 		return fmt.Errorf("failed to compute reduction capacity for adjustment deletion: %w", err)
 	}
-	if adjustment.MinutesDelta <= reductionCapacity {
+	// The target adjustment is still present in every capacity checkpoint.
+	// hasDependentReset above guarantees that its delta carries through the
+	// whole checked timeline, so subtracting it yields the exact capacity
+	// after deletion.
+	capacityAfterDeletion := reductionCapacity - adjustment.MinutesDelta
+	if capacityAfterDeletion >= 0 {
 		return nil
 	}
 	return fmt.Errorf(
-		"%w: deleting adjustment %d removes %d minutes but only %d minutes remain available from %s onward",
+		"%w: deleting adjustment %d removes %d minutes and would leave capacity of %d minutes from %s onward",
 		ErrAdjustmentExceedsBalance,
 		adjustment.ID,
 		adjustment.MinutesDelta,
-		reductionCapacity,
+		capacityAfterDeletion,
 		adjustment.EffectiveDate.String(),
 	)
 }
