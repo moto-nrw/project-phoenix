@@ -135,6 +135,15 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 	if err := validateAdjustmentCommon(staffID, decidedBy, req.EffectiveDate, req.Note); err != nil {
 		return nil, err
 	}
+	// Mirror the Monatskarte's future bound: beyond it the closing-balance
+	// read has no defined result (and far enough out it fails), so an
+	// unbounded date must be a 400, not a 500 (#1420 review).
+	if horizon := monthOf(timezone.TodayDate()).addMonths(maxFutureMonths); horizon.before(monthOf(req.EffectiveDate)) {
+		return nil, fmt.Errorf(
+			"%w: effective_date %s is more than %d months ahead",
+			ErrAdjustmentInvalid, req.EffectiveDate.String(), maxFutureMonths,
+		)
+	}
 	if err := s.rejectPreAccountDate(ctx, req.EffectiveDate); err != nil {
 		return nil, err
 	}
@@ -200,7 +209,12 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 	}
 	adjustment, err := s.adjustmentRepo.FindByID(ctx, adjustmentID)
 	if err != nil {
-		return fmt.Errorf("%w: id %d", ErrAdjustmentNotFound, adjustmentID)
+		// Only a genuine missing row is a 404; a database or transaction
+		// failure must stay a 500 (#1420 review).
+		if modelBase.IsNoRows(err) {
+			return fmt.Errorf("%w: id %d", ErrAdjustmentNotFound, adjustmentID)
+		}
+		return fmt.Errorf("failed to load balance adjustment: %w", err)
 	}
 	if adjustment == nil || adjustment.StaffID != staffID {
 		return fmt.Errorf("%w: id %d", ErrAdjustmentNotFound, adjustmentID)

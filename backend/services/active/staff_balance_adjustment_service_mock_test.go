@@ -2,6 +2,8 @@ package active
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"log/slog"
 	"testing"
 	"time"
@@ -18,6 +20,7 @@ type recordingBalanceAdjustmentRepo struct {
 	events     *[]string
 	adjustment *activeModels.StaffBalanceAdjustment
 	resets     []*activeModels.StaffBalanceAdjustment
+	findErr    error
 }
 
 func (r *recordingBalanceAdjustmentRepo) LockStaffBalanceWrites(context.Context, int64) error {
@@ -33,6 +36,9 @@ func (r *recordingBalanceAdjustmentRepo) Create(_ context.Context, adjustment *a
 
 func (r *recordingBalanceAdjustmentRepo) FindByID(context.Context, any) (*activeModels.StaffBalanceAdjustment, error) {
 	*r.events = append(*r.events, "find")
+	if r.findErr != nil {
+		return nil, r.findErr
+	}
 	return r.adjustment, nil
 }
 
@@ -388,4 +394,56 @@ func TestStaffBalanceAdjustmentService_BlocksDeleteWhenLaterResetDependsOnAdjust
 
 	require.ErrorIs(t, err, ErrAdjustmentHasDependentReset)
 	assert.Equal(t, []string{"lock", "find", "list"}, events)
+}
+
+// Far-future effective dates have no defined closing balance (the carry
+// chain is bounded); they must fail as invalid input, not surface as a 500
+// from the balance read (#1420 review).
+func TestStaffBalanceAdjustmentService_RejectsFarFutureEffectiveDate(t *testing.T) {
+	events := []string{}
+	service := newRecordingBalanceAdjustmentService(
+		&events,
+		&recordingBalanceAdjustmentRepo{events: &events},
+		nil,
+	)
+
+	_, err := service.CreateAdjustment(context.Background(), int64(41), int64(42), CreateBalanceAdjustmentRequest{
+		Type:          activeModels.BalanceAdjustmentTypePayout,
+		MinutesDelta:  -60,
+		EffectiveDate: timezone.TodayDate().AddDays(420),
+		Note:          "Auszahlung",
+	})
+
+	require.ErrorIs(t, err, ErrAdjustmentInvalid)
+	assert.Contains(t, err.Error(), "months ahead")
+	assert.Empty(t, events, "invalid input must fail before locking or reading")
+}
+
+// Only a genuine missing row is a 404: database or transaction failures from
+// the delete lookup must propagate, not masquerade as ErrAdjustmentNotFound
+// (#1420 review).
+func TestStaffBalanceAdjustmentService_DeletePropagatesLookupFailures(t *testing.T) {
+	t.Run("no rows maps to not found", func(t *testing.T) {
+		events := []string{}
+		repo := &recordingBalanceAdjustmentRepo{events: &events, findErr: sql.ErrNoRows}
+		service := newRecordingBalanceAdjustmentService(&events, repo, nil)
+
+		err := service.DeleteAdjustment(context.Background(), int64(41), 99)
+
+		require.ErrorIs(t, err, ErrAdjustmentNotFound)
+	})
+
+	t.Run("database failure stays a database failure", func(t *testing.T) {
+		events := []string{}
+		lookupErr := errors.New("connection reset")
+		repo := &recordingBalanceAdjustmentRepo{events: &events, findErr: lookupErr}
+		service := newRecordingBalanceAdjustmentService(&events, repo, nil)
+
+		err := service.DeleteAdjustment(context.Background(), int64(41), 99)
+
+		require.Error(t, err)
+		require.NotErrorIs(t, err, ErrAdjustmentNotFound)
+		require.ErrorIs(t, err, lookupErr)
+		assert.Contains(t, err.Error(), "failed to load balance adjustment")
+	})
 }

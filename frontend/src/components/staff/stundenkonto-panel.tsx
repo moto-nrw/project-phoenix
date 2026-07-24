@@ -254,6 +254,11 @@ function AdjustmentModal({
   const copy = modalCopy[type];
   const [hours, setHours] = useState("");
   const [effectiveDate, setEffectiveDate] = useState(todayKey);
+  // Backend bound: bookings more than 12 months ahead are rejected (the
+  // carry chain has no defined balance beyond that horizon).
+  const horizon = parseISODate(todayKey);
+  horizon.setFullYear(horizon.getFullYear() + 1);
+  const maxEffectiveDateKey = toISODate(horizon);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const toast = useToast();
@@ -336,6 +341,7 @@ function AdjustmentModal({
             id="adjustment-date"
             type="date"
             min={accountStartKey}
+            max={maxEffectiveDateKey}
             value={effectiveDate}
             onChange={(e) => setEffectiveDate(e.target.value)}
             className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
