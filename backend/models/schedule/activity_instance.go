@@ -188,6 +188,16 @@ type ActivityInstanceRepository interface {
 	// split/end series operation — see the implementation for why.
 	DeletePlannedNonSpontaneousInWindow(ctx context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64, preserveDeviations bool) (int64, error)
 
+	// PropagateListKindToFutureInstances re-classifies future template-backed
+	// planned instances of one template whose list_kind still equals the
+	// series' previous value (NULL and '' treated alike), returning the number
+	// of rows changed. It carries a series Listenart edit onto already
+	// materialized future occurrences so the classified daily lists (#1565)
+	// reflect it without a manual re-plan, while leaving today/past rows,
+	// non-planned/spontaneous rows, and per-occurrence classification overrides
+	// untouched. `after` is today; only rows dated strictly after it change.
+	PropagateListKindToFutureInstances(ctx context.Context, activityGroupID int64, previousKind, newKind *string, after timezone.Date) (int64, error)
+
 	// UpdateColumns is the generic partial-update helper promoted from the
 	// embedded base repository: updates only the named columns by primary
 	// key. Lifecycle transitions use it because SQL TIME columns do not

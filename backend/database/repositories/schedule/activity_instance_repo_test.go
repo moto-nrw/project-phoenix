@@ -737,6 +737,93 @@ func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_HardDele
 		"deviated instance must be deleted by the destructive series operation")
 }
 
+// #1565 review: editing a series' Listenart must carry onto its already
+// materialized FUTURE occurrences that still hold the old value, while leaving
+// today/past rows, non-planned/spontaneous rows, and per-occurrence overrides
+// untouched — otherwise the classified daily lists stay empty until a re-plan.
+func TestActivityInstanceRepository_PropagateListKindToFutureInstances(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	fx := newActivityInstanceFixtures(t, db, "listkind-prop")
+	defer fx.cleanup()
+	// A second template proves the rewrite is scoped to one series.
+	other := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Other-listkind-%d", time.Now().UnixNano()))
+	otherID := other.ID
+	defer testpkg.CleanupActivityFixtures(t, db, other.ID, 0)
+
+	today := timezone.TodayDate()
+
+	// mkInstance builds + persists an instance and registers cleanup. Each row
+	// gets a distinct start hour so same-(template,date) rows do not collide on
+	// the (tenant, date, activity_group_id, start_time) unique index.
+	startHour := 8
+	mkInstance := func(name string, activityID *int64, date timezone.Date, listKind *string, mutate func(*scheduleModels.ActivityInstance)) *scheduleModels.ActivityInstance {
+		start := time.Date(2024, 1, 1, startHour, 0, 0, 0, time.UTC)
+		end := time.Date(2024, 1, 1, startHour+1, 0, 0, 0, time.UTC)
+		startHour++
+		inst := buildInstance(1, fx.roomID, activityID, date, start, end, name)
+		inst.ListKind = listKind
+		if mutate != nil {
+			mutate(inst)
+		}
+		require.NoError(t, repo.Create(ctx, inst))
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID) })
+		return inst
+	}
+
+	future := today.AddDays(7)
+	// futureNull: future occurrence still carrying the pre-edit NULL → rewritten.
+	futureNull := mkInstance("FutureNull", &fx.activityID, future, nil, nil)
+	// futureNull2: a second future date, proves the update is not single-row.
+	futureNull2 := mkInstance("FutureNull2", &fx.activityID, today.AddDays(14), nil, nil)
+	// todayRow: dated today (== after) → never rewritten (a printed list stands).
+	todayRow := mkInstance("Today", &fx.activityID, today, nil, nil)
+	// pastRow: already elapsed → never rewritten.
+	pastRow := mkInstance("Past", &fx.activityID, today.AddDays(-7), nil, nil)
+	// overridden: future, but individually re-classified → override preserved.
+	overridden := mkInstance("Overridden", &fx.activityID, future, testpkg.StrPtr("mensa"), nil)
+	// cancelledRow: future but not planned → skipped by the status predicate.
+	cancelledRow := mkInstance("Cancelled", &fx.activityID, future, nil, func(i *scheduleModels.ActivityInstance) {
+		i.Status = scheduleModels.InstanceStatusCancelled
+	})
+	// spontaneousRow: future planned but spontaneous (no template) → skipped.
+	spontaneousRow := mkInstance("Spontaneous", nil, future, nil, func(i *scheduleModels.ActivityInstance) {
+		i.IsSpontaneous = true
+	})
+	// otherSeries: future planned NULL but a different template → not this series.
+	otherSeries := mkInstance("OtherSeries", &otherID, future, nil, nil)
+
+	// Series edit: NULL → "learning_time".
+	newKind := testpkg.StrPtr("learning_time")
+	changed, err := repo.PropagateListKindToFutureInstances(ctx, fx.activityID, nil, newKind, today)
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, changed, "only the two untouched future planned rows are rewritten")
+
+	assertKind := func(id int64, want *string, msg string) {
+		got, err := repo.FindByID(ctx, id)
+		require.NoError(t, err)
+		if want == nil {
+			assert.Nil(t, got.ListKind, msg)
+			return
+		}
+		require.NotNil(t, got.ListKind, msg)
+		assert.Equal(t, *want, *got.ListKind, msg)
+	}
+
+	assertKind(futureNull.ID, newKind, "future NULL row must adopt the new series kind")
+	assertKind(futureNull2.ID, newKind, "second future NULL row must adopt the new series kind")
+	assertKind(todayRow.ID, nil, "today's row must be left untouched")
+	assertKind(pastRow.ID, nil, "past row must be left untouched")
+	assertKind(overridden.ID, testpkg.StrPtr("mensa"), "per-occurrence override must be preserved")
+	assertKind(cancelledRow.ID, nil, "cancelled row must be skipped")
+	assertKind(spontaneousRow.ID, nil, "spontaneous row must be skipped")
+	assertKind(otherSeries.ID, nil, "another template's occurrence must not change")
+}
+
 func TestActivityInstanceRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
