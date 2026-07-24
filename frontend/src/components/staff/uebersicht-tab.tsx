@@ -273,8 +273,10 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
     [accountTargets, accountSessions, accountAbsences, dailyFrom, dailyTo],
   );
 
-  const hasAnyTrendData =
+  const hasTimeTrendData =
     (accountSessions?.length ?? 0) + (accountAbsences?.length ?? 0) > 0;
+  const hasBalanceTrendData =
+    hasTimeTrendData || (accountAdjustments?.length ?? 0) > 0;
 
   // The Soll is a chart axis here, not a decoration: rendering before the
   // targets land would draw a 0-Soll baseline and a Saldo line that jumps once
@@ -368,9 +370,9 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
               toMax={today}
             />
           </div>
-          {!hasAnyTrendData || dailyTrendData.length < 2 ? (
+          {!hasTimeTrendData || dailyTrendData.length < 2 ? (
             <p className="py-10 text-center text-sm text-gray-400">
-              {hasAnyTrendData
+              {hasTimeTrendData
                 ? "Noch zu wenige Werktage erfasst — sobald ein zweiter Tag dazukommt, erscheint der Vergleich."
                 : "Noch keine Daten — sobald die erste Arbeitszeit erfasst ist, erscheint der Vergleich."}
             </p>
@@ -453,9 +455,9 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
               toMax={today}
             />
           </div>
-          {!hasAnyTrendData || weeklyTrendData.length < 2 ? (
+          {!hasBalanceTrendData || weeklyTrendData.length < 2 ? (
             <p className="py-10 text-center text-sm text-gray-400">
-              {hasAnyTrendData
+              {hasBalanceTrendData
                 ? "Noch zu wenige Wochen für einen Verlauf — sobald eine zweite Woche dazukommt, erscheint der Saldo."
                 : "Noch keine Daten — der Saldo erscheint, sobald die erste Woche erfasst ist."}
             </p>

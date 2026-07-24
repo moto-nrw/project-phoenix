@@ -55,6 +55,7 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 	}
 
 	today := timezone.TodayDate()
+	resetDate := today.AddDays(-1)
 	adjustmentsPath := fmt.Sprintf("/staff/%d/time-tracking/adjustments", subject.ID)
 	resetPath := fmt.Sprintf("/staff/%d/time-tracking/reset", subject.ID)
 	summaryPath := fmt.Sprintf("/staff/%d/time-tracking/month-summary?year=%d&month=%d", subject.ID, today.Year, int(today.Month))
@@ -136,7 +137,7 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 
 	t.Run("payout flows into month summary", func(t *testing.T) {
 		rec := do(http.MethodPost, adjustmentsPath,
-			fmt.Sprintf(`{"type":"payout","minutes_delta":-120,"effective_date":"%s","note":"Auszahlung Juli"}`, today), token)
+			fmt.Sprintf(`{"type":"payout","minutes_delta":-120,"effective_date":"%s","note":"Auszahlung Juli"}`, resetDate), token)
 		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 		var created struct {
 			Data struct {
@@ -159,7 +160,7 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 		// The subject has no schedule and no sessions, so before the reset the
 		// closing balance is exactly the payout: -120.
 		rec := do(http.MethodPost, resetPath,
-			fmt.Sprintf(`{"effective_date":"%s","carryover_minutes":0,"note":"Schuljahresende"}`, today), token)
+			fmt.Sprintf(`{"effective_date":"%s","carryover_minutes":0,"note":"Schuljahresende"}`, resetDate), token)
 		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 		assert.Contains(t, rec.Body.String(), `"minutes_delta":120`, "reset delta must invert the -120 balance")
 
@@ -168,7 +169,7 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 		assert.Contains(t, rec.Body.String(), `"closing_balance_minutes":0`)
 
 		rec = do(http.MethodPost, resetPath,
-			fmt.Sprintf(`{"effective_date":"%s","carryover_minutes":0,"note":"Doppelklick"}`, today), token)
+			fmt.Sprintf(`{"effective_date":"%s","carryover_minutes":0,"note":"Doppelklick"}`, resetDate), token)
 		require.Equal(t, http.StatusConflict, rec.Code, "second reset for the same date must conflict: %s", rec.Body.String())
 		assert.Contains(t, rec.Body.String(), `"code":"balance_already_reset"`)
 
@@ -179,20 +180,22 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 
 	t.Run("writes before an existing reset conflict", func(t *testing.T) {
 		rec := do(http.MethodPost, adjustmentsPath,
-			fmt.Sprintf(`{"type":"comp_time","minutes_delta":-30,"effective_date":"%s","note":"Nachträglich"}`, today), token)
+			fmt.Sprintf(`{"type":"comp_time","minutes_delta":-30,"effective_date":"%s","note":"Nachträglich"}`, resetDate), token)
 		require.Equal(t, http.StatusConflict, rec.Code, "same-day writes after a reset must conflict: %s", rec.Body.String())
 		assert.Contains(t, rec.Body.String(), `"code":"dependent_balance_reset"`)
 
 		rec = do(http.MethodPost, resetPath,
-			fmt.Sprintf(`{"effective_date":"%s","carryover_minutes":0,"note":"Früherer Reset"}`, today.AddDays(-1)), token)
+			fmt.Sprintf(`{"effective_date":"%s","carryover_minutes":0,"note":"Früherer Reset"}`, resetDate.AddDays(-1)), token)
 		require.Equal(t, http.StatusConflict, rec.Code, "a reset before a later reset must conflict: %s", rec.Body.String())
 		assert.Contains(t, rec.Body.String(), `"code":"dependent_balance_reset"`)
 	})
 
-	t.Run("future reset rejected", func(t *testing.T) {
-		rec := do(http.MethodPost, resetPath,
-			fmt.Sprintf(`{"effective_date":"%s","carryover_minutes":0,"note":"x"}`, today.AddDays(7)), token)
-		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	t.Run("open-day resets rejected", func(t *testing.T) {
+		for _, date := range []timezone.Date{today, today.AddDays(7)} {
+			rec := do(http.MethodPost, resetPath,
+				fmt.Sprintf(`{"effective_date":"%s","carryover_minutes":0,"note":"x"}`, date), token)
+			require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+		}
 	})
 
 	t.Run("delete removes the adjustment", func(t *testing.T) {

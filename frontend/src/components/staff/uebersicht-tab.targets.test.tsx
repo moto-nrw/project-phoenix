@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 // Die Charts dieses Tabs bepreisen Vergangenheit. Sie dürfen ihr Soll NICHT
@@ -8,9 +8,25 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 // datumsgültig vom Server kommt (#1842). Der Test pinnt die Eingaben: nur die
 // datumsgültigen Targets, nie der Plan.
 const swrKeys: string[] = [];
+let balanceAdjustments: Array<{
+  id: string;
+  type: "payout";
+  minutesDelta: number;
+  effectiveDate: string;
+  note: string;
+  decidedBy: string;
+  decidedAt: string;
+}> = [];
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: (key: string | null) => {
     if (key) swrKeys.push(key);
+    if (key?.startsWith("staff-balance-adjustments-")) {
+      return {
+        data: balanceAdjustments,
+        isLoading: false,
+        error: undefined,
+      };
+    }
     return { data: undefined, isLoading: false, error: undefined };
   },
   useTenantMutateMatching: () => () => Promise.resolve([]),
@@ -51,6 +67,7 @@ import { UebersichtTab } from "./uebersicht-tab";
 describe("UebersichtTab Soll-Quelle", () => {
   beforeEach(() => {
     swrKeys.length = 0;
+    balanceAdjustments = [];
     getSchedule.mockClear();
     getScheduleTargetsRange.mockClear();
   });
@@ -94,5 +111,32 @@ describe("UebersichtTab Soll-Quelle", () => {
           k.endsWith("-9999-12-31"),
       ),
     ).toBe(true);
+  });
+
+  it("zeigt den Saldo-Verlauf für ein Konto mit ausschließlich Buchungen", () => {
+    balanceAdjustments = [
+      {
+        id: "17",
+        type: "payout",
+        minutesDelta: -120,
+        effectiveDate: "2025-02-10",
+        note: "Auszahlung",
+        decidedBy: "9",
+        decidedAt: "2025-02-10T08:00:00Z",
+      },
+    ];
+
+    render(<UebersichtTab staffId="1" />);
+
+    expect(
+      screen.queryByText(
+        "Noch keine Daten — der Saldo erscheint, sobald die erste Woche erfasst ist.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Noch keine Daten — sobald die erste Arbeitszeit erfasst ist, erscheint der Vergleich.",
+      ),
+    ).toBeInTheDocument();
   });
 });

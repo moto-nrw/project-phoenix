@@ -138,7 +138,7 @@ func TestStaffBalanceAdjustmentService_RejectsWritesThatPrecedeReset(t *testing.
 		staffID   = int64(41)
 		decidedBy = int64(42)
 	)
-	resetDate := timezone.TodayDate()
+	resetDate := timezone.TodayDate().AddDays(-1)
 	reset := &activeModels.StaffBalanceAdjustment{
 		StaffID:       staffID,
 		Type:          activeModels.BalanceAdjustmentTypeReset,
@@ -293,6 +293,38 @@ func TestStaffBalanceAdjustmentService_RejectsOutOfRangeAmounts(t *testing.T) {
 			require.ErrorIs(t, err, ErrAdjustmentInvalid)
 			assert.Empty(t, events, "invalid input must fail before locking or reading")
 		})
+	}
+}
+
+func TestStaffBalanceAdjustmentService_RejectsResetOnOpenDay(t *testing.T) {
+	const (
+		staffID   = int64(41)
+		decidedBy = int64(42)
+	)
+
+	for _, effectiveDate := range []timezone.Date{
+		timezone.TodayDate(),
+		timezone.TodayDate().AddDays(1),
+	} {
+		events := []string{}
+		service := newRecordingBalanceAdjustmentService(
+			&events,
+			&recordingBalanceAdjustmentRepo{events: &events},
+			nil,
+		)
+
+		_, err := service.ResetBalance(
+			context.Background(),
+			staffID,
+			decidedBy,
+			effectiveDate,
+			0,
+			"Schuljahreswechsel",
+		)
+
+		require.ErrorIs(t, err, ErrAdjustmentInvalid)
+		assert.Contains(t, err.Error(), "effective_date must be before today")
+		assert.Empty(t, events, "an open cutoff must fail before locking or reading")
 	}
 }
 

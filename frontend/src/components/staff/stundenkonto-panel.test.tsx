@@ -71,7 +71,7 @@ describe("StundenkontoPanel", () => {
     expect(screen.getByText("15.08.2026")).toBeInTheDocument();
   });
 
-  it("limits resets to Berlin today and describes the historical cutoff", () => {
+  it("limits resets to the last closed Berlin day and describes the historical cutoff", () => {
     render(
       <StundenkontoPanel
         staffId="4"
@@ -86,12 +86,27 @@ describe("StundenkontoPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Zurücksetzen" }));
 
     const resetDate = screen.getByLabelText("Stichtag");
-    expect(resetDate).toHaveAttribute("max", "2026-07-24");
-    expect(resetDate).toHaveValue("2026-07-24");
+    expect(resetDate).toHaveAttribute("max", "2026-07-23");
+    expect(resetDate).toHaveValue("2026-07-23");
     expect(screen.getByText(/Aktueller Stand:/)).toBeInTheDocument();
     expect(
       screen.getByText(/Gewünschter Übertrag am Stichtag:/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/danach:/)).not.toBeInTheDocument();
+  });
+
+  it("disables reset until the account has a closed day", () => {
+    render(
+      <StundenkontoPanel
+        staffId="4"
+        balanceMinutes={0}
+        accountStartKey="2026-07-24"
+        todayKey="2026-07-24"
+        adjustments={[]}
+        onChanged={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Zurücksetzen" })).toBeDisabled();
   });
 });

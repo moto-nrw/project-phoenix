@@ -13,7 +13,7 @@ import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
-import { formatDate } from "~/lib/date-helpers";
+import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { staffBalanceAdjustmentService } from "~/lib/staff-api";
 import {
   balanceAdjustmentTypeLabels,
@@ -51,6 +51,7 @@ export function StundenkontoPanel({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const toast = useToast();
+  const canResetClosedPeriod = accountStartKey < todayKey;
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -100,6 +101,12 @@ export function StundenkontoPanel({
             variant="ghost"
             size="compact"
             onClick={() => setActiveModal("reset")}
+            disabled={!canResetClosedPeriod}
+            title={
+              canResetClosedPeriod
+                ? undefined
+                : "Ein Reset ist erst nach dem ersten abgeschlossenen Kontotag möglich."
+            }
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden />
             Zurücksetzen
@@ -355,6 +362,7 @@ function ResetModal({
   readonly onClose: () => void;
   readonly onSaved: () => void | Promise<void>;
 }) {
+  const lastClosedDateKey = previousDateISO(todayKey);
   const [effectiveDate, setEffectiveDate] = useState(
     defaultResetDateISO(accountStartKey, todayKey),
   );
@@ -444,13 +452,13 @@ function ResetModal({
             id="reset-date"
             type="date"
             min={accountStartKey}
-            max={todayKey}
+            max={lastClosedDateKey}
             value={effectiveDate}
             onChange={(e) => setEffectiveDate(e.target.value)}
             className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
           />
           <p className="mt-1 text-xs text-gray-400">
-            Der Stichtag darf nicht in der Zukunft liegen.
+            Der Stichtag muss vor dem heutigen Tag liegen.
           </p>
         </div>
         <div>
@@ -540,20 +548,28 @@ function NoteField({
   );
 }
 
-// Most recent July 31st that is not in the future — the Schuljahresende the
-// reset usually anchors on (#1420 5c). Clamped at the account start: a
-// booking before the anchor sits outside every carry chain and the server
-// rejects it.
+function previousDateISO(dateKey: string): string {
+  const date = parseISODate(dateKey);
+  date.setDate(date.getDate() - 1);
+  return toISODate(date);
+}
+
+// Most recent July 31st in a closed period — the Schuljahresende the reset
+// usually anchors on (#1420 5c). Clamped at the account start: a booking
+// before the anchor sits outside every carry chain and the server rejects it.
 function defaultResetDateISO(
   accountStartKey: string,
   todayKey: string,
 ): string {
-  const year = Number(todayKey.slice(0, 4));
+  const lastClosedDateKey = previousDateISO(todayKey);
+  const year = Number(lastClosedDateKey.slice(0, 4));
   const thisYearsEnd = `${year}-07-31`;
   const lastSchoolYearEnd =
-    thisYearsEnd <= todayKey ? thisYearsEnd : `${year - 1}-07-31`;
+    thisYearsEnd <= lastClosedDateKey ? thisYearsEnd : `${year - 1}-07-31`;
   if (lastSchoolYearEnd < accountStartKey) {
-    return accountStartKey <= todayKey ? todayKey : accountStartKey;
+    return accountStartKey <= lastClosedDateKey
+      ? lastClosedDateKey
+      : accountStartKey;
   }
   return lastSchoolYearEnd;
 }

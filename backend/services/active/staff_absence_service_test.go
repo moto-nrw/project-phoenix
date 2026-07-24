@@ -1595,6 +1595,27 @@ func TestAbsCreateAbsenceFor_RejectsMultiDayHalfDaySickReport(t *testing.T) {
 	assert.Empty(t, syncer.markCalls)
 }
 
+func TestAbsCreateAbsenceFor_RejectsMultiDayHalfDayCompTime(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	createCalled := false
+	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+		createCalled = true
+		return nil
+	}
+
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 100, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   "2026-02-10",
+		DateEnd:     "2026-02-11",
+		HalfDay:     true,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "half-day reports must cover exactly one date")
+	assert.False(t, createCalled)
+	assert.Empty(t, syncer.markCalls)
+}
+
 func TestAbsUpdateAbsence_RejectsMultiDayHalfDaySickReport(t *testing.T) {
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	existing := &activeModels.StaffAbsence{

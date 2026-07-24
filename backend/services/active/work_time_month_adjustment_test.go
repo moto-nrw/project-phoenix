@@ -156,6 +156,30 @@ func TestWTMAdjustments_ResetRowZeroesClosingBalance(t *testing.T) {
 	assert.Equal(t, 0, summary.ClosingBalanceMinutes)
 }
 
+// A reset is an audited ledger transaction, not a mutable checkpoint. A
+// correction entered later for work before the reset must remain visible in
+// the current balance; rewriting the stored reset delta would erase it.
+func TestWTMAdjustments_LateHistoricalCorrectionRemainsVisibleAfterReset(t *testing.T) {
+	f := newWTMFixture()
+	cutoff := timezone.NewDate(2026, time.July, 7)
+	balanceAtDecision, err := f.svc.GetClosingBalanceAsOf(context.Background(), wtmStaffID, cutoff)
+	require.NoError(t, err)
+	f.svc.SetAdjustmentReader(&wtmMockAdjustmentReader{adjustments: []*activeModels.StaffBalanceAdjustment{
+		wtmAdjustment(1, activeModels.BalanceAdjustmentTypeReset, -balanceAtDecision, cutoff),
+	}})
+
+	beforeCorrection, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+
+	f.sessions.sessions = []*activeModels.WorkSession{
+		wtmSession(timezone.NewDate(2026, time.July, 6), 9, 300, 0),
+	}
+	afterCorrection, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+
+	assert.Equal(t, beforeCorrection.ClosingBalanceMinutes+300, afterCorrection.ClosingBalanceMinutes)
+}
+
 // comp_time absences (#1420 5b) credit NOTHING: the day keeps its Soll, so
 // the balance drops by the day's target — unlike a vacation day, which
 // credits it. The day still counts as consumed, so an overlapping vacation

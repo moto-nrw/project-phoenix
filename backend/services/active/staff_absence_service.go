@@ -225,7 +225,7 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 	if blocking := filterBlockingAbsences(existing); len(blocking) > 0 {
 		resp, err = s.mergeOverlappingAbsences(ctx, blocking, dateStart, dateEnd, req)
 	} else {
-		if err := validateSingleDayHalfDaySick(req.AbsenceType, req.HalfDay, dateStart, dateEnd); err != nil {
+		if err := validateSingleDayHalfDayAbsence(req.AbsenceType, req.HalfDay, dateStart, dateEnd); err != nil {
 			return nil, err
 		}
 		s.warnIfWorkSessionsExist(ctx, subjectStaffID, dateStart, dateEnd)
@@ -296,7 +296,7 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	if err := validateSickAbsenceRange(req.AbsenceType, mergedStart, mergedEnd); err != nil {
 		return nil, err
 	}
-	if err := validateSingleDayHalfDaySick(req.AbsenceType, req.HalfDay, mergedStart, mergedEnd); err != nil {
+	if err := validateSingleDayHalfDayAbsence(req.AbsenceType, req.HalfDay, mergedStart, mergedEnd); err != nil {
 		return nil, err
 	}
 
@@ -355,9 +355,15 @@ func validateSickAbsenceRange(absenceType string, start, end timezone.Date) erro
 	return nil
 }
 
-func validateSingleDayHalfDaySick(absenceType string, halfDay bool, start, end timezone.Date) error {
-	if absenceType == activeModels.AbsenceTypeSick && halfDay && start != end {
+func validateSingleDayHalfDayAbsence(absenceType string, halfDay bool, start, end timezone.Date) error {
+	if !halfDay || start == end {
+		return nil
+	}
+	switch absenceType {
+	case activeModels.AbsenceTypeSick:
 		return fmt.Errorf("invalid sick absence: half-day reports must cover exactly one date")
+	case activeModels.AbsenceTypeCompTime:
+		return fmt.Errorf("invalid comp_time absence: half-day reports must cover exactly one date")
 	}
 	return nil
 }
@@ -480,7 +486,7 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	if err := validateSickAbsenceRange(absence.AbsenceType, absence.DateStart, absence.DateEnd); err != nil {
 		return nil, err
 	}
-	if err := validateSingleDayHalfDaySick(absence.AbsenceType, absence.HalfDay, absence.DateStart, absence.DateEnd); err != nil {
+	if err := validateSingleDayHalfDayAbsence(absence.AbsenceType, absence.HalfDay, absence.DateStart, absence.DateEnd); err != nil {
 		return nil, err
 	}
 

@@ -212,11 +212,11 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 			maxBalanceCarryoverMinutes,
 		)
 	}
-	// A future-dated reset would freeze today's balance as the delta while
-	// days keep accruing until the date arrives — the stored delta would no
-	// longer zero anything. Reset only what already exists.
-	if effectiveDate.After(timezone.TodayDate()) {
-		return nil, fmt.Errorf("%w: effective_date must not be in the future", ErrAdjustmentInvalid)
+	// A reset needs a closed cutoff. Today's sessions, absences, and targets
+	// can still change after this request, which would make the stored delta
+	// stale before the day ends.
+	if !effectiveDate.Before(timezone.TodayDate()) {
+		return nil, fmt.Errorf("%w: effective_date must be before today", ErrAdjustmentInvalid)
 	}
 	if err := s.rejectPreAccountDate(ctx, effectiveDate); err != nil {
 		return nil, err

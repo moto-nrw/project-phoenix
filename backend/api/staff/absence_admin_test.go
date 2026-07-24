@@ -151,6 +151,21 @@ func TestAdminCreateStaffAbsence_CompTimeAllowedForManager(t *testing.T) {
 	assert.Equal(t, activeModels.AbsenceStatusReported, absences[0].Status)
 }
 
+func TestAdminCreateStaffAbsence_RejectsMultiDayHalfDayCompTime(t *testing.T) {
+	tc, token, subjectID, _ := setupAbsenceAdminTest(t)
+	tomorrow := timezone.TodayDate().AddDays(1)
+
+	rec := postAbsence(t, tc, token, subjectID, map[string]any{
+		"absence_type": "comp_time",
+		"date_start":   tomorrow.String(),
+		"date_end":     tomorrow.AddDays(1).String(),
+		"half_day":     true,
+		"note":         "Ungültiger Freizeitausgleich",
+	})
+
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+}
+
 func TestAdminCreateStaffAbsence_RequiresPermission(t *testing.T) {
 	tc, _, subjectID, _ := setupAbsenceAdminTest(t)
 	tomorrow := timezone.TodayDate().AddDays(1)
