@@ -86,6 +86,14 @@ var (
 	ErrEditNotAllowed          = errors.New("request can no longer be edited")
 	ErrWithdrawNotAllowed      = errors.New("child cannot be withdrawn in its current state")
 	ErrDuplicateEnrollment     = errors.New("an active enrollment already exists for this parent and child in this phase")
+	// Phase eligibility sentinels (#1663). ErrPhaseNotEligible is the
+	// audience gate: a linked_parents phase rejects anonymous submissions
+	// (the parent handler additionally verifies the guardian link before
+	// stamping GuardianAccountID). The two child-level errors carry stable
+	// codes so the form can explain which child is affected.
+	ErrPhaseNotEligible      = errors.New("phase is not open for this applicant")
+	ErrChildClassNotEligible = fmt.Errorf("%w: child school class is not eligible for this phase", ErrInvalidSubmission)
+	ErrChildAlreadyEnrolled  = fmt.Errorf("%w: child is already enrolled at this school", ErrInvalidSubmission)
 )
 
 // Rate-limit thresholds. Hardcoded for now - if individual schools
@@ -133,11 +141,19 @@ type SubmitRequest struct {
 	CustomData        map[string]any
 
 	// GuardianAccountID is set when the submission comes from an
-	// authenticated parent on the parents portal. The handler verifies
-	// the account has access to req.TenantID before passing it through.
-	// Stamped onto the request row so PR 11/4 can skip the invitation
-	// when an account already exists. nil = anonymous public submission.
+	// authenticated parent on the parents portal. Stamped onto the
+	// request row so PR 11/4 can skip the invitation when an account
+	// already exists. nil = anonymous public submission.
 	GuardianAccountID *int64
+
+	// GuardianSubmitEligible is set by the parent handler alongside
+	// GuardianAccountID: true when the account holds a guardian
+	// relationship at the tenant granting parent_portal.enrollment.submit
+	// (#1663). Phases with audience=linked_parents require it; open and
+	// new_students phases accept authenticated parents without any
+	// guardian link (applying to a new school is the point of the parent
+	// picker). Always false for anonymous submissions.
+	GuardianSubmitEligible bool
 
 	Children []SubmitChild
 
@@ -429,9 +445,15 @@ type RequestServiceConfig struct {
 	FormSchemaRepo           enrollmentModels.FormSchemaRepository
 	PhaseRepo                enrollmentModels.PhaseRepository
 	SchoolRepo               platformModels.SchoolRepository
-	RateLimitRepo            enrollmentModels.SubmissionRateLimitRepository
-	OutboxEnqueuer           platformModels.OutboxEnqueuer
-	Settings                 RequestSettingsResolver
+	// StudentRepo backs the new_students audience check (#1663): a
+	// submission for a child who is already an enrolled student at the
+	// school is rejected. Nil-safe — without the repo the check is
+	// skipped (relevant for narrow test setups only; the factory always
+	// wires it).
+	StudentRepo    users.StudentRepository
+	RateLimitRepo  enrollmentModels.SubmissionRateLimitRepository
+	OutboxEnqueuer platformModels.OutboxEnqueuer
+	Settings       RequestSettingsResolver
 	// ManualDecider approves the freshly submitted request in the manual
 	// admin-enrollment flow. Narrow slice of DecisionService so the request
 	// service does not depend on the whole decision surface.
@@ -491,6 +513,9 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	now := time.Now()
 	if !req.AllowClosedPhase && !IsEnrollmentWindowOpen(phase, now) {
 		return nil, ErrEnrollmentWindowClosed
+	}
+	if err := s.validatePhaseEligibility(ctx, phase, req); err != nil {
+		return nil, err
 	}
 	capabilities, err := s.FormCapabilities(ctx)
 	if err != nil {
@@ -3045,6 +3070,70 @@ func EffectiveFormCapabilities(capabilities FormCapabilities, offerings []*enrol
 //     phase's RequireSchoolClass makes it mandatory -> then reject.
 //
 // Trims and collapses empty strings to nil so "" never reaches the DB.
+// validatePhaseEligibility enforces the per-phase eligibility config
+// (#1663) server-side for the self-service paths (public + parent).
+// Trusted paths — admin manual enrollment and late invites, both
+// recognizable by AllowClosedPhase — bypass eligibility entirely: an
+// admin acts deliberately (exception cases must stay possible, same as
+// the paper form), and a late invite is an explicit personal invitation
+// that outranks the phase's audience config.
+//
+//   - linked_parents audience: requires an authenticated parent whose
+//     guardian relationship at the tenant grants
+//     parent_portal.enrollment.submit. The parent handler resolves that
+//     fact into GuardianSubmitEligible; anonymous submissions carry
+//     neither and are rejected.
+//   - eligible_school_classes: when non-empty, every child must declare
+//     one of the listed classes.
+//   - new_students audience: a child matching an enrolled active student
+//     (name + birthday) is rejected. Best-effort by design — it blocks
+//     the honest mistake, not a determined false declaration, exactly
+//     like the paper form it replaces.
+func (s *requestService) validatePhaseEligibility(ctx context.Context, phase *enrollmentModels.Phase, req SubmitRequest) error {
+	if req.AllowClosedPhase {
+		return nil
+	}
+	if phase.Audience == enrollmentModels.PhaseAudienceLinkedParents &&
+		(req.GuardianAccountID == nil || !req.GuardianSubmitEligible) {
+		return ErrPhaseNotEligible
+	}
+
+	eligible := make(map[string]struct{}, len(phase.EligibleSchoolClasses))
+	for _, c := range phase.EligibleSchoolClasses {
+		if t := strings.TrimSpace(c); t != "" {
+			eligible[t] = struct{}{}
+		}
+	}
+	if len(eligible) > 0 {
+		for i := range req.Children {
+			declared := ""
+			if req.Children[i].TargetSchoolClass != nil {
+				declared = strings.TrimSpace(*req.Children[i].TargetSchoolClass)
+			}
+			if declared == "" {
+				return fmt.Errorf("%w: child %d declares no school class", ErrChildClassNotEligible, i)
+			}
+			if _, ok := eligible[declared]; !ok {
+				return fmt.Errorf("%w: child %d class %q", ErrChildClassNotEligible, i, declared)
+			}
+		}
+	}
+
+	if phase.Audience == enrollmentModels.PhaseAudienceNewStudents && s.StudentRepo != nil {
+		for i := range req.Children {
+			exists, err := s.StudentRepo.ExistsEnrolledByNameAndBirthday(ctx, req.TenantID,
+				req.Children[i].FirstName, req.Children[i].LastName, req.Children[i].DateOfBirth)
+			if err != nil {
+				return fmt.Errorf("submit: check enrolled student for child %d: %w", i, err)
+			}
+			if exists {
+				return fmt.Errorf("%w: child %d", ErrChildAlreadyEnrolled, i)
+			}
+		}
+	}
+	return nil
+}
+
 func (s *requestService) validateAndNormalizeSchoolClasses(ctx context.Context, phase *enrollmentModels.Phase, children []SubmitChild) error {
 	collect, err := s.CollectsSchoolClass(ctx)
 	if err != nil {

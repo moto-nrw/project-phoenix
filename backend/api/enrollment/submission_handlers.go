@@ -277,6 +277,10 @@ const (
 	ErrCodeEnrollmentSelectedDayNotAvailable     = "enrollment.selected_day_not_available"
 	ErrCodeEnrollmentDaySelectionRequired        = "enrollment.day_selection_required"
 	ErrCodeEnrollmentDaySelectionNotAllowed      = "enrollment.day_selection_not_allowed"
+	// Phase eligibility codes (#1663).
+	ErrCodeEnrollmentPhaseNotEligible     = "enrollment.phase_not_eligible"
+	ErrCodeEnrollmentClassNotEligible     = "enrollment.class_not_eligible"
+	ErrCodeEnrollmentChildAlreadyEnrolled = "enrollment.child_already_enrolled"
 )
 
 // MapSubmitError translates service-layer sentinel errors into HTTP
@@ -288,6 +292,14 @@ func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, enrollmentService.ErrLateInviteInvalid):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, ErrCodeEnrollmentLateInviteInvalid))
+	case errors.Is(err, enrollmentService.ErrPhaseNotEligible):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, ErrCodeEnrollmentPhaseNotEligible))
+	// The two child-level eligibility errors wrap ErrInvalidSubmission,
+	// so their specific matches must precede the generic case below.
+	case errors.Is(err, enrollmentService.ErrChildClassNotEligible):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentClassNotEligible))
+	case errors.Is(err, enrollmentService.ErrChildAlreadyEnrolled):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentChildAlreadyEnrolled))
 	case errors.Is(err, enrollmentService.ErrCareOfferingUnavailable):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingUnavailable))
 	case errors.Is(err, enrollmentService.ErrCareOfferingMissing):

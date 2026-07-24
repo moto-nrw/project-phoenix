@@ -167,6 +167,7 @@ type EnrollablePhaseResponse struct {
 	EnrollmentOpenAt  *time.Time    `json:"enrollment_open_at,omitempty"`
 	EnrollmentCloseAt *time.Time    `json:"enrollment_close_at,omitempty"`
 	AlreadyLinked     bool          `json:"already_linked"`
+	Audience          string        `json:"audience"`
 }
 
 // listEnrollableSchools returns every (school, open phase) pair the
@@ -200,6 +201,7 @@ func (rs *Resource) listEnrollableSchools(w http.ResponseWriter, r *http.Request
 			EnrollmentOpenAt:  p.EnrollmentOpenAt,
 			EnrollmentCloseAt: p.EnrollmentCloseAt,
 			AlreadyLinked:     p.AlreadyLinked,
+			Audience:          p.Audience,
 		})
 	}
 

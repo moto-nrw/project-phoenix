@@ -95,16 +95,44 @@ type EnrollablePhase struct {
 	EnrollmentOpenAt  *time.Time    `json:"enrollment_open_at,omitempty"`
 	EnrollmentCloseAt *time.Time    `json:"enrollment_close_at,omitempty"`
 	AlreadyLinked     bool          `json:"already_linked"`
+	// Audience mirrors enrollment.phases.audience (#1663) so the picker
+	// can label restricted phases. Phases the account is NOT eligible
+	// for are already filtered out by the repository.
+	Audience string `json:"audience"`
+}
+
+// GuardianSubmitStatus captures the three facts the parent enrollment
+// submit path needs about (account, school) — resolved in one query
+// (#1663). Linked proves membership only; the permission fields carry
+// the actual parent-portal authority per
+// .claude/rules/guardian-parent-permissions.md.
+type GuardianSubmitStatus struct {
+	// Linked: the account has an active auth.account_tenants mapping.
+	Linked bool
+	// HasGuardianLink: at least one users.students_guardians row exists
+	// via a guardian profile owned by the account at this school.
+	HasGuardianLink bool
+	// HasSubmitPermission: at least one of those rows grants
+	// parent_portal.enrollment.submit.
+	HasSubmitPermission bool
 }
 
 // EnrollablePhaseRepository is the cross-tenant lookup for the parent
 // enrollment picker. Same admin-tx requirement as ChildRepository.
 type EnrollablePhaseRepository interface {
-	// ListEnrollable returns every (school, active+open phase) pair,
-	// flagged with whether the given account already has a tenant
-	// mapping to that school. Sorted by AlreadyLinked DESC (linked
+	// ListEnrollable returns every (school, active+open phase) pair the
+	// account is eligible for, flagged with whether the account already
+	// has a tenant mapping to that school. Phases with audience
+	// linked_parents appear only when the account holds a guardian
+	// relationship with parent_portal.enrollment.submit at that school;
+	// schools where every guardian relationship lacks that permission
+	// are filtered out entirely. Sorted by AlreadyLinked DESC (linked
 	// schools first), then school name, then phase service start.
 	ListEnrollable(ctx context.Context, accountID int64) ([]*EnrollablePhase, error)
+
+	// GuardianSubmitStatus resolves the (account, school) submit facts
+	// above. Cross-tenant — must run under an admin transaction.
+	GuardianSubmitStatus(ctx context.Context, accountID, tenantID int64) (*GuardianSubmitStatus, error)
 }
 
 // EnrollmentRequestSummary is the cross-tenant view of one

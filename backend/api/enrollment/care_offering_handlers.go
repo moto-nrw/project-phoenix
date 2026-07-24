@@ -562,6 +562,10 @@ type PublicPhase struct {
 	EnrollmentCloseAt         string `json:"enrollment_close_at,omitempty"`
 	ShowStatusReasonToParent  bool   `json:"show_status_reason_to_parent"`
 	CareOfferingSelectionMode string `json:"care_offering_selection_mode"`
+	// Audience (#1663): linked_parents phases never reach this listing
+	// (filtered in ListPublicOpen); "new_students" lets the public
+	// picker label the restriction.
+	Audience string `json:"audience"`
 }
 
 func toPublicPhase(p *enrollmentModels.Phase) PublicPhase {
@@ -573,6 +577,7 @@ func toPublicPhase(p *enrollmentModels.Phase) PublicPhase {
 		ServiceEndDate:            p.ServiceEndDate.String(),
 		ShowStatusReasonToParent:  p.ShowStatusReasonToParent,
 		CareOfferingSelectionMode: p.CareOfferingSelectionMode,
+		Audience:                  p.Audience,
 	}
 	if p.EnrollmentOpenAt != nil {
 		entry.EnrollmentOpenAt = p.EnrollmentOpenAt.Format(time.RFC3339)

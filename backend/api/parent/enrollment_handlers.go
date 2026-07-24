@@ -81,20 +81,27 @@ func (rs *Resource) resolveSchoolID(ctx context.Context, slug string) (int64, er
 }
 
 // submitParentEnrollment handles a parent-authenticated submission.
-// The handler resolves the slug to a tenant via admin-tx, verifies the
-// calling account is mapped to that tenant via auth.account_tenants
-// (defense against an authenticated parent stamping rows on schools
-// they have no relationship with), then runs the existing
-// RequestService.Submit with GuardianAccountID stamped from claims.ID
-// and the originating IP captured for rate-limiting. Captcha is
-// skipped — the JWT is the trust signal.
+// The handler resolves the slug to a tenant via admin-tx, resolves the
+// caller's guardian submit facts for that school, then runs the
+// existing RequestService.Submit with GuardianAccountID stamped from
+// claims.ID and the originating IP captured for rate-limiting. Captcha
+// is skipped — the JWT is the trust signal.
+//
+// Authorization (#1663): a parent does NOT need an existing tenant
+// mapping — applying to a new school is the point of the picker; the
+// phase's audience config (enforced in RequestService.Submit via
+// GuardianSubmitEligible) decides whether unlinked parents qualify.
+// What IS blocked here: an account whose guardian relationships at the
+// school all lack parent_portal.enrollment.submit — an explicitly
+// revoked permission must not be bypassable via the parent portal
+// (see .claude/rules/guardian-parent-permissions.md).
 func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Request) {
 	if rs.RequestService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent submit not configured")))
 		return
 	}
-	if rs.AuthService == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent submit: account tenant repo missing")))
+	if rs.ParentService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent submit: parent service missing")))
 		return
 	}
 
@@ -145,12 +152,12 @@ type parentSubmitOutcome struct {
 	resolveErr error
 }
 
-// runParentEnrollmentSubmit resolves the slug to a tenant, verifies the caller
-// is mapped to it, and runs the submit — all inside one admin-tx so the
-// service's inner TxHandler reuses this transaction. Failures inside the submit
-// (parse/submit) are captured in submitErr but do not roll the closure back,
-// matching the pre-existing behavior; only tenant-resolve failures return an
-// error from the closure.
+// runParentEnrollmentSubmit resolves the slug to a tenant, resolves the
+// caller's guardian submit facts, and runs the submit — all inside one
+// admin-tx so the service's inner TxHandler reuses this transaction.
+// Failures inside the submit (parse/submit) are captured in submitErr but do
+// not roll the closure back, matching the pre-existing behavior; only
+// tenant-resolve failures return an error from the closure.
 func (rs *Resource) runParentEnrollmentSubmit(r *http.Request, accountID int64, slug string, wireReq *enrollmentAPI.SubmitEnrollmentRequest) parentSubmitOutcome {
 	var out parentSubmitOutcome
 	out.resolveErr = tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
@@ -159,34 +166,37 @@ func (rs *Resource) runParentEnrollmentSubmit(r *http.Request, accountID int64, 
 			return errors.New("tenant not found")
 		}
 
-		// Tenant-mapping check: the parent JWT identifies the actor but
-		// does NOT prove they belong at this school. Without this guard,
-		// any authenticated parent could stamp guardian_account_id on
-		// requests for arbitrary tenants.
-		mapped, mapErr := rs.AuthService.VerifyAccountTenantMembership(adminCtx, accountID, school.ID)
-		if mapErr != nil {
-			return fmt.Errorf("verify tenant membership: %w", mapErr)
+		// Guardian facts for (account, school): a parent whose guardian
+		// relationships at this school all lack the submit permission is
+		// blocked outright — an admin revoked it deliberately. Accounts
+		// with no guardian rows here (new school) pass; the phase's
+		// audience config decides their eligibility in Submit (#1663).
+		status, stErr := rs.ParentService.GetEnrollmentSubmitStatus(adminCtx, accountID, school.ID)
+		if stErr != nil {
+			return fmt.Errorf("resolve enrollment submit status: %w", stErr)
 		}
-		if !mapped {
+		if status.HasGuardianLink && !status.HasSubmitPermission {
 			out.forbidden = true
 			return nil
 		}
 
-		out.result, out.submitErr = rs.submitEnrollmentForTenant(adminCtx, school.ID, accountID, wireReq, getClientIP(r))
+		out.result, out.submitErr = rs.submitEnrollmentForTenant(adminCtx, school.ID, accountID, status.HasSubmitPermission, wireReq, getClientIP(r))
 		return nil
 	})
 	return out
 }
 
 // submitEnrollmentForTenant binds the wire request for the resolved tenant,
-// stamps the guardian account id, and forwards to RequestService.Submit under
-// the tenant context. A parse failure returns before the service call.
-func (rs *Resource) submitEnrollmentForTenant(adminCtx context.Context, schoolID, accountID int64, wireReq *enrollmentAPI.SubmitEnrollmentRequest, clientIP string) (*enrollmentService.SubmitResult, error) {
+// stamps the guardian account id + submit eligibility, and forwards to
+// RequestService.Submit under the tenant context. A parse failure returns
+// before the service call.
+func (rs *Resource) submitEnrollmentForTenant(adminCtx context.Context, schoolID, accountID int64, submitEligible bool, wireReq *enrollmentAPI.SubmitEnrollmentRequest, clientIP string) (*enrollmentService.SubmitResult, error) {
 	serviceReq, parseErr := enrollmentAPI.BuildServiceRequest(wireReq, schoolID, clientIP)
 	if parseErr != nil {
 		return nil, parseErr
 	}
 	serviceReq.GuardianAccountID = &accountID
+	serviceReq.GuardianSubmitEligible = submitEligible
 	return rs.RequestService.Submit(tenant.WithTenantID(adminCtx, schoolID), serviceReq)
 }
 
@@ -198,7 +208,7 @@ func (rs *Resource) respondParentEnrollment(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if out.forbidden {
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("account is not a member of this school")))
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("enrollment submission is not permitted for this account at this school")))
 		return
 	}
 	if out.submitErr != nil {

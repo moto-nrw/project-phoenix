@@ -251,6 +251,33 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 	return students, nil
 }
 
+// ExistsEnrolledByNameAndBirthday reports whether an active student with
+// the given (case-insensitive, trimmed) name and birthday exists in the
+// tenant. Backs the enrollment new_students audience check (#1663). The
+// tenant filter is explicit (not RLS/context-based) because the parent
+// submit path runs under an admin transaction. A zero birthday binds
+// NULL and matches nothing — the safe outcome for incomplete input.
+func (r *StudentRepository) ExistsEnrolledByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday timezone.Date) (bool, error) {
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*users.Student)(nil)).
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Where(`"student".tenant_id = ?`, tenantID).
+		Where(`"student".status = ?`, users.StudentStatusActive).
+		Where(`LOWER(TRIM("person".first_name)) = LOWER(TRIM(?))`, firstName).
+		Where(`LOWER(TRIM("person".last_name)) = LOWER(TRIM(?))`, lastName).
+		Where(`"person".birthday = ?`, birthday).
+		Where(`"person".deleted_at IS NULL`).
+		Count(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "exists enrolled by name and birthday",
+			Err: err,
+		}
+	}
+	return count > 0, nil
+}
+
 // ListSchoolClasses retrieves all distinct non-empty school_class values.
 func (r *StudentRepository) ListSchoolClasses(ctx context.Context) ([]string, error) {
 	var classes []string

@@ -77,6 +77,28 @@ var validPhaseRolloverModes = map[string]bool{
 	PhaseRolloverModeOptOut: true,
 }
 
+// PhaseAudience values match enrollment.phases.audience (migration
+// 1.15.219, issue #1663). They answer "who may apply to this phase":
+//
+//   - open           → everyone, including anonymous public visitors
+//   - new_students   → anonymous allowed, but children who are already
+//     enrolled at the school are rejected at submit
+//   - linked_parents → only authenticated parent accounts with an
+//     active guardian link at the school; the phase is hidden from the
+//     anonymous public listing because linkage cannot be verified
+//     without a login
+const (
+	PhaseAudienceOpen          = "open"
+	PhaseAudienceNewStudents   = "new_students"
+	PhaseAudienceLinkedParents = "linked_parents"
+)
+
+var validPhaseAudiences = map[string]bool{
+	PhaseAudienceOpen:          true,
+	PhaseAudienceNewStudents:   true,
+	PhaseAudienceLinkedParents: true,
+}
+
 // Phase is one row in enrollment.phases - a discrete, admin-managed
 // enrollment window with its own service period, open/close window,
 // optional form schema, and per-phase behaviour flags. Every parent
@@ -148,6 +170,23 @@ type Phase struct {
 	// for the same reason as the bool fields above — see the note there.
 	AvailableSchoolClasses []string `bun:"available_school_classes,type:jsonb,notnull" json:"available_school_classes"`
 	RequireSchoolClass     bool     `bun:"require_school_class,notnull" json:"require_school_class"`
+
+	// Eligibility config (migration 1.15.219, issue #1663).
+	//
+	// Audience restricts who may apply (see PhaseAudience* constants).
+	// EligibleSchoolClasses, when non-empty, restricts submissions to
+	// children who declare one of the listed classes — distinct from
+	// AvailableSchoolClasses, which is only the pick list the form
+	// offers. Both are enforced server-side in RequestService.Submit.
+	//
+	// Audience carries the bun `default:` directive on purpose (unlike
+	// the bool fields above): "" is never a valid audience, so letting
+	// bun skip the zero value on INSERT (DB default 'open' applies)
+	// cannot mask an intentional value — and direct model inserts that
+	// bypass Validate (fixtures, ad-hoc tooling) would otherwise violate
+	// the phases_audience_check constraint with an empty string.
+	Audience              string   `bun:"audience,notnull,default:'open'" json:"audience"`
+	EligibleSchoolClasses []string `bun:"eligible_school_classes,type:jsonb,notnull" json:"eligible_school_classes"`
 }
 
 // Validate runs the column-level checks in app code so the service can
@@ -211,6 +250,16 @@ func (p *Phase) Validate() error {
 	// any value not in the (empty) offered list. Issue #1833.
 	if p.RequireSchoolClass && !hasNonEmptySchoolClass(p.AvailableSchoolClasses) {
 		return errors.New("require_school_class needs at least one available_school_class")
+	}
+	if p.Audience == "" {
+		p.Audience = PhaseAudienceOpen
+	}
+	if !validPhaseAudiences[p.Audience] {
+		return fmt.Errorf("audience must be one of open/new_students/linked_parents, got %q", p.Audience)
+	}
+	// Same NOT NULL jsonb coalescing as AvailableSchoolClasses above.
+	if p.EligibleSchoolClasses == nil {
+		p.EligibleSchoolClasses = []string{}
 	}
 	return nil
 }

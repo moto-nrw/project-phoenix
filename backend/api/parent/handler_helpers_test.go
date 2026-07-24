@@ -67,7 +67,11 @@ func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermis
 	school.ID = tenantID
 	requestSvc := &parentSubmitRequestStub{}
 	rs := &Resource{
-		AuthService:    &parentSubmitAuthStub{mapped: true},
+		AuthService: &parentSubmitAuthStub{mapped: true},
+		// The submit path now resolves guardian facts via ParentService
+		// (#1663); the zero-value status (no guardian link, no permission)
+		// is exactly the pre-guardian-row state this test asserts on.
+		ParentService:  &fakeParentService{},
 		RequestService: requestSvc,
 		SchoolService:  &parentSubmitSchoolStub{school: school},
 		db:             db,
@@ -101,6 +105,102 @@ func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermis
 	assert.Equal(t, int64(7777), *requestSvc.got.GuardianAccountID)
 	assert.Equal(t, tenantID, requestSvc.got.TenantID)
 	assert.Equal(t, "parent-late-token", requestSvc.got.LateInviteToken)
+}
+
+// TestSubmitParentEnrollment_BlocksRevokedGuardianPermission covers the
+// #1663 permission gate: an account with a guardian link at the school
+// whose links all lack parent_portal.enrollment.submit gets 403 and the
+// submission never reaches the RequestService.
+func TestSubmitParentEnrollment_BlocksRevokedGuardianPermission(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule"}
+	school.ID = 1
+	requestSvc := &parentSubmitRequestStub{}
+	rs := &Resource{
+		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+			Linked:              true,
+			HasGuardianLink:     true,
+			HasSubmitPermission: false,
+		}},
+		RequestService: requestSvc,
+		SchoolService:  &parentSubmitSchoolStub{school: school},
+		db:             db,
+	}
+
+	body, err := json.Marshal(enrollmentAPI.SubmitEnrollmentRequest{
+		PhaseID:           4242,
+		GuardianFirstName: "Anna",
+		GuardianLastName:  "Beispiel",
+		GuardianEmail:     "anna@example.test",
+		Children: []enrollmentAPI.SubmitChildRequest{
+			{FirstName: "Lara", LastName: "Beispiel", DateOfBirth: "2018-03-04"},
+		},
+	})
+	require.NoError(t, err)
+
+	router := chi.NewRouter()
+	router.Post("/parent/enrollments/{tenantSlug}/submit", rs.submitParentEnrollment)
+	req := withClaims(
+		httptest.NewRequest(http.MethodPost, "/parent/enrollments/testschule/submit", strings.NewReader(string(body))),
+		7778,
+	)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+	assert.False(t, requestSvc.called, "revoked submit permission must never reach RequestService")
+}
+
+// TestSubmitParentEnrollment_StampsSubmitEligibility covers the #1663
+// eligibility plumbing: a guardian with the submit permission reaches
+// the RequestService with GuardianSubmitEligible=true so linked_parents
+// phases accept the submission.
+func TestSubmitParentEnrollment_StampsSubmitEligibility(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule"}
+	school.ID = 1
+	requestSvc := &parentSubmitRequestStub{}
+	rs := &Resource{
+		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+			Linked:              true,
+			HasGuardianLink:     true,
+			HasSubmitPermission: true,
+		}},
+		RequestService: requestSvc,
+		SchoolService:  &parentSubmitSchoolStub{school: school},
+		db:             db,
+	}
+
+	body, err := json.Marshal(enrollmentAPI.SubmitEnrollmentRequest{
+		PhaseID:           4242,
+		GuardianFirstName: "Anna",
+		GuardianLastName:  "Beispiel",
+		GuardianEmail:     "anna@example.test",
+		Children: []enrollmentAPI.SubmitChildRequest{
+			{FirstName: "Lara", LastName: "Beispiel", DateOfBirth: "2018-03-04"},
+		},
+	})
+	require.NoError(t, err)
+
+	router := chi.NewRouter()
+	router.Post("/parent/enrollments/{tenantSlug}/submit", rs.submitParentEnrollment)
+	req := withClaims(
+		httptest.NewRequest(http.MethodPost, "/parent/enrollments/testschule/submit", strings.NewReader(string(body))),
+		7779,
+	)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	require.True(t, requestSvc.called)
+	assert.True(t, requestSvc.got.GuardianSubmitEligible,
+		"submit permission must be forwarded as GuardianSubmitEligible")
 }
 
 // --- toChildResponse -----------------------------------------------------

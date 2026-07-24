@@ -83,6 +83,8 @@ func (r *PhaseRepository) Update(ctx context.Context, phase *enrollment.Phase) e
 		Set("is_active = ?", phase.IsActive).
 		Set("available_school_classes = ?", phase.AvailableSchoolClasses).
 		Set("require_school_class = ?", phase.RequireSchoolClass).
+		Set("audience = ?", phase.Audience).
+		Set("eligible_school_classes = ?", phase.EligibleSchoolClasses).
 		Set("updated_at = NOW()").
 		Where(`"phase".id = ?`, phase.ID).
 		Exec(ctx)
@@ -129,12 +131,17 @@ func (r *PhaseRepository) ListByTenant(ctx context.Context) ([]*enrollment.Phase
 // includes `now`. We push the filter down to SQL so the parent-facing
 // path doesn't pull every phase into memory; NULL bounds are treated
 // as "unbounded" via the IS NULL OR ... pattern.
+//
+// Phases restricted to linked parents are excluded entirely: their
+// eligibility cannot be verified for an anonymous visitor, so they are
+// only reachable through the authenticated parents portal (#1663).
 func (r *PhaseRepository) ListPublicOpen(ctx context.Context, now time.Time) ([]*enrollment.Phase, error) {
 	var rows []*enrollment.Phase
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
 		ModelTableExpr(phaseTableExpr).
 		Where(`"phase".is_active = TRUE`).
+		Where(`"phase".audience <> ?`, enrollment.PhaseAudienceLinkedParents).
 		Where(`("phase".enrollment_open_at IS NULL OR "phase".enrollment_open_at <= ?)`, now).
 		Where(`("phase".enrollment_close_at IS NULL OR "phase".enrollment_close_at > ?)`, now).
 		OrderExpr(`"phase".service_start_date ASC, "phase".id ASC`).
