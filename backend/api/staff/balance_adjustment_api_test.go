@@ -147,11 +147,14 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 	// issue permits paying out plus-hours; an empty account is not a valid
 	// payout fixture.
 	tenantID := int64(testutil.DefaultTestClaims().TenantID)
-	checkIn := time.Date(resetDate.Year, resetDate.Month, resetDate.Day, 8, 0, 0, 0, time.UTC)
+	// Adjustments are effective at the start of their date, so fund the
+	// payout with work completed on the preceding day.
+	accrualDate := resetDate.AddDays(-1)
+	checkIn := time.Date(accrualDate.Year, accrualDate.Month, accrualDate.Day, 8, 0, 0, 0, time.UTC)
 	checkOut := checkIn.Add(4 * time.Hour)
 	accrualSession := &activeModels.WorkSession{
 		StaffID:      subject.ID,
-		Date:         resetDate,
+		Date:         accrualDate,
 		Status:       activeModels.WorkSessionStatusPresent,
 		Source:       activeModels.WorkSessionSourceApp,
 		CheckInTime:  checkIn,
