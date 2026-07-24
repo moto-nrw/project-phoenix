@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import {
   type Phase,
+  type PhaseAudience,
   type PhaseDeleteImpact,
   type PhaseInput,
   type PhaseKind,
@@ -61,6 +62,7 @@ import {
   type DataTableColumn,
 } from "~/components/ui/data-table";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { Radio } from "~/components/ui/radio";
 import {
   LateInviteModal,
   ManualApprovedEnrollmentModal,
@@ -85,6 +87,41 @@ const CARE_SELECTION_LABELS: Record<PhaseCareOfferingSelectionMode, string> = {
   at_least_one: "Mindestens ein Angebot",
   exactly_one: "Genau ein Angebot",
 };
+
+const AUDIENCE_LABELS: Record<PhaseAudience, string> = {
+  open: "Offen für alle",
+  new_students: "Nur neue Kinder",
+  linked_parents: "Nur Eltern mit Konto an der Schule",
+};
+
+// Compact labels for the phases table badge (the full labels are too long
+// for a table cell). "open" needs no badge, so it is intentionally omitted.
+const AUDIENCE_BADGE_LABELS: Record<Exclude<PhaseAudience, "open">, string> = {
+  new_students: "Nur neue Kinder",
+  linked_parents: "Nur Eltern mit Konto",
+};
+
+const AUDIENCE_OPTIONS: ReadonlyArray<{
+  value: PhaseAudience;
+  label: string;
+  hint: string;
+}> = [
+  {
+    value: "open",
+    label: AUDIENCE_LABELS.open,
+    hint: "Alle können sich anmelden, auch ohne Konto. Die Phase erscheint in der öffentlichen Anmeldeliste.",
+  },
+  {
+    value: "new_students",
+    label: AUDIENCE_LABELS.new_students,
+    hint: "Anmeldung ohne Konto möglich. Kinder, die an der Schule bereits angemeldet sind, werden abgelehnt.",
+  },
+  {
+    value: "linked_parents",
+    label: AUDIENCE_LABELS.linked_parents,
+    hint: "Wird nicht in der öffentlichen Anmeldeliste angezeigt. Nur Eltern mit Konto und Berechtigung können sich im Elternportal anmelden.",
+  },
+];
 
 // Schema-source mode.
 // "base" sets form_schema_id = null. "reuse" picks an existing schema row.
@@ -111,6 +148,8 @@ function blankInput(): PhaseInput {
     is_active: true,
     available_school_classes: [],
     require_school_class: false,
+    audience: "open",
+    eligible_school_classes: [],
   };
 }
 
@@ -471,8 +510,13 @@ export function PhasesEditor() {
         render: (phase) => (
           <div className="min-w-0">
             <p className="truncate font-medium text-gray-900">{phase.name}</p>
-            <p className="mt-0.5 text-xs text-gray-500">
-              {KIND_LABELS[phase.kind]}
+            <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
+              <span>{KIND_LABELS[phase.kind]}</span>
+              {phase.audience && phase.audience !== "open" ? (
+                <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-1.5 py-0.5 text-[11px] font-medium text-[#4070C8]">
+                  {AUDIENCE_BADGE_LABELS[phase.audience]}
+                </span>
+              ) : null}
             </p>
           </div>
         ),
@@ -1547,6 +1591,52 @@ function PhaseForm(props: PhaseFormProps) {
           />
         </div>
       </div>
+
+      <fieldset className="rounded-xl border border-gray-200 p-4">
+        <legend className="px-1 text-xs font-medium text-gray-700">
+          Zielgruppe
+        </legend>
+        <div className="space-y-2 text-sm">
+          {AUDIENCE_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              htmlFor={`phase-audience-${option.value}`}
+              aria-label={option.label}
+              className="flex cursor-pointer items-start gap-2"
+            >
+              <Radio
+                id={`phase-audience-${option.value}`}
+                name="phase-audience"
+                value={option.value}
+                checked={draft.audience === option.value}
+                onChange={() => update({ audience: option.value })}
+                className="mt-0.5"
+              />
+              <span className="flex-1">
+                <span className="block font-medium text-gray-900">
+                  {option.label}
+                </span>
+                <span className="mt-0.5 block text-xs font-normal text-gray-500">
+                  {option.hint}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+        <div className="mt-4">
+          <span className="text-xs font-medium text-gray-700">
+            Nur für Klassen (optional)
+          </span>
+          <p className="mt-1 text-xs leading-5 text-gray-500">
+            Leer lassen für keine Einschränkung. Kinder müssen eine dieser
+            Klassen angeben.
+          </p>
+          <SchoolClassListEditor
+            value={draft.eligible_school_classes ?? []}
+            onChange={(list) => update({ eligible_school_classes: list })}
+          />
+        </div>
+      </fieldset>
 
       <fieldset className="rounded-xl border border-gray-200 p-4">
         <legend className="px-1 text-xs font-medium text-gray-700">

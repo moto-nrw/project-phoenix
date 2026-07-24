@@ -42,6 +42,33 @@ describe("enrollment-error-messages", () => {
     );
   });
 
+  it("maps the eligibility submit error codes to German (#1663)", () => {
+    expect(
+      translateEnrollmentErrorMessage(
+        "phase not eligible",
+        "enrollment.phase_not_eligible",
+      ),
+    ).toBe(
+      "Diese Anmeldephase ist für dein Konto nicht verfügbar. Bitte melde dich im Elternportal an oder wende dich an die Schule.",
+    );
+    expect(
+      translateEnrollmentErrorMessage(
+        "class not eligible",
+        "enrollment.class_not_eligible",
+      ),
+    ).toBe(
+      "Diese Anmeldephase ist auf bestimmte Klassen beschränkt. Bitte prüfe die Klassenangabe deines Kindes.",
+    );
+    expect(
+      translateEnrollmentErrorMessage(
+        "child already enrolled",
+        "enrollment.child_already_enrolled",
+      ),
+    ).toBe(
+      "Dieses Kind ist an der Schule bereits angemeldet. Diese Phase richtet sich nur an neue Kinder.",
+    );
+  });
+
   it("does not expose unknown English backend text to the UI", async () => {
     const logger = { error: vi.fn(), warn: vi.fn() };
     const error = await readEnrollmentError(

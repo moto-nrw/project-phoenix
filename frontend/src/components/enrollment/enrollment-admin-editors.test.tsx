@@ -1817,6 +1817,92 @@ describe("PhasesEditor", () => {
       gradeLevelMax: 13,
     });
   });
+
+  it("round-trips the Zielgruppe audience and eligible classes into the create payload (#1663)", async () => {
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.createPhase.mockResolvedValue(phase({ id: "20", name: "Nur Konto" }));
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Erste Anmeldephase anlegen" }),
+    );
+    fireEvent.change(inputByName("name"), { target: { value: "Nur Konto" } });
+
+    // The audience radios render with a default of "open".
+    expect(
+      document.querySelector("#phase-audience-open") as HTMLInputElement,
+    ).toBeChecked();
+    fireEvent.click(
+      document.querySelector(
+        "#phase-audience-linked_parents",
+      ) as HTMLInputElement,
+    );
+
+    // Add an eligible class. Scope to the Zielgruppe fieldset so we don't hit
+    // the separate SchoolClassListEditor under "Konkrete Klassen".
+    const audienceFieldset = screen
+      .getByText("Zielgruppe")
+      .closest("fieldset") as HTMLElement;
+    fireEvent.change(
+      within(audienceFieldset).getByLabelText("Klasse hinzufügen"),
+      { target: { value: "3b" } },
+    );
+    fireEvent.click(
+      within(audienceFieldset).getByRole("button", { name: "Hinzufügen" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
+
+    await waitFor(() => {
+      expect(mocks.createPhase).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Nur Konto",
+          audience: "linked_parents",
+          eligible_school_classes: ["3b"],
+        }),
+      );
+    });
+  });
+
+  it("defaults a legacy phase without eligibility fields to audience open on save (#1663)", async () => {
+    // phase() intentionally omits audience/eligible_school_classes, mirroring
+    // a phase created before #1663.
+    const legacy = phase({ id: "21" });
+    mocks.listPhases.mockResolvedValue([legacy]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.updatePhase.mockResolvedValue(legacy);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    await waitFor(() => {
+      expect(
+        document.querySelector("#phase-audience-open") as HTMLInputElement,
+      ).toBeChecked();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updatePhase).toHaveBeenCalledWith(
+        "21",
+        expect.objectContaining({
+          audience: "open",
+          eligible_school_classes: [],
+        }),
+      );
+    });
+  });
 });
 
 // The editor always sends the template's legal blocks on save (PR #1632).
