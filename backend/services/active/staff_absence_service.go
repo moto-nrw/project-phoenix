@@ -293,7 +293,7 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	if err := validateSameAbsenceType(existing, req.AbsenceType); err != nil {
 		return nil, err
 	}
-	if err := validateSameSickDuration(existing, req); err != nil {
+	if err := validateSameMergeDuration(existing, req); err != nil {
 		return nil, err
 	}
 
@@ -339,12 +339,19 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	return toAbsenceResponse(primary), nil
 }
 
-func validateSameSickDuration(existing []*activeModels.StaffAbsence, req CreateAbsenceRequest) error {
-	if req.AbsenceType != activeModels.AbsenceTypeSick {
+// validateSameMergeDuration rejects merging half-day with full-day rows for
+// the duration-sensitive types: sick cascades per day, comp_time deducts the
+// Stundenkonto. The merge keeps the primary's HalfDay flag, so a mismatch
+// would silently rewrite the requested duration (#1420).
+func validateSameMergeDuration(existing []*activeModels.StaffAbsence, req CreateAbsenceRequest) error {
+	if req.AbsenceType != activeModels.AbsenceTypeSick && req.AbsenceType != activeModels.AbsenceTypeCompTime {
 		return nil
 	}
 	for _, absence := range existing {
 		if absence.HalfDay != req.HalfDay {
+			if req.AbsenceType == activeModels.AbsenceTypeCompTime {
+				return fmt.Errorf("invalid comp_time absence: half-day and full-day entries cannot be merged")
+			}
 			return fmt.Errorf("invalid sick absence: half-day and full-day reports cannot be merged")
 		}
 	}

@@ -8,7 +8,7 @@
 
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
 import {
-  balanceAdjustmentTypeLabels,
+  balanceAdjustmentTypeLabel,
   formatDuration,
 } from "~/lib/time-tracking-helpers";
 import type { MonthSummary } from "~/lib/time-tracking-helpers";
@@ -212,7 +212,7 @@ export function Monatskarte({
         {summary.adjustments.map((adjustment) => (
           <SummaryRow
             key={adjustment.id}
-            label={balanceAdjustmentTypeLabels[adjustment.type]}
+            label={balanceAdjustmentTypeLabel(adjustment.type)}
             hint={formatIsoDateGerman(adjustment.effectiveDate)}
             value={formatSignedDuration(adjustment.minutesDelta)}
             valueClass={deltaClass(adjustment.minutesDelta)}

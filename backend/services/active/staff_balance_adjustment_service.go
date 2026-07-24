@@ -26,12 +26,17 @@ var (
 	ErrBalanceAlreadyReset = errors.New("balance already reset for this date")
 	// ErrAdjustmentHasDependentReset prevents a write from changing history
 	// that an existing reset used to calculate its persisted delta — HTTP 409.
+	// Deliberately partial: only ADJUSTMENT writes are blocked. Work sessions
+	// and comp_time absences dated before a reset stay allowed — late
+	// corrections remain visible in the ledger and shift the post-reset
+	// balance while the stored reset delta stays fixed (see
+	// TestWTMAdjustments_LateHistoricalCorrectionRemainsVisibleAfterReset).
 	ErrAdjustmentHasDependentReset = errors.New("later balance reset depends on this adjustment")
 )
 
 const (
 	// resetUniqueConstraintName is the partial unique index guarding one reset
-	// per staff and effective date (migration 1.15.218).
+	// per staff and effective date (migration 1.15.219).
 	resetUniqueConstraintName = "uq_sba_reset_per_day"
 
 	// These bounds mirror the privileged admin UI. They are business limits,

@@ -16,7 +16,7 @@ import { useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { staffBalanceAdjustmentService } from "~/lib/staff-api";
 import {
-  balanceAdjustmentTypeLabels,
+  balanceAdjustmentTypeLabel,
   type BalanceAdjustment,
 } from "~/lib/time-tracking-helpers";
 
@@ -129,7 +129,7 @@ export function StundenkontoPanel({
               <div className="min-w-0">
                 <p className="text-sm text-gray-800">
                   <span className="font-medium">
-                    {balanceAdjustmentTypeLabels[adjustment.type]}
+                    {balanceAdjustmentTypeLabel(adjustment.type)}
                   </span>
                   <span className="ml-2 text-gray-500">
                     {formatDate(adjustment.effectiveDate)}
@@ -148,7 +148,7 @@ export function StundenkontoPanel({
                 <button
                   type="button"
                   onClick={() => setDeleteTarget(adjustment)}
-                  aria-label={`Buchung ${balanceAdjustmentTypeLabels[adjustment.type]} vom ${formatDate(adjustment.effectiveDate)} löschen`}
+                  aria-label={`Buchung ${balanceAdjustmentTypeLabel(adjustment.type)} vom ${formatDate(adjustment.effectiveDate)} löschen`}
                   title="Buchung löschen"
                   className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
                 >
@@ -194,7 +194,7 @@ export function StundenkontoPanel({
             <>
               Die Buchung{" "}
               <strong>
-                {balanceAdjustmentTypeLabels[deleteTarget.type]} (
+                {balanceAdjustmentTypeLabel(deleteTarget.type)} (
                 {formatSignedDuration(deleteTarget.minutesDelta)})
               </strong>{" "}
               vom {formatDate(deleteTarget.effectiveDate)} wird entfernt. Das

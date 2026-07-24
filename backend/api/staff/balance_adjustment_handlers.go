@@ -12,12 +12,12 @@ import (
 )
 
 // balanceAdjustmentErrorRules classifies the adjustment service sentinels
-// (#1420): caller mistakes → 400, missing rows → 404, double reset → 409.
+// (#1420): caller mistakes → 400, missing rows → 404. The two conflict
+// sentinels are rendered with machine-readable codes in
+// renderBalanceAdjustmentError before this table is consulted.
 var balanceAdjustmentErrorRules = []common.ErrorRule{
 	{Target: activeSvc.ErrAdjustmentInvalid, Render: common.ErrorInvalidRequest},
 	{Target: activeSvc.ErrAdjustmentNotFound, Render: common.ErrorNotFound},
-	{Target: activeSvc.ErrBalanceAlreadyReset, Render: common.ErrorConflict},
-	{Target: activeSvc.ErrAdjustmentHasDependentReset, Render: common.ErrorConflict},
 }
 
 func renderBalanceAdjustmentError(w http.ResponseWriter, r *http.Request, err error) {

@@ -2036,6 +2036,66 @@ func TestAbsCreateAbsenceFor_RejectsHalfDayExtensionOfFullDaySickReport(t *testi
 	assert.Empty(t, syncer.markCalls, "half-day dates must not inherit the full-day cascade")
 }
 
+// A full-day comp_time create overlapping a stored half-day comp_time must
+// not merge: the merge keeps the primary's HalfDay flag, so it would extend a
+// half-day row across multiple days and deduct the wrong Stundenkonto amount.
+func TestAbsCreateAbsenceFor_RejectsMixedDurationCompTimeMerge(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	halfDayExisting := &activeModels.StaffAbsence{
+		StaffID:     100,
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   timezone.NewDate(2026, 2, 10),
+		DateEnd:     timezone.NewDate(2026, 2, 10),
+		HalfDay:     true,
+		Status:      activeModels.AbsenceStatusReported,
+	}
+	halfDayExisting.ID = 42
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return []*activeModels.StaffAbsence{halfDayExisting}, nil
+	}
+
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 100, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   "2026-02-10",
+		DateEnd:     "2026-02-12",
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid comp_time absence: half-day and full-day entries cannot be merged")
+	assert.True(t, halfDayExisting.HalfDay, "a rejected merge must not mutate the stored absence")
+	assert.Equal(t, "2026-02-10", halfDayExisting.DateEnd.String(), "a rejected merge must not widen the stored absence")
+	assert.Empty(t, syncer.markCalls)
+}
+
+// The mirror case: a half-day comp_time create overlapping a stored full-day
+// comp_time must not silently shrink the requested full day to a half day.
+func TestAbsCreateAbsenceFor_RejectsHalfDayExtensionOfFullDayCompTime(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	fullDayExisting := &activeModels.StaffAbsence{
+		StaffID:     100,
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   timezone.NewDate(2026, 2, 10),
+		DateEnd:     timezone.NewDate(2026, 2, 10),
+		Status:      activeModels.AbsenceStatusReported,
+	}
+	fullDayExisting.ID = 42
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return []*activeModels.StaffAbsence{fullDayExisting}, nil
+	}
+
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 100, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   "2026-02-10",
+		DateEnd:     "2026-02-10",
+		HalfDay:     true,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid comp_time absence: half-day and full-day entries cannot be merged")
+	assert.False(t, fullDayExisting.HalfDay, "a rejected merge must not mutate the stored absence")
+	assert.Empty(t, syncer.markCalls)
+}
+
 func TestAbsCreateAbsenceFor_RejectsOversizedSickRange(t *testing.T) {
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	checkedOverlap := false

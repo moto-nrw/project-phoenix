@@ -646,14 +646,21 @@ export interface BalanceAdjustment {
   decidedAt: string;
 }
 
-export const balanceAdjustmentTypeLabels: Record<
-  BalanceAdjustmentType,
-  string
-> = {
+const balanceAdjustmentTypeLabels: Record<BalanceAdjustmentType, string> = {
   payout: "Auszahlung",
   comp_time: "Freizeitausgleich",
   reset: "Reset",
 };
+
+// Defensive lookup: mapBalanceAdjustmentResponse casts the wire type without
+// validation, so an unknown future type renders as its raw name instead of
+// "undefined".
+export function balanceAdjustmentTypeLabel(
+  type: BalanceAdjustmentType,
+): string {
+  const labels: Record<string, string> = balanceAdjustmentTypeLabels;
+  return labels[type] ?? type;
+}
 
 export function mapBalanceAdjustmentResponse(
   data: BackendBalanceAdjustment,
