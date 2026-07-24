@@ -288,6 +288,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		TransitionRepo: repos.GradeTransition,
 		StudentRepo:    repos.Student,
 		PersonRepo:     repos.Person,
+		VisitRepo:      repos.ActiveVisit,
+		AttendanceRepo: repos.Attendance,
 		DB:             db,
 	})
 

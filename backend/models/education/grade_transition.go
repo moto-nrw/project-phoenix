@@ -121,6 +121,7 @@ type GradeTransitionRepository interface {
 	CreateMappings(ctx context.Context, mappings []*GradeTransitionMapping) error
 	DeleteMappings(ctx context.Context, transitionID int64) error
 	GetMappings(ctx context.Context, transitionID int64) ([]*GradeTransitionMapping, error)
+	GetMappingsByTransitionIDs(ctx context.Context, transitionIDs []int64) (map[int64][]*GradeTransitionMapping, error)
 
 	// History operations
 	CreateHistory(ctx context.Context, h *GradeTransitionHistory) error
@@ -134,6 +135,7 @@ type GradeTransitionRepository interface {
 	UpdateStudentClasses(ctx context.Context, transitionID int64) (int64, error)
 	GraduateStudentsByClasses(ctx context.Context, classes []string) (int64, error)
 	ReactivateStudentsByIDs(ctx context.Context, studentIDs []int64) (int64, error)
+	ReactivateStudentsToStatus(ctx context.Context, studentIDs []int64, targetStatus string) (int64, error)
 }
 
 // StudentClassInfo contains basic student information for class transitions
@@ -142,4 +144,5 @@ type StudentClassInfo struct {
 	PersonID    int64  `bun:"person_id"`
 	PersonName  string `bun:"person_name"`
 	SchoolClass string `bun:"school_class"`
+	Status      string `bun:"status"`
 }

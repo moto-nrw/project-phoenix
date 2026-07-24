@@ -419,12 +419,14 @@ function StudentsPageContent() {
                     options={STUDENTS_GROUPING_OPTIONS}
                     onChange={handleGroupingChange}
                   />
-                  <Link
-                    href="/database/grade-transitions"
-                    className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Jahrgangswechsel
-                  </Link>
+                  {hasPermission(session, "grade_transitions:read") && (
+                    <Link
+                      href="/database/grade-transitions"
+                      className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      Jahrgangswechsel
+                    </Link>
+                  )}
                   <Link
                     href="/database/students/import"
                     className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"

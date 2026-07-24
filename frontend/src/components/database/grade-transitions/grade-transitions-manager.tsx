@@ -50,6 +50,26 @@ function StatusBadge({ status }: { readonly status: TransitionStatus }) {
   );
 }
 
+/**
+ * Per-action gates for the transition controls. Each maps to the matching
+ * backend grade_transitions permission (read/create/update/delete/apply), so a
+ * user only ever sees actions the backend will actually allow. Defaults to full
+ * access when the caller does not resolve permissions (e.g. isolated tests).
+ */
+export interface TransitionPermissions {
+  readonly canCreate: boolean;
+  readonly canUpdate: boolean;
+  readonly canDelete: boolean;
+  readonly canApply: boolean;
+}
+
+const FULL_ACCESS: TransitionPermissions = {
+  canCreate: true,
+  canUpdate: true,
+  canDelete: true,
+  canApply: true,
+};
+
 function describeMappings(transition: GradeTransition): string {
   if (transition.mappings.length === 0) return "Keine Zuordnungen";
   const promotions = transition.mappings.filter((m) => m.toClass !== null);
@@ -66,7 +86,11 @@ function describeMappings(transition: GradeTransition): string {
   return parts.join(", ");
 }
 
-export function GradeTransitionsManager() {
+export function GradeTransitionsManager({
+  permissions = FULL_ACCESS,
+}: {
+  readonly permissions?: TransitionPermissions;
+}) {
   const toast = useToast();
   const [transitions, setTransitions] = useState<GradeTransition[] | null>(
     null,
@@ -198,28 +222,28 @@ export function GradeTransitionsManager() {
         align: "right",
         render: (t) => (
           <div className="flex justify-end gap-1">
-            {t.canModify && (
-              <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="compact"
-                  onClick={() => openEditorFor(t)}
-                >
-                  Bearbeiten
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="compact"
-                  className="text-[#FF3130]"
-                  onClick={() => setDeleteTarget(t)}
-                >
-                  Löschen
-                </Button>
-              </>
+            {t.canModify && permissions.canUpdate && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                onClick={() => openEditorFor(t)}
+              >
+                Bearbeiten
+              </Button>
             )}
-            {t.canRevert && (
+            {t.canModify && permissions.canDelete && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                className="text-[#FF3130]"
+                onClick={() => setDeleteTarget(t)}
+              >
+                Löschen
+              </Button>
+            )}
+            {t.canRevert && permissions.canApply && (
               <Button
                 type="button"
                 variant="ghost"
@@ -233,7 +257,7 @@ export function GradeTransitionsManager() {
         ),
       },
     ],
-    [openEditorFor],
+    [openEditorFor, permissions],
   );
 
   return (
@@ -249,9 +273,11 @@ export function GradeTransitionsManager() {
               zum Schuljahreswechsel.
             </p>
           </div>
-          <Button type="button" size="md" onClick={() => openEditorFor(null)}>
-            Neuer Jahrgangswechsel
-          </Button>
+          {permissions.canCreate && (
+            <Button type="button" size="md" onClick={() => openEditorFor(null)}>
+              Neuer Jahrgangswechsel
+            </Button>
+          )}
         </div>
       </div>
 

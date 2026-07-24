@@ -74,6 +74,8 @@ export interface BackendSuggestedMapping {
   to_class?: string | null;
   student_count: number;
   is_graduating: boolean;
+  /** true = class name has no grade pattern; graduation guess is not confident */
+  ambiguous?: boolean;
 }
 
 export interface BackendTransitionHistoryEntry {
@@ -149,6 +151,8 @@ export interface SuggestedMapping {
   toClass: string | null;
   studentCount: number;
   isGraduating: boolean;
+  /** true = class name has no grade pattern; do not preselect Abgang */
+  ambiguous?: boolean;
 }
 
 export interface TransitionHistoryEntry {
@@ -244,6 +248,9 @@ export function mapSuggestion(data: BackendSuggestedMapping): SuggestedMapping {
     toClass: data.to_class ?? null,
     studentCount: data.student_count,
     isGraduating: data.is_graduating,
+    // Left undefined when the backend omits it (confident suggestion), which
+    // the mapper's toEqual tests treat as absent.
+    ambiguous: data.ambiguous,
   };
 }
 

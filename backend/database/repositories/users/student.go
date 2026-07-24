@@ -228,13 +228,18 @@ func (r *StudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64
 	return students, nil
 }
 
-// FindBySchoolClass retrieves students by their school class
+// FindBySchoolClass retrieves students by their school class. Alumni
+// (graduated, soft-deleted) are excluded — staff-facing callers (arrival-plan
+// bulk upsert, enrollment reports, calendar targeting) must never write to or
+// count a graduate. Their rows survive only for transition reverts, which use
+// the education repository's by-ID paths, not this lookup.
 func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass string) ([]*users.Student, error) {
 	var students []*users.Student
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("LOWER(TRIM(school_class)) = LOWER(TRIM(?))", schoolClass)
+		Where("LOWER(TRIM(school_class)) = LOWER(TRIM(?))", schoolClass).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
 
 	query = base.WithTenantFilter(ctx, query, "student")
 
@@ -1011,6 +1016,14 @@ func (r *StudentRepository) List(ctx context.Context, filters map[string]interfa
 		if value != nil {
 			applyStudentFilter(filter, field, value)
 		}
+	}
+
+	// Exclude soft-deleted alumni by default so unscoped reads (e.g. database
+	// statistics counting Student.List(ctx, nil)) never count graduates. A
+	// caller that filters on status explicitly (pending / active / alumnus) is
+	// respected and gets exactly what it asked for.
+	if _, ok := filters["status"]; !ok {
+		filter.NotIn("status", string(users.StudentStatusAlumnus))
 	}
 
 	options.Filter = filter

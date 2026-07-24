@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -78,6 +79,11 @@ type SuggestedMapping struct {
 	ToClass      *string `json:"to_class,omitempty"`
 	StudentCount int     `json:"student_count"`
 	IsGraduating bool    `json:"is_graduating"`
+	// Ambiguous marks a class whose name does not match the grade pattern, so
+	// the graduation guess is not confident. The editor must not preselect
+	// Abgang for these — it defaults them to an explicit, non-destructive
+	// choice so free-form or placeholder classes ("offen") aren't mass-graduated.
+	Ambiguous bool `json:"ambiguous,omitempty"`
 }
 
 // Error message format constants
@@ -89,6 +95,8 @@ type GradeTransitionService struct {
 	transitionRepo education.GradeTransitionRepository
 	studentRepo    users.StudentRepository
 	personRepo     users.PersonRepository
+	visitRepo      activeModels.VisitRepository
+	attendanceRepo activeModels.AttendanceRepository
 	db             *bun.DB
 }
 
@@ -97,6 +105,11 @@ type GradeTransitionServiceDependencies struct {
 	TransitionRepo education.GradeTransitionRepository
 	StudentRepo    users.StudentRepository
 	PersonRepo     users.PersonRepository
+	// VisitRepo and AttendanceRepo guard graduation against stranding a
+	// checked-in child (open visit or open attendance record). Optional so
+	// tests that don't exercise the check can leave them nil.
+	VisitRepo      activeModels.VisitRepository
+	AttendanceRepo activeModels.AttendanceRepository
 	DB             *bun.DB
 }
 
@@ -106,6 +119,8 @@ func NewGradeTransitionService(deps GradeTransitionServiceDependencies) *GradeTr
 		transitionRepo: deps.TransitionRepo,
 		studentRepo:    deps.StudentRepo,
 		personRepo:     deps.PersonRepo,
+		visitRepo:      deps.VisitRepo,
+		attendanceRepo: deps.AttendanceRepo,
 		db:             deps.DB,
 	}
 }
@@ -277,9 +292,30 @@ func (s *GradeTransitionService) GetByID(ctx context.Context, id int64) (*educat
 	return s.transitionRepo.FindByIDWithMappings(ctx, id)
 }
 
-// List retrieves grade transitions with pagination
+// List retrieves grade transitions with pagination. Mappings are hydrated so
+// every listed draft renders its zuordnungen and a correct can_apply, and the
+// editor opens pre-filled — the bare list query returns no mappings otherwise.
 func (s *GradeTransitionService) List(ctx context.Context, options *base.QueryOptions) ([]*education.GradeTransition, int, error) {
-	return s.transitionRepo.List(ctx, options)
+	transitions, total, err := s.transitionRepo.List(ctx, options)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if len(transitions) > 0 {
+		ids := make([]int64, 0, len(transitions))
+		for _, t := range transitions {
+			ids = append(ids, t.ID)
+		}
+		byTransition, err := s.transitionRepo.GetMappingsByTransitionIDs(ctx, ids)
+		if err != nil {
+			return nil, 0, err
+		}
+		for _, t := range transitions {
+			t.Mappings = byTransition[t.ID]
+		}
+	}
+
+	return transitions, total, nil
 }
 
 // Preview returns what will happen when the transition is applied
@@ -445,6 +481,14 @@ func (s *GradeTransitionService) executeApply(
 	promoteClasses, graduateClasses := categorizeMappings(transition.Mappings)
 	allClasses := append(promoteClasses, graduateClasses...)
 
+	// A graduating child who is still checked in would be stranded: the row
+	// flips to alumnus (open visit/attendance left dangling, still visible in
+	// the active room), yet the kiosk rejects every alumnus checkout. Refuse
+	// the whole apply until they are checked out.
+	if err := s.ensureGraduatesNotCheckedIn(ctx, graduateClasses); err != nil {
+		return err
+	}
+
 	if err := s.recordTransitionHistory(ctx, transition.ID, transition.Mappings, allClasses); err != nil {
 		return err
 	}
@@ -465,6 +509,63 @@ func (s *GradeTransitionService) executeApply(
 	}
 
 	return s.markTransitionApplied(ctx, transition, accountID)
+}
+
+// ensureGraduatesNotCheckedIn refuses the apply when any student in a
+// graduating class is currently checked in — an open visit (in a room) or an
+// open attendance record for today. Such a child would become an alumnus with a
+// dangling open record the kiosk can no longer close (it rejects every alumnus
+// checkout). No-op when neither repository is wired (unit tests) or there is
+// nothing to graduate.
+func (s *GradeTransitionService) ensureGraduatesNotCheckedIn(ctx context.Context, graduateClasses []string) error {
+	if len(graduateClasses) == 0 || (s.visitRepo == nil && s.attendanceRepo == nil) {
+		return nil
+	}
+
+	students, err := s.transitionRepo.GetStudentsByClasses(ctx, graduateClasses)
+	if err != nil {
+		return fmt.Errorf("failed to get graduating students: %w", err)
+	}
+	if len(students) == 0 {
+		return nil
+	}
+
+	ids := make([]int64, 0, len(students))
+	for _, student := range students {
+		ids = append(ids, student.StudentID)
+	}
+
+	checkedIn := make(map[int64]struct{})
+
+	if s.visitRepo != nil {
+		openVisits, err := s.visitRepo.GetCurrentByStudentIDs(ctx, ids)
+		if err != nil {
+			return fmt.Errorf("failed to check active visits: %w", err)
+		}
+		for id := range openVisits {
+			checkedIn[id] = struct{}{}
+		}
+	}
+
+	if s.attendanceRepo != nil {
+		today, err := s.attendanceRepo.GetTodayByStudentIDs(ctx, ids)
+		if err != nil {
+			return fmt.Errorf("failed to check attendance: %w", err)
+		}
+		for id, att := range today {
+			if att != nil && att.IsCheckedIn() {
+				checkedIn[id] = struct{}{}
+			}
+		}
+	}
+
+	if len(checkedIn) > 0 {
+		return fmt.Errorf(
+			"cannot apply: %d graduating student(s) are still checked in — please check them out first",
+			len(checkedIn),
+		)
+	}
+	return nil
 }
 
 // categorizeMappings separates mappings into promote and graduate classes.
@@ -531,6 +632,9 @@ func buildHistoryRecords(
 		if toClass == nil {
 			action = education.ActionGraduated
 		}
+		// Snapshot the pre-transition status so a revert restores graduates to
+		// exactly what they were (pending / inactive) instead of activating them.
+		fromStatus := student.Status
 		records = append(records, &education.GradeTransitionHistory{
 			TransitionID: transitionID,
 			StudentID:    student.StudentID,
@@ -538,6 +642,7 @@ func buildHistoryRecords(
 			FromClass:    student.SchoolClass,
 			ToClass:      toClass,
 			Action:       action,
+			FromStatus:   &fromStatus,
 		})
 	}
 	return records
@@ -659,12 +764,12 @@ func (s *GradeTransitionService) executeRevert(
 	history []*education.GradeTransitionHistory,
 	result *TransitionResult,
 ) error {
-	graduatedIDs, err := s.revertPromotedStudents(ctx, history, result)
+	graduated, err := s.revertPromotedStudents(ctx, history, result)
 	if err != nil {
 		return err
 	}
 
-	if err := s.revertGraduatedStudents(ctx, graduatedIDs, result); err != nil {
+	if err := s.revertGraduatedStudents(ctx, graduated, result); err != nil {
 		return err
 	}
 
@@ -672,13 +777,14 @@ func (s *GradeTransitionService) executeRevert(
 }
 
 // revertPromotedStudents reverts promoted students to their original classes.
-// Returns the IDs of graduated students so they can be reactivated, and any error.
+// Returns the graduated students' history records so they can be restored to
+// their recorded pre-transition status, and any error.
 func (s *GradeTransitionService) revertPromotedStudents(
 	ctx context.Context,
 	history []*education.GradeTransitionHistory,
 	result *TransitionResult,
-) ([]int64, error) {
-	graduatedIDs := make([]int64, 0)
+) ([]*education.GradeTransitionHistory, error) {
+	graduated := make([]*education.GradeTransitionHistory, 0)
 	missingStudentCount := 0
 
 	for _, h := range history {
@@ -696,7 +802,7 @@ func (s *GradeTransitionService) revertPromotedStudents(
 				missingStudentCount++
 			}
 		case h.WasGraduated():
-			graduatedIDs = append(graduatedIDs, h.StudentID)
+			graduated = append(graduated, h)
 		}
 	}
 
@@ -706,29 +812,46 @@ func (s *GradeTransitionService) revertPromotedStudents(
 				missingStudentCount))
 	}
 
-	return graduatedIDs, nil
+	return graduated, nil
 }
 
-// revertGraduatedStudents restores graduated (alumnus) students back to
-// active. Graduation is a soft delete, so the revert is complete — only
-// students whose rows were deleted or manually changed since cannot be
-// restored and are reported as a warning.
+// revertGraduatedStudents restores graduated (alumnus) students to the
+// lifecycle status they held before the transition — an active child returns to
+// active, a pending future enrollment returns to pending, an inactive leaver
+// returns to inactive. History rows written before from_status existed fall
+// back to active. Graduation is a soft delete, so the revert is complete — only
+// students whose rows were deleted or manually changed since cannot be restored
+// and are reported as a warning.
 func (s *GradeTransitionService) revertGraduatedStudents(
 	ctx context.Context,
-	graduatedIDs []int64,
+	graduated []*education.GradeTransitionHistory,
 	result *TransitionResult,
 ) error {
-	if len(graduatedIDs) == 0 {
+	if len(graduated) == 0 {
 		return nil
 	}
 
-	restored, err := s.transitionRepo.ReactivateStudentsByIDs(ctx, graduatedIDs)
-	if err != nil {
-		return fmt.Errorf("failed to reactivate graduated students: %w", err)
+	// Group by the status to restore so each distinct status is one UPDATE.
+	byStatus := make(map[string][]int64)
+	for _, h := range graduated {
+		status := string(users.StudentStatusActive)
+		if h.FromStatus != nil && *h.FromStatus != "" {
+			status = *h.FromStatus
+		}
+		byStatus[status] = append(byStatus[status], h.StudentID)
+	}
+
+	var restored int64
+	for status, ids := range byStatus {
+		n, err := s.transitionRepo.ReactivateStudentsToStatus(ctx, ids, status)
+		if err != nil {
+			return fmt.Errorf("failed to reactivate graduated students: %w", err)
+		}
+		restored += n
 	}
 	result.StudentsGraduated = int(restored)
 
-	if notRestored := len(graduatedIDs) - int(restored); notRestored > 0 {
+	if notRestored := len(graduated) - int(restored); notRestored > 0 {
 		result.Warnings = append(result.Warnings,
 			fmt.Sprintf("%d graduated students could not be restored (deleted or status changed since graduation)",
 				notRestored))
@@ -803,12 +926,16 @@ func (s *GradeTransitionService) SuggestMappings(ctx context.Context) ([]*Sugges
 
 		matches := classPattern.FindStringSubmatch(className)
 		if matches == nil {
-			// No pattern match - suggest as graduating
+			// No grade pattern — we cannot confidently tell "leaves the OGS"
+			// from a free-form or placeholder class (e.g. "offen"). Mark it
+			// ambiguous so the editor requires an explicit choice rather than
+			// silently preselecting Abgang.
 			suggestions = append(suggestions, &SuggestedMapping{
 				FromClass:    className,
 				ToClass:      nil,
 				StudentCount: count,
 				IsGraduating: true,
+				Ambiguous:    true,
 			})
 			continue
 		}

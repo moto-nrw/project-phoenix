@@ -13,6 +13,7 @@ import { createLogger } from "~/lib/logger";
 import {
   createGradeTransition,
   fetchSuggestedMappings,
+  fetchTransitionClasses,
   updateGradeTransition,
   type GradeTransition,
   type MappingInput,
@@ -70,6 +71,27 @@ export function TransitionEditor({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [allClasses, setAllClasses] = useState<string[]>([]);
+  const [classToAdd, setClassToAdd] = useState("");
+
+  // All classes with children, so a row removed via "Nicht ändern" can be
+  // added back (the suggestions are only the initial proposal).
+  useEffect(() => {
+    let cancelled = false;
+    fetchTransitionClasses()
+      .then((classes) => {
+        if (!cancelled) setAllClasses(classes);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        logger.error("classes_load_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (rows !== null) return;
@@ -80,8 +102,12 @@ export function TransitionEditor({
         setRows(
           suggestions.map((s) => ({
             fromClass: s.fromClass,
-            mode: s.isGraduating ? "graduate" : "promote",
-            toClass: s.toClass ?? "",
+            // An ambiguous class (no grade pattern, e.g. "offen" or a free-form
+            // name) must not be preselected as Abgang — default it to a
+            // non-destructive "Versetzen" with an empty target so the admin has
+            // to make an explicit choice before continuing.
+            mode: !s.ambiguous && s.isGraduating ? "graduate" : "promote",
+            toClass: s.ambiguous ? "" : (s.toClass ?? ""),
             studentCount: s.studentCount,
           })),
         );
@@ -111,6 +137,26 @@ export function TransitionEditor({
   const removeRow = (index: number) => {
     setRows((current) => (current ?? []).filter((_, i) => i !== index));
   };
+
+  const addRow = (fromClass: string) => {
+    if (!fromClass) return;
+    setRows((current) => {
+      const next = current ?? [];
+      if (next.some((r) => r.fromClass === fromClass)) return next;
+      return [
+        ...next,
+        { fromClass, mode: "promote", toClass: "", studentCount: null },
+      ];
+    });
+    setClassToAdd("");
+  };
+
+  // Classes with children that are not already a row — offered in the
+  // "add class" selector so a removed class can be brought back.
+  const addableClasses = useMemo(() => {
+    const present = new Set((rows ?? []).map((r) => r.fromClass));
+    return allClasses.filter((c) => !present.has(c));
+  }, [allClasses, rows]);
 
   const validationError = useMemo(() => {
     if (!/^\d{4}-\d{4}$/.test(academicYear)) {
@@ -147,7 +193,9 @@ export function TransitionEditor({
       const transition = existingDraft
         ? await updateGradeTransition(existingDraft.id, {
             academicYear,
-            notes: notes || undefined,
+            // Send the raw value (including "") so clearing the field actually
+            // removes the stored note instead of leaving the old one in place.
+            notes,
             mappings,
           })
         : await createGradeTransition({
@@ -300,6 +348,29 @@ export function TransitionEditor({
               </li>
             ))}
           </ul>
+        )}
+
+        {rows !== null && addableClasses.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="w-56">
+              <CustomSelect
+                ariaLabel="Klasse hinzufügen"
+                value={classToAdd}
+                placeholder="Klasse hinzufügen …"
+                options={addableClasses.map((c) => ({ value: c, label: c }))}
+                onChange={(value) => setClassToAdd(value)}
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => addRow(classToAdd)}
+              disabled={!classToAdd}
+            >
+              Hinzufügen
+            </Button>
+          </div>
         )}
 
         {validationError && rows !== null && rows.length > 0 && (

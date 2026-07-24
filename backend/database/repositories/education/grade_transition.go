@@ -347,6 +347,37 @@ func (r *GradeTransitionRepository) GetMappings(ctx context.Context, transitionI
 	return mappings, nil
 }
 
+// GetMappingsByTransitionIDs retrieves all mappings for several transitions in
+// a single query, grouped by transition_id. Used to hydrate the list response
+// so every draft shows its mappings (and a correct can_apply) without an N+1.
+func (r *GradeTransitionRepository) GetMappingsByTransitionIDs(ctx context.Context, transitionIDs []int64) (map[int64][]*education.GradeTransitionMapping, error) {
+	result := make(map[int64][]*education.GradeTransitionMapping)
+	if len(transitionIDs) == 0 {
+		return result, nil
+	}
+
+	var mappings []*education.GradeTransitionMapping
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(tableGradeTransitionMappings+` AS "grade_transition_mapping"`).
+		ColumnExpr(`"grade_transition_mapping".*`).
+		Where(`"grade_transition_mapping".transition_id IN (?)`, bun.List(transitionIDs)).
+		Order("transition_id ASC", "from_class ASC")
+
+	query = base.WithTenantFilter(ctx, query, "grade_transition_mapping")
+
+	if err := query.Scan(ctx, &mappings); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get grade transition mappings by transition ids",
+			Err: err,
+		}
+	}
+
+	for _, m := range mappings {
+		result[m.TransitionID] = append(result[m.TransitionID], m)
+	}
+	return result, nil
+}
+
 // CreateHistory creates a new history record
 func (r *GradeTransitionRepository) CreateHistory(ctx context.Context, h *education.GradeTransitionHistory) error {
 	if h == nil {
@@ -485,6 +516,7 @@ func (r *GradeTransitionRepository) GetStudentsByClasses(ctx context.Context, cl
 		ColumnExpr(`s.person_id`).
 		ColumnExpr(`CONCAT(p.first_name, ' ', p.last_name) AS person_name`).
 		ColumnExpr(`s.school_class`).
+		ColumnExpr(`s.status`).
 		TableExpr(`users.students AS s`).
 		Join(`INNER JOIN users.persons AS p ON p.id = s.person_id`).
 		Where(`s.school_class IN (?)`, bun.List(classes)).
@@ -587,9 +619,19 @@ func (r *GradeTransitionRepository) GraduateStudentsByClasses(ctx context.Contex
 }
 
 // ReactivateStudentsByIDs restores graduated (alumnus) students back to
-// active. Used by the transition revert; only rows still in alumnus status
-// are touched so a manually changed status is never clobbered.
+// active. Convenience wrapper over ReactivateStudentsToStatus; only rows still
+// in alumnus status are touched so a manually changed status is never
+// clobbered.
 func (r *GradeTransitionRepository) ReactivateStudentsByIDs(ctx context.Context, studentIDs []int64) (int64, error) {
+	return r.ReactivateStudentsToStatus(ctx, studentIDs, string(users.StudentStatusActive))
+}
+
+// ReactivateStudentsToStatus restores graduated (alumnus) students to a
+// specific lifecycle status — the one they held before the transition
+// graduated them (see grade_transition_history.from_status). Only rows still in
+// alumnus status are touched, so a status changed manually after graduation is
+// never clobbered.
+func (r *GradeTransitionRepository) ReactivateStudentsToStatus(ctx context.Context, studentIDs []int64, targetStatus string) (int64, error) {
 	if len(studentIDs) == 0 {
 		return 0, nil
 	}
@@ -597,7 +639,7 @@ func (r *GradeTransitionRepository) ReactivateStudentsByIDs(ctx context.Context,
 	updQuery := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*struct{})(nil)).
 		ModelTableExpr(`users.students AS "student"`).
-		Set("status = ?", string(users.StudentStatusActive)).
+		Set("status = ?", targetStatus).
 		Set("updated_at = NOW()").
 		Where(`"student".id IN (?)`, bun.List(studentIDs)).
 		Where(`"student".status = ?`, string(users.StudentStatusAlumnus))
@@ -608,7 +650,7 @@ func (r *GradeTransitionRepository) ReactivateStudentsByIDs(ctx context.Context,
 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
-			Op:  "reactivate students by ids",
+			Op:  "reactivate students to status",
 			Err: err,
 		}
 	}
