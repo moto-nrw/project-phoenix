@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -15,6 +16,14 @@ import (
 )
 
 const requestTableExpr = `enrollment.requests AS "request"`
+
+// existingStudentMatchLockClass salts the per-phase advisory lock used by
+// AcquireExistingStudentMatchLock so it shares no key space with other advisory
+// locks. It is the first arg of the two-int pg_advisory_xact_lock form ("enrl"
+// in ASCII); the second arg is the phase id. The submission dedup lock keys its
+// first arg on the phase id itself (small sequence values), so a fixed class id
+// in the ~1.7e9 range never collides with it.
+const existingStudentMatchLockClass int32 = 0x656e726c
 
 type RequestRepository struct {
 	db *bun.DB
@@ -293,6 +302,48 @@ func (r *RequestRepository) AcquireSubmissionDedupLock(ctx context.Context, phas
 		return fmt.Errorf("failed to acquire enrollment submission dedup lock: %w", err)
 	}
 	return nil
+}
+
+// AcquireExistingStudentMatchLock serializes existing-student re-enrollment
+// matching for a phase across ALL guardians, held until the caller's
+// transaction ends. The email-scoped AcquireSubmissionDedupLock does not cover
+// this: two guardians with different emails submitting the same already-enrolled
+// child take different email locks yet resolve the same matched_student_id, so
+// without a phase-wide lock both could pass the matched-student duplicate check
+// and pin the same live student — approving both then renews/overwrites one
+// student twice and duplicates its care-offering enrollments (#1663).
+func (r *RequestRepository) AcquireExistingStudentMatchLock(ctx context.Context, phaseID int64) error {
+	if phaseID <= 0 || phaseID > math.MaxInt32 {
+		return fmt.Errorf("AcquireExistingStudentMatchLock: phase_id %d out of advisory-lock range", phaseID)
+	}
+	_, err := base.GetDB(ctx, r.db).
+		NewRaw(`SELECT pg_advisory_xact_lock(?, ?)`, existingStudentMatchLockClass, int32(phaseID)).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to acquire existing-student match lock: %w", err)
+	}
+	return nil
+}
+
+// HasActiveRequestForMatchedStudent reports whether any non-rejected,
+// non-withdrawn request_child in the phase is already pinned to the given
+// already-enrolled student. Callers hold AcquireExistingStudentMatchLock so the
+// check-then-insert stays race-free across guardians (#1663).
+func (r *RequestRepository) HasActiveRequestForMatchedStudent(ctx context.Context, phaseID, studentID int64) (bool, error) {
+	if phaseID <= 0 || studentID <= 0 {
+		return false, nil
+	}
+	exists, err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`enrollment.request_children AS rc`).
+		Join(`JOIN enrollment.requests AS req ON req.id = rc.request_id`).
+		Where(`req.phase_id = ?`, phaseID).
+		Where(`rc.matched_student_id = ?`, studentID).
+		Where(`rc.status NOT IN (?, ?)`, enrollment.ChildStatusRejected, enrollment.ChildStatusWithdrawn).
+		Exists(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to check active request for matched student: %w", err)
+	}
+	return exists, nil
 }
 
 // PinDecisionNotificationMode freezes the notification mode for a request.

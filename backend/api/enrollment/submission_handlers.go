@@ -358,6 +358,12 @@ func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		// readError helper surfaces the German message instead of
 		// falling back to "(HTTP 409)".
 		common.RenderError(w, r, common.ErrorConflictMessage("Für dieses Kind liegt in dieser Phase bereits eine Anmeldung vor."))
+	case errors.Is(err, enrollmentService.ErrExistingStudentAlreadyRequested):
+		// 409 Conflict: another active request in this phase already targets the
+		// same already-enrolled student this child matched (a different guardian
+		// email, so the email-scoped duplicate check missed it). Distinct German
+		// message so parents understand the child is already being re-enrolled.
+		common.RenderError(w, r, common.ErrorConflictMessage("Für dieses Kind liegt in dieser Phase bereits eine Anmeldung von einer anderen Person vor."))
 	case errors.Is(err, enrollmentService.ErrRateLimited):
 		// 429 Too Many Requests. Hard-coded retry hint avoids leaking
 		// the exact remaining seconds.

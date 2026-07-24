@@ -562,3 +562,110 @@ func TestRequestRepository_ExistsBySchemaID_FalseWhenUnreferenced(t *testing.T) 
 	require.NoError(t, err)
 	assert.False(t, exists)
 }
+
+// --- HasActiveRequestForMatchedStudent (#1663) -------------------------
+
+// insertRequestChildMatched mirrors insertRequestChild but pins a
+// matched_student_id — the existing-student re-enrollment signal that
+// HasActiveRequestForMatchedStudent keys on.
+func insertRequestChildMatched(t *testing.T, db *bun.DB, tenantID, requestID, matchedStudentID int64, status string) {
+	t.Helper()
+	_, err := db.NewRaw(`
+		INSERT INTO enrollment.request_children
+		  (tenant_id, request_id, first_name, last_name, date_of_birth,
+		   status, activation_mode, sort_order, custom_data, matched_student_id)
+		VALUES (?, ?, 'Lara', 'Beispiel', '2018-04-15', ?, 'scheduled', 0, '{}'::jsonb, ?)
+	`, tenantID, requestID, status, matchedStudentID).Exec(context.Background())
+	require.NoError(t, err)
+}
+
+// createMatchTestStudent creates a real enrolled student (matched_student_id
+// has a FK to users.students) and registers hard-delete cleanup.
+func createMatchTestStudent(t *testing.T, db *bun.DB, tenantID int64) int64 {
+	t.Helper()
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Lara", "Beispiel", "1a")
+	t.Cleanup(func() {
+		bg := context.Background()
+		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", student.ID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", student.PersonID).Exec(bg)
+	})
+	return student.ID
+}
+
+func TestRequestRepository_HasActiveRequestForMatchedStudent_TrueForActivePin(t *testing.T) {
+	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
+	token := uniqueToken("matchActive")
+	defer wipeRequests(db, tenantID, token)
+
+	studentID := createMatchTestStudent(t, db, tenantID)
+	r := makeRequest(phaseID, token, "anna@example.test")
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, r)
+	}))
+	insertRequestChildMatched(t, db, tenantID, r.ID, studentID, enrollmentModels.ChildStatusSubmitted)
+
+	var has bool
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var hErr error
+		has, hErr = repo.HasActiveRequestForMatchedStudent(ctx, phaseID, studentID)
+		return hErr
+	}))
+	assert.True(t, has, "an active request pinned to the student must be detected")
+
+	// A different student id in the same phase is not a collision.
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var hErr error
+		has, hErr = repo.HasActiveRequestForMatchedStudent(ctx, phaseID, studentID+1)
+		return hErr
+	}))
+	assert.False(t, has, "an unrelated student id must not be flagged")
+}
+
+func TestRequestRepository_HasActiveRequestForMatchedStudent_IgnoresTerminalAndOtherPhase(t *testing.T) {
+	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
+	token := uniqueToken("matchTerminal")
+	defer wipeRequests(db, tenantID, token)
+
+	studentID := createMatchTestStudent(t, db, tenantID)
+	// Withdrawn + rejected pins for the same student must NOT block: those
+	// requests are no longer live, so re-enrolling the student is fine.
+	for i, status := range []string{enrollmentModels.ChildStatusWithdrawn, enrollmentModels.ChildStatusRejected} {
+		r := makeRequest(phaseID, fmt.Sprintf("%s-%d", token, i), "anna@example.test")
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			return repo.Create(ctx, r)
+		}))
+		insertRequestChildMatched(t, db, tenantID, r.ID, studentID, status)
+	}
+
+	var has bool
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var hErr error
+		has, hErr = repo.HasActiveRequestForMatchedStudent(ctx, phaseID, studentID)
+		return hErr
+	}))
+	assert.False(t, has, "withdrawn + rejected pins must not block re-enrollment")
+
+	// A different phase never collides with this phase's pins.
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var hErr error
+		has, hErr = repo.HasActiveRequestForMatchedStudent(ctx, phaseID+99_999_999, studentID)
+		return hErr
+	}))
+	assert.False(t, has, "a different phase must not be flagged")
+}
+
+func TestRequestRepository_AcquireExistingStudentMatchLock_RejectsBadPhase(t *testing.T) {
+	db, repo, tenantID, _ := setupRequestRepoTest(t)
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.AcquireExistingStudentMatchLock(ctx, 0)
+	})
+	require.Error(t, err, "a non-positive phase id is out of advisory-lock range")
+}
+
+func TestRequestRepository_AcquireExistingStudentMatchLock_SucceedsInTx(t *testing.T) {
+	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.AcquireExistingStudentMatchLock(ctx, phaseID)
+	})
+	require.NoError(t, err)
+}

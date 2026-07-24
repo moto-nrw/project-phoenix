@@ -109,6 +109,20 @@ describe("ParentEnrollPicker", () => {
     expect(screen.getByText(/Anmeldung bis/)).toBeInTheDocument();
   });
 
+  it("shows the closing time, not just the date, for a non-midnight deadline", async () => {
+    mocks.listEnrollableSchools.mockResolvedValueOnce([
+      // 07:00 UTC = 09:00 Europe/Berlin (CEST). A date-only render would imply
+      // availability for the whole day; the picker must surface the time.
+      phase({ enrollment_close_at: "2027-05-31T07:00:00Z" }),
+    ]);
+
+    render(<ParentEnrollPicker />);
+
+    expect(
+      await screen.findByText(/Anmeldung bis .*09:00/),
+    ).toBeInTheDocument();
+  });
+
   it("shows the empty state when no phases are available", async () => {
     mocks.listEnrollableSchools.mockResolvedValueOnce([]);
 

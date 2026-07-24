@@ -6,7 +6,10 @@ import { ArrowLeft, ArrowRight, CalendarClock, School } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { type EnrollablePhase, listEnrollableSchools } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
-import { formatLocalizedDate } from "~/lib/localized-date-format";
+import {
+  formatLocalizedDate,
+  formatLocalizedDateTime,
+} from "~/lib/localized-date-format";
 
 const logger = createLogger({ component: "ParentEnrollPicker" });
 
@@ -220,7 +223,7 @@ function PhaseRow({
           <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-gray-500">
             <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
             {t("closesAt", {
-              date: formatLocalizedDate(phase.enrollment_close_at, locale),
+              date: formatLocalizedDateTime(phase.enrollment_close_at, locale),
             })}
           </p>
         )}

@@ -87,6 +87,17 @@ var (
 	ErrEditNotAllowed          = errors.New("request can no longer be edited")
 	ErrWithdrawNotAllowed      = errors.New("child cannot be withdrawn in its current state")
 	ErrDuplicateEnrollment     = errors.New("an active enrollment already exists for this parent and child in this phase")
+	// ErrExistingStudentAlreadyRequested rejects an existing_students
+	// submission (or parent edit) whose child matched an already-enrolled
+	// student that ANOTHER active request in the same phase already targets.
+	// The email-based duplicate check keys on guardian_email, so two guardians
+	// with different emails submitting the same child both slip through it yet
+	// pin the same matched_student_id; approving both would renew/overwrite one
+	// live student twice and duplicate its care-offering enrollments. Enforced
+	// unconditionally (independent of the block/warn/ignore duplicate policy)
+	// because it protects a live student record, not just parent convenience
+	// (#1663). Mapped to 409 Conflict.
+	ErrExistingStudentAlreadyRequested = errors.New("another active enrollment request already targets this student in this phase")
 	// Phase eligibility sentinels (#1663). ErrPhaseNotEligible is the
 	// audience gate: a linked_parents phase rejects anonymous submissions
 	// (the parent handler additionally verifies the guardian link before
@@ -871,6 +882,9 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 				return err
 			}
 			if err := s.assertGuardianMayReEnrollStudent(txCtx, req.GuardianAccountID, matchedStudentID, req.TenantID, i); err != nil {
+				return err
+			}
+			if err := s.guardMatchedStudentUnique(txCtx, phase.ID, matchedStudentID, i); err != nil {
 				return err
 			}
 			row.MatchedStudentID = matchedStudentID
@@ -2212,16 +2226,30 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				// Default to the submission-time pin carried on the prior row. The
 				// original submission pinned it while the phase was
 				// existing_students; if the phase audience is later flipped away,
-				// re-resolution below no-ops and must NOT drop the pin — otherwise
-				// approval takes the fresh-create branch and duplicates the very
-				// Person/Student the existing_students audience exists to renew.
+				// re-resolution below no-ops and must NOT drop the pin FOR AN
+				// UNCHANGED IDENTITY — otherwise approval takes the fresh-create
+				// branch and duplicates the very Person/Student the existing_students
+				// audience exists to renew. An edited identity is handled just below.
 				var matchedStudentID *int64
 				if matched != nil {
 					matchedStudentID = matched.MatchedStudentID
 				}
+				// Replacement edits pair to the prior row by persisted ID, so an
+				// edited name/birthday keeps the SAME row — and its pin — even though
+				// it now describes a different child. Drop the carried pin when the
+				// submitted identity no longer matches what was originally pinned:
+				// keeping it would renew/overwrite the originally matched student even
+				// though the review screen shows the new identity. The unchanged-
+				// identity case still preserves the pin (the anti-duplication reason
+				// above), and re-resolution below re-pins by the NEW identity when the
+				// phase is still existing_students; otherwise the child falls through
+				// to a clean fresh create (#1663).
+				if matchedStudentID != nil && !sameSubmittedIdentity(matched, child) {
+					matchedStudentID = nil
+				}
 				// While the phase is still existing_students, re-resolve against the
 				// (possibly edited) name/birthday. A concrete re-resolution wins; a
-				// nil result keeps the submission-time pin rather than dropping it.
+				// nil result keeps the carried pin rather than dropping it.
 				if phase.Audience == enrollmentModels.PhaseAudienceExistingStudents {
 					resolved, err := s.resolveMatchedStudentID(txCtx, req.TenantID, phase, i, child)
 					if err != nil {
@@ -2232,6 +2260,9 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 					}
 				}
 				if err := s.assertGuardianMayReEnrollStudent(txCtx, req.GuardianAccountID, matchedStudentID, req.TenantID, i); err != nil {
+					return err
+				}
+				if err := s.guardMatchedStudentUnique(txCtx, phase.ID, matchedStudentID, i); err != nil {
 					return err
 				}
 				row.MatchedStudentID = matchedStudentID
@@ -3473,6 +3504,34 @@ func (s *requestService) assertGuardianMayReEnrollStudent(ctx context.Context, g
 	}
 	if !granted {
 		return fmt.Errorf("%w: child %d", ErrChildEnrollmentNotPermitted, childIndex)
+	}
+	return nil
+}
+
+// guardMatchedStudentUnique rejects a submission/edit whose child resolved to an
+// already-enrolled student that another active (non-rejected, non-withdrawn)
+// request in the same phase already targets. The email-scoped dedup check keys
+// on guardian_email, so two guardians with different emails submitting the same
+// existing child both slip through it yet pin the same matched_student_id;
+// approving both would renew/overwrite one live student twice and duplicate its
+// care-offering enrollments. The phase-wide advisory lock makes the
+// check-then-insert race-free even across those distinct email locks. No-ops
+// when there is no pin (nil → fresh create, nothing to collide on). Enforced
+// regardless of the block/warn/ignore duplicate policy — it protects a live
+// student record, not just parent convenience (#1663).
+func (s *requestService) guardMatchedStudentUnique(ctx context.Context, phaseID int64, matchedStudentID *int64, childIndex int) error {
+	if matchedStudentID == nil {
+		return nil
+	}
+	if err := s.RequestRepo.AcquireExistingStudentMatchLock(ctx, phaseID); err != nil {
+		return fmt.Errorf("submit: acquire existing-student match lock: %w", err)
+	}
+	has, err := s.RequestRepo.HasActiveRequestForMatchedStudent(ctx, phaseID, *matchedStudentID)
+	if err != nil {
+		return fmt.Errorf("submit: matched-student duplicate check for child %d: %w", childIndex, err)
+	}
+	if has {
+		return fmt.Errorf("%w: child %d", ErrExistingStudentAlreadyRequested, childIndex)
 	}
 	return nil
 }
