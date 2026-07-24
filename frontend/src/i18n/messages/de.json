@@ -108,7 +108,26 @@
     "newsAcknowledged": "Bestätigt",
     "newsRead": "Gelesen",
     "newsActionError": "Aktion fehlgeschlagen. Bitte erneut versuchen.",
-    "newsStaleError": "Diese Mitteilung ist nicht mehr aktuell. Bitte laden Sie die Seite neu."
+    "newsStaleError": "Diese Mitteilung ist nicht mehr aktuell. Bitte laden Sie die Seite neu.",
+    "newEnrollment": "Neue Anmeldung"
+  },
+  "parentEnroll": {
+    "back": "Zurück zum Elternportal",
+    "title": "Neue Anmeldung",
+    "description": "Wählen Sie eine Schule und eine Anmeldephase, um Ihr Kind anzumelden.",
+    "loading": "Anmeldephasen werden geladen …",
+    "loadError": "Die Anmeldephasen konnten nicht geladen werden.",
+    "empty": "Derzeit sind keine Anmeldephasen verfügbar.",
+    "yourSchools": "Ihre Schulen",
+    "otherSchools": "Weitere Schulen",
+    "kindSchoolYear": "Schuljahr",
+    "kindHoliday": "Ferienbetreuung",
+    "kindCustom": "Sonstiges",
+    "closesAt": "Anmeldung bis {date}",
+    "audienceNewStudents": "Nur neue Kinder",
+    "audienceLinkedParents": "Nur für verknüpfte Eltern",
+    "rangeConnector": "bis",
+    "openPhase": "Anmeldung öffnen"
   },
   "parentChildren": {
     "eyebrow": "Meine Kinder",

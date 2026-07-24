@@ -108,7 +108,26 @@
     "newsAcknowledged": "Konfirmuar",
     "newsRead": "Lexuar",
     "newsActionError": "Veprimi dështoi. Provoni përsëri.",
-    "newsStaleError": "Ky njoftim nuk është më aktual. Ju lutemi, ringarkoni faqen."
+    "newsStaleError": "Ky njoftim nuk është më aktual. Ju lutemi, ringarkoni faqen.",
+    "newEnrollment": "Regjistrim i ri"
+  },
+  "parentEnroll": {
+    "back": "Kthehu te portali i prindërve",
+    "title": "Regjistrim i ri",
+    "description": "Zgjidhni një shkollë dhe një fazë regjistrimi për të regjistruar fëmijën tuaj.",
+    "loading": "Duke ngarkuar fazat e regjistrimit …",
+    "loadError": "Fazat e regjistrimit nuk mund të ngarkoheshin.",
+    "empty": "Aktualisht nuk ka faza regjistrimi të disponueshme.",
+    "yourSchools": "Shkollat tuaja",
+    "otherSchools": "Shkolla të tjera",
+    "kindSchoolYear": "Viti shkollor",
+    "kindHoliday": "Kujdesi gjatë pushimeve",
+    "kindCustom": "Të tjera",
+    "closesAt": "Regjistrimi deri më {date}",
+    "audienceNewStudents": "Vetëm fëmijë të rinj",
+    "audienceLinkedParents": "Vetëm për prindër të lidhur",
+    "rangeConnector": "deri",
+    "openPhase": "Hap regjistrimin"
   },
   "parentChildren": {
     "eyebrow": "Fëmijët e mi",

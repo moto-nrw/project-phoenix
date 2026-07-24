@@ -175,6 +175,16 @@ describe("Parent portal components", () => {
     expect(screen.getByText("Offen")).toBeInTheDocument();
   });
 
+  it("shows the Neue Anmeldung action on the dashboard", async () => {
+    mocks.listMyChildren.mockResolvedValueOnce([child()]);
+    mocks.listMyEnrollments.mockResolvedValueOnce([]);
+
+    render(<ParentDashboard />);
+
+    const link = await screen.findByRole("link", { name: "Neue Anmeldung" });
+    expect(link).toHaveAttribute("href", "/parents/enroll");
+  });
+
   it("shows dashboard error state when parent data fails", async () => {
     mocks.listMyChildren.mockRejectedValueOnce(new Error("offline"));
     mocks.listMyEnrollments.mockResolvedValueOnce([]);

@@ -68,6 +68,28 @@ export interface EnrollmentRequest {
   readonly children: EnrollmentRequestChild[];
 }
 
+// One enrollment phase the calling parent may apply to, joined to its school.
+// Mirrors api/parent EnrollablePhaseResponse. Rows are pre-filtered server-side
+// (only phases the account may actually apply to) and pre-sorted (already_linked
+// DESC, school name, service start). int64 ids arrive as strings.
+export interface EnrollablePhase {
+  readonly school_id: string;
+  readonly school_name: string;
+  readonly school_slug: string;
+  readonly phase_id: string;
+  readonly phase_name: string;
+  readonly phase_kind: "school_year" | "holiday" | "custom";
+  readonly service_start_date: string; // YYYY-MM-DD
+  readonly service_end_date: string; // YYYY-MM-DD
+  readonly enrollment_open_at?: string; // ISO timestamp
+  readonly enrollment_close_at?: string; // ISO timestamp
+  // True when the parent already has a linked child at this school.
+  readonly already_linked: boolean;
+  // Who the phase is open to: "open" (anyone), "new_students" (children not yet
+  // linked), or "linked_parents" (only guardians with an existing linked child).
+  readonly audience: "open" | "new_students" | "linked_parents";
+}
+
 export interface ParentProfile {
   // null = the guardian has never picked a parents-portal language, so the
   // client keeps the anonymous cookie/Accept-Language locale.
@@ -391,6 +413,17 @@ export async function listMyChildren(): Promise<Child[]> {
  */
 export async function listMyEnrollments(): Promise<EnrollmentRequest[]> {
   return getJson<EnrollmentRequest[]>("/api/parent/me/enrollments");
+}
+
+/**
+ * Fetches the enrollment phases the calling parent's account may apply to,
+ * across every school (linked or not). The backend pre-filters by eligibility
+ * and pre-sorts (already-linked schools first, then by school name and service
+ * start), so the picker renders the list as-is. Powers the "Neue Anmeldung"
+ * picker at /parents/enroll.
+ */
+export async function listEnrollableSchools(): Promise<EnrollablePhase[]> {
+  return getJson<EnrollablePhase[]>("/api/parent/me/enrollable-schools");
 }
 
 export async function fetchParentProfile(): Promise<ParentProfile> {
