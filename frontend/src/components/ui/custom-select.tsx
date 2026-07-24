@@ -78,7 +78,9 @@ export function CustomSelect({
             <span
               id={labelId}
               className={`min-w-0 flex-1 truncate ${
-                value !== "" ? "text-gray-900" : "text-gray-500"
+                options.some((option) => option.value === value)
+                  ? "text-gray-900"
+                  : "text-gray-500"
               }`}
             >
               {selectedLabel}
