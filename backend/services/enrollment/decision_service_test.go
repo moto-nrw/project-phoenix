@@ -2341,6 +2341,72 @@ func TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffDoesNotAbortAp
 	assert.Empty(t, rows, "without a staff author, schedule dispatch should skip before inserting")
 }
 
+// TestDecisionService_Decide_ExistingStudentScheduleReplacementFailureRollsBack
+// locks in the #1663 fix. The existing-student re-enrollment path runs
+// applyTargetedFields with ReplaceSchedules, which DELETES the matched
+// student's live arrival/pickup rows before re-inserting the resubmitted
+// weekdays. A dispatch failure AFTER that delete must be fatal so the
+// surrounding tenant tx rolls the whole approval back: the live schedule must
+// never be committed deleted-but-not-rebuilt. Contrast with
+// TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffDoesNotAbortApproval
+// above, which is the additive fresh-create path where a skip is harmless.
+func TestDecisionService_Decide_ExistingStudentScheduleReplacementFailureRollsBack(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	// A pickup-schedule form field so approval takes the ReplaceSchedules
+	// delete-then-reinsert path.
+	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentModels.TargetSchedulePickup)
+
+	// The already-enrolled student, carrying a live pickup schedule row.
+	existing := testpkg.CreateTestStudent(t, env.db, "Mara", "Bestand", "2a")
+	scheduleAuthor := testpkg.CreateTestStaff(t, env.db, "Betreuer", "Bestand")
+	seededPickup := testpkg.CreateTestPickupSchedule(t, env.db, existing.ID, scheduleModels.WeekdayMonday, scheduleAuthor.ID, "14:45")
+
+	// A fresh submission carrying a resubmitted pickup schedule, matched to the
+	// existing student so approval renews it instead of creating a duplicate.
+	reqID, childID := submitOneChildWithCustomData(t, env, "existing-reenroll@example.com", "Mara", "Bestand", map[string]any{
+		"pickup_times": map[string]any{"mon": "16:00"},
+	})
+	_, err := env.db.NewUpdate().
+		Model((*enrollmentModels.RequestChild)(nil)).
+		ModelTableExpr(`enrollment.request_children AS "request_child"`).
+		Set("matched_student_id = ?", existing.ID).
+		Where(`"request_child".id = ?`, childID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// Reviewer account with no linked staff → resolveReviewerStaffID fails, so
+	// dispatchWeekdaySchedule errors AFTER DeleteByStudentID has already run.
+	reviewerNoStaff := testpkg.CreateTestAccount(t, env.db, "reviewer-no-staff-existing")
+
+	// Drive Decide inside a tenant tx (production wraps it via middleware) so a
+	// returned error actually rolls the schedule delete back.
+	decideErr := tenant.WithTenantTx(ctx, env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+		_, err := env.decision.Decide(txCtx, enrollmentService.DecideInput{
+			RequestID:  reqID,
+			ChildID:    childID,
+			Status:     enrollmentService.DecisionApproved,
+			ReviewedBy: reviewerNoStaff.ID,
+		})
+		return err
+	})
+	require.Error(t, decideErr, "a schedule-replacement dispatch failure must abort the existing-student approval")
+
+	// The rollback must preserve the student's original pickup schedule.
+	rows, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, existing.ID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1, "the live pickup schedule must survive the rolled-back approval")
+	assert.Equal(t, seededPickup.Weekday, rows[0].Weekday)
+
+	// The child must not be left approved — the whole decision rolled back.
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, child.Status,
+		"a rolled-back approval must leave the child in its pre-decision status")
+}
+
 func TestDecisionService_Decide_ApprovedIsIdempotent(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()

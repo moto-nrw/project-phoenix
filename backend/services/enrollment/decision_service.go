@@ -1441,9 +1441,8 @@ func (s *decisionService) attachApprovalToExistingStudent(
 	// silently drops everything the form collected beyond class/window/care
 	// offerings. guardian is nil: the student keeps the primary guardian
 	// relationship from its original enrollment, matching this helper's
-	// deliberate primary-guardian skip. Best-effort, like the fresh-create path
-	// — a single field failure must not poison the approval. Rollover passes
-	// false because its request_child carries no fresh submission (#1663).
+	// deliberate primary-guardian skip. Rollover passes false because its
+	// request_child carries no fresh submission (#1663).
 	//
 	// ReplaceSchedules: the matched student most likely already has arrival /
 	// pickup schedule rows from its original enrollment. A plain insert of the
@@ -1452,14 +1451,18 @@ func (s *decisionService) attachApprovalToExistingStudent(
 	// the student's existing rows for each resubmitted schedule target before
 	// re-inserting, giving this full re-enrollment form proper replacement
 	// semantics for schedules while every other field stays additive (#1663).
+	//
+	// Unlike the fresh-create path, a dispatch failure here is FATAL, not
+	// best-effort: ReplaceSchedules has already deleted the matched student's
+	// live arrival / pickup rows before the re-insert runs, so swallowing the
+	// error would commit the approval with the existing schedule deleted but
+	// never rebuilt (or only partially rebuilt) — silent, destructive schedule
+	// loss on a live student. Returning the error rolls the whole approval back
+	// through the surrounding tenant tx (see Decide), leaving the original
+	// schedule intact for a clean retry (#1663).
 	if syncTargetedFields {
 		if _, err := s.applyTargetedFields(ctx, request, child, existing, nil, reviewedBy, targetedFieldSyncOptions{ReplaceSchedules: true}); err != nil {
-			s.Logger.Warn("decision: targeted-field dispatch on existing student had errors",
-				slog.Int64("request_id", request.ID),
-				slog.Int64("child_id", child.ID),
-				slog.Int64("student_id", studentID),
-				slog.String("error", err.Error()),
-			)
+			return nil, fmt.Errorf("decision: targeted-field dispatch on existing student: %w", err)
 		}
 		// Materialize any co-guardians the parent added on this full form. The
 		// student keeps its original primary guardian, but a newly submitted
