@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Loading } from "~/components/ui/loading";
 import { Button } from "~/components/ui/button";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
 import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
@@ -493,34 +494,15 @@ export default function StudentImportPage() {
             >
               Format wählen
             </label>
-            <div className="relative">
-              <select
-                id="format-select"
-                value={templateFormat}
-                onChange={(e) =>
-                  setTemplateFormat(e.target.value as "csv" | "xlsx")
-                }
-                className="h-10 w-full appearance-none rounded-lg border border-gray-300 bg-white px-4 py-2 pr-10 text-sm text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
-              >
-                <option value="csv">CSV (Komma-getrennt)</option>
-                <option value="xlsx">Excel (.xlsx)</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </div>
-            </div>
+            <CustomSelect
+              id="format-select"
+              value={templateFormat}
+              options={[
+                { value: "csv", label: "CSV (Komma-getrennt)" },
+                { value: "xlsx", label: "Excel (.xlsx)" },
+              ]}
+              onChange={(next) => setTemplateFormat(next as "csv" | "xlsx")}
+            />
             <p className="mt-2 text-sm text-gray-500">
               Beispiel Geburtstag:{" "}
               <span className="font-medium">2015-08-15</span>,{" "}

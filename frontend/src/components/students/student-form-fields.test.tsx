@@ -84,8 +84,9 @@ describe("PersonalInfoSection", () => {
       />,
     );
 
-    expect(screen.getByText("Group A")).toBeInTheDocument();
-    expect(screen.getByText("Group B")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("combobox"));
+    expect(screen.getByRole("option", { name: "Group A" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Group B" })).toBeInTheDocument();
   });
 });
 
