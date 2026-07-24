@@ -2,9 +2,9 @@
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { timetableSelectClass } from "../timetable-style";
 import { Field } from "./field";
 import type { EventFormState, PersonOption } from "./form-model";
 import { MultiSelectField } from "./multi-select-field";
@@ -14,8 +14,6 @@ import type {
   ShiftCoverageWarningItem,
   TargetGroupType,
 } from "~/lib/timetable-types";
-
-const FORM_SELECT_CLASS = timetableSelectClass;
 
 /** Zielgruppe (target group) tab options, issue #1838. */
 const TARGET_GROUP_OPTIONS: Array<{ value: TargetGroupType; label: string }> = [
@@ -100,7 +98,6 @@ export function StepPersonalKinder({
   preservesGradeAboveTenantCap,
   studentBulkOptions,
   targetClassOptions,
-  targetClassDescriptionIDs,
   targetCohort,
   missingTargetCohortCount,
   targetCohortButtonLabel,
@@ -190,24 +187,20 @@ export function StepPersonalKinder({
 
         {isSeriesFlow && form.staffIds.length > 0 && (
           <Field label="Zuständige Person" htmlFor="event_primary_staff">
-            <select
+            <CustomSelect
               id="event_primary_staff"
               value={form.primaryStaffId}
-              onChange={(event) => {
+              options={[
+                { value: "", label: "Keine Auswahl" },
+                ...staff
+                  .filter((person) => form.staffIds.includes(person.id))
+                  .map((person) => ({ value: person.id, label: person.name })),
+              ]}
+              onChange={(next) => {
                 staffRosterTouched.current = true;
-                update("primaryStaffId", event.target.value);
+                update("primaryStaffId", next);
               }}
-              className={FORM_SELECT_CLASS}
-            >
-              <option value="">Keine Auswahl</option>
-              {staff
-                .filter((person) => form.staffIds.includes(person.id))
-                .map((person) => (
-                  <option key={person.id} value={person.id}>
-                    {person.name}
-                  </option>
-                ))}
-            </select>
+            />
           </Field>
         )}
       </>
@@ -244,32 +237,15 @@ export function StepPersonalKinder({
                 required
                 error={fieldErrors.targetGradeLevel}
               >
-                <select
+                <CustomSelect
                   id="event_target_grade_level"
                   value={form.targetGradeLevel}
-                  onChange={(event) =>
-                    update("targetGradeLevel", event.target.value)
-                  }
+                  options={targetGradeOptions}
+                  onChange={(next) => update("targetGradeLevel", next)}
                   required
-                  aria-invalid={fieldErrors.targetGradeLevel ? true : undefined}
-                  aria-describedby={
-                    fieldErrors.targetGradeLevel
-                      ? "event_target_grade_level_error"
-                      : undefined
-                  }
-                  className={FORM_SELECT_CLASS}
-                >
-                  <option value="">Jahrgang wählen …</option>
-                  {targetGradeOptions.map((option) => (
-                    <option
-                      key={option.value}
-                      value={option.value}
-                      disabled={option.disabled}
-                    >
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                  invalid={Boolean(fieldErrors.targetGradeLevel)}
+                  placeholder="Jahrgang wählen …"
+                />
               </Field>
               {preservesGradeAboveTenantCap ? (
                 <p className="mt-1 text-xs text-gray-500" role="status">
@@ -289,27 +265,19 @@ export function StepPersonalKinder({
                 required
                 error={fieldErrors.targetSchoolClass}
               >
-                <select
+                <CustomSelect
                   id="event_target_school_class"
                   value={form.targetSchoolClass}
-                  onChange={(event) =>
-                    update("targetSchoolClass", event.target.value)
-                  }
+                  options={targetClassOptions.map((schoolClass) => ({
+                    value: schoolClass,
+                    label: schoolClass,
+                  }))}
+                  onChange={(next) => update("targetSchoolClass", next)}
                   disabled={loadingStudents || studentLoadError !== null}
                   required
-                  aria-invalid={
-                    fieldErrors.targetSchoolClass ? true : undefined
-                  }
-                  aria-describedby={targetClassDescriptionIDs || undefined}
-                  className={FORM_SELECT_CLASS}
-                >
-                  <option value="">Klasse wählen …</option>
-                  {targetClassOptions.map((schoolClass) => (
-                    <option key={schoolClass} value={schoolClass}>
-                      {schoolClass}
-                    </option>
-                  ))}
-                </select>
+                  invalid={Boolean(fieldErrors.targetSchoolClass)}
+                  placeholder="Klasse wählen …"
+                />
               </Field>
               {loadingStudents || studentLoadError ? (
                 <p
@@ -333,29 +301,19 @@ export function StepPersonalKinder({
                 required
                 error={fieldErrors.educationGroupId}
               >
-                <select
+                <CustomSelect
                   id="event_target_gruppe"
                   value={form.educationGroupId}
-                  onChange={(event) =>
-                    update("educationGroupId", event.target.value)
-                  }
+                  options={groups.map((group) => ({
+                    value: group.id,
+                    label: group.name,
+                  }))}
+                  onChange={(next) => update("educationGroupId", next)}
                   disabled={loadingRefs}
                   required
-                  aria-invalid={fieldErrors.educationGroupId ? true : undefined}
-                  aria-describedby={
-                    fieldErrors.educationGroupId
-                      ? "event_target_gruppe_error"
-                      : undefined
-                  }
-                  className={FORM_SELECT_CLASS}
-                >
-                  <option value="">Gruppe wählen …</option>
-                  {groups.map((group) => (
-                    <option key={group.id} value={group.id}>
-                      {group.name}
-                    </option>
-                  ))}
-                </select>
+                  invalid={Boolean(fieldErrors.educationGroupId)}
+                  placeholder="Gruppe wählen …"
+                />
               </Field>
             </div>
           )}

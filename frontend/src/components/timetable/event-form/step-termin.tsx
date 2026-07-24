@@ -2,12 +2,12 @@
 
 import { Repeat } from "lucide-react";
 
+import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import { getActivityColor } from "~/lib/timetable-helpers";
 import {
   timetableRequiredMark,
-  timetableSelectClass,
   timetableTextAreaClass,
 } from "../timetable-style";
 import { Field } from "./field";
@@ -15,8 +15,6 @@ import { isoWeekday } from "./form-model";
 import type { EventFormState } from "./form-model";
 import type { RoomOption } from "./use-event-form";
 import type { ActivityType, TimetableListKind } from "~/lib/timetable-types";
-
-const FORM_SELECT_CLASS = timetableSelectClass;
 
 const TYPE_OPTIONS: Array<{
   value: ActivityType;
@@ -137,27 +135,21 @@ export function StepTermin({
             required
             error={fieldErrors.categoryId}
           >
-            <select
+            <CustomSelect
               id="event_category"
               value={form.categoryId}
-              onChange={(event) => update("categoryId", event.target.value)}
+              options={categories.map((category) => ({
+                value: category.id,
+                label: category.name,
+              }))}
+              onChange={(next) => update("categoryId", next)}
               required
               disabled={loadingRefs}
-              aria-invalid={fieldErrors.categoryId ? true : undefined}
-              aria-describedby={
-                fieldErrors.categoryId ? "event_category_error" : undefined
+              invalid={Boolean(fieldErrors.categoryId)}
+              placeholder={
+                loadingRefs ? "Lade Kategorien …" : "Kategorie wählen …"
               }
-              className={FORM_SELECT_CLASS}
-            >
-              <option value="">
-                {loadingRefs ? "Lade Kategorien …" : "Kategorie wählen …"}
-              </option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
+            />
           </Field>
         </>
       )}
@@ -172,25 +164,21 @@ export function StepTermin({
           override cleared (#1565 review pass 1 P2). */}
       {(!isSeriesFlow || expanded) && (
         <Field label="Listenart" htmlFor="event_list_kind">
-          <select
+          <CustomSelect
             id="event_list_kind"
             value={form.listKind}
-            onChange={(event) => {
+            options={[
+              { value: "", label: "Keine" },
+              ...LIST_KIND_OPTIONS.map((option) => ({
+                value: option.value,
+                label: option.label,
+              })),
+            ]}
+            onChange={(next) => {
               listKindTouched.current = true;
-              update(
-                "listKind",
-                event.target.value as EventFormState["listKind"],
-              );
+              update("listKind", next as EventFormState["listKind"]);
             }}
-            className={FORM_SELECT_CLASS}
-          >
-            <option value="">Keine</option>
-            {LIST_KIND_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          />
           <p className="mt-1 text-[11px] leading-4 text-gray-500">
             Ordnet den Termin einer druckbaren Tagesliste zu (Planung →
             Tageslisten).
@@ -204,25 +192,21 @@ export function StepTermin({
         required
         error={fieldErrors.roomId}
       >
-        <select
+        <CustomSelect
           id="event_room"
           value={form.roomId}
-          onChange={(event) => update("roomId", event.target.value)}
+          options={rooms.map((room) => ({
+            value: String(room.id),
+            label: room.building
+              ? `${room.building} - ${room.name}`
+              : room.name,
+          }))}
+          onChange={(next) => update("roomId", next)}
           disabled={loadingRefs}
           required
-          aria-invalid={fieldErrors.roomId ? true : undefined}
-          aria-describedby={fieldErrors.roomId ? "event_room_error" : undefined}
-          className={FORM_SELECT_CLASS}
-        >
-          <option value="">
-            {loadingRefs ? "Lade Räume …" : "Raum auswählen …"}
-          </option>
-          {rooms.map((room) => (
-            <option key={room.id} value={room.id}>
-              {room.building ? `${room.building} - ${room.name}` : room.name}
-            </option>
-          ))}
-        </select>
+          invalid={Boolean(fieldErrors.roomId)}
+          placeholder={loadingRefs ? "Lade Räume …" : "Raum auswählen …"}
+        />
       </Field>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

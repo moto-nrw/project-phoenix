@@ -2,19 +2,15 @@
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { getGermanWeekdayShort } from "~/lib/timetable-helpers";
-import {
-  timetableRequiredMark,
-  timetableSelectClass,
-} from "../timetable-style";
+import { timetableRequiredMark } from "../timetable-style";
 import { Field } from "./field";
 import { isoWeekday } from "./form-model";
 import type { EventFormState, RepeatMode } from "./form-model";
 import { WEEKDAYS } from "./use-event-form";
-
-const FORM_SELECT_CLASS = timetableSelectClass;
 
 const REPEAT_OPTIONS: Array<{ value: RepeatMode; label: string }> = [
   { value: "none", label: "Nie" },
@@ -116,23 +112,26 @@ export function StepWiederholung({
         </div>
       ) : (
         <Field label="Wiederholt sich" htmlFor="event_quick_repeat">
-          <select
+          <CustomSelect
             id="event_quick_repeat"
             value={quickPreset}
-            onChange={(event) => handleQuickPresetChange(event.target.value)}
-            className={FORM_SELECT_CLASS}
-          >
-            <option value="einmalig">Einmalig</option>
-            {/* On Sa/So a weekly preset would silently save a Monday
-                series (weekdays are Mo–Fr) — omit it instead. */}
-            {dateWeekday >= 1 && dateWeekday <= 5 && (
-              <option value="woechentlich-am">
-                {`Wöchentlich am ${dateWeekdayName}`}
-              </option>
-            )}
-            <option value="jeden-wochentag">Jeden Wochentag (Mo–Fr)</option>
-            <option value="benutzerdefiniert">Benutzerdefiniert …</option>
-          </select>
+            options={[
+              { value: "einmalig", label: "Einmalig" },
+              // On Sa/So a weekly preset would silently save a Monday
+              // series (weekdays are Mo–Fr) — omit it instead.
+              ...(dateWeekday >= 1 && dateWeekday <= 5
+                ? [
+                    {
+                      value: "woechentlich-am",
+                      label: `Wöchentlich am ${dateWeekdayName}`,
+                    },
+                  ]
+                : []),
+              { value: "jeden-wochentag", label: "Jeden Wochentag (Mo–Fr)" },
+              { value: "benutzerdefiniert", label: "Benutzerdefiniert …" },
+            ]}
+            onChange={(next) => handleQuickPresetChange(next)}
+          />
         </Field>
       )}
 
@@ -201,28 +200,18 @@ export function StepWiederholung({
                 required
                 error={fieldErrors.calendarPeriodId}
               >
-                <select
+                <CustomSelect
                   id="event_period"
                   value={form.calendarPeriodId}
-                  onChange={(event) =>
-                    update("calendarPeriodId", event.target.value)
-                  }
+                  options={calendarPeriods.map((period) => ({
+                    value: period.id,
+                    label: period.name,
+                  }))}
+                  onChange={(next) => update("calendarPeriodId", next)}
                   required
-                  aria-invalid={fieldErrors.calendarPeriodId ? true : undefined}
-                  aria-describedby={
-                    fieldErrors.calendarPeriodId
-                      ? "event_period_error"
-                      : undefined
-                  }
-                  className={FORM_SELECT_CLASS}
-                >
-                  <option value="">Zeitraum auswählen …</option>
-                  {calendarPeriods.map((period) => (
-                    <option key={period.id} value={period.id}>
-                      {period.name}
-                    </option>
-                  ))}
-                </select>
+                  invalid={Boolean(fieldErrors.calendarPeriodId)}
+                  placeholder="Zeitraum auswählen …"
+                />
               </Field>
             ) : (
               <div className="flex flex-col justify-end gap-1">
