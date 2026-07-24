@@ -232,6 +232,16 @@ export function GradeTransitionsManager({
                 Bearbeiten
               </Button>
             )}
+            {t.canApply && permissions.canApply && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                onClick={() => setPreviewFor(t)}
+              >
+                Anwenden
+              </Button>
+            )}
             {t.canModify && permissions.canDelete && (
               <Button
                 type="button"
@@ -323,6 +333,8 @@ export function GradeTransitionsManager({
       {previewFor && (
         <TransitionPreviewModal
           transition={previewFor}
+          canApply={permissions.canApply}
+          canEdit={permissions.canUpdate}
           onClose={() => {
             setPreviewFor(null);
             void refresh();

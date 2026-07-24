@@ -148,6 +148,13 @@ func (s *CheckinService) ResolvePersonByRFID(ctx context.Context, rfid string) (
 
 // ResolveStudentFromPerson finds a student from a person record. A missing
 // student returns (nil, nil); repository failures are returned.
+//
+// A graduated (alumnus) student is soft-deleted by the grade-transition flow:
+// treat them as "no active student" so the primary kiosk check-in
+// (POST /api/iot/checkin) and pickup-query flows reject the scan exactly like
+// an unknown tag. Without this, a graduate's RFID could still open a room visit
+// (detailed mode) or an attendance row (binary mode), because neither this
+// resolver nor lookupStudentFromPerson checked the status (#405).
 func (s *CheckinService) ResolveStudentFromPerson(ctx context.Context, personID int64) (*users.Student, error) {
 	student, err := s.users.GetStudentByPersonID(ctx, personID)
 	if err != nil {
@@ -155,6 +162,9 @@ func (s *CheckinService) ResolveStudentFromPerson(ctx context.Context, personID 
 			return nil, nil
 		}
 		return nil, err
+	}
+	if student != nil && student.Status == users.StudentStatusAlumnus {
+		return nil, nil
 	}
 	return student, nil
 }

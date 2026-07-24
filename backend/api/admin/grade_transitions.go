@@ -385,6 +385,13 @@ func (rs *GradeTransitionResource) apply(w http.ResponseWriter, r *http.Request)
 		result, txErr = rs.service.Apply(ctx, id, accountID)
 		return txErr
 	}); err != nil {
+		// Graduating children still checked in is a client-recoverable safety
+		// condition, not a server fault: return 409 with a stable code so the UI
+		// can tell the admin to check them out first, instead of a bare 500 (#405).
+		if errors.Is(err, educationService.ErrGraduatesCheckedIn) {
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, "graduates_checked_in"))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}

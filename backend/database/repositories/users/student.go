@@ -1195,6 +1195,14 @@ func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, result
 
 	query = base.WithTenantFilter(ctx, query, "student")
 
+	// Alumni (graduated students) are soft-deleted and must be invisible to
+	// every staff-facing and kiosk roster. This shared builder backs
+	// FindAllWithGroups and FindByTeacherIDWithGroups, which feed the IoT
+	// student roster (GET /api/iot/students) and the calendar student picker;
+	// without this filter graduates stayed visible on the tablet teacher list
+	// and bracelet-assignment despite the documented promise (#405).
+	query = query.Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
+
 	return query
 }
 

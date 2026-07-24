@@ -11,6 +11,8 @@ import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { createLogger } from "~/lib/logger";
 import {
   applyGradeTransition,
+  ApplyTransitionError,
+  GRADUATES_CHECKED_IN_CODE,
   previewGradeTransition,
   type GradeTransition,
   type TransitionPreview,
@@ -21,6 +23,12 @@ const logger = createLogger({ component: "GradeTransitionPreviewModal" });
 
 interface TransitionPreviewModalProps {
   readonly transition: GradeTransition;
+  /** May the current user apply the transition? Gates the apply button and the
+   * confirm step so a user without grade_transitions:apply never hits a 403. */
+  readonly canApply: boolean;
+  /** May the current user edit the draft? Controls whether the footer offers
+   * "Zurück zum Entwurf" (edit) or a plain "Schließen". */
+  readonly canEdit: boolean;
   readonly onClose: () => void;
   readonly onBackToEditor: () => void;
   readonly onApplied: (result: TransitionResult) => void;
@@ -28,6 +36,8 @@ interface TransitionPreviewModalProps {
 
 export function TransitionPreviewModal({
   transition,
+  canApply,
+  canEdit,
   onClose,
   onBackToEditor,
   onApplied,
@@ -68,9 +78,20 @@ export function TransitionPreviewModal({
         transition_id: transition.id,
         error: error instanceof Error ? error.message : String(error),
       });
-      setApplyError(
-        "Der Jahrgangswechsel konnte nicht angewendet werden. Bitte erneut versuchen.",
-      );
+      if (
+        error instanceof ApplyTransitionError &&
+        error.code === GRADUATES_CHECKED_IN_CODE
+      ) {
+        // Actionable safety condition, not a transient failure: retrying alone
+        // cannot succeed until the children are checked out (#405).
+        setApplyError(
+          "Es sind noch Abgangs-Kinder eingecheckt. Bitte zuerst alle betroffenen Kinder auschecken (nach Hause buchen) und den Jahrgangswechsel danach erneut anwenden.",
+        );
+      } else {
+        setApplyError(
+          "Der Jahrgangswechsel konnte nicht angewendet werden. Bitte erneut versuchen.",
+        );
+      }
       setApplying(false);
       setConfirmOpen(false);
     }
@@ -85,22 +106,35 @@ export function TransitionPreviewModal({
         widthClass="mx-4 w-[calc(100%-2rem)] max-w-3xl"
         footer={
           <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={onBackToEditor}
-            >
-              Zurück zum Entwurf
-            </Button>
-            <Button
-              type="button"
-              size="md"
-              onClick={() => setConfirmOpen(true)}
-              disabled={!preview || applying}
-            >
-              Jahrgangswechsel anwenden
-            </Button>
+            {canEdit ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={onBackToEditor}
+              >
+                Zurück zum Entwurf
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={onClose}
+              >
+                Schließen
+              </Button>
+            )}
+            {canApply && (
+              <Button
+                type="button"
+                size="md"
+                onClick={() => setConfirmOpen(true)}
+                disabled={!preview || applying}
+              >
+                Jahrgangswechsel anwenden
+              </Button>
+            )}
           </div>
         }
       >
@@ -185,7 +219,7 @@ export function TransitionPreviewModal({
       </Modal>
 
       <ConfirmationModal
-        isOpen={confirmOpen}
+        isOpen={confirmOpen && canApply}
         onClose={() => setConfirmOpen(false)}
         onConfirm={handleApply}
         title="Wirklich anwenden?"

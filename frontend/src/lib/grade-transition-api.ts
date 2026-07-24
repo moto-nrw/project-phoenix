@@ -281,14 +281,45 @@ function toBackendMappings(mappings: MappingInput[]) {
 // ---------------------------------------------------------------------------
 
 async function readError(response: Response): Promise<string> {
+  return (await readErrorWithCode(response)).message;
+}
+
+/**
+ * Stable backend error code returned (409) when an apply is refused because
+ * graduating children are still checked in. Mirrors the code the Go handler
+ * sets via ErrorConflictWithCode (#405).
+ */
+export const GRADUATES_CHECKED_IN_CODE = "graduates_checked_in";
+
+/**
+ * Error thrown by {@link applyGradeTransition} that preserves the backend's
+ * stable error `code`, so the caller can distinguish a recoverable safety
+ * condition (graduates still checked in) from a generic failure.
+ */
+export class ApplyTransitionError extends Error {
+  readonly code?: string;
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = "ApplyTransitionError";
+    this.code = code;
+  }
+}
+
+async function readErrorWithCode(
+  response: Response,
+): Promise<{ message: string; code?: string }> {
   try {
     const body = (await response.json()) as {
       error?: string;
       message?: string;
+      code?: string;
     };
-    return body.error ?? body.message ?? `HTTP ${response.status}`;
+    return {
+      message: body.error ?? body.message ?? `HTTP ${response.status}`,
+      code: body.code,
+    };
   } catch {
-    return `HTTP ${response.status}`;
+    return { message: `HTTP ${response.status}` };
   }
 }
 
@@ -379,7 +410,17 @@ export async function applyGradeTransition(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({}),
   });
-  return mapResult(await readJSON<BackendTransitionResult>(response));
+  if (!response.ok) {
+    const { message, code } = await readErrorWithCode(response);
+    throw new ApplyTransitionError(message, code);
+  }
+  const body = (await response.json()) as
+    { data?: BackendTransitionResult } | BackendTransitionResult;
+  const data =
+    body && typeof body === "object" && "data" in body
+      ? (body as { data: BackendTransitionResult }).data
+      : (body as BackendTransitionResult);
+  return mapResult(data);
 }
 
 export async function revertGradeTransition(

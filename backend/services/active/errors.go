@@ -7,13 +7,19 @@ import (
 
 // Common service errors
 var (
-	ErrActiveGroupNotFound       = errors.New("active group not found")
-	ErrVisitNotFound             = errors.New("visit not found")
-	ErrGroupSupervisorNotFound   = errors.New("group supervisor not found")
-	ErrCombinedGroupNotFound     = errors.New("combined group not found")
-	ErrGroupMappingNotFound      = errors.New("group mapping not found")
-	ErrStaffNotFound             = errors.New("staff member not found")
-	ErrStudentNotFound           = errors.New("student not found")
+	ErrActiveGroupNotFound     = errors.New("active group not found")
+	ErrVisitNotFound           = errors.New("visit not found")
+	ErrGroupSupervisorNotFound = errors.New("group supervisor not found")
+	ErrCombinedGroupNotFound   = errors.New("combined group not found")
+	ErrGroupMappingNotFound    = errors.New("group mapping not found")
+	ErrStaffNotFound           = errors.New("staff member not found")
+	ErrStudentNotFound         = errors.New("student not found")
+	// ErrStudentGraduated guards the check-in write path against a graduated
+	// (alumnus) student. It is the atomic backstop to the grade-transition
+	// checked-in guard: the write path locks the student row FOR UPDATE and
+	// rejects an alumnus, closing the race where resolution saw an active
+	// student but a concurrent graduation committed mid-request (#405).
+	ErrStudentGraduated          = errors.New("student has graduated and cannot check in")
 	ErrActiveGroupAlreadyEnded   = errors.New("active group session already ended")
 	ErrVisitAlreadyEnded         = errors.New("visit already ended")
 	ErrSupervisionAlreadyEnded   = errors.New("supervision already ended")

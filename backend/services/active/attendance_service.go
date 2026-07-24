@@ -289,6 +289,13 @@ func (s *service) checkRoomSupervisorAccess(ctx context.Context, studentID, staf
 // concurrent second "in" call is silently absorbed via ON CONFLICT and we
 // re-fetch the open row to return as the canonical result.
 func (s *service) performCheckIn(ctx context.Context, studentID, staffID, deviceID int64, now time.Time, today timezone.Date) (*AttendanceResult, error) {
+	// Reject (and lock against a concurrent graduation) a graduated alumnus
+	// before writing attendance — the binary-mode / attendance-toggle counterpart
+	// to the CreateVisit guard (#405).
+	if err := s.ensureStudentCheckinAllowed(ctx, studentID); err != nil {
+		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
+	}
+
 	resolvedDeviceID := s.resolveDeviceIDForAttendance(ctx, deviceID)
 	attendance := &active.Attendance{
 		StudentID:   studentID,

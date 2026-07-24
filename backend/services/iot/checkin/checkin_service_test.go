@@ -337,3 +337,34 @@ func TestRoomNameForResponse_VisitWithoutRoom_FallbackToRoomID(t *testing.T) {
 	name := tc.svc.RoomNameForResponseForTest(context.Background(), visit, &roomID)
 	assert.Contains(t, name, "FallbackRoom")
 }
+
+// TestResolveStudentFromPerson_RejectsAlumnus covers the #405 P1 primary
+// check-in guard: a graduated (alumnus) student resolves to nil so the kiosk
+// treats the scan like an unknown tag instead of opening a room visit or an
+// attendance row.
+func TestResolveStudentFromPerson_RejectsAlumnus(t *testing.T) {
+	tc := setupCheckinServiceTest(t)
+	ctx := testpkg.TenantContext(1)
+
+	activeStudent := testpkg.CreateTestStudent(t, tc.db, "Primary", "Active", "1a")
+	alumStudent := testpkg.CreateTestStudent(t, tc.db, "Primary", "Alumnus", "4a")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, activeStudent.ID, alumStudent.ID)
+
+	_, err := tc.db.NewUpdate().
+		TableExpr("users.students").
+		Set("status = ?", "alumnus").
+		Where("id = ?", alumStudent.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// An active student resolves normally.
+	got, err := tc.svc.ResolveStudentFromPerson(ctx, activeStudent.PersonID)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, activeStudent.ID, got.ID)
+
+	// A graduated alumnus resolves to nil (treated as "no active student").
+	gotAlum, err := tc.svc.ResolveStudentFromPerson(ctx, alumStudent.PersonID)
+	require.NoError(t, err)
+	assert.Nil(t, gotAlum)
+}

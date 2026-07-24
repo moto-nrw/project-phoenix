@@ -2,6 +2,7 @@ package education
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"regexp"
@@ -15,6 +16,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
+
+// ErrGraduatesCheckedIn is returned by Apply when one or more graduating
+// students are still checked in. It is a client-recoverable condition (the
+// admin must check the children out first), so handlers map it to 409 Conflict
+// — never a 500 (#405).
+var ErrGraduatesCheckedIn = errors.New("graduating students are still checked in")
 
 // CreateTransitionRequest contains data for creating a new transition
 type CreateTransitionRequest struct {
@@ -535,6 +542,30 @@ func (s *GradeTransitionService) ensureGraduatesNotCheckedIn(ctx context.Context
 		ids = append(ids, student.StudentID)
 	}
 
+	// Lock the graduating student rows FOR UPDATE *before* reading their
+	// check-in state, and hold the lock for the whole apply transaction. The
+	// kiosk/web check-in write path also takes a FOR UPDATE lock on the student
+	// row it writes for (services/active.ensureStudentCheckinAllowed), so the
+	// two transactions serialize on the shared row instead of racing: either a
+	// concurrent check-in commits first and we observe its open attendance/visit
+	// below (and refuse), or we win the lock and the check-in re-reads the
+	// alumnus status afterwards (and refuses). Without this lock the reads are a
+	// snapshot and a concurrent check-in could still strand a freshly graduated
+	// child with an open record the kiosk can no longer close (#405).
+	// Ascending id order matches the convention used by every other student-row
+	// locker, so cross-transaction lock ordering cannot deadlock.
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	if s.studentRepo != nil {
+		for _, id := range ids {
+			if _, err := s.studentRepo.FindByIDForUpdate(ctx, id); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					continue // row vanished before we could lock it — nothing to strand
+				}
+				return fmt.Errorf("failed to lock graduating student %d: %w", id, err)
+			}
+		}
+	}
+
 	checkedIn := make(map[int64]struct{})
 
 	if s.visitRepo != nil {
@@ -560,10 +591,7 @@ func (s *GradeTransitionService) ensureGraduatesNotCheckedIn(ctx context.Context
 	}
 
 	if len(checkedIn) > 0 {
-		return fmt.Errorf(
-			"cannot apply: %d graduating student(s) are still checked in — please check them out first",
-			len(checkedIn),
-		)
+		return fmt.Errorf("%w: %d student(s) must be checked out first", ErrGraduatesCheckedIn, len(checkedIn))
 	}
 	return nil
 }

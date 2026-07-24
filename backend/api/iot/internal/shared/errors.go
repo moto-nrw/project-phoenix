@@ -132,7 +132,10 @@ func isActiveNotFoundError(err error) bool {
 		errors.Is(err, activeSvc.ErrCombinedGroupNotFound) ||
 		errors.Is(err, activeSvc.ErrGroupMappingNotFound) ||
 		errors.Is(err, activeSvc.ErrNoActiveSession) ||
-		errors.Is(err, activeSvc.ErrStaffNotFound)
+		errors.Is(err, activeSvc.ErrStaffNotFound) ||
+		// A graduated student is treated like an unknown/absent student: the
+		// rare race-loser at the check-in write path (#405).
+		errors.Is(err, activeSvc.ErrStudentGraduated)
 }
 
 // isActiveValidationError checks if error is a validation error

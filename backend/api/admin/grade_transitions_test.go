@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
@@ -550,6 +551,37 @@ func TestGradeTransitionResource_Apply(t *testing.T) {
 
 		rr := testutil.ExecuteRequest(router, req)
 		assert.NotEqual(t, http.StatusOK, rr.Code)
+	})
+
+	// #405 P2: a graduating child still checked in is a client-recoverable
+	// safety condition — the handler must return 409 with a stable code so the
+	// UI can direct the admin to check the child out, not a bare 500.
+	t.Run("apply with a checked-in graduate returns 409 with code", func(t *testing.T) {
+		suffix := uuid.Must(uuid.NewV4()).String()[:8]
+		gradClass := fmt.Sprintf("4apply-%s", suffix)
+
+		activity := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("AG-%s", suffix))
+		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Room-%s", suffix))
+		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activity.ID, room.ID)
+		student := testpkg.CreateTestStudent(t, tc.db, "Checked", "In", gradClass)
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, activity.ID, room.ID)
+
+		// Open visit (nil exit time) = currently checked into a room.
+		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now().Add(-time.Hour), nil)
+
+		transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
+		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, gradClass, nil) // graduate
+		defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, transition.ID)
+
+		url := fmt.Sprintf("/%d/apply", transition.ID)
+		req := testutil.NewAuthenticatedRequest(t, "POST", url, nil,
+			testutil.WithJWTBearer(token),
+		)
+
+		rr := testutil.ExecuteRequest(router, req)
+		require.Equal(t, http.StatusConflict, rr.Code)
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		assert.Equal(t, "graduates_checked_in", response["code"])
 	})
 }
 
