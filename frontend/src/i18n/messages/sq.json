@@ -514,6 +514,7 @@
     "openUntil": "Hapur deri më {date}",
     "serviceRange": "Periudha e përkujdesjes: {from} deri {to}",
     "start": "Nis regjistrimin",
+    "audienceNewStudents": "Vetëm për fëmijë të rinj",
     "kind": {
       "school_year": "Viti shkollor",
       "holiday": "Përkujdesje gjatë pushimeve",

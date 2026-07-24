@@ -350,6 +350,14 @@ export interface PublicPhase {
   enrollment_close_at?: string;
   show_status_reason_to_parent: boolean;
   care_offering_selection_mode: CareOfferingSelectionMode;
+  /**
+   * Applicant restriction (#1663). "open" (or missing) = anyone may apply;
+   * "new_students" = only children not already enrolled at the school —
+   * the public picker labels this so anonymous parents see the restriction
+   * before filling the form. "linked_parents" phases never reach the public
+   * picker (filtered server-side).
+   */
+  audience?: "open" | "new_students" | "linked_parents";
 }
 
 /**
@@ -418,6 +426,33 @@ export async function fetchPublicEnrollmentBootstrap(
       ? { cache: "no-store", credentials: "omit" }
       : { cache: "no-store" },
   );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Anmeldeformular konnte nicht geladen werden",
+    );
+  }
+  return readJSON<PublicEnrollmentBootstrap>(response);
+}
+
+/**
+ * Authenticated parents-portal form-load bootstrap. Hits the parent-scoped
+ * endpoint (parent NextAuth session forwarded by the proxy) instead of the
+ * anonymous public path, so audience-restricted (linked_parents) phases —
+ * which the public endpoint refuses (#1663) — load for a logged-in
+ * guardian. The response shape matches the public bootstrap (captcha is
+ * empty; the parent JWT is the anti-bot signal).
+ */
+export async function fetchParentEnrollmentBootstrap(
+  tenantSlug: string,
+  phaseId: string,
+  options: LateInviteFetchOptions = {},
+): Promise<PublicEnrollmentBootstrap> {
+  let path = `/api/parent/enrollments/${encodeURIComponent(
+    tenantSlug,
+  )}/bootstrap/${encodeURIComponent(phaseId)}`;
+  path = withLateInviteQuery(path, options.lateInviteToken);
+  const response = await fetch(path, { cache: "no-store" });
   if (!response.ok) {
     throw await readError(
       response,

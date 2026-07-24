@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/uptrace/bun"
@@ -59,6 +60,59 @@ func (rs *Resource) getEnrollmentProfile(w http.ResponseWriter, r *http.Request)
 
 	resp := common.BuildGuardianProfileResponse(claims, loaded)
 	common.Respond(w, r, http.StatusOK, resp, "Profile retrieved")
+}
+
+// getEnrollmentBootstrap serves the enrollment form-load payload for the
+// authenticated parents portal. It mirrors the anonymous public
+// /form-bootstrap endpoint but runs the enrollee phase gate, so
+// audience-restricted (linked_parents) phases — which the public gate
+// refuses (#1663) — load for a logged-in guardian. Tenant comes from the
+// path slug (admin-tx resolves it); the parent JWT (scope=parent, enforced
+// by ParentMiddleware) is the authorization boundary. Captcha is skipped —
+// the JWT is the anti-bot signal. The real per-phase eligibility is still
+// enforced on submit (GuardianSubmitEligible + audience rules).
+func (rs *Resource) getEnrollmentBootstrap(w http.ResponseWriter, r *http.Request) {
+	if rs.RequestService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent enrollment bootstrap not configured")))
+		return
+	}
+
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(jwt.ErrTokenUnauthorized))
+		return
+	}
+
+	slug := strings.TrimSpace(chi.URLParam(r, "tenantSlug"))
+	if slug == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
+		return
+	}
+	phaseID, ok := common.ParsePositiveInt64IDWithError(w, r, "phaseId", "phaseId is required")
+	if !ok {
+		return
+	}
+
+	schoolID, err := rs.resolveSchoolID(r.Context(), slug)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(err))
+		return
+	}
+
+	var data *enrollmentService.PublicFormBootstrapData
+	lateInviteToken := strings.TrimSpace(r.URL.Query().Get("late_invite"))
+	loadErr := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
+		loaded, e := rs.RequestService.LoadEnrolleeFormBootstrap(txCtx, phaseID, time.Now(), lateInviteToken)
+		data = loaded
+		return e
+	})
+	if loadErr != nil {
+		enrollmentAPI.RenderPublicEnrollmentBootstrapError(w, r, loadErr)
+		return
+	}
+
+	resp := enrollmentAPI.BuildPublicEnrollmentFormBootstrapResponse(data, enrollmentAPI.PublicCaptchaConfigResponse{})
+	common.Respond(w, r, http.StatusOK, resp, "Parent enrollment form bootstrap retrieved")
 }
 
 // resolveSchoolID wraps SchoolRepo.FindBySlug in WithAdminTx so the

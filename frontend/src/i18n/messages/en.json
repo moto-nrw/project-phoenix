@@ -514,6 +514,7 @@
     "openUntil": "Open until {date}",
     "serviceRange": "Care period: {from} to {to}",
     "start": "Start enrollment",
+    "audienceNewStudents": "New children only",
     "kind": {
       "school_year": "School year",
       "holiday": "Holiday care",

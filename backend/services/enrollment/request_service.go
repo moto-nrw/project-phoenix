@@ -94,6 +94,13 @@ var (
 	ErrPhaseNotEligible      = errors.New("phase is not open for this applicant")
 	ErrChildClassNotEligible = fmt.Errorf("%w: child school class is not eligible for this phase", ErrInvalidSubmission)
 	ErrChildAlreadyEnrolled  = fmt.Errorf("%w: child is already enrolled at this school", ErrInvalidSubmission)
+	// ErrPhaseAudienceRestricted is the public form-load gate for
+	// audience-restricted phases (#1663): a linked_parents phase cannot be
+	// bootstrapped anonymously, so the unauthenticated public path rejects
+	// it. It maps to a plain 404 so an anonymous caller cannot distinguish
+	// a restricted phase from a non-existent one; the parents portal loads
+	// these phases through its own authenticated bootstrap path instead.
+	ErrPhaseAudienceRestricted = errors.New("phase is not available for public enrollment")
 )
 
 // Rate-limit thresholds. Hardcoded for now - if individual schools
@@ -349,14 +356,22 @@ type RequestService interface {
 	LegalTextsForPhaseWithLateInvite(ctx context.Context, phaseID int64, lateInviteToken string) (LegalTexts, error)
 	LegalTextsForManualEnrollmentPhase(ctx context.Context, phaseID int64) (LegalTexts, error)
 
-	// LoadPublicPhaseWithLateInvite is the shared public phase gate: every
-	// public form-load endpoint (schema, offerings, legal texts, bootstrap)
-	// calls this so a direct or stale parent link cannot load detail data
-	// for a phase the picker would hide. Returns ErrEnrollmentDisabled when
-	// the tenant toggle is off or the phase is inactive, ErrInvalidSubmission
-	// when the id is unknown, and ErrEnrollmentWindowClosed outside the
-	// phase's enrollment window. Caller must be inside a tenant-tx.
+	// LoadPublicPhaseWithLateInvite is the shared anonymous public phase
+	// gate: every public form-load endpoint (schema, offerings, legal texts,
+	// bootstrap) calls this so a direct or stale parent link cannot load
+	// detail data for a phase the picker would hide. Returns
+	// ErrEnrollmentDisabled when the tenant toggle is off or the phase is
+	// inactive, ErrInvalidSubmission when the id is unknown,
+	// ErrEnrollmentWindowClosed outside the phase's enrollment window, and
+	// ErrPhaseAudienceRestricted for an audience-restricted (linked_parents)
+	// phase — those are reachable only through the authenticated
+	// parents-portal gate (LoadEnrolleePhaseWithLateInvite). Caller must be
+	// inside a tenant-tx.
 	LoadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error)
+	// LoadEnrolleePhaseWithLateInvite is the authenticated parents-portal
+	// counterpart to LoadPublicPhaseWithLateInvite; identical except it also
+	// admits audience-restricted (linked_parents) phases.
+	LoadEnrolleePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error)
 	LoadManualEnrollmentPhase(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error)
 
 	// LoadPublicFormBootstrap assembles everything the public enrollment
@@ -367,6 +382,11 @@ type RequestService interface {
 	// in *BootstrapStageError so the caller can map them to 500 instead of
 	// the public 404 gate mapping. Caller must be inside a tenant-tx.
 	LoadPublicFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
+	// LoadEnrolleeFormBootstrap mirrors LoadPublicFormBootstrap for the
+	// authenticated parents-portal form load, using the enrollee phase gate
+	// so audience-restricted (linked_parents) phases load for a logged-in
+	// guardian. Caller must be inside a tenant-tx.
+	LoadEnrolleeFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
 	// LoadPublicCareOfferings is the offering-only projection of the public
 	// bootstrap: phase gate + capabilities + active offerings, no schema,
 	// legal texts or captcha. Capability failures are wrapped in
@@ -2729,6 +2749,18 @@ func (s *requestService) LegalTextsForPhaseWithLateInvite(ctx context.Context, p
 	return s.legalTextsForLoadedPhase(ctx, phase)
 }
 
+// LegalTextsForEnrolleePhaseWithLateInvite mirrors
+// LegalTextsForPhaseWithLateInvite but runs the authenticated enrollee gate
+// so the parents-portal bootstrap can resolve legal texts for
+// audience-restricted phases too.
+func (s *requestService) LegalTextsForEnrolleePhaseWithLateInvite(ctx context.Context, phaseID int64, lateInviteToken string) (LegalTexts, error) {
+	phase, err := s.LoadEnrolleePhaseWithLateInvite(ctx, phaseID, time.Now(), lateInviteToken)
+	if err != nil {
+		return LegalTexts{}, err
+	}
+	return s.legalTextsForLoadedPhase(ctx, phase)
+}
+
 func (s *requestService) LegalTextsForManualEnrollmentPhase(ctx context.Context, phaseID int64) (LegalTexts, error) {
 	phase, err := s.LoadManualEnrollmentPhase(ctx, phaseID)
 	if err != nil {
@@ -2749,10 +2781,20 @@ func (s *requestService) legalTextsForLoadedPhase(ctx context.Context, phase *en
 	return applyTemplateLegalBlocks(texts, schema), nil
 }
 
-func (s *requestService) LoadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error) {
+// loadEditablePhaseWithLateInvite is the shared form-load phase gate. It
+// resolves the phase, enforces the enrollment window (honoring a valid
+// late-invite token when the window is closed) and — unless the caller is
+// an authenticated enrollee — rejects audience-restricted phases so a
+// direct or guessed link cannot bootstrap a linked_parents phase
+// anonymously (#1663). The audience check runs before the window check so
+// a restricted phase always surfaces the same 404 regardless of window.
+func (s *requestService) loadEditablePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, allowRestrictedAudience bool) (*enrollmentModels.Phase, error) {
 	phase, err := s.loadPhaseForEditableRequest(ctx, phaseID)
 	if err != nil {
 		return nil, err
+	}
+	if !allowRestrictedAudience && phase.Audience == enrollmentModels.PhaseAudienceLinkedParents {
+		return nil, ErrPhaseAudienceRestricted
 	}
 	if !IsEnrollmentWindowOpen(phase, now) {
 		if strings.TrimSpace(lateInviteToken) == "" {
@@ -2766,6 +2808,21 @@ func (s *requestService) LoadPublicPhaseWithLateInvite(ctx context.Context, phas
 		}
 	}
 	return phase, nil
+}
+
+// LoadPublicPhaseWithLateInvite is the anonymous public form-load gate: it
+// rejects audience-restricted (linked_parents) phases outright.
+func (s *requestService) LoadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error) {
+	return s.loadEditablePhaseWithLateInvite(ctx, phaseID, now, lateInviteToken, false)
+}
+
+// LoadEnrolleePhaseWithLateInvite is the authenticated parent-portal
+// form-load gate. It behaves exactly like the public gate except it also
+// allows audience-restricted (linked_parents) phases — the caller is an
+// authenticated guardian and the submit path still enforces
+// GuardianSubmitEligible + the audience eligibility rules.
+func (s *requestService) LoadEnrolleePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error) {
+	return s.loadEditablePhaseWithLateInvite(ctx, phaseID, now, lateInviteToken, true)
 }
 
 func (s *requestService) LoadManualEnrollmentPhase(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error) {
@@ -3102,10 +3159,12 @@ func EffectiveFormCapabilities(capabilities FormCapabilities, offerings []*enrol
 //     neither and are rejected.
 //   - eligible_school_classes: when non-empty, every child must declare
 //     one of the listed classes.
-//   - new_students audience: a child matching an enrolled active student
-//     (name + birthday) is rejected. Best-effort by design — it blocks
-//     the honest mistake, not a determined false declaration, exactly
-//     like the paper form it replaces.
+//   - new_students audience: a child matching an already-enrolled student
+//     (name + birthday) is rejected. "Enrolled" spans active AND pending
+//     students, so a child approved-but-not-yet-activated still blocks a
+//     second submission. Best-effort by design — it blocks the honest
+//     mistake, not a determined false declaration, exactly like the paper
+//     form it replaces.
 func (s *requestService) validatePhaseEligibility(ctx context.Context, phase *enrollmentModels.Phase, req SubmitRequest) error {
 	if req.AllowClosedPhase {
 		return nil

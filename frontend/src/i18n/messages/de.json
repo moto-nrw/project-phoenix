@@ -514,6 +514,7 @@
     "openUntil": "Offen bis {date}",
     "serviceRange": "Betreuungszeitraum: {from} bis {to}",
     "start": "Anmeldung starten",
+    "audienceNewStudents": "Nur für neue Kinder",
     "kind": {
       "school_year": "Schuljahr",
       "holiday": "Ferienbetreuung",

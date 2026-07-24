@@ -640,6 +640,17 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	common.Respond(w, r, http.StatusOK, BuildPublicEnrollmentFormBootstrapResponse(data, captcha),
+		"Public enrollment form bootstrap retrieved")
+}
+
+// BuildPublicEnrollmentFormBootstrapResponse assembles the parent-facing
+// bootstrap wire response from resolved bootstrap data. Shared by the
+// anonymous public form-bootstrap handler and the authenticated
+// parents-portal bootstrap handler so both form-load paths emit an
+// identical contract. captcha is empty for the parent path (the parent JWT
+// is the anti-bot signal, so captcha is skipped there).
+func BuildPublicEnrollmentFormBootstrapResponse(data *enrollmentService.PublicFormBootstrapData, captcha PublicCaptchaConfigResponse) PublicEnrollmentFormBootstrapResponse {
 	items := make([]CareOfferingResponse, 0, len(data.Offerings))
 	for _, o := range data.Offerings {
 		items = append(items, toCareOfferingResponse(o))
@@ -647,7 +658,7 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 	phase := data.Phase
 	texts := data.LegalTexts
 	capabilities := enrollmentService.EffectiveFormCapabilities(data.Capabilities, data.Offerings)
-	common.Respond(w, r, http.StatusOK, PublicEnrollmentFormBootstrapResponse{
+	return PublicEnrollmentFormBootstrapResponse{
 		Phase:                     toPublicPhase(phase),
 		Schema:                    toPublicFormSchemaResponse(data.Schema),
 		Offerings:                 items,
@@ -668,7 +679,15 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 			PhotoEnabled:        texts.PhotoEnabled,
 			Blocks:              texts.Blocks,
 		},
-	}, "Public enrollment form bootstrap retrieved")
+	}
+}
+
+// RenderPublicEnrollmentBootstrapError maps a public/enrollee bootstrap
+// error to HTTP. Exported so the parents-portal bootstrap handler emits the
+// same error codes (disabled / window-closed / late-invite → coded 404s,
+// stage failures → 500) as the anonymous public path.
+func RenderPublicEnrollmentBootstrapError(w http.ResponseWriter, r *http.Request, err error) {
+	renderPublicBootstrapError(w, r, err)
 }
 
 // listPublicPhases returns the currently-open phases for the given

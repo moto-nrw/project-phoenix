@@ -514,6 +514,7 @@
     "openUntil": "Открыто до {date}",
     "serviceRange": "Период ухода: {from} до {to}",
     "start": "Начать запись",
+    "audienceNewStudents": "Только для новых детей",
     "kind": {
       "school_year": "Учебный год",
       "holiday": "Уход на каникулах",

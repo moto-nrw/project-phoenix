@@ -121,6 +121,27 @@ func (s *requestService) LoadPublicFormBootstrap(ctx context.Context, phaseID in
 		})
 }
 
+// LoadEnrolleeFormBootstrap mirrors LoadPublicFormBootstrap for the
+// authenticated parents-portal form load. It uses the enrollee phase gate
+// (which allows audience-restricted linked_parents phases) and the matching
+// legal loader; everything else — schema, offerings, capabilities, stage
+// error classification — is identical to the public path. Caller must be
+// inside a tenant-tx.
+func (s *requestService) LoadEnrolleeFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error) {
+	return s.assemblePublicBootstrap(ctx,
+		func(ctx context.Context) (*enrollmentModels.Phase, error) {
+			return s.LoadEnrolleePhaseWithLateInvite(ctx, phaseID, now, lateInviteToken)
+		},
+		publicBootstrapOptions{
+			loadSchema:     true,
+			loadLegal:      true,
+			classifyStages: true,
+			legalLoader: func(ctx context.Context) (LegalTexts, error) {
+				return s.LegalTextsForEnrolleePhaseWithLateInvite(ctx, phaseID, lateInviteToken)
+			},
+		})
+}
+
 func (s *requestService) LoadPublicCareOfferings(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error) {
 	return s.assemblePublicBootstrap(ctx,
 		func(ctx context.Context) (*enrollmentModels.Phase, error) {

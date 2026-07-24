@@ -251,19 +251,25 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 	return students, nil
 }
 
-// ExistsEnrolledByNameAndBirthday reports whether an active student with
-// the given (case-insensitive, trimmed) name and birthday exists in the
-// tenant. Backs the enrollment new_students audience check (#1663). The
-// tenant filter is explicit (not RLS/context-based) because the parent
-// submit path runs under an admin transaction. A zero birthday binds
-// NULL and matches nothing — the safe outcome for incomplete input.
+// ExistsEnrolledByNameAndBirthday reports whether an already-enrolled
+// student with the given (case-insensitive, trimmed) name and birthday
+// exists in the tenant. Backs the enrollment new_students audience check
+// (#1663). "Enrolled" spans both active and pending students: an
+// enrollment approved before its service start date creates the resulting
+// student as pending until the activation scheduler flips it to active
+// (approvalActivationPlan), so pending children are already enrolled and
+// must be treated as such — otherwise a just-approved child would slip
+// through a new_students phase and create a duplicate record. The tenant
+// filter is explicit (not RLS/context-based) because the parent submit
+// path runs under an admin transaction. A zero birthday binds NULL and
+// matches nothing — the safe outcome for incomplete input.
 func (r *StudentRepository) ExistsEnrolledByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday timezone.Date) (bool, error) {
 	count, err := base.GetDB(ctx, r.db).NewSelect().
 		Model((*users.Student)(nil)).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
 		Where(`"student".tenant_id = ?`, tenantID).
-		Where(`"student".status = ?`, users.StudentStatusActive).
+		Where(`"student".status IN (?)`, bun.In([]users.StudentStatus{users.StudentStatusActive, users.StudentStatusPending})).
 		Where(`LOWER(TRIM("person".first_name)) = LOWER(TRIM(?))`, firstName).
 		Where(`LOWER(TRIM("person".last_name)) = LOWER(TRIM(?))`, lastName).
 		Where(`"person".birthday = ?`, birthday).

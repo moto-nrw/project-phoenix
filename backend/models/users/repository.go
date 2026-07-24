@@ -97,9 +97,11 @@ type StudentRepository interface {
 	// FindBySchoolClass retrieves students by their school class
 	FindBySchoolClass(ctx context.Context, schoolClass string) ([]*Student, error)
 
-	// ExistsEnrolledByNameAndBirthday reports whether an active student
-	// with the given (case-insensitive) name and birthday exists in the
-	// tenant. Backs the enrollment new_students audience check (#1663).
+	// ExistsEnrolledByNameAndBirthday reports whether an already-enrolled
+	// student (active OR pending — a child approved before its service
+	// start date is created pending until activation) with the given
+	// (case-insensitive) name and birthday exists in the tenant. Backs the
+	// enrollment new_students audience check (#1663).
 	// TenantID is filtered explicitly because the enrollment parent
 	// submit path runs under an admin transaction where RLS does not
 	// narrow the query. Not expressible via the generic List filters:

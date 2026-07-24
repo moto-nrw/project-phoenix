@@ -414,6 +414,7 @@ GET /operator/suggestions/unviewed-count
 GET /operator/suggestions/{id}
 GET /operator/unregistered-tag-scans/
 GET /parent-sse/events
+GET /parent/enrollments/{tenantSlug}/bootstrap/{phaseId}
 GET /parent/enrollments/{tenantSlug}/profile
 GET /parent/me/calendar
 GET /parent/me/calendar/appointments/{appointmentId}/ics

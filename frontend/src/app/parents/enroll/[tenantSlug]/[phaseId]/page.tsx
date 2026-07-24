@@ -17,7 +17,7 @@ import {
   submitParentEnrollment,
 } from "~/lib/parent-api";
 import {
-  fetchPublicEnrollmentBootstrap,
+  fetchParentEnrollmentBootstrap,
   type PublicEnrollmentBootstrap,
 } from "~/lib/enrollment-submission-api";
 import { resolveTenant, type TenantInfo } from "~/lib/tenant-api";
@@ -63,13 +63,13 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
 
     void Promise.all([
       resolveTenant(tenantSlug),
-      fetchPublicEnrollmentBootstrap(tenantSlug, phaseId, {
+      // Authenticated parent bootstrap (#1663): the anonymous public path
+      // now refuses audience-restricted (linked_parents) phases, so the
+      // parents portal loads form metadata through its own parent-scoped
+      // endpoint. Parent autofill still comes only from the profile call
+      // below.
+      fetchParentEnrollmentBootstrap(tenantSlug, phaseId, {
         lateInviteToken,
-        // The production tenant cookie is shared across tenant subdomains.
-        // Omit it as transport hardening; the server independently identifies
-        // the parent portal from the proxy-preserved original request host.
-        // Parent autofill comes only from the authenticated endpoint below.
-        omitCredentials: true,
       }),
       // Parent-profile lookup is best-effort, matching EnrollmentForm's
       // existing autofill contract. It stays on the parent-authenticated API;

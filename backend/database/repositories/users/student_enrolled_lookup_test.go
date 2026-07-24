@@ -68,3 +68,32 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, exists)
 }
+
+// TestStudentRepository_ExistsEnrolledByNameAndBirthday_Pending guards the
+// #1663 fix: a child approved before its service start date is created with
+// status pending until the activation scheduler runs. Such a child is
+// already enrolled and must be matched, or it could be re-submitted through
+// a new_students phase and duplicated.
+func TestStudentRepository_ExistsEnrolledByNameAndBirthday_Pending(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	var tenantID int64 = 1
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	student := testpkg.CreateTestStudent(t, db, "Pending", "Enrolltest", "1a")
+	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, student.ID) })
+	birthday := timezone.NewDate(2019, 3, 10)
+	setPersonBirthday(t, db, student.PersonID, birthday)
+
+	repo := repositories.NewFactory(db).Student
+	ctx := context.Background()
+
+	// Flip the student to pending (approved-but-not-yet-activated).
+	_, err := db.NewRaw(`UPDATE users.students SET status = ? WHERE id = ?`, users.StudentStatusPending, student.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	exists, err := repo.ExistsEnrolledByNameAndBirthday(ctx, tenantID, "Pending", "Enrolltest", birthday)
+	require.NoError(t, err)
+	assert.True(t, exists, "a pending (approved, not-yet-activated) student must count as already enrolled")
+}
