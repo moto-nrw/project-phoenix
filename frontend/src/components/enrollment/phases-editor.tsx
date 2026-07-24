@@ -354,26 +354,22 @@ export function PhasesEditor() {
           "Schließung des Anmeldefensters muss nach der Öffnung liegen.",
         );
       }
-      // A "Nur für Klassen" restriction can only be met with a class the
-      // form actually offers, and the form offers exactly the "Konkrete
-      // Klassen" (available_school_classes) list. An eligible class that is
-      // not offered can never be sent, so every regular submission would fail
-      // with class_not_eligible even though the phase saved. Expose each
-      // eligible class as an offered option so the form can collect it
-      // (#1663). The tenant-wide Klassen-Abfrage must still be active for the
-      // pick to appear — surfaced in the field hint, not enforceable here.
+      // A "Nur für Klassen" restriction can only be met with a class the form
+      // actually offers, and the form offers exactly the "Konkrete Klassen"
+      // (available_school_classes) list with an optional "Klasse offen". When
+      // an eligibility list is set, the form must offer ONLY those classes and
+      // require a declaration — otherwise it would present ineligible classes
+      // and the "Klasse offen" option, and every such submission would fail
+      // server-side with class_not_eligible after the parent completed the
+      // whole form (#1663). The tenant-wide Klassen-Abfrage must still be
+      // active for the pick to appear — surfaced in the field hint, not
+      // enforceable here.
       const eligibleClasses = (payload.eligible_school_classes ?? [])
         .map((cls) => cls.trim())
         .filter((cls) => cls.length > 0);
       if (eligibleClasses.length > 0) {
-        const offered = (payload.available_school_classes ?? [])
-          .map((cls) => cls.trim())
-          .filter((cls) => cls.length > 0);
-        const offeredSet = new Set(offered);
-        const additions = eligibleClasses.filter((cls) => !offeredSet.has(cls));
-        if (additions.length > 0) {
-          payload.available_school_classes = [...offered, ...additions];
-        }
+        payload.available_school_classes = eligibleClasses;
+        payload.require_school_class = true;
       }
       if (editingId === "new") {
         const created = await createPhase(payload);

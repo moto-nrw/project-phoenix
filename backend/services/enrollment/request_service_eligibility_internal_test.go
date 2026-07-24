@@ -168,6 +168,61 @@ func TestPhaseEligibility_ClassBypassClosedAfterCanonicalization(t *testing.T) {
 	require.ErrorIs(t, err, ErrChildClassNotEligible, "collection-off must not bypass the class gate")
 }
 
+// validatePhaseChildEligibility is the gate the editable-request path reuses.
+// It must enforce the per-child rules (class + already-enrolled) but must NOT
+// re-apply the linked_parents audience gate — an editable request already
+// passed that when it was created, so an anonymous-looking edit request (no
+// guardian account) still passes the child gate for a linked_parents phase.
+func TestValidatePhaseChildEligibility_SkipsLinkedParentsAudienceGate(t *testing.T) {
+	svc := &requestService{}
+	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceLinkedParents)
+
+	// No guardian account, no submit eligibility: the full audience gate
+	// would reject this, but the child-only gate must let it through.
+	err := svc.validatePhaseChildEligibility(context.Background(), phase, SubmitRequest{
+		Children: []SubmitChild{{FirstName: "Kim", LastName: "Test"}},
+	})
+	require.NoError(t, err)
+}
+
+// The child gate keeps enforcing eligible_school_classes regardless of
+// audience, so an edit that swaps in an ineligible class is rejected.
+func TestValidatePhaseChildEligibility_EnforcesClassRegardlessOfAudience(t *testing.T) {
+	svc := &requestService{}
+	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceLinkedParents, "2a")
+
+	err := svc.validatePhaseChildEligibility(context.Background(), phase, SubmitRequest{
+		Children: []SubmitChild{{FirstName: "Kim", LastName: "Test", TargetSchoolClass: strPtrEligibility("4c")}},
+	})
+	require.ErrorIs(t, err, ErrChildClassNotEligible)
+}
+
+// The child gate keeps enforcing the new_students already-enrolled check, so
+// an edit that swaps in an enrolled child's identity is rejected.
+func TestValidatePhaseChildEligibility_EnforcesNewStudents(t *testing.T) {
+	repo := &stubEligibilityStudentRepo{exists: true}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
+	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceNewStudents)
+
+	err := svc.validatePhaseChildEligibility(context.Background(), phase, SubmitRequest{
+		TenantID: int64(9099),
+		Children: []SubmitChild{{FirstName: "Kim", LastName: "Test", DateOfBirth: timezone.NewDate(2019, 4, 12)}},
+	})
+	require.ErrorIs(t, err, ErrChildAlreadyEnrolled)
+}
+
+// Trusted-path requests (admin manual / late invite) deliberately bypassed
+// eligibility at creation, so the editable-request path must keep that
+// override rather than newly rejecting an edit; every self-service source
+// must re-run the child gate.
+func TestIsTrustedEnrollmentSource(t *testing.T) {
+	assert.True(t, isTrustedEnrollmentSource(enrollmentModels.RequestSourceLateInvite))
+	assert.True(t, isTrustedEnrollmentSource(enrollmentModels.RequestSourceAdminManual))
+	assert.True(t, isTrustedEnrollmentSource("  "+enrollmentModels.RequestSourceLateInvite+"  "))
+	assert.False(t, isTrustedEnrollmentSource(enrollmentModels.RequestSourcePublic))
+	assert.False(t, isTrustedEnrollmentSource(""))
+}
+
 func TestValidatePhaseEligibility_NewStudentsLookupErrorPropagates(t *testing.T) {
 	repo := &stubEligibilityStudentRepo{err: errors.New("boom")}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}

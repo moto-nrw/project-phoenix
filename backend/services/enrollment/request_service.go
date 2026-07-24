@@ -1974,6 +1974,21 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		if err := s.validateAndNormalizeSchoolClasses(txCtx, phase, editReq.Children); err != nil {
 			return err
 		}
+		// Reapply the per-child eligibility gates (eligible_school_classes +
+		// new_students already-enrolled) so a status-token holder cannot edit a
+		// previously eligible request into an ineligible class or an
+		// already-enrolled child's identity (#1663). Runs after class
+		// canonicalization, mirroring Submit's ordering. The linked_parents
+		// audience authorization is preserved from the original submission —
+		// the request's existence proves it passed and the status token is held
+		// by that same guardian — so it is not re-evaluated here. Trusted-path
+		// requests (late invite / admin manual) bypassed eligibility
+		// deliberately at creation and keep that override on edit.
+		if !isTrustedEnrollmentSource(req.SubmissionSource) {
+			if err := s.validatePhaseChildEligibility(txCtx, phase, editReq); err != nil {
+				return err
+			}
+		}
 		editReq.ConsentFlags = filterConsentFlags(editReq.ConsentFlags, legalBlocks)
 		if err := s.validateRequiredCustomFields(schema, editReq, openByID); err != nil {
 			return err
@@ -2793,17 +2808,28 @@ func (s *requestService) loadEditablePhaseWithLateInvite(ctx context.Context, ph
 	if err != nil {
 		return nil, err
 	}
-	if !allowRestrictedAudience && phase.Audience == enrollmentModels.PhaseAudienceLinkedParents {
+	// A valid late invite is an explicit, per-recipient eligibility override
+	// (Submit treats it exactly that way via AllowClosedPhase), so it also
+	// lifts the audience restriction: an admin who mints a late invite for a
+	// linked_parents phase hands out the tenant's public form URL, and the
+	// recipient must be able to load the form the invite points at. Resolve
+	// the invite once here and reuse it for the window check below, so a
+	// restricted phase with a valid invite loads instead of 404-ing before
+	// the token is ever validated (#1663).
+	hasValidLateInvite := false
+	if s.LateInviteRepo != nil && strings.TrimSpace(lateInviteToken) != "" {
+		if _, err := s.LateInviteRepo.FindUsableByTokenHash(ctx, lateInviteTokenHash(lateInviteToken), phaseID, now); err == nil {
+			hasValidLateInvite = true
+		}
+	}
+	if !allowRestrictedAudience && !hasValidLateInvite && phase.Audience == enrollmentModels.PhaseAudienceLinkedParents {
 		return nil, ErrPhaseAudienceRestricted
 	}
 	if !IsEnrollmentWindowOpen(phase, now) {
 		if strings.TrimSpace(lateInviteToken) == "" {
 			return nil, ErrEnrollmentWindowClosed
 		}
-		if s.LateInviteRepo == nil {
-			return nil, ErrLateInviteInvalid
-		}
-		if _, err := s.LateInviteRepo.FindUsableByTokenHash(ctx, lateInviteTokenHash(lateInviteToken), phaseID, now); err != nil {
+		if !hasValidLateInvite {
 			return nil, ErrLateInviteInvalid
 		}
 	}
@@ -3173,7 +3199,18 @@ func (s *requestService) validatePhaseEligibility(ctx context.Context, phase *en
 		(req.GuardianAccountID == nil || !req.GuardianSubmitEligible) {
 		return ErrPhaseNotEligible
 	}
+	return s.validatePhaseChildEligibility(ctx, phase, req)
+}
 
+// validatePhaseChildEligibility enforces the per-child eligibility gates
+// (eligible_school_classes + new_students already-enrolled) independently of
+// the linked_parents *audience* gate. Submit runs the full
+// validatePhaseEligibility; the editable-request path calls this directly so
+// a status-token holder cannot edit a child into an ineligible class or an
+// already-enrolled identity, while the linked_parents authorization stays
+// preserved from the original submission (#1663). Callers must run
+// validateAndNormalizeSchoolClasses first so this sees the persisted class.
+func (s *requestService) validatePhaseChildEligibility(ctx context.Context, phase *enrollmentModels.Phase, req SubmitRequest) error {
 	eligible := make(map[string]struct{}, len(phase.EligibleSchoolClasses))
 	for _, c := range phase.EligibleSchoolClasses {
 		if t := strings.TrimSpace(c); t != "" {
@@ -3208,6 +3245,21 @@ func (s *requestService) validatePhaseEligibility(ctx context.Context, phase *en
 		}
 	}
 	return nil
+}
+
+// isTrustedEnrollmentSource reports whether a persisted request was created
+// through a deliberate override path (admin manual enrollment or a late
+// invite). Submit skips eligibility for those via AllowClosedPhase, so the
+// editable-request path must keep that override when re-checking child
+// eligibility rather than newly rejecting an edit the original creation
+// allowed.
+func isTrustedEnrollmentSource(source string) bool {
+	switch strings.TrimSpace(source) {
+	case enrollmentModels.RequestSourceLateInvite, enrollmentModels.RequestSourceAdminManual:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *requestService) validateAndNormalizeSchoolClasses(ctx context.Context, phase *enrollmentModels.Phase, children []SubmitChild) error {

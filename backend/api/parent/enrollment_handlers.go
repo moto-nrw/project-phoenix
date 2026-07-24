@@ -64,13 +64,19 @@ func (rs *Resource) getEnrollmentProfile(w http.ResponseWriter, r *http.Request)
 
 // getEnrollmentBootstrap serves the enrollment form-load payload for the
 // authenticated parents portal. It mirrors the anonymous public
-// /form-bootstrap endpoint but runs the enrollee phase gate, so
-// audience-restricted (linked_parents) phases — which the public gate
-// refuses (#1663) — load for a logged-in guardian. Tenant comes from the
-// path slug (admin-tx resolves it); the parent JWT (scope=parent, enforced
-// by ParentMiddleware) is the authorization boundary. Captcha is skipped —
-// the JWT is the anti-bot signal. The real per-phase eligibility is still
-// enforced on submit (GuardianSubmitEligible + audience rules).
+// /form-bootstrap endpoint. Tenant comes from the path slug (admin-tx
+// resolves it); the parent JWT (scope=parent, enforced by ParentMiddleware)
+// is the authorization boundary. Captcha is skipped — the JWT is the
+// anti-bot signal.
+//
+// Audience gate (#1663): audience-restricted (linked_parents) phases — which
+// the public gate refuses — load only for a caller whose guardian link at
+// this school grants parent_portal.enrollment.submit (the same fact the
+// picker and submit handler resolve). Everyone else gets the public gate,
+// which still serves open / new_students phases but 404s linked_parents, so
+// a guessed phase id at another school cannot leak a hidden phase's form.
+// The real per-phase eligibility is still enforced on submit
+// (GuardianSubmitEligible + audience rules).
 func (rs *Resource) getEnrollmentBootstrap(w http.ResponseWriter, r *http.Request) {
 	if rs.RequestService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent enrollment bootstrap not configured")))
@@ -82,6 +88,7 @@ func (rs *Resource) getEnrollmentBootstrap(w http.ResponseWriter, r *http.Reques
 		common.RenderError(w, r, common.ErrorUnauthorized(jwt.ErrTokenUnauthorized))
 		return
 	}
+	accountID := int64(claims.ID)
 
 	slug := strings.TrimSpace(chi.URLParam(r, "tenantSlug"))
 	if slug == "" {
@@ -93,16 +100,46 @@ func (rs *Resource) getEnrollmentBootstrap(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	if rs.ParentService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent enrollment bootstrap: parent service missing")))
+		return
+	}
+
 	schoolID, err := rs.resolveSchoolID(r.Context(), slug)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(err))
 		return
 	}
 
+	// Restricted (linked_parents) phases must only load for a caller who
+	// could actually submit — the same active guardian-link +
+	// parent_portal.enrollment.submit fact the picker and submit handler use.
+	// Without this, any parent-scoped JWT could bootstrap another school's
+	// hidden phase by guessing its id and read its form schema, offerings,
+	// and legal metadata (#1663). We can't cheaply know the phase audience
+	// before loading, so we resolve the caller's submit status and pick the
+	// matching gate: an eligible guardian gets the enrollee loader (which
+	// serves restricted phases); anyone else falls back to the public loader,
+	// which serves open / new_students phases but 404s linked_parents exactly
+	// as the anonymous public endpoint does. A valid late-invite token still
+	// lifts the restriction through the public gate.
+	status, statusErr := rs.ParentService.GetEnrollmentSubmitStatus(r.Context(), accountID, schoolID)
+	if statusErr != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(statusErr))
+		return
+	}
+	allowRestricted := status != nil && status.HasSubmitPermission
+
 	var data *enrollmentService.PublicFormBootstrapData
 	lateInviteToken := strings.TrimSpace(r.URL.Query().Get("late_invite"))
 	loadErr := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
-		loaded, e := rs.RequestService.LoadEnrolleeFormBootstrap(txCtx, phaseID, time.Now(), lateInviteToken)
+		var loaded *enrollmentService.PublicFormBootstrapData
+		var e error
+		if allowRestricted {
+			loaded, e = rs.RequestService.LoadEnrolleeFormBootstrap(txCtx, phaseID, time.Now(), lateInviteToken)
+		} else {
+			loaded, e = rs.RequestService.LoadPublicFormBootstrap(txCtx, phaseID, time.Now(), lateInviteToken)
+		}
 		data = loaded
 		return e
 	})
