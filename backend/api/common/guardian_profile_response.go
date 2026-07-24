@@ -35,6 +35,11 @@ type GuardianProfileChild struct {
 	LastName    string `json:"last_name"`
 	SchoolClass string `json:"school_class"`
 	GradeLevel  *int   `json:"grade_level,omitempty"`
+	// EnrollmentSubmit reports whether this guardian relationship grants
+	// parent_portal.enrollment.submit for this child. The form offers reuse
+	// only for children where this is true, so a permission-revoked child is
+	// never presented as reusable (would 403 at submit) (#1663).
+	EnrollmentSubmit bool `json:"enrollment_submit"`
 }
 
 // BuildGuardianProfileResponse merges claims-derived defaults with the
@@ -67,10 +72,11 @@ func BuildGuardianProfileResponse(claims jwt.AppClaims, loaded *usersModels.Guar
 	}
 	for _, child := range loaded.Children {
 		entry := GuardianProfileChild{
-			ID:          strconv.FormatInt(child.StudentID, 10),
-			FirstName:   child.FirstName,
-			LastName:    child.LastName,
-			SchoolClass: child.SchoolClass,
+			ID:               strconv.FormatInt(child.StudentID, 10),
+			FirstName:        child.FirstName,
+			LastName:         child.LastName,
+			SchoolClass:      child.SchoolClass,
+			EnrollmentSubmit: child.EnrollmentSubmit,
 		}
 		if grade := ParseLeadingGradeLevel(child.SchoolClass); grade > 0 {
 			entry.GradeLevel = &grade

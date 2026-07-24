@@ -374,19 +374,11 @@ export function PhasesEditor() {
       const eligibleClasses = (payload.eligible_school_classes ?? [])
         .map((cls) => cls.trim())
         .filter((cls) => cls.length > 0);
-      // A grade-1 class ("1a") can never satisfy the restriction: the form
-      // only collects a concrete class from grade 2 up, so a grade-1 child
-      // never declares one and every affected submission is rejected with
-      // class_not_eligible. Block it here (the backend enforces the same
-      // rule) so the admin uses grade 2+ classes only (#1663).
-      const grade1Class = eligibleClasses.find(
-        (cls) => /(\d+)/.exec(cls)?.[1] === "1",
-      );
-      if (grade1Class) {
-        throw new Error(
-          `Die Klasse „${grade1Class}" kann nicht als Einschränkung dienen: Für die 1. Klasse wird keine konkrete Klasse erfasst. Bitte nur Klassen ab der 2. Klasse angeben.`,
-        );
-      }
+      // Grade-1 classes ("1a") are supported (#1663): when a phase offers a
+      // grade-1 class the form collects it (grade 1 is no longer restricted to
+      // grade-level only), so a grade-1 eligibility restriction is satisfiable.
+      // The backend enforces the same rule (every eligible class must be one
+      // the phase offers).
       if (eligibleClasses.length > 0) {
         payload.available_school_classes = eligibleClasses;
         payload.require_school_class = true;

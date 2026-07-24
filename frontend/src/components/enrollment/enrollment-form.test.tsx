@@ -327,6 +327,7 @@ function profile(): MeProfileResponse {
         last_name: "Muster",
         school_class: "2a",
         grade_level: 2,
+        enrollment_submit: true,
       },
     ],
   };
@@ -1160,8 +1161,20 @@ describe("EnrollmentForm", () => {
   });
 
   it("prefills from a parent profile and adopts an existing child", async () => {
-    mockFetchMyEnrollmentProfile.mockResolvedValueOnce(profile());
-    renderForm();
+    // Reuse is scoped to existing_students phases (#1663): on other audiences
+    // adopting a linked child would fresh-create a duplicate on approval, so
+    // the panel only appears here.
+    renderForm({
+      prefetchedData: {
+        schema: schema(),
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts(),
+        profile: profile(),
+        audience: "existing_students",
+      },
+    });
     await waitForLoaded();
 
     expect(screen.getByDisplayValue("Mara")).toBeInTheDocument();
@@ -1176,6 +1189,34 @@ describe("EnrollmentForm", () => {
     expect(screen.getByLabelText("Klassenstufe *")).toHaveTextContent(
       "2. Klasse",
     );
+  });
+
+  it("hides a linked child the guardian may not enroll (no submit permission)", async () => {
+    // Portal visibility is not enrollment-submit permission (#1663): a child
+    // whose relationship lacks parent_portal.enrollment.submit must not be
+    // offered as reusable, else it would 403 only after the form is filled.
+    const noSubmit = profile();
+    noSubmit.children = noSubmit.children.map((c) => ({
+      ...c,
+      enrollment_submit: false,
+    }));
+    renderForm({
+      prefetchedData: {
+        schema: schema(),
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts(),
+        profile: noSubmit,
+        audience: "existing_students",
+      },
+    });
+    await waitForLoaded();
+
+    expect(screen.queryByText("Bestehende Kinder")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Übernehmen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides linked-child reuse and explains it on a new_students phase", async () => {

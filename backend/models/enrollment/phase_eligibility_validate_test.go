@@ -42,16 +42,31 @@ func TestPhaseValidate_RejectsUnknownAudience(t *testing.T) {
 	assert.Contains(t, err.Error(), "audience")
 }
 
-func TestPhaseValidate_RejectsGrade1EligibleClass(t *testing.T) {
-	// A grade-1 concrete class is never collected by the form, so a
-	// restriction targeting one is unsatisfiable — reject at save (#1663).
+func TestPhaseValidate_AcceptsGrade1EligibleClassWhenOffered(t *testing.T) {
+	// Grade-1 concrete classes ARE supported now (#1663): when the phase also
+	// offers the class the form collects it, so a grade-1 restriction is
+	// satisfiable and must validate. Each eligible class must be one the phase
+	// offers, so available mirrors eligible here.
 	for _, cls := range []string{"1a", "Klasse 1b", "1"} {
 		p := makeEligibilityTestPhase()
+		p.AvailableSchoolClasses = []string{cls}
 		p.EligibleSchoolClasses = []string{cls}
-		err := p.Validate()
-		require.Error(t, err, "grade-1 class %q must be rejected", cls)
-		assert.Contains(t, err.Error(), "grade 1")
+		require.NoError(t, p.Validate(), "grade-1 class %q must validate when offered", cls)
+		// A non-empty eligibility list forces a concrete class to be collected.
+		assert.True(t, p.RequireSchoolClass, "eligibility restriction must require a class pick")
 	}
+}
+
+func TestPhaseValidate_RejectsGrade1EligibleClassNotOffered(t *testing.T) {
+	// The disjoint-list rule still applies to grade 1: an eligible class the
+	// phase never offers rejects every submission, so it is rejected at save
+	// (#1663) — but now for the "not offered" reason, not a blanket grade-1 ban.
+	p := makeEligibilityTestPhase()
+	p.AvailableSchoolClasses = []string{"1a"}
+	p.EligibleSchoolClasses = []string{"1b"}
+	err := p.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "available_school_classes")
 }
 
 func TestPhaseValidate_AcceptsGrade2PlusEligibleClasses(t *testing.T) {

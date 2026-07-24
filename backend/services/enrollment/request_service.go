@@ -3570,7 +3570,11 @@ func (s *requestService) validateAndNormalizeSchoolClasses(ctx context.Context, 
 		if children[i].TargetGradeLevel != nil {
 			grade = int(*children[i].TargetGradeLevel)
 		}
-		if !collect || grade < 2 {
+		// Grade 1 stays grade-level-only (#1833) UNLESS the phase explicitly
+		// offers a concrete grade-1 class, in which case it is collected and
+		// validated exactly like grade >= 2 (#1663). Grade-less rows (grade 0)
+		// never collect a class. Grade >= 2 is unchanged.
+		if !collect || grade < 1 || (grade == 1 && !phaseOffersGradeClass(allowed, 1)) {
 			children[i].TargetSchoolClass = nil
 			continue
 		}
@@ -3618,6 +3622,22 @@ func gradeHasSelectableClass(allowed map[string]struct{}, grade int) bool {
 	want := strconv.Itoa(grade)
 	for class := range allowed {
 		if prefix := schoolclass.GradePrefix(class); prefix == "" || prefix == want {
+			return true
+		}
+	}
+	return false
+}
+
+// phaseOffersGradeClass reports whether the phase offers at least one concrete
+// class whose numeric prefix equals the grade (e.g. a "1x" class for grade 1).
+// Unlike gradeHasSelectableClass it deliberately ignores prefixless classes:
+// it is the opt-in trigger for collecting a grade-1 concrete class, so a phase
+// that never added a grade-1 class keeps grade 1 grade-level-only, preserving
+// the #1833 default. Grade >= 2 does not use it. Issue #1663.
+func phaseOffersGradeClass(allowed map[string]struct{}, grade int) bool {
+	want := strconv.Itoa(grade)
+	for class := range allowed {
+		if schoolclass.GradePrefix(class) == want {
 			return true
 		}
 	}

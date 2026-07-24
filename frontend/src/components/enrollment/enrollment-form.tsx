@@ -219,6 +219,14 @@ export function EnrollmentForm({
   // offering to reuse one would always fail server-side — hide the reuse
   // panel and explain the restriction instead.
   const isNewStudentsPhase = prefetchedData?.audience === "new_students";
+  // Reusing an existing child (adopting a linked student into a form slot)
+  // only produces a correct approval on an "existing_students" phase: there
+  // the backend matches the child to the already-enrolled student and RENEWS
+  // it. On open/linked_parents phases the same reuse resolves no match and
+  // approval fresh-creates a DUPLICATE Person/Student, so the reuse panel is
+  // scoped to existing_students only (#1663).
+  const isExistingStudentsPhase =
+    prefetchedData?.audience === "existing_students";
   const initialOfferings = prefetchedData?.offerings ?? [];
   const initialRequiredOfferingIDs = initialOfferings
     .filter((o) => o.is_required && careOfferingIsAvailable(o, undefined))
@@ -369,6 +377,14 @@ export function EnrollmentForm({
   );
   const [usedExistingChildIDs, setUsedExistingChildIDs] = useState<Set<string>>(
     new Set(),
+  );
+  // Children the parent may actually re-enroll: portal visibility alone does
+  // not grant it. The picker offers only children whose relationship grants
+  // parent_portal.enrollment.submit, so a permission-revoked child is never
+  // presented as reusable and cannot 403 after the form is filled (#1663).
+  const reusableChildren = useMemo(
+    () => (profile?.children ?? []).filter((c) => c.enrollment_submit === true),
+    [profile],
   );
 
   useEffect(() => {
@@ -814,11 +830,10 @@ export function EnrollmentForm({
       // rather than an unsubmittable required-but-empty dropdown. Mirror the
       // backend gate (#1833).
       if (
-        schoolClassConfig.collect &&
         schoolClassConfig.require &&
-        Number(c.target_grade_level) >= 2 &&
-        schoolClassConfig.available_classes.some((cls) =>
-          classMatchesGrade(cls, c.target_grade_level),
+        collectsConcreteClassForGrade(
+          schoolClassConfig,
+          c.target_grade_level,
         ) &&
         !c.target_school_class.trim()
       ) {
@@ -1121,13 +1136,16 @@ export function EnrollmentForm({
         target_grade_level: collectGradeLevel
           ? Number(c.target_grade_level)
           : undefined,
-        // Only send a concrete class when the feature is on, the grade is
-        // 2+, and a class was actually chosen; the backend re-validates
-        // and normalises (#1833). Empty/grade-1 -> omitted ("Klasse offen").
+        // Only send a concrete class when the phase collects it for this
+        // child's grade and a class was actually chosen; the backend
+        // re-validates and normalises (#1833/#1663). Grade 1 is collected
+        // only when the phase offers a grade-1 class, otherwise omitted
+        // ("Klasse offen").
         target_school_class:
-          schoolClassConfig.collect &&
-          Number(c.target_grade_level) >= 2 &&
-          c.target_school_class.trim()
+          collectsConcreteClassForGrade(
+            schoolClassConfig,
+            c.target_grade_level,
+          ) && c.target_school_class.trim()
             ? c.target_school_class.trim()
             : undefined,
         custom_data: customData,
@@ -1500,12 +1518,11 @@ export function EnrollmentForm({
             </p>
           )}
 
-        {profile &&
-          profile.children.length > 0 &&
+        {reusableChildren.length > 0 &&
           !lockChildStructure &&
-          !isNewStudentsPhase && (
+          isExistingStudentsPhase && (
             <ExistingChildrenPanel
-              existing={profile.children}
+              existing={reusableChildren}
               usedIDs={usedExistingChildIDs}
               tr={tr}
               onAdopt={(child) => {
@@ -1683,8 +1700,10 @@ export function EnrollmentForm({
                   />
                 )}
                 {collectGradeLevel &&
-                  schoolClassConfig.collect &&
-                  Number(child.target_grade_level) >= 2 &&
+                  collectsConcreteClassForGrade(
+                    schoolClassConfig,
+                    child.target_grade_level,
+                  ) &&
                   (() => {
                     // Options are filtered to this child's grade; a phase may
                     // require classes yet offer none for this grade, in which
@@ -2657,6 +2676,30 @@ function schoolClassGradePrefix(schoolClass: string): string {
 function classMatchesGrade(schoolClass: string, gradeLevel: string): boolean {
   const prefix = schoolClassGradePrefix(schoolClass);
   return prefix === "" || prefix === gradeLevel.trim();
+}
+
+// collectsConcreteClassForGrade decides whether the concrete-class field is
+// shown/collected for a child of the given grade. Grade >= 2 is unchanged
+// (#1833): collected whenever the phase offers a class matching the grade,
+// prefixless classes included. Grade 1 is opt-in (#1663): collected ONLY when
+// the phase offers a concrete grade-1 class (a "1x" prefix, prefixless classes
+// do NOT trigger it), mirroring the backend phaseOffersGradeClass gate so a
+// phase that never added a grade-1 class keeps grade 1 grade-level-only.
+function collectsConcreteClassForGrade(
+  config: PublicSchoolClassConfig,
+  gradeLevel: string,
+): boolean {
+  if (!config.collect) return false;
+  const grade = Number(gradeLevel);
+  if (!Number.isFinite(grade) || grade < 1) return false;
+  if (grade >= 2) {
+    return config.available_classes.some((cls) =>
+      classMatchesGrade(cls, gradeLevel),
+    );
+  }
+  return config.available_classes.some(
+    (cls) => schoolClassGradePrefix(cls) === "1",
+  );
 }
 
 // SchoolClassSelect renders the concrete-class dropdown shown for grade

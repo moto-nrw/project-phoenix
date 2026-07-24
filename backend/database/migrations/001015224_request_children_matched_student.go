@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	requestChildrenMatchedStudentVersion     = "1.15.221"
+	requestChildrenMatchedStudentVersion     = "1.15.224"
 	requestChildrenMatchedStudentDescription = "Record the already-enrolled student matched at submission for existing_students phases so approval renews it instead of creating a duplicate (issue #1663)"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func requestChildrenMatchedStudentUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.221: Adding matched_student_id to enrollment.request_children...")
+	fmt.Println("Migration 1.15.224: Adding matched_student_id to enrollment.request_children...")
 
 	// ON DELETE SET NULL mirrors created_student_id: if the matched student
 	// is removed before the request is approved, the reference clears and
@@ -52,7 +52,7 @@ func requestChildrenMatchedStudentUp(ctx context.Context, db *bun.DB) error {
 }
 
 func requestChildrenMatchedStudentDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.221: Removing matched_student_id from enrollment.request_children...")
+	fmt.Println("Rolling back migration 1.15.224: Removing matched_student_id from enrollment.request_children...")
 
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.request_children

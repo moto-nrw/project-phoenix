@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -304,17 +303,11 @@ func (p *Phase) Validate() error {
 		if trimmed == "" {
 			continue
 		}
-		// A grade-1 concrete class ("1a") can never be declared on a
-		// submission: the form only ever collects the concrete class from
-		// grade 2 up (grade 1 is grade-level-only), so
-		// validateAndNormalizeSchoolClasses forces it to nil. An
-		// eligible_school_classes entry targeting grade 1 is therefore
-		// unsatisfiable — every affected child would be rejected with
-		// class_not_eligible after completing the whole form. Reject the
-		// config here so the admin fixes it up front (#1663).
-		if schoolclass.GradePrefix(trimmed) == "1" {
-			return fmt.Errorf("eligible_school_classes may not target grade 1 (%q): a grade-1 concrete class is never collected, so the restriction can never be met", c)
-		}
+		// A grade-1 concrete class ("1a") IS supported (#1663): when a phase
+		// offers a grade-1 class the submission form collects it (grade 1 is no
+		// longer forced grade-level-only), so a grade-1 eligibility target is
+		// satisfiable. The available-membership check below is what keeps every
+		// eligible class — grade 1 included — one the form actually presents.
 		if _, ok := availableClasses[trimmed]; !ok {
 			return fmt.Errorf("eligible_school_classes entry %q must also be listed in available_school_classes; the form can only offer available classes, so a restriction to a class it never presents rejects every submission", c)
 		}

@@ -19,4 +19,11 @@ type GuardianChildSummary struct {
 	FirstName   string
 	LastName    string
 	SchoolClass string
+	// EnrollmentSubmit reports whether THIS guardian relationship grants
+	// parent_portal.enrollment.submit for THIS child. Portal visibility
+	// (parent_portal.access) is a weaker fact: a parent may see a child in
+	// the picker yet lack submit rights on that specific relationship, so the
+	// enrollment form filters the reuse candidates by this flag rather than
+	// letting the parent complete the form and only then hit a 403 (#1663).
+	EnrollmentSubmit bool
 }

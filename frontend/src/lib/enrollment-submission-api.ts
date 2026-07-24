@@ -387,6 +387,15 @@ export interface MeProfileChild {
   last_name: string;
   school_class: string;
   grade_level?: number;
+  /**
+   * Whether this guardian relationship grants
+   * `parent_portal.enrollment.submit` for this child (#1663). The reuse
+   * picker only offers children where this is true — a portal-visible but
+   * submit-revoked child would otherwise pass the picker and 403 at submit.
+   * Optional for backward compatibility with older payloads (treated as
+   * false when absent).
+   */
+  enrollment_submit?: boolean;
 }
 
 export interface MeProfileResponse {

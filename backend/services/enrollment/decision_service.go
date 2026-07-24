@@ -53,7 +53,14 @@ var (
 	// student/person validators. Mapped to 400, not 500 — submit/edit now
 	// validate up front, so this is defense-in-depth for legacy rows.
 	ErrDecisionInvalidData = errors.New("enrollment request data is invalid")
-	ErrWaitlistDisabled    = errors.New("waitlist decisions are disabled for this tenant")
+	// ErrGuardianAccountMismatch marks an approval whose authenticated
+	// submitter account (request.guardian_account_id) conflicts with the
+	// guardian profile the request's email resolves to: the email already
+	// belongs to a DIFFERENT account's guardian profile at this school.
+	// Approving would link the child to that other account, so we fail closed
+	// rather than silently misattribute it (#1663). Mapped to 400.
+	ErrGuardianAccountMismatch = errors.New("enrollment guardian email belongs to a different account")
+	ErrWaitlistDisabled        = errors.New("waitlist decisions are disabled for this tenant")
 	// ErrExportTooLarge guards the phase export against assembling an
 	// unbounded payload in memory. At OGS scale a phase holds hundreds of
 	// requests (a few MB); this cap only trips on a pathological phase,
@@ -1511,9 +1518,37 @@ func (s *decisionService) resolveGuardianProfile(
 ) (*users.GuardianProfile, bool, error) {
 	email := strings.TrimSpace(strings.ToLower(request.GuardianEmail))
 
+	authAccountID := int64(0)
+	if request.GuardianAccountID != nil && *request.GuardianAccountID > 0 {
+		authAccountID = *request.GuardianAccountID
+	}
+
+	// Authenticated submit: the JWT-derived account is authoritative over the
+	// parent-editable email field. Resolve THIS account's own guardian profile
+	// at the tenant first, so a parent who edited the email in the form is
+	// never routed onto a different account's profile (#1663). FindByAccountID
+	// is tenant-scoped (RLS), so a returning parent at this school matches here
+	// and their possibly-changed email no longer decides the linkage.
+	if authAccountID > 0 {
+		own, err := s.GuardianProfileRepo.FindByAccountID(ctx, authAccountID)
+		if err == nil && own != nil {
+			return own, false, nil
+		}
+		// not-found flows through: a first-time applicant at this school has no
+		// profile yet and is handled by the email/create paths below.
+	}
+
 	if email != "" {
 		existing, err := s.GuardianProfileRepo.FindByEmail(ctx, email)
 		if err == nil && existing != nil {
+			// Guard against an authenticated parent claiming an email that
+			// already belongs to a DIFFERENT account's guardian profile at this
+			// school. Without this, applyApproval skips the by-id attach (the
+			// resolved profile already has an account) and links the child to
+			// that other account. Fail closed (#1663).
+			if authAccountID > 0 && existing.AccountID != nil && *existing.AccountID != authAccountID {
+				return nil, false, fmt.Errorf("%w: guardian_profile_id %d", ErrGuardianAccountMismatch, existing.ID)
+			}
 			if err := s.applyStandaloneGuardianNameCorrection(ctx, existing, request); err != nil {
 				return nil, false, err
 			}
