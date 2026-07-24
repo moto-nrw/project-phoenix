@@ -65,13 +65,15 @@ export function EditSchoolModal({
   const handleUpdate = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (
-        !school ||
-        !schoolOrgId ||
-        !schoolName.trim() ||
-        !schoolSlug.trim() ||
-        !schoolSubdomain.trim()
-      )
+      if (!school) return;
+      // CustomSelect's `required` is ARIA-only — it does not join native form
+      // constraint validation, so an Enter-submit with a cleared organization
+      // lands here and must produce a visible error instead of a silent return.
+      if (!schoolOrgId) {
+        setSchoolError("Bitte wählen Sie einen Träger aus.");
+        return;
+      }
+      if (!schoolName.trim() || !schoolSlug.trim() || !schoolSubdomain.trim())
         return;
       if (!isValidSlug(schoolSlug)) {
         setSchoolError(
