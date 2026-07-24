@@ -218,13 +218,16 @@ interface TimedPlacement {
 
 // Mindesthöhe eines Zeitraster-Blocks in Pixeln, abhängig vom Inhalt. Blöcke
 // zeigen nur noch Titel, Zeit und optional Ort/Zuordnung — Aktionen leben im
-// Detail-Sheet (Klick), daher kein Button-Platz mehr. Muss zum Markup in
-// TimeGridEventBlock passen, sonst würde kurzer Text abgeschnitten.
+// Detail-Sheet (Klick). Der Wert muss zur tatsächlich gerenderten Box in
+// TimeGridEventBlock passen: 12px vertikales Padding (py-1.5) + 2px Rahmen +
+// eine Titelzeile (~16px) + eine Zeitzeile (~16px), plus je ~16px für Ort und
+// die Zuordnungs-Unterzeile. Der Block ist overflow-hidden — eine zu kleine
+// Höhe schneidet bei kurzen Terminen Zeit/Metadaten sichtbar ab.
 function blockMinHeightPx(event: CalendarEvent): number {
   return (
-    38 +
-    ((event.student_name ?? event.school_name) ? 15 : 0) +
-    (event.location ? 15 : 0)
+    54 +
+    (event.location ? 16 : 0) +
+    ((event.student_name ?? event.school_name) ? 16 : 0)
   );
 }
 
@@ -489,8 +492,12 @@ export function PersonalCalendar({
               <ChevronRight className="h-4 w-4" aria-hidden />
             </Button>
           </div>
+          {/* On mobile each control fills the row (no right-hand gap): the view
+              switch spans full width with equal segments, Heute/Sa-So share a
+              row, and 'Neuer Termin' spans its own. From sm up they collapse
+              back to a compact inline toolbar. */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+            <div className="flex w-full items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm sm:w-auto">
               {viewOptions.map((option) => {
                 const selected = option.mode === viewMode;
                 return (
@@ -499,6 +506,7 @@ export function PersonalCalendar({
                     type="button"
                     variant={selected ? "primary" : "ghost"}
                     size="compact"
+                    className="flex-1 justify-center sm:flex-none"
                     aria-pressed={selected}
                     onClick={() => handleViewModeChange(option.mode)}
                   >
@@ -511,7 +519,7 @@ export function PersonalCalendar({
               type="button"
               variant="outline"
               size="compact"
-              className="bg-white"
+              className="flex-1 justify-center bg-white sm:flex-none"
               onClick={() => handleDateChange(new Date())}
             >
               Heute
@@ -521,7 +529,9 @@ export function PersonalCalendar({
                 type="button"
                 variant={showWeekend ? "primary" : "outline"}
                 size="compact"
-                className={showWeekend ? "" : "bg-white"}
+                className={`flex-1 justify-center sm:flex-none ${
+                  showWeekend ? "" : "bg-white"
+                }`}
                 aria-pressed={showWeekend}
                 onClick={() => setShowWeekend((value) => !value)}
               >

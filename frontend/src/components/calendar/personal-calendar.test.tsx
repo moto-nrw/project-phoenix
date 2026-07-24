@@ -54,6 +54,15 @@ const shift: CalendarEvent = {
   can_edit: false,
 };
 
+// RSVP, export, and management controls now live in the event detail sheet.
+// Open it by clicking the event surface (there are desktop + mobile copies;
+// either sets the same selected event).
+function openEvent(title: string) {
+  fireEvent.click(
+    screen.getAllByRole("button", { name: new RegExp(title) })[0]!,
+  );
+}
+
 describe("PersonalCalendar", () => {
   it("renders shift events with the Dienst badge", () => {
     render(
@@ -91,13 +100,15 @@ describe("PersonalCalendar", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText("Staff meeting").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Betreuung Gruppe A").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Termin").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Betreuung").length).toBeGreaterThan(0);
+    // The pending response badge is shown on the event surface.
     expect(screen.getAllByText("Offen").length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Zusagen" })[0]!);
+    // RSVP lives in the detail sheet; it closes after each response.
+    openEvent("Staff meeting");
+    fireEvent.click(screen.getByRole("button", { name: "Zusagen" }));
     expect(onRespond).toHaveBeenCalledWith("42", "accepted");
-    fireEvent.click(screen.getAllByRole("button", { name: "Absagen" })[0]!);
+    openEvent("Staff meeting");
+    fireEvent.click(screen.getByRole("button", { name: "Absagen" }));
     expect(onRespond).toHaveBeenCalledWith("42", "declined");
   });
 
@@ -135,10 +146,10 @@ describe("PersonalCalendar", () => {
 
     const shortBlock = screen
       .getAllByText("Kurzer RSVP-Termin")[0]!
-      .closest("article");
+      .closest("button");
     const followBlock = screen
       .getAllByText("Direkt danach")[0]!
-      .closest("article");
+      .closest("button");
     expect(shortBlock?.style.width).toBe("calc(50% - 4px)");
     expect(followBlock?.style.width).toBe("calc(50% - 4px)");
   });
@@ -239,11 +250,11 @@ describe("PersonalCalendar", () => {
       />,
     );
 
-    const links = screen.getAllByRole("link", {
+    openEvent("Staff meeting");
+    const link = screen.getByRole("link", {
       name: "Zum Kalender hinzufügen",
     });
-    expect(links.length).toBeGreaterThan(0);
-    expect(links[0]).toHaveAttribute(
+    expect(link).toHaveAttribute(
       "href",
       "/api/parent/calendar/appointments/1/ics",
     );
@@ -266,9 +277,11 @@ describe("PersonalCalendar", () => {
       />,
     );
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Bearbeiten" })[0]!);
+    openEvent("Staff meeting");
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     expect(onEdit).toHaveBeenCalledWith(editable);
-    fireEvent.click(screen.getAllByRole("button", { name: "Löschen" })[0]!);
+    openEvent("Staff meeting");
+    fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
     expect(onDelete).toHaveBeenCalledWith(editable);
   });
 
@@ -292,10 +305,9 @@ describe("PersonalCalendar", () => {
 
     // The backend rejects edits to cancelled appointments, so the button is gone;
     // Löschen stays available.
+    openEvent("Staff meeting");
     expect(screen.queryByRole("button", { name: "Bearbeiten" })).toBeNull();
-    expect(
-      screen.getAllByRole("button", { name: "Löschen" }).length,
-    ).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Löschen" })).toBeInTheDocument();
   });
 
   it("shows empty and error states", () => {
