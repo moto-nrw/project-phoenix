@@ -343,6 +343,15 @@ export function ListboxDropdown<K extends string>({
       setOpen(false);
       return;
     }
+    // In a focus-trapped modal (Radix FocusScope) the portaled options never
+    // hold DOM focus — it is yanked back to this trigger — so the option-level
+    // Tab handler never runs. Close here WITHOUT preventDefault so the browser
+    // continues Tab traversal to the next field and the menu does not linger
+    // open with aria-expanded still true.
+    if (event.key === "Tab" && open) {
+      setOpen(false);
+      return;
+    }
     if (handleTypeaheadKey(event)) return;
     if (open) {
       if (event.key === "ArrowDown") {
@@ -472,6 +481,13 @@ export function ListboxDropdown<K extends string>({
               role="listbox"
               style={menuStyle ?? { position: "fixed", visibility: "hidden" }}
               className={menuClassName}
+              // The menu is portaled to document.body, so it sits OUTSIDE the
+              // modal's [data-modal-content] subtree. useScrollLock cancels every
+              // wheel/touchmove outside that subtree, which would make an open
+              // menu inside a scroll-locked modal impossible to scroll. Marking
+              // the menu as modal content whitelists it in the scroll-lock
+              // predicate so its own options can be reached.
+              data-modal-content="true"
               aria-label={ariaLabel}
               // Points at the field's label element, never at the trigger: a
               // combobox referenced via aria-labelledby contributes its VALUE

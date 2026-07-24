@@ -113,12 +113,19 @@ export function CreateAccountModal({
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
+      // The System-Rolle select is a CustomSelect: its `required` is ARIA-only
+      // and does not join native form constraint validation, so an Enter-submit
+      // with no role lands here and must show a visible error instead of
+      // returning silently. The remaining fields keep their native `required`.
+      if (!roleId) {
+        setError("Bitte wählen Sie eine System-Rolle aus.");
+        return;
+      }
       if (
         !schoolId ||
         !firstName.trim() ||
         !lastName.trim() ||
         !email.trim() ||
-        !roleId ||
         !password ||
         !confirmPassword
       )
