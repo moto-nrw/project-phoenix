@@ -705,10 +705,11 @@ describe("SubstitutionsPage", () => {
       // Get the modal element to scope our queries
       const modal = screen.getByTestId("assignment-modal");
 
-      // Select a group
+      // Select a group — the CustomSelect menu is portaled to document.body,
+      // so options are queried at screen level, not inside the modal element
       const groupSelect = within(modal).getByRole("combobox");
       fireEvent.click(groupSelect);
-      fireEvent.click(within(modal).getByRole("option", { name: "Gruppe 1A" }));
+      fireEvent.click(screen.getByRole("option", { name: "Gruppe 1A" }));
 
       // Click assign button (the one inside the modal with exact text "Zuweisen")
       const assignButton = within(modal).getByRole("button", {

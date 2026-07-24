@@ -80,9 +80,12 @@ describe("CustomSelect", () => {
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
-  it("keeps the listbox inside the local select container", () => {
+  it("portals the listbox out of clipping containers", () => {
+    // The menu must escape overflow-hidden/scrollable ancestors (modal
+    // bodies, cards) — it is portaled to document.body and positioned
+    // against the viewport, so no ancestor can clip it.
     render(
-      <div data-testid="surface" className="moto-content-surface">
+      <div data-testid="surface" className="overflow-hidden">
         <CustomSelect
           value=""
           options={options}
@@ -95,7 +98,9 @@ describe("CustomSelect", () => {
     fireEvent.click(screen.getByRole("combobox", { name: "Auswahl" }));
 
     const listbox = screen.getByRole("listbox");
-    expect(screen.getByTestId("surface")).toContainElement(listbox);
+    expect(screen.getByTestId("surface")).not.toContainElement(listbox);
+    expect(document.body).toContainElement(listbox);
+    expect(listbox.parentElement).toBe(document.body);
   });
 
   it("closes with Escape", () => {

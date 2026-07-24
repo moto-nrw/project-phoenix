@@ -6,11 +6,13 @@ import {
   type CSSProperties,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 
 export interface ListboxDropdownOption<K extends string> {
   readonly value: K;
@@ -30,6 +32,8 @@ interface ListboxDropdownProps<K extends string> {
   readonly containerStyle?: CSSProperties;
   readonly className?: string;
   readonly menuClassName?: string;
+  /** Horizontal anchor of the portaled menu relative to the trigger. */
+  readonly menuAlign?: "start" | "end";
   readonly optionClassName?: string;
   readonly activeOptionClassName?: string;
   readonly disabledOptionClassName?: string;
@@ -46,6 +50,10 @@ interface ListboxDropdownProps<K extends string> {
 }
 
 const TYPEAHEAD_RESET_MS = 500;
+const MENU_OFFSET_PX = 4;
+const MENU_MAX_HEIGHT_PX = 288; // matches the previous max-h-72 menu cap
+const MENU_MIN_HEIGHT_PX = 96; // usability floor when both viewport halves are tight
+const MENU_VIEWPORT_MARGIN_PX = 8;
 
 function firstEnabledIndex<K extends string>(
   options: readonly ListboxDropdownOption<K>[],
@@ -138,6 +146,7 @@ export function ListboxDropdown<K extends string>({
   containerStyle,
   className = "",
   menuClassName = "",
+  menuAlign = "start",
   optionClassName = "",
   activeOptionClassName = "",
   disabledOptionClassName = "",
@@ -153,10 +162,12 @@ export function ListboxDropdown<K extends string>({
   const listboxId = id ? `${id}-listbox` : generatedListboxId;
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const typeaheadBufferRef = useRef("");
   const typeaheadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null);
   const selectedIndex = selectedIndexForValue(options, value);
   const [focusIndex, setFocusIndex] = useState(selectedIndex);
   const selectedOption = options.find((option) => option.value === value);
@@ -165,16 +176,76 @@ export function ListboxDropdown<K extends string>({
   useEffect(() => {
     if (!open) return;
     const handleClick = (event: MouseEvent) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
-        setOpen(false);
-      }
+      const target = event.target as Node;
+      // The menu is portaled to document.body, so it is NOT inside
+      // containerRef — a press on an option must not count as outside.
+      if (containerRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
+
+  const updateMenuPosition = useCallback(() => {
+    const trigger = buttonRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+    const spaceBelow =
+      viewportHeight - rect.bottom - MENU_OFFSET_PX - MENU_VIEWPORT_MARGIN_PX;
+    const spaceAbove = rect.top - MENU_OFFSET_PX - MENU_VIEWPORT_MARGIN_PX;
+    const menuHeight = Math.min(
+      menuRef.current?.scrollHeight ?? MENU_MAX_HEIGHT_PX,
+      MENU_MAX_HEIGHT_PX,
+    );
+    const openUpward = spaceBelow < menuHeight && spaceAbove > spaceBelow;
+    const maxHeight = Math.max(
+      Math.min(MENU_MAX_HEIGHT_PX, openUpward ? spaceAbove : spaceBelow),
+      MENU_MIN_HEIGHT_PX,
+    );
+    const style: CSSProperties = {
+      position: "fixed",
+      // Above the modal/dialog overlays (z-[9999]) so menus opened from
+      // dialog forms stack on top of the dialog instead of behind it.
+      zIndex: 10000,
+      minWidth: rect.width,
+      maxWidth: viewportWidth - 2 * MENU_VIEWPORT_MARGIN_PX,
+      maxHeight,
+    };
+    if (menuAlign === "end") {
+      style.right = Math.max(
+        viewportWidth - rect.right,
+        MENU_VIEWPORT_MARGIN_PX,
+      );
+    } else {
+      style.left = Math.max(rect.left, MENU_VIEWPORT_MARGIN_PX);
+    }
+    if (openUpward) {
+      style.bottom = viewportHeight - rect.top + MENU_OFFSET_PX;
+    } else {
+      style.top = rect.bottom + MENU_OFFSET_PX;
+    }
+    setMenuStyle(style);
+  }, [menuAlign]);
+
+  // Layout effect so the first visible frame is already positioned (the menu
+  // renders hidden until menuStyle is set). Scroll listens in capture phase to
+  // catch ancestor scroll containers (modal bodies), not just the window.
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuStyle(null);
+      return;
+    }
+    updateMenuPosition();
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
+  }, [open, options, updateMenuPosition]);
 
   useEffect(() => {
     if (!open) return;
@@ -356,6 +427,12 @@ export function ListboxDropdown<K extends string>({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
+        // Focus traps (Radix FocusScope in Modal/FormModal) yank DOM focus
+        // back from the portaled options to this trigger; activedescendant
+        // keeps the highlighted option announced in that trigger-focused mode.
+        aria-activedescendant={
+          open ? `${listboxId}-option-${focusIndex}` : undefined
+        }
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy}
         aria-describedby={ariaDescribedBy}
@@ -375,56 +452,64 @@ export function ListboxDropdown<K extends string>({
           </>
         )}
       </button>
-      {open ? (
-        <ul
-          id={listboxId}
-          role="listbox"
-          className={menuClassName}
-          aria-label={ariaLabel}
-          // Points at the field's label element, never at the trigger: a
-          // combobox referenced via aria-labelledby contributes its VALUE
-          // (accname step 2E), which would name the popup after the current
-          // selection instead of the field.
-          aria-labelledby={ariaLabelledBy}
-        >
-          {options.map((option, index) => {
-            const isActive = option.value === value;
-            const isFocused = index === focusIndex;
-            return (
-              // The option role lives on the inner button; the list item
-              // is pure structure and must not surface in the a11y tree.
-              <li key={option.value} role="presentation">
-                <button
-                  ref={(el) => {
-                    optionRefs.current[index] = el;
-                  }}
-                  id={`${listboxId}-option-${index}`}
-                  type="button"
-                  role="option"
-                  aria-label={option.label}
-                  aria-selected={isActive}
-                  disabled={option.disabled}
-                  tabIndex={isFocused ? 0 : -1}
-                  onClick={() => selectAt(index)}
-                  onKeyDown={handleOptionKeyDown}
-                  onMouseEnter={() => {
-                    if (!option.disabled) setFocusIndex(index);
-                  }}
-                  className={
-                    option.disabled
-                      ? disabledOptionClassName
-                      : isActive || isFocused
-                        ? activeOptionClassName
-                        : optionClassName
-                  }
-                >
-                  {option.label}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
+      {open
+        ? // Portaled to document.body so scrollable/overflow-hidden ancestors
+          // (modal bodies, cards) cannot clip the menu; position is fixed and
+          // collision-aware (flips upward when the viewport bottom is close).
+          createPortal(
+            <ul
+              ref={menuRef}
+              id={listboxId}
+              role="listbox"
+              style={menuStyle ?? { position: "fixed", visibility: "hidden" }}
+              className={menuClassName}
+              aria-label={ariaLabel}
+              // Points at the field's label element, never at the trigger: a
+              // combobox referenced via aria-labelledby contributes its VALUE
+              // (accname step 2E), which would name the popup after the current
+              // selection instead of the field.
+              aria-labelledby={ariaLabelledBy}
+            >
+              {options.map((option, index) => {
+                const isActive = option.value === value;
+                const isFocused = index === focusIndex;
+                return (
+                  // The option role lives on the inner button; the list item
+                  // is pure structure and must not surface in the a11y tree.
+                  <li key={option.value} role="presentation">
+                    <button
+                      ref={(el) => {
+                        optionRefs.current[index] = el;
+                      }}
+                      id={`${listboxId}-option-${index}`}
+                      type="button"
+                      role="option"
+                      aria-label={option.label}
+                      aria-selected={isActive}
+                      disabled={option.disabled}
+                      tabIndex={isFocused ? 0 : -1}
+                      onClick={() => selectAt(index)}
+                      onKeyDown={handleOptionKeyDown}
+                      onMouseEnter={() => {
+                        if (!option.disabled) setFocusIndex(index);
+                      }}
+                      className={
+                        option.disabled
+                          ? disabledOptionClassName
+                          : isActive || isFocused
+                            ? activeOptionClassName
+                            : optionClassName
+                      }
+                    >
+                      {option.label}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

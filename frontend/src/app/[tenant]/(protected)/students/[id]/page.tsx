@@ -915,12 +915,16 @@ function StudentDetailPageContent() {
         id="room-select"
         ariaLabelledBy="room-select-label"
         value={selectedActiveGroupId}
-        options={activeGroups.map((group) => ({
-          value: group.id,
-          label: `${group.room?.name ?? "Unbekannter Raum"} (${group.actualGroup?.name ?? "Gruppe"})`,
-        }))}
+        options={[
+          // Selectable like the old native <option value="">, so an already
+          // chosen room can be cleared again before confirming.
+          { value: "", label: "Bitte Raum auswählen..." },
+          ...activeGroups.map((group) => ({
+            value: group.id,
+            label: `${group.room?.name ?? "Unbekannter Raum"} (${group.actualGroup?.name ?? "Gruppe"})`,
+          })),
+        ]}
         onChange={setSelectedActiveGroupId}
-        placeholder="Bitte Raum auswählen..."
       />
     );
   };
