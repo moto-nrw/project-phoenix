@@ -9,6 +9,7 @@ import { generateSlug, isValidSlug } from "~/lib/operator/provisioning-helpers";
 import type { Organization } from "~/lib/operator/provisioning-helpers";
 import { isOperatorApiError } from "~/lib/operator/api-helpers";
 import { createLogger } from "~/lib/logger";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { FormField, FormError, VisibilityToggle } from "./provisioning-shared";
 
 const logger = createLogger({ component: "CreateSchoolModal" });
@@ -190,20 +191,19 @@ export function CreateSchoolModal({
         id="create-school-form"
       >
         <FormField label="Träger" htmlFor="school-org" required>
-          <select
+          <CustomSelect
             id="school-org"
             value={schoolOrgId}
-            onChange={(e) => setSchoolOrgId(e.target.value)}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            options={
+              organizations?.map((org) => ({
+                value: org.id,
+                label: org.name,
+              })) ?? []
+            }
+            onChange={setSchoolOrgId}
+            placeholder="Träger auswählen..."
             required
-          >
-            <option value="">Träger auswählen...</option>
-            {organizations?.map((org) => (
-              <option key={org.id} value={org.id}>
-                {org.name}
-              </option>
-            ))}
-          </select>
+          />
         </FormField>
         <FormField label="Name" htmlFor="school-name" required>
           <input

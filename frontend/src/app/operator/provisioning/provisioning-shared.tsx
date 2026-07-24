@@ -1,4 +1,6 @@
+import { Children, isValidElement } from "react";
 import { Skeleton } from "~/components/ui/skeleton";
+import { CustomSelect } from "~/components/ui/custom-select";
 
 export function FormField({
   label,
@@ -139,34 +141,49 @@ export function SimpleEmptyState({
 
 export function SelectWithChevron({
   children,
-  ...props
+  value,
+  onChange,
+  id,
+  name,
+  disabled,
+  required,
+  "aria-label": ariaLabel,
 }: React.SelectHTMLAttributes<HTMLSelectElement> & {
   readonly children: React.ReactNode;
 }) {
-  return (
-    <div className="relative">
-      <select
-        {...props}
-        className="w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm text-gray-900 transition-colors focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
-      >
-        {children}
-      </select>
-      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-        <svg
-          className="h-4 w-4 text-gray-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
+  const options = Children.toArray(children)
+    .filter(isValidElement)
+    .map((child) => {
+      const optionProps = (
+        child as React.ReactElement<
+          React.OptionHTMLAttributes<HTMLOptionElement>
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
-      </div>
-    </div>
+      ).props;
+      return {
+        value: optionProps.value != null ? String(optionProps.value) : "",
+        label:
+          typeof optionProps.children === "string"
+            ? optionProps.children
+            : String(optionProps.children ?? ""),
+        disabled: optionProps.disabled,
+      };
+    });
+
+  return (
+    <CustomSelect
+      id={id}
+      name={name}
+      value={value != null ? String(value) : ""}
+      options={options}
+      onChange={(next) =>
+        onChange?.({
+          target: { value: next },
+        } as unknown as React.ChangeEvent<HTMLSelectElement>)
+      }
+      disabled={disabled}
+      required={required}
+      ariaLabel={ariaLabel}
+    />
   );
 }
 

@@ -574,12 +574,15 @@ describe("OperatorAccountsPage", () => {
       if (key === "orgId") return "1";
       return null;
     });
-    withDefaultSWR({ schoolAccounts: [mockAccount] });
+    withDefaultSWR({
+      schoolAccounts: [mockAccount],
+      orgs: [mockOrg, { ...mockOrg, id: "2", name: "Other Org" }],
+    });
 
     render(<OperatorAccountsPage />);
 
-    const select = screen.getByLabelText(/Träger/) as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "2" } });
+    fireEvent.click(screen.getByLabelText(/Träger/));
+    fireEvent.click(screen.getByRole("option", { name: "Other Org" }));
 
     // Navigation happens via router.replace; exact query shape depends on
     // URLSearchParams interaction with the toString mock, so just assert

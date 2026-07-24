@@ -284,18 +284,22 @@ describe("SimpleEmptyState", () => {
 });
 
 describe("SelectWithChevron", () => {
-  it("should render a select element with children", () => {
+  it("should render a select-like control exposing the given options", () => {
     render(
-      <SelectWithChevron data-testid="test-select">
+      <SelectWithChevron aria-label="Test" value="">
         <option value="a">Option A</option>
         <option value="b">Option B</option>
       </SelectWithChevron>,
     );
 
-    const select = screen.getByTestId("test-select");
-    expect(select.tagName).toBe("SELECT");
-    expect(screen.getByText("Option A")).toBeInTheDocument();
-    expect(screen.getByText("Option B")).toBeInTheDocument();
+    const select = screen.getByRole("combobox", { name: "Test" });
+    fireEvent.click(select);
+    expect(
+      screen.getByRole("option", { name: "Option A" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Option B" }),
+    ).toBeInTheDocument();
   });
 
   it("should render a chevron SVG icon", () => {
@@ -309,12 +313,12 @@ describe("SelectWithChevron", () => {
     expect(svg).toBeInTheDocument();
   });
 
-  it("should pass through HTML attributes", () => {
+  it("should pass through value and disabled and emit selection changes", () => {
     const onChange = vi.fn();
 
-    render(
+    const { rerender } = render(
       <SelectWithChevron
-        data-testid="test-select"
+        aria-label="Test"
         value="b"
         onChange={onChange}
         disabled
@@ -324,26 +328,34 @@ describe("SelectWithChevron", () => {
       </SelectWithChevron>,
     );
 
-    const select = screen.getByTestId("test-select");
-    expect(select).toHaveValue("b");
-    expect(select).toBeDisabled();
+    const disabledSelect = screen.getByRole("combobox", { name: "Test" });
+    expect(disabledSelect).toHaveTextContent("Option B");
+    expect(disabledSelect).toBeDisabled();
 
-    fireEvent.change(select, { target: { value: "a" } });
+    rerender(
+      <SelectWithChevron aria-label="Test" value="b" onChange={onChange}>
+        <option value="a">Option A</option>
+        <option value="b">Option B</option>
+      </SelectWithChevron>,
+    );
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Test" }));
+    fireEvent.click(screen.getByRole("option", { name: "Option A" }));
     expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0]![0].target.value).toBe("a");
   });
 
   it("should render option elements as children", () => {
     render(
-      <SelectWithChevron data-testid="test-select">
+      <SelectWithChevron aria-label="Test" value="">
         <option value="1">First</option>
         <option value="2">Second</option>
         <option value="3">Third</option>
       </SelectWithChevron>,
     );
 
-    const select = screen.getByTestId("test-select");
-    const options = select.querySelectorAll("option");
-    expect(options).toHaveLength(3);
+    fireEvent.click(screen.getByRole("combobox", { name: "Test" }));
+    expect(screen.getAllByRole("option")).toHaveLength(3);
   });
 });
 
