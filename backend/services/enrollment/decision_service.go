@@ -1132,6 +1132,22 @@ func (s *decisionService) applyApproval(
 		return s.applyApprovalRollover(ctx, request, child, phase)
 	}
 
+	// Existing-student re-enrollment branch (migration 1.15.221): an
+	// existing_students phase matched this child to an already-enrolled
+	// student at submission and pinned its id. Renew that student instead of
+	// creating a duplicate Person + Student — the whole point of the
+	// existing_students audience is re-enrollment of children the school
+	// already has (#1663). A student deleted between submission and approval
+	// nulls this reference via ON DELETE SET NULL, so we only reach here with
+	// a live student and otherwise fall through to a fresh create.
+	if child.MatchedStudentID != nil {
+		s.Logger.Info("decision: existing-student re-enrollment — updating matched student",
+			slog.Int64("request_child_id", child.ID),
+			slog.Int64("student_id", *child.MatchedStudentID),
+		)
+		return s.attachApprovalToExistingStudent(ctx, child, phase, *child.MatchedStudentID)
+	}
+
 	// 1. Resolve or create the guardian profile (per-tenant).
 	guardian, profileWasNew, err := s.resolveGuardianProfile(ctx, request)
 	if err != nil {
@@ -1354,16 +1370,43 @@ func (s *decisionService) applyApprovalRollover(
 		return s.applyApproval(ctx, request, &clone, phase, 0)
 	}
 
-	studentID := *source.CreatedStudentID
+	s.Logger.Info("decision: rollover approval — updating existing student",
+		slog.Int64("request_child_id", child.ID),
+		slog.Int64("student_id", *source.CreatedStudentID),
+	)
+	return s.attachApprovalToExistingStudent(ctx, child, phase, *source.CreatedStudentID)
+}
+
+// attachApprovalToExistingStudent is the shared approval tail for a child that
+// resolves to an already-existing student rather than a fresh Person + Student:
+// the annual rollover flow (source row's created_student_id) and the
+// existing_students re-enrollment audience (matched_student_id) both land here.
+// It renews the student's class + enrollment window, materializes the phase's
+// care offerings, stamps the activation plan and back-links the request_child.
+//
+// Guardian linkage and invitations are deliberately skipped: the student
+// already exists with its guardian relationships from the original enrollment,
+// so re-creating a primary StudentGuardian or issuing a fresh invite would
+// duplicate/clobber that setup. Adding a genuinely new guardian to an existing
+// child is a separate guardian-editor flow, not part of approval.
+func (s *decisionService) attachApprovalToExistingStudent(
+	ctx context.Context,
+	child *enrollmentModels.RequestChild,
+	phase *enrollmentModels.Phase,
+	studentID int64,
+) (*PendingGuardianInvite, error) {
 	existing, err := s.StudentRepo.FindByID(ctx, studentID)
 	if err != nil {
-		return nil, fmt.Errorf("decision: rollover load existing student %d: %w", studentID, err)
+		return nil, fmt.Errorf("decision: load existing student %d: %w", studentID, err)
+	}
+	if existing == nil {
+		return nil, fmt.Errorf("decision: existing student %d not found", studentID)
 	}
 
 	activationPlan := s.approvalActivationPlan(ctx, phase)
 
 	// Update school_class / enrollment window. Already-active children
-	// stay active even for a future rollover phase, so current attendance
+	// stay active even for a future phase, so current attendance
 	// workflows are not interrupted. Inactive/pending children follow the
 	// approval-time activation plan.
 	existing.SchoolClass = s.resolveRolloverSchoolClass(child, existing.SchoolClass)
@@ -1375,10 +1418,10 @@ func (s *decisionService) applyApprovalRollover(
 		existing.Status = activationPlan.StudentStatus
 	}
 	if err := s.StudentRepo.Update(ctx, existing); err != nil {
-		return nil, fmt.Errorf("decision: rollover update student: %w", err)
+		return nil, fmt.Errorf("decision: update existing student: %w", err)
 	}
 
-	// Materialize the new year's care offerings under this student.
+	// Materialize the phase's care offerings under this student.
 	careOfferingsEnabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
 	if err != nil {
 		return nil, fmt.Errorf("decision: resolve care offerings setting: %w", err)
@@ -1393,21 +1436,12 @@ func (s *decisionService) applyApprovalRollover(
 		return nil, err
 	}
 
-	// Link the new request_child to the same student so the admin UI
-	// can navigate from either year's submission to one student row.
+	// Link this request_child to the student so the admin UI can navigate
+	// from the submission to the (single) student row.
 	if err := s.linkCreatedStudent(ctx, child.ID, studentID); err != nil {
-		return nil, fmt.Errorf("decision: rollover link student: %w", err)
+		return nil, fmt.Errorf("decision: link existing student: %w", err)
 	}
 
-	s.Logger.Info("decision: rollover approval — updated existing student",
-		slog.Int64("request_child_id", child.ID),
-		slog.Int64("student_id", studentID),
-	)
-
-	// Skip guardian invitation logic — by definition a rolled-over
-	// child's parent already had an enrollment last year, so they
-	// either already have a portal account or they were already
-	// offered one last year. No new invite here.
 	return nil, nil
 }
 

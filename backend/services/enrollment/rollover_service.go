@@ -364,6 +364,17 @@ func (s *rolloverService) createRolloverPhase(ctx context.Context, tenantID int6
 	if err := phase.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrRolloverInvalidRequest, err)
 	}
+	// A rollover copies the source's class-eligibility restriction into an
+	// ACTIVE successor (IsActive: true above). If concrete-class collection was
+	// disabled after the source went inactive, activating that restriction here
+	// would make every submission fail class_not_eligible — the invariant the
+	// admin create/update paths enforce but which this direct-repo path
+	// otherwise bypasses. runCreate wraps this in a tenant tx, so the shared
+	// lock inside serializes it against a concurrent class-collection toggle
+	// (#1663).
+	if err := ensureEligibleClassesCollectable(ctx, s.Settings, phase.EligibleSchoolClasses); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrRolloverInvalidRequest, err)
+	}
 	if err := s.PhaseRepo.Create(ctx, phase); err != nil {
 		if isPhaseDuplicateName(err) {
 			return nil, fmt.Errorf("%w: %q", ErrRolloverDuplicateName, req.Name)

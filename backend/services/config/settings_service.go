@@ -525,6 +525,16 @@ func (s *settingsService) validateClassCollectionGuard(ctx context.Context, key 
 		// validateValue; nothing to compare here.
 		return nil
 	}
+	// Serialize the read-validate-write of this invariant against a concurrent
+	// activation of a class-restricted phase. The phase side takes the same
+	// per-tenant lock before it resolves these toggles, so the second writer
+	// blocks and observes the first's committed state instead of both passing
+	// on a stale read (#1663). Lock first, then read the sibling toggle and the
+	// restricted-phase probe below. Held until the setting upsert commits with
+	// the request tx.
+	if err := s.LockClassCollectionPair(ctx); err != nil {
+		return err
+	}
 	// Compute the effective collection state with `value` applied to `key`
 	// and the sibling toggle resolved live (its current effective value).
 	collectGrade, collectClass := newVal, newVal
@@ -649,6 +659,35 @@ func (s *settingsService) LockSlotListCutoffPairShared(ctx context.Context) erro
 // exclusive writer lock and the shared reader lock so the two conflict.
 func slotListCutoffLockKey(ctx context.Context) string {
 	return fmt.Sprintf("slot-list-cutoff:%d", tenant.FromContext(ctx))
+}
+
+// LockClassCollectionPair takes the per-tenant transaction-scoped advisory lock
+// that guards the enrollment class-restriction / class-collection invariant.
+// Two writes can otherwise race: one disabling concrete-class collection
+// (validateClassCollectionGuard here) and one activating a class-restricted
+// phase (validateEligibleClassesCollectable in services/enrollment). Under READ
+// COMMITTED each reads the other's pre-commit state, both pass, and they commit
+// an active restricted phase with class collection off — every submission then
+// fails class_not_eligible. Both sides take THIS lock on the same key, so the
+// second writer blocks, re-reads the first's committed state, and rejects.
+// Best-effort: without an ambient transaction the xact lock is meaningless (the
+// settings and phase write paths always run inside a tenant tx), so it is
+// skipped rather than failing.
+func (s *settingsService) LockClassCollectionPair(ctx context.Context) error {
+	if _, hasTx := modelBase.TxFromContext(ctx); !hasTx {
+		return nil
+	}
+	if err := base.AcquireXactLock(ctx, s.db, classCollectionLockKey(ctx)); err != nil {
+		return fmt.Errorf("lock class-collection pair: %w", err)
+	}
+	return nil
+}
+
+// classCollectionLockKey is the per-tenant advisory-lock key shared by the
+// settings-side class-collection guard and the enrollment-side phase
+// eligibility guard so the two conflict.
+func classCollectionLockKey(ctx context.Context) string {
+	return fmt.Sprintf("enrollment-class-collection:%d", tenant.FromContext(ctx))
 }
 
 // validateTimeFormat checks that a string is a valid HH:MM time.

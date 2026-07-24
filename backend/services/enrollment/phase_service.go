@@ -137,7 +137,14 @@ func NewPhaseService(cfg PhaseServiceConfig) PhaseService {
 	}
 }
 
-// validateEligibleClassesCollectable rejects a class-based eligibility
+// classCollectionResolver is the minimal settings surface the collectability
+// guard reads. The concrete settings service additionally satisfies the
+// optional LockClassCollectionPair interface the guard type-asserts for.
+type classCollectionResolver interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+}
+
+// ensureEligibleClassesCollectable rejects a class-based eligibility
 // restriction the school cannot actually collect. eligible_school_classes
 // is checked at submit against each child's declared concrete class, but
 // the form only collects that class when BOTH collect_grade_level and
@@ -146,16 +153,31 @@ func NewPhaseService(cfg PhaseServiceConfig) PhaseService {
 // child's class to nil, so a non-empty eligibility list rejects every
 // submission with class_not_eligible. Reject the config here so the admin
 // enables class collection (or clears the list) first (#1663). Skipped
-// when no settings resolver is wired.
-func (s *phaseService) validateEligibleClassesCollectable(ctx context.Context, phase *enrollmentModels.Phase) error {
-	if s.settings == nil || !hasNonEmptyEligibleClass(phase.EligibleSchoolClasses) {
+// when no settings resolver is wired. Shared by phaseService.Create/Update
+// and rolloverService (an inactive class-restricted source must not be rolled
+// into an active successor while collection is off).
+func ensureEligibleClassesCollectable(ctx context.Context, settings classCollectionResolver, eligible []string) error {
+	if settings == nil || !hasNonEmptyEligibleClass(eligible) {
 		return nil
 	}
-	collectGrade, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectGradeLevel)
+	// Serialize against a concurrent settings write disabling concrete-class
+	// collection: services/config validateClassCollectionGuard takes the same
+	// per-tenant lock, so the two invariant sides can't both pass on a stale
+	// read and commit an active restricted phase with collection off (#1663).
+	// The concrete settings service implements the lock; minimal test fakes
+	// don't, so it degrades to best-effort there.
+	if locker, ok := settings.(interface {
+		LockClassCollectionPair(context.Context) error
+	}); ok {
+		if err := locker.LockClassCollectionPair(ctx); err != nil {
+			return fmt.Errorf("lock class-collection pair: %w", err)
+		}
+	}
+	collectGrade, err := settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectGradeLevel)
 	if err != nil {
 		return fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentCollectGradeLevel, err)
 	}
-	collectClass, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectSchoolClass)
+	collectClass, err := settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectSchoolClass)
 	if err != nil {
 		return fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentCollectSchoolClass, err)
 	}
@@ -163,6 +185,15 @@ func (s *phaseService) validateEligibleClassesCollectable(ctx context.Context, p
 		return fmt.Errorf("%w: eligible_school_classes requires the concrete-class collection settings (Klassen-Abfrage) to be active", ErrInvalidPhase)
 	}
 	return nil
+}
+
+// validateEligibleClassesCollectable is the phaseService adapter over
+// ensureEligibleClassesCollectable used by Create/Update.
+func (s *phaseService) validateEligibleClassesCollectable(ctx context.Context, phase *enrollmentModels.Phase) error {
+	if s.settings == nil {
+		return nil
+	}
+	return ensureEligibleClassesCollectable(ctx, s.settings, phase.EligibleSchoolClasses)
 }
 
 func hasNonEmptyEligibleClass(classes []string) bool {

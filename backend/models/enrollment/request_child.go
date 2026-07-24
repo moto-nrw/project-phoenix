@@ -74,7 +74,16 @@ type RequestChild struct {
 	ReviewedAt        *time.Time     `bun:"reviewed_at" json:"reviewed_at,omitempty"`
 	ReviewedBy        *int64         `bun:"reviewed_by" json:"reviewed_by,omitempty"`
 	CreatedStudentID  *int64         `bun:"created_student_id" json:"created_student_id,omitempty"`
-	SortOrder         int            `bun:"sort_order,notnull,default:0" json:"sort_order"`
+	// MatchedStudentID (migration 1.15.221) — set only for existing_students
+	// phases: the already-enrolled student this child was matched to at
+	// submission (unambiguous name+birthday lookup). On approval the decision
+	// service renews that student instead of creating a duplicate
+	// Person/Student. NULL for every other audience and when the submission
+	// matched zero or more than one enrolled student (ambiguous → left to the
+	// fresh-create path). FK ON DELETE SET NULL: a student deleted before
+	// approval clears the reference.
+	MatchedStudentID *int64 `bun:"matched_student_id" json:"matched_student_id,omitempty"`
+	SortOrder        int    `bun:"sort_order,notnull,default:0" json:"sort_order"`
 
 	// Rollover columns (migration 1.15.62). NULL on rows created via
 	// the public form; set by RolloverService when a previous-year

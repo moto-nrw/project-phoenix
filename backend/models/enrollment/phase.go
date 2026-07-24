@@ -271,6 +271,20 @@ func (p *Phase) Validate() error {
 	if p.EligibleSchoolClasses == nil {
 		p.EligibleSchoolClasses = []string{}
 	}
+	// A class-eligibility restriction is only enforceable when the concrete
+	// class is actually collected: submission canonicalizes the class to nil
+	// unless require_school_class forces a pick, so a non-empty
+	// eligible_school_classes with require_school_class=false lets the
+	// bootstrap offer "Klasse offen" and then rejects every such submission
+	// with class_not_eligible. That inconsistent pair is reachable via the API
+	// or an older editor that toggles require_school_class without sending the
+	// new eligibility field. Normalize it: an eligibility restriction always
+	// requires a class selection (#1663). Every eligible class is guaranteed
+	// to be in available_school_classes below, so this cannot conflict with the
+	// require_school_class needs-an-available-class rule above.
+	if hasNonEmptySchoolClass(p.EligibleSchoolClasses) {
+		p.RequireSchoolClass = true
+	}
 	// Every eligible class must also be one the phase actually offers
 	// (available_school_classes). A disjoint pair — e.g.
 	// eligible=["2a"] while available=["2b"], or a non-empty eligible list

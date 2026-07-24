@@ -284,6 +284,46 @@ func (r *StudentRepository) ExistsEnrolledByNameAndBirthday(ctx context.Context,
 	return count > 0, nil
 }
 
+// FindEnrolledStudentIDByNameAndBirthday resolves the single already-enrolled
+// student matching the given (case-insensitive, trimmed) name and birthday in
+// the tenant, backing the existing_students re-enrollment path (#1663). It
+// returns the student ID ONLY when exactly one active/pending student matches:
+// zero matches or an ambiguous multi-match both yield (nil, nil) so the caller
+// stores no reference and approval falls back to the fresh-create path rather
+// than renewing an arbitrary record. Same enrolled-scope and explicit tenant
+// filter as ExistsEnrolledByNameAndBirthday (the parent submit path runs under
+// an admin transaction, not RLS context). A zero birthday binds NULL and
+// matches nothing.
+func (r *StudentRepository) FindEnrolledStudentIDByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday timezone.Date) (*int64, error) {
+	var ids []int64
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*users.Student)(nil)).
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		ColumnExpr(`"student".id`).
+		Where(`"student".tenant_id = ?`, tenantID).
+		Where(`"student".status IN (?)`, bun.In([]users.StudentStatus{users.StudentStatusActive, users.StudentStatusPending})).
+		Where(`LOWER(TRIM("person".first_name)) = LOWER(TRIM(?))`, firstName).
+		Where(`LOWER(TRIM("person".last_name)) = LOWER(TRIM(?))`, lastName).
+		Where(`"person".birthday = ?`, birthday).
+		Where(`"person".deleted_at IS NULL`).
+		OrderExpr(`"student".id ASC`).
+		Limit(2).
+		Scan(ctx, &ids)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find enrolled student id by name and birthday",
+			Err: err,
+		}
+	}
+	if len(ids) != 1 {
+		// Zero or ambiguous (>1): no unambiguous student to renew.
+		return nil, nil
+	}
+	id := ids[0]
+	return &id, nil
+}
+
 // ListSchoolClasses retrieves all distinct non-empty school_class values.
 func (r *StudentRepository) ListSchoolClasses(ctx context.Context) ([]string, error) {
 	var classes []string

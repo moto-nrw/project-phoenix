@@ -108,6 +108,14 @@ type StudentRepository interface {
 	// the match spans the joined users.persons row.
 	ExistsEnrolledByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday timezone.Date) (bool, error)
 
+	// FindEnrolledStudentIDByNameAndBirthday resolves the single enrolled
+	// student matching the (case-insensitive) name and birthday, backing the
+	// existing_students re-enrollment path (#1663). Returns the ID only on an
+	// unambiguous single match; zero or multiple matches yield (nil, nil) so
+	// approval never renews an arbitrary student. Same explicit-tenant,
+	// active+pending scope as ExistsEnrolledByNameAndBirthday.
+	FindEnrolledStudentIDByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday timezone.Date) (*int64, error)
+
 	// ListSchoolClasses retrieves all distinct non-empty school classes.
 	ListSchoolClasses(ctx context.Context) ([]string, error)
 

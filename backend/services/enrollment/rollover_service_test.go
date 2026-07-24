@@ -379,6 +379,12 @@ func TestRolloverService_CreatePhaseFromSource_CarriesEligibilityForward(t *test
 	env.sourcePhase.AvailableSchoolClasses = []string{"2a", "2b"}
 	env.sourcePhase.EligibleSchoolClasses = []string{"2a", "2b"}
 	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+	// A class-restricted successor now requires concrete-class collection to be
+	// active — the rollover enforces the same collectability invariant as the
+	// admin create/update paths (#1663). collect_grade_level is already on in
+	// setupRolloverTest; enable collect_school_class so this restricted rollover
+	// is a valid configuration.
+	env.settings.boolValues[configModel.KeyEnrollmentCollectSchoolClass] = true
 
 	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
 	require.NoError(t, err)

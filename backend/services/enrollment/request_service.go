@@ -830,6 +830,11 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 				ActivationMode:    enrollmentModels.ChildActivationScheduled,
 				SortOrder:         i,
 			}
+			matchedStudentID, err := s.resolveMatchedStudentID(txCtx, req.TenantID, phase, child)
+			if err != nil {
+				return err
+			}
+			row.MatchedStudentID = matchedStudentID
 			if err := s.RequestChildRepo.Create(txCtx, row); err != nil {
 				return fmt.Errorf("submit: create request child %d: %w", i, err)
 			}
@@ -1988,7 +1993,16 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		// by that same guardian — so it is not re-evaluated here. Trusted-path
 		// requests (late invite / admin manual) bypassed eligibility
 		// deliberately at creation and keep that override on edit.
-		if !isTrustedEnrollmentSource(req.SubmissionSource) {
+		// Generated rollover requests carry submission_source='public' (the DB
+		// default) yet their children were carried forward from an already-
+		// approved enrollment, so they necessarily FAIL the self-service gates
+		// on renewal: a new_students successor trips ErrChildAlreadyEnrolled,
+		// and a grade-bumped class-restricted successor has its concrete class
+		// cleared and trips class_not_eligible. Exempt them here alongside the
+		// trusted-source bypass — the identity of a rollover edit is already
+		// pinned by validateRolloverEditIdentity, so no arbitrary child can be
+		// slipped in behind this exemption (#1663).
+		if !isTrustedEnrollmentSource(req.SubmissionSource) && !hasRolloverGeneratedChild(children) {
 			if err := s.validatePhaseChildEligibility(txCtx, phase, editReq); err != nil {
 				return err
 			}
@@ -2148,6 +2162,19 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				row.ActivateOn = matched.ActivateOn
 				row.RolloverSourceChildID = matched.RolloverSourceChildID
 				row.ReviewReason = matched.ReviewReason
+			}
+			// Re-resolve the matched existing student for existing_students
+			// edits (the child's name/birthday may have changed) so approval
+			// still renews the right record instead of duplicating (#1663).
+			// Skipped for rollover children: their existing student is resolved
+			// through the rollover source chain, which takes precedence at
+			// approval, so a redundant match here would be dead data.
+			if row.RolloverSourceChildID == nil {
+				matchedStudentID, err := s.resolveMatchedStudentID(txCtx, req.TenantID, phase, child)
+				if err != nil {
+					return err
+				}
+				row.MatchedStudentID = matchedStudentID
 			}
 			if err := s.RequestChildRepo.Create(txCtx, row); err != nil {
 				return fmt.Errorf("edit replace: create request child %d: %w", i, err)
@@ -3279,6 +3306,39 @@ func isTrustedEnrollmentSource(source string) bool {
 	default:
 		return false
 	}
+}
+
+// resolveMatchedStudentID returns the already-enrolled student a submitted
+// child was matched to, but only for existing_students phases and only when the
+// name+birthday lookup is unambiguous (#1663). Every other audience, a missing
+// StudentRepo, or a zero/ambiguous match returns nil so the child takes the
+// fresh-create path on approval. The result is stamped onto request_children so
+// approval renews the matched student instead of creating a duplicate
+// Person/Student — the eligibility gate already proved at least one enrolled
+// student matches, this pins the concrete one.
+func (s *requestService) resolveMatchedStudentID(ctx context.Context, tenantID int64, phase *enrollmentModels.Phase, child SubmitChild) (*int64, error) {
+	if s.StudentRepo == nil || phase.Audience != enrollmentModels.PhaseAudienceExistingStudents {
+		return nil, nil
+	}
+	id, err := s.StudentRepo.FindEnrolledStudentIDByNameAndBirthday(ctx, tenantID,
+		child.FirstName, child.LastName, child.DateOfBirth)
+	if err != nil {
+		return nil, fmt.Errorf("submit: resolve matched student: %w", err)
+	}
+	return id, nil
+}
+
+// hasRolloverGeneratedChild reports whether any of the persisted children was
+// carried forward by the rollover flow (RolloverSourceChildID set). Rollover
+// requests are generated with submission_source='public' but must not be held
+// to the self-service eligibility gates on renewal (#1663).
+func hasRolloverGeneratedChild(children []*enrollmentModels.RequestChild) bool {
+	for _, child := range children {
+		if child.RolloverSourceChildID != nil {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *requestService) validateAndNormalizeSchoolClasses(ctx context.Context, phase *enrollmentModels.Phase, children []SubmitChild) error {

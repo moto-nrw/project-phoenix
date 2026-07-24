@@ -36,6 +36,7 @@ type Mock struct {
 	ClearLoginImageURLFn           func(ctx context.Context, tenantID int64) (string, error)
 	LockSlotListCutoffPairFn       func(ctx context.Context) error
 	LockSlotListCutoffPairSharedFn func(ctx context.Context) error
+	LockClassCollectionPairFn      func(ctx context.Context) error
 }
 
 var _ config.SettingsService = (*Mock)(nil)
@@ -162,6 +163,13 @@ func (m *Mock) LockSlotListCutoffPair(ctx context.Context) error {
 func (m *Mock) LockSlotListCutoffPairShared(ctx context.Context) error {
 	if m.LockSlotListCutoffPairSharedFn != nil {
 		return m.LockSlotListCutoffPairSharedFn(ctx)
+	}
+	return nil
+}
+
+func (m *Mock) LockClassCollectionPair(ctx context.Context) error {
+	if m.LockClassCollectionPairFn != nil {
+		return m.LockClassCollectionPairFn(ctx)
 	}
 	return nil
 }
