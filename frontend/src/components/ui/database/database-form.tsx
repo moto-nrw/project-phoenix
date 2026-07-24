@@ -5,6 +5,7 @@ import type { DatabaseTheme } from "~/lib/database/themes";
 import { getThemeClassNames } from "~/lib/database/themes";
 import { getAccentRing, getAccentText } from "./accents";
 import { Alert } from "~/components/ui/alert";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";
 import { getDefaultMaxLength } from "~/lib/constants/input-limits";
@@ -553,44 +554,34 @@ export function DatabaseForm<T = Record<string, unknown>>({
               {field.label}
               {field.required && "*"}
             </label>
-            <div className="relative">
-              <select
-                id={field.name}
-                name={field.name}
-                value={(formData[field.name] as string) ?? ""}
-                onChange={handleChange}
-                required={field.required}
-                className={`${baseInputClasses} appearance-none pr-10`}
-                disabled={loadingOptions[field.name]}
-              >
-                {!hasEmptyOption && (
-                  <option value="">
-                    {loadingOptions[field.name]
-                      ? "Optionen werden geladen..."
-                      : (field.placeholder ?? "Bitte wählen")}
-                  </option>
-                )}
-                {selectOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              {/* Dropdown chevron */}
-              <svg
-                className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </div>
+            <CustomSelect
+              id={field.name}
+              name={field.name}
+              ariaLabel={field.label}
+              value={(formData[field.name] as string) ?? ""}
+              options={[
+                ...(!hasEmptyOption
+                  ? [
+                      {
+                        value: "",
+                        label: loadingOptions[field.name]
+                          ? "Optionen werden geladen..."
+                          : (field.placeholder ?? "Bitte wählen"),
+                      },
+                    ]
+                  : []),
+                ...selectOptions,
+              ]}
+              onChange={(next) => {
+                if (field.name === "data_retention_days") {
+                  dirtyPrivacyFieldsRef.current.add(field.name);
+                }
+                setFormData((prev) => ({ ...prev, [field.name]: next }));
+              }}
+              required={field.required}
+              invalid={hasError}
+              disabled={loadingOptions[field.name]}
+            />
             {field.helperText && (
               <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
             )}
@@ -649,49 +640,32 @@ export function DatabaseForm<T = Record<string, unknown>>({
             )}
 
             {/* Dropdown for adding new selections */}
-            <div className="relative">
-              <select
-                id={field.name}
-                value=""
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value && !selectedValues.includes(value)) {
-                    setFormData((prev) => ({
-                      ...prev,
-                      [field.name]: [...selectedValues, value],
-                    }));
-                  }
-                }}
-                className={`${baseInputClasses} appearance-none pr-10`}
-                disabled={loadingOptions[field.name]}
-              >
-                <option value="">
-                  {loadingOptions[field.name]
-                    ? "Optionen werden geladen..."
-                    : (field.placeholder ?? "Weitere hinzufügen...")}
-                </option>
-                {multiselectOptions
-                  .filter((option) => !selectedValues.includes(option.value))
-                  .map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-              </select>
-              <svg
-                className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </div>
+            <CustomSelect
+              id={field.name}
+              ariaLabel={field.label}
+              value=""
+              placeholder={
+                loadingOptions[field.name]
+                  ? "Optionen werden geladen..."
+                  : (field.placeholder ?? "Weitere hinzufügen...")
+              }
+              options={multiselectOptions
+                .filter((option) => !selectedValues.includes(option.value))
+                .map((option) => ({
+                  value: option.value,
+                  label: option.label,
+                }))}
+              onChange={(next) => {
+                if (next && !selectedValues.includes(next)) {
+                  setFormData((prev) => ({
+                    ...prev,
+                    [field.name]: [...selectedValues, next],
+                  }));
+                }
+              }}
+              invalid={hasError}
+              disabled={loadingOptions[field.name]}
+            />
 
             {field.helperText && (
               <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>

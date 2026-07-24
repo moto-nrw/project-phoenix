@@ -36,6 +36,7 @@ interface ListboxDropdownProps<K extends string> {
   readonly invalid?: boolean;
   readonly placeholder?: string;
   readonly triggerRole?: "button" | "combobox";
+  readonly testId?: string;
   readonly renderTrigger?: (args: {
     selectedLabel: string;
     open: boolean;
@@ -99,6 +100,7 @@ export function ListboxDropdown<K extends string>({
   invalid = false,
   placeholder = "Bitte wählen",
   triggerRole = "button",
+  testId,
   renderTrigger,
 }: ListboxDropdownProps<K>) {
   const generatedListboxId = useId();
@@ -255,6 +257,7 @@ export function ListboxDropdown<K extends string>({
         role={triggerRole === "combobox" ? "combobox" : undefined}
         disabled={disabled}
         className={className}
+        data-testid={testId}
       >
         {renderTrigger ? (
           renderTrigger({ selectedLabel, open })

@@ -345,7 +345,8 @@ describe("FilterPanel", () => {
         />,
       );
 
-      expect(screen.getByTestId("filter-room")).toHaveValue("all");
+      expect(screen.getByTestId("filter-room")).toHaveTextContent("Alle Räume");
+      fireEvent.click(screen.getByTestId("filter-room"));
       expect(
         screen.getByRole("option", { name: "Alle Räume" }),
       ).toBeInTheDocument();
@@ -366,6 +367,7 @@ describe("FilterPanel", () => {
         />,
       );
 
+      fireEvent.click(screen.getByTestId("filter-room"));
       expect(
         screen.getByRole("option", { name: "Raum 101 (5)" }),
       ).toBeInTheDocument();
@@ -383,9 +385,8 @@ describe("FilterPanel", () => {
         />,
       );
 
-      fireEvent.change(screen.getByTestId("filter-room"), {
-        target: { value: "101" },
-      });
+      fireEvent.click(screen.getByTestId("filter-room"));
+      fireEvent.click(screen.getByRole("option", { name: "Raum 101 (5)" }));
 
       expect(mockOnChange).toHaveBeenCalledWith("101");
     });

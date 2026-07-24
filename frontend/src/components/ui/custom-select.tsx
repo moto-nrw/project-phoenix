@@ -23,6 +23,9 @@ interface CustomSelectProps {
   readonly invalid?: boolean;
   readonly className?: string;
   readonly menuClassName?: string;
+  /** Replaces the default surface/size trigger classes (moto-content-surface h-10 w-full …) for non-standard widths/heights. */
+  readonly triggerClassName?: string;
+  readonly testId?: string;
 }
 
 const TRIGGER_BASE_CLASS =
@@ -45,6 +48,8 @@ export function CustomSelect({
   invalid = false,
   className = "",
   menuClassName = "",
+  triggerClassName,
+  testId,
 }: CustomSelectProps) {
   return (
     <>
@@ -60,7 +65,8 @@ export function CustomSelect({
         disabled={disabled}
         placeholder={placeholder}
         triggerRole="combobox"
-        className={`${TRIGGER_BASE_CLASS} ${DEFAULT_TRIGGER_CLASS} ${
+        testId={testId}
+        className={`${TRIGGER_BASE_CLASS} ${triggerClassName ?? DEFAULT_TRIGGER_CLASS} ${
           invalid ? "border-[#FF3130] bg-[#FF3130]/5" : ""
         } ${className}`}
         menuClassName={`absolute top-full left-0 z-50 mt-1 max-h-72 min-w-full overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg ${menuClassName}`}
