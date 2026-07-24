@@ -609,7 +609,7 @@ export default function StaffCalendarPage() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div className="w-full">
       <PersonalCalendar
         title="Mein Kalender"
         subtitle="Deine Termine, Einladungen, Dienstplan-Schichten und zugewiesenen Betreuungsangebote."
@@ -1091,6 +1091,6 @@ export default function StaffCalendarPage() {
           </div>
         ) : null}
       </Modal>
-    </main>
+    </div>
   );
 }
