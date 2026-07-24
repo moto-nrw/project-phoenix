@@ -57,7 +57,11 @@ export function CustomSelect({
 }: CustomSelectProps) {
   return (
     <>
-      {name ? <input type="hidden" name={name} value={value} /> : null}
+      {name ? (
+        // Mirror a disabled native <select>: a disabled control is excluded
+        // from FormData, so the hidden input must not submit a stale value.
+        <input type="hidden" name={name} value={value} disabled={disabled} />
+      ) : null}
       <ListboxDropdown
         id={id}
         value={value}

@@ -52,7 +52,6 @@ interface ListboxDropdownProps<K extends string> {
 const TYPEAHEAD_RESET_MS = 500;
 const MENU_OFFSET_PX = 4;
 const MENU_MAX_HEIGHT_PX = 288; // matches the previous max-h-72 menu cap
-const MENU_MIN_HEIGHT_PX = 96; // usability floor when both viewport halves are tight
 const MENU_VIEWPORT_MARGIN_PX = 8;
 
 function firstEnabledIndex<K extends string>(
@@ -201,10 +200,12 @@ export function ListboxDropdown<K extends string>({
       MENU_MAX_HEIGHT_PX,
     );
     const openUpward = spaceBelow < menuHeight && spaceAbove > spaceBelow;
-    const maxHeight = Math.max(
-      Math.min(MENU_MAX_HEIGHT_PX, openUpward ? spaceAbove : spaceBelow),
-      MENU_MIN_HEIGHT_PX,
-    );
+    // Cap the menu to the space actually available on the chosen side. A hard
+    // minimum height could push the menu past the viewport edge in short
+    // viewports or with the mobile keyboard open, leaving lower options
+    // unreachable; the browser then never gives the ul a scroll region there.
+    const available = Math.max(openUpward ? spaceAbove : spaceBelow, 0);
+    const maxHeight = Math.min(MENU_MAX_HEIGHT_PX, available);
     const style: CSSProperties = {
       position: "fixed",
       // Above the modal/dialog overlays (z-[9999]) so menus opened from
@@ -214,10 +215,8 @@ export function ListboxDropdown<K extends string>({
       // and only re-enable it on the dialog content. Because this menu is
       // portaled to document.body (a sibling of that content), it would inherit
       // `none` and its options would be unclickable inside slide-overs. Forcing
-      // `auto` restores selection; dismissal is not triggered because the menu
-      // stays in the ListboxDropdown React subtree, so React's synthetic
-      // pointerdown propagates through the portal and Vaul registers the press
-      // as inside the dialog rather than an outside interaction.
+      // `auto` restores selection. Outside-dismissal is handled separately by
+      // the pointerdown guard on the menu below.
       pointerEvents: "auto",
       minWidth: rect.width,
       maxWidth: viewportWidth - 2 * MENU_VIEWPORT_MARGIN_PX,
@@ -445,6 +444,11 @@ export function ListboxDropdown<K extends string>({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
+        // The menu is portaled to document.body, outside this combobox's DOM
+        // subtree. aria-owns re-parents it into the combobox in the a11y tree
+        // so the aria-activedescendant option is announced even when a modal
+        // focus trap keeps DOM focus on the trigger.
+        aria-owns={open ? listboxId : undefined}
         // Focus traps (Radix FocusScope in Modal/FormModal) yank DOM focus
         // back from the portaled options to this trigger; activedescendant
         // keeps the highlighted option announced in that trigger-focused mode.
@@ -488,6 +492,17 @@ export function ListboxDropdown<K extends string>({
               // the menu as modal content whitelists it in the scroll-lock
               // predicate so its own options can be reached.
               data-modal-content="true"
+              // Vaul/Radix dismiss the dialog on a pointerdown whose target is
+              // outside the dialog content node. This menu is portaled to
+              // document.body, so it is NOT inside that node — without this
+              // guard the first press on an option reads as an outside
+              // interaction and closes the drawer BEFORE the option's click can
+              // select a value. Stopping propagation keeps the press from
+              // reaching the document-level dismissal listeners; the option's
+              // own onClick still fires. The internal outside-press handler
+              // guards with menuRef.contains, so it is unaffected.
+              onPointerDown={(event) => event.stopPropagation()}
+              onMouseDown={(event) => event.stopPropagation()}
               aria-label={ariaLabel}
               // Points at the field's label element, never at the trigger: a
               // combobox referenced via aria-labelledby contributes its VALUE
