@@ -45,11 +45,17 @@ func NewEnrollablePhaseRepository(db *bun.DB) parentModels.EnrollablePhaseReposi
 // parent_portal.enrollment.submit. The active-mapping conjunction stops
 // a former guardian, whose historical guardian rows linger after the
 // mapping was deactivated, from still submitting linked_parents phases.
-// Independently, a school where the account HAS guardian relationships
-// but NONE grants that permission (via an active mapping) is dropped for
-// every audience — an explicitly revoked or lapsed submit permission
-// must not be bypassable through the picker. Genuinely new-school
-// applicants (no guardian rows at all) still see open phases.
+// Independently, an existing_students phase is dropped for an account
+// that HAS guardian relationships but NONE grants that permission (via an
+// active mapping) — an explicitly revoked or lapsed submit permission must
+// not re-enroll an existing child through the picker. That account-wide
+// denial is deliberately scoped to existing_students (and linked_parents,
+// above): a pickup-only relationship on one child must NOT hide open /
+// new_students phases the same account can bootstrap a genuinely new child
+// into and submit via a direct URL — the authenticated submit path applies
+// no such account-wide denial (per-child authorization happens inside
+// Submit), so the picker must not either. Genuinely new-school applicants
+// (no guardian rows at all) still see open phases.
 //
 // Cross-tenant query — must run inside tenant.WithAdminTx.
 func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountID int64) ([]*parentModels.EnrollablePhase, error) {
@@ -137,7 +143,9 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 		  AND (ph.enrollment_open_at IS NULL OR ph.enrollment_open_at <= NOW())
 		  AND (ph.enrollment_close_at IS NULL OR ph.enrollment_close_at >= NOW())
 		  AND (ph.audience <> 'linked_parents' OR guard.has_submit_permission)
-		  AND (NOT guard.has_guardian_link OR guard.has_submit_permission)
+		  AND (ph.audience <> 'existing_students'
+		       OR NOT guard.has_guardian_link
+		       OR guard.has_submit_permission)
 		ORDER BY already_linked DESC, sch.name, ph.service_start_date
 	`
 

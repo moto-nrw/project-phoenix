@@ -2196,22 +2196,40 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				ActivationMode:    enrollmentModels.ChildActivationScheduled,
 				SortOrder:         i,
 			}
-			if matched := matchedExistingChildren[i]; matched != nil {
+			matched := matchedExistingChildren[i]
+			if matched != nil {
 				row.ActivationMode = matched.ActivationMode
 				row.ActivateOn = matched.ActivateOn
 				row.RolloverSourceChildID = matched.RolloverSourceChildID
 				row.ReviewReason = matched.ReviewReason
 			}
-			// Re-resolve the matched existing student for existing_students
-			// edits (the child's name/birthday may have changed) so approval
-			// still renews the right record instead of duplicating (#1663).
-			// Skipped for rollover children: their existing student is resolved
-			// through the rollover source chain, which takes precedence at
+			// Resolve the matched existing student for existing_students edits so
+			// approval still renews the right record instead of duplicating
+			// (#1663). Skipped for rollover children: their existing student is
+			// resolved through the rollover source chain, which takes precedence at
 			// approval, so a redundant match here would be dead data.
 			if row.RolloverSourceChildID == nil {
-				matchedStudentID, err := s.resolveMatchedStudentID(txCtx, req.TenantID, phase, i, child)
-				if err != nil {
-					return err
+				// Default to the submission-time pin carried on the prior row. The
+				// original submission pinned it while the phase was
+				// existing_students; if the phase audience is later flipped away,
+				// re-resolution below no-ops and must NOT drop the pin — otherwise
+				// approval takes the fresh-create branch and duplicates the very
+				// Person/Student the existing_students audience exists to renew.
+				var matchedStudentID *int64
+				if matched != nil {
+					matchedStudentID = matched.MatchedStudentID
+				}
+				// While the phase is still existing_students, re-resolve against the
+				// (possibly edited) name/birthday. A concrete re-resolution wins; a
+				// nil result keeps the submission-time pin rather than dropping it.
+				if phase.Audience == enrollmentModels.PhaseAudienceExistingStudents {
+					resolved, err := s.resolveMatchedStudentID(txCtx, req.TenantID, phase, i, child)
+					if err != nil {
+						return err
+					}
+					if resolved != nil {
+						matchedStudentID = resolved
+					}
 				}
 				if err := s.assertGuardianMayReEnrollStudent(txCtx, req.GuardianAccountID, matchedStudentID, req.TenantID, i); err != nil {
 					return err

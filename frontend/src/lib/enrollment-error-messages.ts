@@ -59,6 +59,8 @@ const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
     "Dieses Kind ist an der Schule nicht angemeldet. Diese Phase richtet sich nur an bereits angemeldete Kinder.",
   "enrollment.child_ambiguous":
     "Dieses Kind konnte nicht eindeutig zugeordnet werden, weil an der Schule mehrere übereinstimmende Datensätze vorliegen. Bitte wende dich an die Schule, damit die doppelten Einträge zusammengeführt werden.",
+  "enrollment.child_not_permitted":
+    "Dein Konto hat keine Berechtigung, dieses bereits angemeldete Kind erneut anzumelden. Bitte wende dich an die Schule, um die Berechtigung zu erhalten.",
   "enrollment.schema_has_phases":
     "Diese Formularvorlage wird noch in einer Anmeldephase verwendet.",
   "enrollment.schema_has_requests":

@@ -120,7 +120,7 @@ func TestEnrollablePhaseRepository_ListEnrollable_LinkedParentsPhaseVisibleWithS
 		"primary guardian (full permission set) must see the linked_parents phase")
 }
 
-func TestEnrollablePhaseRepository_ListEnrollable_RevokedSubmitPermissionHidesSchool(t *testing.T) {
+func TestEnrollablePhaseRepository_ListEnrollable_RevokedSubmitPermissionScopedToExistingStudents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -128,13 +128,23 @@ func TestEnrollablePhaseRepository_ListEnrollable_RevokedSubmitPermissionHidesSc
 	enableEnrollmentForTenant(t, db, chain.TenantID)
 	revokeGuardianSubmitPermission(t, db, chain.StudentID)
 
-	openName := fmt.Sprintf("eligibility-revoked-%d", time.Now().UnixNano())
+	// The account has a guardian link at the school but no relationship grants
+	// parent_portal.enrollment.submit. The revoked/lapsed permission must block
+	// re-enrolling an EXISTING child (existing_students audience), but it must
+	// NOT hide an OPEN phase the same account can bootstrap a genuinely new
+	// child into and submit via a direct URL — the authenticated submit path
+	// applies no account-wide denial, so the picker must not either (#1663).
+	openName := fmt.Sprintf("eligibility-revoked-open-%d", time.Now().UnixNano())
+	existingName := fmt.Sprintf("eligibility-revoked-existing-%d", time.Now().UnixNano())
 	defer wipePhasesForTenant(db, chain.TenantID, "eligibility-revoked")
 	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, openName, enrollmentModels.PhaseAudienceOpen)
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, existingName, enrollmentModels.PhaseAudienceExistingStudents)
 
 	names := phaseNamesOf(listEnrollableAsAdmin(t, db, chain.AccountID))
-	assert.NotContains(t, names, openName,
-		"a guardian whose links all lack enrollment.submit must not see the school's phases at all")
+	assert.Contains(t, names, openName,
+		"a restricted guardian must still see an open phase they can bootstrap a new child into")
+	assert.NotContains(t, names, existingName,
+		"a guardian whose links all lack enrollment.submit must not see existing_students re-enrollment phases")
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_DeactivatedMappingHidesLinkedPhase(t *testing.T) {

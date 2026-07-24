@@ -1393,11 +1393,13 @@ func (s *decisionService) applyApprovalRollover(
 // It renews the student's class + enrollment window, materializes the phase's
 // care offerings, stamps the activation plan and back-links the request_child.
 //
-// Guardian linkage and invitations are deliberately skipped: the student
-// already exists with its guardian relationships from the original enrollment,
-// so re-creating a primary StudentGuardian or issuing a fresh invite would
-// duplicate/clobber that setup. Adding a genuinely new guardian to an existing
-// child is a separate guardian-editor flow, not part of approval.
+// PRIMARY guardian linkage and invitations are deliberately skipped: the
+// student already exists with its primary guardian relationship from the
+// original enrollment, so re-creating a primary StudentGuardian or issuing a
+// fresh invite would duplicate/clobber that setup. Co-guardians the parent
+// added on THIS submission are still materialized (linkAdditionalGuardians is
+// idempotent), because they are new contact/pickup data the same form
+// collected — dropping them would silently discard it (#1663).
 func (s *decisionService) attachApprovalToExistingStudent(
 	ctx context.Context,
 	request *enrollmentModels.Request,
@@ -1437,19 +1439,37 @@ func (s *decisionService) attachApprovalToExistingStudent(
 	// record (health/extra info, departure + arrival schedules, contact lists,
 	// consent-flag propagation). Without this the existing-student approval
 	// silently drops everything the form collected beyond class/window/care
-	// offerings. guardian is nil: the student keeps the guardian relationships
-	// from its original enrollment, matching this helper's deliberate
-	// guardian-linkage skip. Best-effort, like the fresh-create path — a single
-	// field failure must not poison the approval. Rollover passes false because
-	// its request_child carries no fresh submission (#1663).
+	// offerings. guardian is nil: the student keeps the primary guardian
+	// relationship from its original enrollment, matching this helper's
+	// deliberate primary-guardian skip. Best-effort, like the fresh-create path
+	// — a single field failure must not poison the approval. Rollover passes
+	// false because its request_child carries no fresh submission (#1663).
+	//
+	// ReplaceSchedules: the matched student most likely already has arrival /
+	// pickup schedule rows from its original enrollment. A plain insert of the
+	// resubmitted weekdays would collide with the unique (tenant_id, student_id,
+	// weekday) key and leave removed weekdays behind; ReplaceSchedules deletes
+	// the student's existing rows for each resubmitted schedule target before
+	// re-inserting, giving this full re-enrollment form proper replacement
+	// semantics for schedules while every other field stays additive (#1663).
 	if syncTargetedFields {
-		if _, err := s.applyTargetedFields(ctx, request, child, existing, nil, reviewedBy, targetedFieldSyncOptions{}); err != nil {
+		if _, err := s.applyTargetedFields(ctx, request, child, existing, nil, reviewedBy, targetedFieldSyncOptions{ReplaceSchedules: true}); err != nil {
 			s.Logger.Warn("decision: targeted-field dispatch on existing student had errors",
 				slog.Int64("request_id", request.ID),
 				slog.Int64("child_id", child.ID),
 				slog.Int64("student_id", studentID),
 				slog.String("error", err.Error()),
 			)
+		}
+		// Materialize any co-guardians the parent added on this full form. The
+		// student keeps its original primary guardian, but a newly submitted
+		// co-guardian needs a users.students_guardians link + phone or the
+		// AdditionalGuardians contact data is silently dropped. Idempotent, so
+		// re-approval is safe. Fatal like the fresh-create path — losing a
+		// pickup-authorized emergency contact is a data-integrity failure, not
+		// best-effort field noise (#1663).
+		if err := s.linkAdditionalGuardians(ctx, request, studentID); err != nil {
+			return nil, fmt.Errorf("decision: link additional guardians on existing student: %w", err)
 		}
 	}
 
@@ -2519,7 +2539,14 @@ func (s *decisionService) ensureGuardianRoleForTenant(ctx context.Context, accou
 // broadcast, and a false positive there costs somebody an in-progress
 // companion edit.
 type targetedFieldSyncOptions struct {
-	Replace                bool
+	Replace bool
+	// ReplaceSchedules deletes the student's existing arrival / pickup schedule
+	// rows before re-inserting the resubmitted weekdays, WITHOUT the full-form
+	// clearing semantics of Replace. Used by the existing_students re-enrollment
+	// approval, where the matched student already has schedule rows that would
+	// otherwise collide with the unique (tenant_id, student_id, weekday) key.
+	// Implied by Replace.
+	ReplaceSchedules       bool
 	PreviousSnapshot       map[string]any
 	KeepGuardianProfileIDs map[int64]bool
 }
@@ -2562,6 +2589,11 @@ func (s *decisionService) applyTargetedFields(
 			targetHasMeaningfulValue[field.Target] = true
 		}
 	}
+
+	// Replace implies schedule replacement; ReplaceSchedules asks for schedule
+	// replacement alone (existing_students re-enrollment) without the full-form
+	// clearing the rest of Replace applies.
+	replaceSchedules := options.Replace || options.ReplaceSchedules
 
 	pickupScheduleDeleted := false
 	arrivalScheduleDeleted := false
@@ -2655,7 +2687,7 @@ func (s *decisionService) applyTargetedFields(
 				studentDirty = true
 			}
 		case enrollmentModels.TargetSchedulePickup:
-			if options.Replace && s.PickupScheduleRepo != nil && !pickupScheduleDeleted {
+			if replaceSchedules && s.PickupScheduleRepo != nil && !pickupScheduleDeleted {
 				pickupScheduleDeleted = true
 				if err := s.PickupScheduleRepo.DeleteByStudentID(ctx, student.ID); err != nil {
 					errs = append(errs, fmt.Sprintf("%s: delete existing: %v", field.Target, err))
@@ -2669,7 +2701,7 @@ func (s *decisionService) applyTargetedFields(
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			}
 		case enrollmentModels.TargetScheduleArrival:
-			if options.Replace && s.ArrivalScheduleRepo != nil && !arrivalScheduleDeleted {
+			if replaceSchedules && s.ArrivalScheduleRepo != nil && !arrivalScheduleDeleted {
 				arrivalScheduleDeleted = true
 				if err := s.ArrivalScheduleRepo.DeleteByStudentID(ctx, student.ID); err != nil {
 					errs = append(errs, fmt.Sprintf("%s: delete existing: %v", field.Target, err))
