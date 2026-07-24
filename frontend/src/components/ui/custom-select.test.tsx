@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { CustomSelect } from "./custom-select";
 
@@ -182,6 +182,143 @@ describe("CustomSelect", () => {
     fireEvent.keyDown(trigger, { key: "Enter" });
 
     expect(onChange).toHaveBeenCalledWith("first");
+  });
+
+  describe("type-ahead", () => {
+    const nameOptions = [
+      { value: "", label: "Bitte wählen" },
+      { value: "anna", label: "Anna Becker" },
+      { value: "anton", label: "Anton Maler" },
+      { value: "bernd", label: "Bernd Castor" },
+      { value: "gesperrt", label: "Gesperrt", disabled: true },
+    ] as const;
+
+    const renderNameSelect = (onChange = vi.fn()) => {
+      render(
+        <CustomSelect
+          value=""
+          options={nameOptions}
+          onChange={onChange}
+          ariaLabel="Betreuungsperson"
+        />,
+      );
+      return onChange;
+    };
+
+    const activeElement = () => document.activeElement as HTMLElement;
+
+    it("opens and focuses the matching option when typing on the closed trigger", () => {
+      renderNameSelect();
+
+      fireEvent.keyDown(
+        screen.getByRole("combobox", { name: "Betreuungsperson" }),
+        { key: "b" },
+      );
+
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Bernd Castor" }),
+      ).toHaveFocus();
+    });
+
+    it("accumulates typed characters into a multi-character match", () => {
+      const onChange = renderNameSelect();
+
+      fireEvent.click(
+        screen.getByRole("combobox", { name: "Betreuungsperson" }),
+      );
+      fireEvent.keyDown(activeElement(), { key: "a" });
+      fireEvent.keyDown(activeElement(), { key: "n" });
+      fireEvent.keyDown(activeElement(), { key: "t" });
+
+      expect(screen.getByRole("option", { name: "Anton Maler" })).toHaveFocus();
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it("cycles through options sharing a first letter on repeated presses", () => {
+      renderNameSelect();
+
+      fireEvent.click(
+        screen.getByRole("combobox", { name: "Betreuungsperson" }),
+      );
+      fireEvent.keyDown(activeElement(), { key: "a" });
+      expect(screen.getByRole("option", { name: "Anna Becker" })).toHaveFocus();
+
+      fireEvent.keyDown(activeElement(), { key: "a" });
+      expect(screen.getByRole("option", { name: "Anton Maler" })).toHaveFocus();
+
+      fireEvent.keyDown(activeElement(), { key: "a" });
+      expect(screen.getByRole("option", { name: "Anna Becker" })).toHaveFocus();
+    });
+
+    it("treats Space as part of an active search instead of selecting", () => {
+      const onChange = renderNameSelect();
+
+      fireEvent.click(
+        screen.getByRole("combobox", { name: "Betreuungsperson" }),
+      );
+      fireEvent.keyDown(activeElement(), { key: "a" });
+      fireEvent.keyDown(activeElement(), { key: "n" });
+      fireEvent.keyDown(activeElement(), { key: "n" });
+      fireEvent.keyDown(activeElement(), { key: "a" });
+      fireEvent.keyDown(activeElement(), { key: " " });
+      fireEvent.keyDown(activeElement(), { key: "b" });
+
+      expect(screen.getByRole("option", { name: "Anna Becker" })).toHaveFocus();
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it("still selects with Space when no search is in progress", () => {
+      const onChange = renderNameSelect();
+
+      fireEvent.click(
+        screen.getByRole("combobox", { name: "Betreuungsperson" }),
+      );
+      fireEvent.keyDown(activeElement(), { key: "ArrowDown" });
+      fireEvent.keyDown(activeElement(), { key: " " });
+
+      expect(onChange).toHaveBeenCalledWith("anna");
+    });
+
+    it("resets the search buffer after the type-ahead timeout", () => {
+      vi.useFakeTimers();
+      try {
+        renderNameSelect();
+
+        fireEvent.click(
+          screen.getByRole("combobox", { name: "Betreuungsperson" }),
+        );
+        fireEvent.keyDown(activeElement(), { key: "b" });
+        expect(
+          screen.getByRole("option", { name: "Bernd Castor" }),
+        ).toHaveFocus();
+
+        act(() => {
+          vi.advanceTimersByTime(600);
+        });
+
+        fireEvent.keyDown(activeElement(), { key: "a" });
+        expect(
+          screen.getByRole("option", { name: "Anna Becker" }),
+        ).toHaveFocus();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("never focuses a disabled option via type-ahead", () => {
+      renderNameSelect();
+
+      fireEvent.click(
+        screen.getByRole("combobox", { name: "Betreuungsperson" }),
+      );
+      fireEvent.keyDown(activeElement(), { key: "g" });
+
+      expect(
+        screen.getByRole("option", { name: "Gesperrt" }),
+      ).not.toHaveFocus();
+    });
   });
 
   it("keeps a hidden form value", () => {

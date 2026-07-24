@@ -44,6 +44,8 @@ interface ListboxDropdownProps<K extends string> {
   }) => ReactNode;
 }
 
+const TYPEAHEAD_RESET_MS = 500;
+
 function firstEnabledIndex<K extends string>(
   options: readonly ListboxDropdownOption<K>[],
 ): number {
@@ -72,6 +74,41 @@ function nextEnabledIndex<K extends string>(
     const index =
       (startIndex + direction * offset + options.length) % options.length;
     if (!options[index]?.disabled) return index;
+  }
+
+  return -1;
+}
+
+function isRepeatedCharacter(buffer: string): boolean {
+  return buffer.length > 1 && [...buffer].every((char) => char === buffer[0]);
+}
+
+function typeaheadMatchIndex<K extends string>(
+  options: readonly ListboxDropdownOption<K>[],
+  buffer: string,
+  startIndex: number,
+): number {
+  if (options.length === 0 || buffer.length === 0) return -1;
+  // A repeated single character cycles through options sharing that initial
+  // letter instead of demanding a label like "aaa".
+  const cycling = buffer.length === 1 || isRepeatedCharacter(buffer);
+  const needle = (cycling ? buffer[0]! : buffer).toLowerCase();
+  const firstOffset = cycling ? 1 : 0;
+
+  for (
+    let offset = firstOffset;
+    offset < firstOffset + options.length;
+    offset++
+  ) {
+    const index = (startIndex + offset + options.length) % options.length;
+    const option = options[index];
+    if (
+      option &&
+      !option.disabled &&
+      option.label.toLowerCase().startsWith(needle)
+    ) {
+      return index;
+    }
   }
 
   return -1;
@@ -110,6 +147,8 @@ export function ListboxDropdown<K extends string>({
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const typeaheadBufferRef = useRef("");
+  const typeaheadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [open, setOpen] = useState(false);
   const selectedIndex = selectedIndexForValue(options, value);
   const [focusIndex, setFocusIndex] = useState(selectedIndex);
@@ -135,6 +174,20 @@ export function ListboxDropdown<K extends string>({
     optionRefs.current[focusIndex]?.focus();
   }, [open, focusIndex]);
 
+  const resetTypeahead = useCallback(() => {
+    typeaheadBufferRef.current = "";
+    if (typeaheadTimerRef.current !== null) {
+      clearTimeout(typeaheadTimerRef.current);
+      typeaheadTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open) resetTypeahead();
+  }, [open, resetTypeahead]);
+
+  useEffect(() => resetTypeahead, [resetTypeahead]);
+
   const closeAndReturnFocus = useCallback(() => {
     setOpen(false);
     buttonRef.current?.focus();
@@ -155,6 +208,42 @@ export function ListboxDropdown<K extends string>({
     setOpen(true);
   };
 
+  const handleTypeaheadKey = (
+    event: KeyboardEvent<HTMLButtonElement>,
+  ): boolean => {
+    const { key } = event;
+    if (key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey) {
+      return false;
+    }
+    // Space starts no search; it only extends one already in progress so
+    // multi-word labels ("Anna Becker") stay reachable.
+    if (key === " " && typeaheadBufferRef.current.length === 0) return false;
+
+    event.preventDefault();
+    event.stopPropagation();
+    typeaheadBufferRef.current += key;
+    if (typeaheadTimerRef.current !== null) {
+      clearTimeout(typeaheadTimerRef.current);
+    }
+    typeaheadTimerRef.current = setTimeout(() => {
+      typeaheadBufferRef.current = "";
+      typeaheadTimerRef.current = null;
+    }, TYPEAHEAD_RESET_MS);
+
+    const matchIndex = typeaheadMatchIndex(
+      options,
+      typeaheadBufferRef.current,
+      open ? focusIndex : selectedIndex,
+    );
+    if (matchIndex >= 0) {
+      setFocusIndex(matchIndex);
+    } else if (!open) {
+      setFocusIndex(selectedIndex);
+    }
+    if (!open) setOpen(true);
+    return true;
+  };
+
   const handleTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (disabled) return;
     if (event.key === "Escape" && open) {
@@ -162,6 +251,7 @@ export function ListboxDropdown<K extends string>({
       setOpen(false);
       return;
     }
+    if (handleTypeaheadKey(event)) return;
     if (open) {
       if (event.key === "ArrowDown") {
         event.preventDefault();
@@ -191,6 +281,7 @@ export function ListboxDropdown<K extends string>({
   };
 
   const handleOptionKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (handleTypeaheadKey(event)) return;
     switch (event.key) {
       case "ArrowDown":
         event.preventDefault();
