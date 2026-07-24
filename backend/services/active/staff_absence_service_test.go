@@ -515,6 +515,21 @@ func TestAbsCreateAbsence_InvalidDateEnd(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid date_end format")
 }
 
+func TestAbsCreateAbsence_ReversedDateRange(t *testing.T) {
+	svc, _, _ := absSetupService()
+
+	req := CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   "2026-02-12",
+		DateEnd:     "2026-02-10",
+	}
+
+	result, err := svc.CreateAbsenceFor(context.Background(), 1, 2, nil, req)
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "invalid date range")
+}
+
 func TestAbsCreateAbsence_OverlapDifferentType(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
 	ctx := context.Background()

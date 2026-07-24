@@ -279,6 +279,12 @@ func parseDateRange(startStr, endStr string) (timezone.Date, timezone.Date, erro
 	if err != nil {
 		return timezone.Date{}, timezone.Date{}, fmt.Errorf("invalid date_end format, expected YYYY-MM-DD")
 	}
+	// Reject reversed ranges here instead of letting them hit the DB check
+	// constraint chk_sa_dates, which would surface as a 500 (#1420 review).
+	// The "invalid" prefix is what the handlers classify as a 400.
+	if dateEnd.Before(dateStart) {
+		return timezone.Date{}, timezone.Date{}, fmt.Errorf("invalid date range: date_end must not be before date_start")
+	}
 	return dateStart, dateEnd, nil
 }
 
