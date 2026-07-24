@@ -154,7 +154,11 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
   // Stundenkonto-Buchungen (#1420) — Teil der Saldo-Wahrheit: sie fliessen in
   // den kumulativen Saldo-Verlauf ein, sonst widerspricht die Kurve der
   // "Stundenkonto"-Kachel direkt darueber.
-  const { data: accountAdjustments } = useSWRAuth<BalanceAdjustment[]>(
+  const {
+    data: accountAdjustments,
+    isLoading: adjustmentsLoading,
+    error: adjustmentsError,
+  } = useSWRAuth<BalanceAdjustment[]>(
     `staff-balance-adjustments-${staffId}-${accountStartKey}-${adjustmentHistoryEndKey}`,
     () =>
       staffBalanceAdjustmentService.list(
@@ -281,7 +285,12 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
   // The Soll is a chart axis here, not a decoration: rendering before the
   // targets land would draw a 0-Soll baseline and a Saldo line that jumps once
   // the real map arrives.
-  if (sessionsLoading || absencesLoading || targetsLoading) {
+  if (
+    sessionsLoading ||
+    absencesLoading ||
+    targetsLoading ||
+    adjustmentsLoading
+  ) {
     return <UebersichtTabSkeleton />;
   }
 
@@ -295,6 +304,21 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
         <Alert
           type="error"
           message="Die Sollzeiten konnten nicht geladen werden. Die Auswertung wird nicht angezeigt, um keine falschen Soll- und Saldo-Werte darzustellen. Bitte lade die Seite neu."
+        />
+      </div>
+    );
+  }
+
+  // Gleiche Logik für die Stundenkonto-Buchungen: ein Fetch-Fehler darf nicht
+  // als leeres Buchungsprotokoll ("Noch keine Buchungen") durchgehen — dann
+  // fehlen Auszahlungen und Resets sowohl im Protokoll als auch in der
+  // Saldo-Kurve, die der "Stundenkonto"-Kachel direkt widersprechen würde.
+  if (adjustmentsError) {
+    return (
+      <div className="space-y-5">
+        <Alert
+          type="error"
+          message="Die Stundenkonto-Buchungen konnten nicht geladen werden. Die Auswertung wird nicht angezeigt, um keine falschen Saldo-Werte darzustellen. Bitte lade die Seite neu."
         />
       </div>
     );
