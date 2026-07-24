@@ -77,9 +77,9 @@ type WorkTimeMonthService interface {
 	// later debit or comp-time commitment.
 	GetBalanceReductionCapacity(ctx context.Context, staffID int64, effectiveDate timezone.Date) (int, error)
 	// GetCompTimeDeductionMinutes returns how much a comp_time absence over
-	// [start, end] can reduce the Stundenkonto. Full days reserve the daily
-	// targets; half days reserve each target minus recorded net work, because
-	// comp_time itself credits nothing (#1420).
+	// [start, end] can reduce the Stundenkonto. Both full and half days reserve
+	// each target minus recorded net work, because comp_time itself credits
+	// nothing (#1420).
 	GetCompTimeDeductionMinutes(ctx context.Context, staffID int64, start, end timezone.Date, halfDay bool) (int, error)
 	GetDailyTargets(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyTarget, error)
 	// SetHolidayReader injects the public-holiday resolver (#1418 3a) —
@@ -1179,11 +1179,12 @@ func (s *workTimeMonthService) getRemainingCompTimeCommitment(
 	return total, nil
 }
 
-// GetCompTimeDeductionMinutes sums the daily targets a comp_time absence can
-// remove from the Stundenkonto. A half-day absence credits nothing, so it
-// reserves the full target until work is recorded; recorded net work reduces
-// that reservation by the same amount it contributes to the Monatskarte.
-func (s *workTimeMonthService) GetCompTimeDeductionMinutes(ctx context.Context, staffID int64, start, end timezone.Date, halfDay bool) (int, error) {
+// GetCompTimeDeductionMinutes sums the missing daily target minutes a
+// comp_time absence can remove from the Stundenkonto. Neither a full-day nor a
+// half-day absence credits time, so recorded net work reduces the deduction by
+// the same amount it contributes to the Monatskarte. Future days still reserve
+// the full target.
+func (s *workTimeMonthService) GetCompTimeDeductionMinutes(ctx context.Context, staffID int64, start, end timezone.Date, _ bool) (int, error) {
 	if start.IsZero() || end.IsZero() || end.Before(start) {
 		return 0, errors.New("start and end must form a valid range")
 	}
@@ -1191,9 +1192,13 @@ func (s *workTimeMonthService) GetCompTimeDeductionMinutes(ctx context.Context, 
 	if err != nil {
 		return 0, err
 	}
-	actualByDate := map[timezone.Date]int(nil)
-	if halfDay {
-		actualByDate, err = s.getDailyActualMinutes(ctx, staffID, start, end)
+	actualByDate := make(map[timezone.Date]int)
+	actualEnd := end
+	if today := s.today(); actualEnd.After(today) {
+		actualEnd = today
+	}
+	if !actualEnd.Before(start) {
+		actualByDate, err = s.getDailyActualMinutes(ctx, staffID, start, actualEnd)
 		if err != nil {
 			return 0, err
 		}
@@ -1204,10 +1209,7 @@ func (s *workTimeMonthService) GetCompTimeDeductionMinutes(ctx context.Context, 
 		if target <= 0 {
 			continue
 		}
-		deduction := target
-		if halfDay {
-			deduction = max(0, target-actualByDate[d])
-		}
+		deduction := max(0, target-actualByDate[d])
 		total += deduction
 	}
 	return total, nil

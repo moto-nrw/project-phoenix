@@ -2715,6 +2715,31 @@ func TestAbsCreateAbsenceFor_AllowsWorkedHalfCoveredByAccruedBalance(t *testing.
 	assert.Equal(t, int64(91), result.ID)
 }
 
+func TestAbsCreateAbsenceFor_AllowsFullDayCoveredByAccruedBalance(t *testing.T) {
+	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
+	// The current closing balance is zero after one accrued day pays for the
+	// unworked target. The full-day deduction is already reflected in that
+	// closing balance and must not be charged a second time.
+	svc.monthService = &absMonthServiceMock{capacity: 0, deduction: 480}
+	absRepo.createFunc = func(_ context.Context, absence *activeModels.StaffAbsence) error {
+		absence.ID = 92
+		return nil
+	}
+
+	today := timezone.TodayDate()
+	result, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   today.String(),
+		DateEnd:     today.String(),
+		Note:        "Ganzer Freizeitausgleich",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(92), result.ID)
+}
+
 func TestAbsCreateAbsenceFor_RejectsWorkedHalfWithExistingDeficit(t *testing.T) {
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
@@ -2767,13 +2792,14 @@ func TestAbsCreateAbsenceFor_RejectsCompTimeCombinedWithSameDayAdjustment(t *tes
 	assert.False(t, createCalled)
 }
 
-// On the account-start day the timeline capacity is zero because nothing has
-// accrued yet.
+// On the account-start day no credit exists to cover the target.
 func TestAbsCreateAbsenceFor_RejectsCompTimeOnAccountStartWithoutAccrual(t *testing.T) {
 	svc, _, _ := absSetupServiceWithSyncer()
 	today := timezone.TodayDate()
 	svc.settings = &wtmMockSettings{accountStart: today.String()}
-	svc.monthService = &absMonthServiceMock{capacity: 0, deduction: 480}
+	// The day's missing target has already lowered the closing balance to
+	// -480. Adding that realized deduction back leaves no available credit.
+	svc.monthService = &absMonthServiceMock{capacity: -480, deduction: 480}
 
 	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
 		AbsenceType: activeModels.AbsenceTypeCompTime,

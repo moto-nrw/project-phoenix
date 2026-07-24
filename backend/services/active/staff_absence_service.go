@@ -449,29 +449,12 @@ func (s *staffAbsenceService) validateCompTimeBalance(
 		// wires the real service.
 		return nil
 	}
-	deduction, err := s.monthService.GetCompTimeDeductionMinutes(ctx, staffID, start, end, halfDay)
+	additionalDeduction, err := s.getAdditionalCompTimeDeduction(
+		ctx, staffID, start, end, halfDay, existing,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to compute comp_time deduction: %w", err)
+		return err
 	}
-	if deduction <= 0 {
-		return nil
-	}
-
-	reservedDeduction := 0
-	for _, absence := range existing {
-		reserved, err := s.monthService.GetCompTimeDeductionMinutes(
-			ctx,
-			staffID,
-			absence.DateStart,
-			absence.DateEnd,
-			absence.HalfDay,
-		)
-		if err != nil {
-			return fmt.Errorf("failed to compute existing comp_time deduction: %w", err)
-		}
-		reservedDeduction += reserved
-	}
-	additionalDeduction := deduction - reservedDeduction
 	if additionalDeduction <= 0 {
 		return nil
 	}
@@ -480,11 +463,23 @@ func (s *staffAbsenceService) validateCompTimeBalance(
 	if err != nil {
 		return fmt.Errorf("failed to compute reduction capacity for comp_time absence: %w", err)
 	}
-	if halfDay && !start.After(timezone.TodayDate()) {
+	today := timezone.TodayDate()
+	if !start.After(today) {
+		historicalEnd := end
+		if historicalEnd.After(today) {
+			historicalEnd = today
+		}
+		realizedDeduction, err := s.getAdditionalCompTimeDeduction(
+			ctx, staffID, start, historicalEnd, halfDay, existing,
+		)
+		if err != nil {
+			return err
+		}
 		// Today's and historical closing balances already include the missing
-		// target minutes that this half-day absence names. Add that realized
-		// deduction back before comparing it, or the guard charges it twice.
-		reductionCapacity += additionalDeduction
+		// target minutes that the absence names. Add only that realized part
+		// back before comparing the whole request, or the guard charges it
+		// twice. Future days remain fully reserved.
+		reductionCapacity += realizedDeduction
 	}
 	if additionalDeduction > reductionCapacity {
 		return fmt.Errorf(
@@ -496,6 +491,46 @@ func (s *staffAbsenceService) validateCompTimeBalance(
 		)
 	}
 	return nil
+}
+
+func (s *staffAbsenceService) getAdditionalCompTimeDeduction(
+	ctx context.Context,
+	staffID int64,
+	start, end timezone.Date,
+	halfDay bool,
+	existing []*activeModels.StaffAbsence,
+) (int, error) {
+	deduction, err := s.monthService.GetCompTimeDeductionMinutes(ctx, staffID, start, end, halfDay)
+	if err != nil {
+		return 0, fmt.Errorf("failed to compute comp_time deduction: %w", err)
+	}
+
+	reservedDeduction := 0
+	for _, absence := range existing {
+		overlapStart := absence.DateStart
+		if overlapStart.Before(start) {
+			overlapStart = start
+		}
+		overlapEnd := absence.DateEnd
+		if overlapEnd.After(end) {
+			overlapEnd = end
+		}
+		if overlapEnd.Before(overlapStart) {
+			continue
+		}
+		reserved, err := s.monthService.GetCompTimeDeductionMinutes(
+			ctx,
+			staffID,
+			overlapStart,
+			overlapEnd,
+			absence.HalfDay,
+		)
+		if err != nil {
+			return 0, fmt.Errorf("failed to compute existing comp_time deduction: %w", err)
+		}
+		reservedDeduction += reserved
+	}
+	return deduction - reservedDeduction, nil
 }
 
 func (s *staffAbsenceService) lockStaffAbsenceWrites(ctx context.Context, staffID int64) error {

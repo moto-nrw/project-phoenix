@@ -244,7 +244,7 @@ func TestWTMAdjustments_HalfDayCompTimeReservesFullNoWorkExposure(t *testing.T) 
 	assert.Equal(t, 560, capacity)
 }
 
-func TestWTMAdjustments_HalfDayCompTimeUsesRecordedWork(t *testing.T) {
+func TestWTMAdjustments_CompTimeUsesRecordedWork(t *testing.T) {
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-01"
 	monday := timezone.NewDate(2026, time.July, 13)
@@ -266,7 +266,7 @@ func TestWTMAdjustments_HalfDayCompTimeUsesRecordedWork(t *testing.T) {
 		context.Background(), wtmStaffID, monday, monday, false,
 	)
 	require.NoError(t, err)
-	assert.Equal(t, 480, fullDayDeduction)
+	assert.Equal(t, 240, fullDayDeduction)
 
 	capacity, err := f.svc.GetBalanceReductionCapacity(context.Background(), wtmStaffID, monday)
 	require.NoError(t, err)
