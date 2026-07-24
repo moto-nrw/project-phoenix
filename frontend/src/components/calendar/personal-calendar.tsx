@@ -1085,15 +1085,21 @@ function AgendaRow({
   );
 }
 
-// Schmale einzeilige Pille für Ganztägig-Einträge (Wochen-/Tagesraster + Mobile)
-// und Monatszellen. Tap öffnet das Detail-Sheet.
+// Schmale einzeilige Pille für die Ganztägig-Zeile im Wochen-/Tagesraster und
+// für Monatszellen. Mehrtägige Einträge liegen aus Layout-Gründen ebenfalls in
+// dieser Zeile; zeitgebundene Einträge behalten dort aber ihre Zeitangabe.
+// Tap öffnet das Detail-Sheet.
 function EventPill({
   event,
   actions,
 }: Readonly<{ event: CalendarEvent; actions: CalendarEventActions }>) {
   const tone = sourceTone[event.source];
   const cancelled = event.cancelled === true;
-  const showTime = !event.all_day && event.start_date === event.end_date;
+  const timeLabel = event.all_day
+    ? null
+    : event.start_date === event.end_date
+      ? event.start_time
+      : `${event.start_time}–${event.end_time}`;
   return (
     <button
       type="button"
@@ -1115,9 +1121,9 @@ function EventPill({
       >
         {event.title}
       </span>
-      {showTime ? (
+      {timeLabel ? (
         <span className="shrink-0 text-[11px] text-gray-500 tabular-nums">
-          {event.start_time}
+          {timeLabel}
         </span>
       ) : null}
     </button>

@@ -338,6 +338,37 @@ describe("PersonalCalendar", () => {
     expect(screen.getAllByText("15:00").length).toBeGreaterThan(0);
   });
 
+  it.each(["week", "month"] as const)(
+    "shows the full time range for multi-day timed events in the desktop %s view",
+    (viewMode) => {
+      const multiDayTimed: CalendarEvent = {
+        ...appointment,
+        id: "appointment:4:2026-01-05",
+        appointment_id: "4",
+        title: "Klassenfahrt",
+        start_date: "2026-01-05",
+        end_date: "2026-01-07",
+        start_time: "09:00",
+        end_time: "15:00",
+        all_day: false,
+      };
+      render(
+        <PersonalCalendar
+          title="Mein Kalender"
+          events={[multiDayTimed]}
+          referenceDate={new Date(2026, 0, 5)}
+          viewMode={viewMode}
+          onDateChange={vi.fn()}
+        />,
+      );
+
+      // EventPill renders only on desktop. The mobile agenda uses separate
+      // start/end spans, so this exact range proves the desktop surface keeps
+      // the time information in both layouts.
+      expect(screen.getAllByText("09:00–15:00").length).toBeGreaterThan(0);
+    },
+  );
+
   it("shows empty and error states", () => {
     render(
       <PersonalCalendar
