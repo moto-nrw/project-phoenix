@@ -1137,6 +1137,38 @@ class StaffSessionService {
   }
 }
 
+interface StaffAPIError {
+  readonly code?: string;
+  readonly message: string;
+}
+
+async function readStaffAPIError(
+  response: Response,
+  fallback: string,
+): Promise<StaffAPIError> {
+  const text = await response.text().catch(() => "");
+  if (!text) return { message: fallback };
+
+  try {
+    const payload = JSON.parse(text) as {
+      code?: unknown;
+      error?: unknown;
+      message?: unknown;
+    };
+    return {
+      code: typeof payload.code === "string" ? payload.code : undefined,
+      message:
+        typeof payload.error === "string"
+          ? payload.error
+          : typeof payload.message === "string"
+            ? payload.message
+            : fallback,
+    };
+  } catch {
+    return { message: text };
+  }
+}
+
 // Stundenkonto lifecycle (#1420): payout / comp-time transactions and the
 // school-year reset. Admin-only (time_tracking:manage, enforced backend-side).
 class StaffBalanceAdjustmentService {
@@ -1183,8 +1215,13 @@ class StaffBalanceAdjustmentService {
       },
     );
     if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new Error(text || "Buchung fehlgeschlagen");
+      const error = await readStaffAPIError(response, "Buchung fehlgeschlagen");
+      if (error.code === "dependent_balance_reset") {
+        throw new Error(
+          "Die Buchung liegt vor einem vorhandenen Reset und würde dessen Saldo verfälschen.",
+        );
+      }
+      throw new Error(error.message);
     }
     const json = (await response.json()) as { data: BackendBalanceAdjustment };
     return mapBalanceAdjustmentResponse(json.data);
@@ -1196,8 +1233,13 @@ class StaffBalanceAdjustmentService {
       { method: "DELETE" },
     );
     if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new Error(text || "Löschen fehlgeschlagen");
+      const error = await readStaffAPIError(response, "Löschen fehlgeschlagen");
+      if (error.code === "dependent_balance_reset") {
+        throw new Error(
+          "Die Buchung liegt vor einem vorhandenen Reset und kann deshalb nicht gelöscht werden.",
+        );
+      }
+      throw new Error(error.message);
     }
   }
 
@@ -1224,14 +1266,19 @@ class StaffBalanceAdjustmentService {
         }),
       },
     );
-    if (response.status === 409) {
-      throw new Error(
-        "Das Stundenkonto wurde für dieses Datum bereits zurückgesetzt.",
-      );
-    }
     if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new Error(text || "Reset fehlgeschlagen");
+      const error = await readStaffAPIError(response, "Reset fehlgeschlagen");
+      if (error.code === "balance_already_reset") {
+        throw new Error(
+          "Das Stundenkonto wurde für dieses Datum bereits zurückgesetzt.",
+        );
+      }
+      if (error.code === "dependent_balance_reset") {
+        throw new Error(
+          "Der Reset liegt vor einem späteren Reset und würde dessen Saldo verfälschen.",
+        );
+      }
+      throw new Error(error.message);
     }
     const json = (await response.json()) as { data: BackendBalanceAdjustment };
     return mapBalanceAdjustmentResponse(json.data);

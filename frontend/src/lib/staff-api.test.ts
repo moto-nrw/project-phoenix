@@ -2195,7 +2195,7 @@ describe("staff-api", () => {
       );
     });
 
-    it("surfaces list, create, delete, reset, and duplicate-reset errors", async () => {
+    it("surfaces list, create, delete, reset, and coded reset conflicts", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch
         .mockResolvedValueOnce({
@@ -2213,6 +2213,24 @@ describe("staff-api", () => {
         .mockResolvedValueOnce({
           ok: false,
           status: 409,
+          text: () =>
+            Promise.resolve(
+              JSON.stringify({
+                error: "duplicate",
+                code: "balance_already_reset",
+              }),
+            ),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 409,
+          text: () =>
+            Promise.resolve(
+              JSON.stringify({
+                error: "dependent",
+                code: "dependent_balance_reset",
+              }),
+            ),
         } as Response)
         .mockResolvedValueOnce({
           ok: false,
@@ -2242,6 +2260,15 @@ describe("staff-api", () => {
         }),
       ).rejects.toThrow(
         "Das Stundenkonto wurde für dieses Datum bereits zurückgesetzt.",
+      );
+      await expect(
+        staffBalanceAdjustmentService.reset("4", {
+          effectiveDate: "2026-07-31",
+          carryoverMinutes: 0,
+          note: "x",
+        }),
+      ).rejects.toThrow(
+        "Der Reset liegt vor einem späteren Reset und würde dessen Saldo verfälschen.",
       );
       await expect(
         staffBalanceAdjustmentService.reset("4", {

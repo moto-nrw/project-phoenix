@@ -376,6 +376,115 @@ func TestAbsCreateAbsence_BlocksVacationType(t *testing.T) {
 	assert.Contains(t, err.Error(), "vacation flow")
 }
 
+func TestAbsCompTimeRequiresManagerControl(t *testing.T) {
+	const (
+		staffID   = int64(100)
+		managerID = int64(200)
+	)
+	req := CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   "2026-07-20",
+		DateEnd:     "2026-07-20",
+		HalfDay:     true,
+		Note:        "Freizeitausgleich",
+	}
+
+	t.Run("own create rejected", func(t *testing.T) {
+		svc, absRepo, _ := absSetupService()
+		absRepo.createFunc = func(context.Context, *activeModels.StaffAbsence) error {
+			t.Fatal("self-service comp time must not be persisted")
+			return nil
+		}
+
+		result, err := svc.CreateOwnAbsence(context.Background(), staffID, nil, req)
+
+		require.ErrorIs(t, err, ErrManagerControlledAbsence)
+		assert.Nil(t, result)
+	})
+
+	t.Run("manager create allowed", func(t *testing.T) {
+		svc, absRepo, _ := absSetupService()
+		absRepo.getByStaffAndDateRangeFunc = func(context.Context, int64, timezone.Date, timezone.Date) ([]*activeModels.StaffAbsence, error) {
+			return nil, nil
+		}
+		absRepo.createFunc = func(_ context.Context, absence *activeModels.StaffAbsence) error {
+			assert.Equal(t, activeModels.AbsenceTypeCompTime, absence.AbsenceType)
+			assert.Equal(t, activeModels.AbsenceStatusReported, absence.Status)
+			assert.Equal(t, managerID, absence.CreatedBy)
+			assert.True(t, absence.HalfDay)
+			absence.ID = 77
+			return nil
+		}
+
+		result, err := svc.CreateAbsenceFor(context.Background(), staffID, managerID, nil, req)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, int64(77), result.ID)
+	})
+
+	t.Run("own update of manager-created comp time rejected", func(t *testing.T) {
+		svc, absRepo, _ := absSetupService()
+		absRepo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) {
+			return &activeModels.StaffAbsence{
+				StaffID:     staffID,
+				AbsenceType: activeModels.AbsenceTypeCompTime,
+			}, nil
+		}
+		absRepo.updateFunc = func(context.Context, *activeModels.StaffAbsence) error {
+			t.Fatal("self-service comp time must not be updated")
+			return nil
+		}
+		note := "Geändert"
+
+		result, err := svc.UpdateAbsence(context.Background(), staffID, nil, 77, UpdateAbsenceRequest{Note: &note})
+
+		require.ErrorIs(t, err, ErrManagerControlledAbsence)
+		assert.Nil(t, result)
+	})
+
+	t.Run("own conversion into comp time rejected", func(t *testing.T) {
+		svc, absRepo, _ := absSetupService()
+		absRepo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) {
+			return &activeModels.StaffAbsence{
+				StaffID:     staffID,
+				AbsenceType: activeModels.AbsenceTypeOther,
+			}, nil
+		}
+		compTime := activeModels.AbsenceTypeCompTime
+
+		result, err := svc.UpdateAbsence(context.Background(), staffID, nil, 77, UpdateAbsenceRequest{AbsenceType: &compTime})
+
+		require.ErrorIs(t, err, ErrManagerControlledAbsence)
+		assert.Nil(t, result)
+	})
+
+	t.Run("own delete rejected and manager delete allowed", func(t *testing.T) {
+		svc, absRepo, _ := absSetupService()
+		absence := &activeModels.StaffAbsence{
+			StaffID:     staffID,
+			AbsenceType: activeModels.AbsenceTypeCompTime,
+		}
+		absence.ID = 77
+		absRepo.findByIDFunc = func(context.Context, any) (*activeModels.StaffAbsence, error) {
+			return absence, nil
+		}
+		deleteCalls := 0
+		absRepo.deleteFunc = func(context.Context, any) error {
+			deleteCalls++
+			return nil
+		}
+
+		err := svc.DeleteOwnAbsence(context.Background(), staffID, nil, absence.ID)
+		require.ErrorIs(t, err, ErrManagerControlledAbsence)
+		assert.Zero(t, deleteCalls)
+
+		err = svc.DeleteAbsenceFor(context.Background(), staffID, managerID, nil, absence.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, deleteCalls)
+	})
+}
+
 func TestAbsCreateAbsence_InvalidDateStart(t *testing.T) {
 	svc, _, _ := absSetupService()
 

@@ -197,3 +197,32 @@ func TestWTMAbsences_CompTimeNotCredited(t *testing.T) {
 	assert.Zero(t, overlapSummary.CreditedVacationMinutes, "comp_time consumed the day; vacation must not re-credit it")
 	assert.Equal(t, compTimeSummary.BalanceMinutes, overlapSummary.BalanceMinutes)
 }
+
+// A half-day comp_time absence still credits nothing. The intended half-day
+// effect comes from recording the worked half: four worked hours against an
+// eight-hour target leave a four-hour deduction. Crediting another four hours
+// here would incorrectly make the Freizeitausgleich free.
+func TestWTMAbsences_HalfDayCompTimeRequiresWorkedHalf(t *testing.T) {
+	monday := timezone.NewDate(2026, time.July, 6)
+
+	f := newWTMFixture()
+	f.sessions.sessions = []*activeModels.WorkSession{
+		wtmSession(monday, 9, 240, 0),
+	}
+	f.absences.absences = []*activeModels.StaffAbsence{{
+		StaffID: wtmStaffID, AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart: monday, DateEnd: monday, HalfDay: true,
+		Status: activeModels.AbsenceStatusApproved,
+	}}
+
+	compTimeSummary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+	assert.Zero(t, compTimeSummary.CreditedVacationMinutes)
+	assert.Zero(t, compTimeSummary.CreditedOtherMinutes)
+
+	f.absences.absences[0].AbsenceType = activeModels.AbsenceTypeVacation
+	vacationSummary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+	assert.Equal(t, 240, vacationSummary.CreditedVacationMinutes)
+	assert.Equal(t, vacationSummary.BalanceMinutes-240, compTimeSummary.BalanceMinutes)
+}

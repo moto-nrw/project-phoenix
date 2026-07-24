@@ -21,6 +21,14 @@ var balanceAdjustmentErrorRules = []common.ErrorRule{
 }
 
 func renderBalanceAdjustmentError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, activeSvc.ErrBalanceAlreadyReset) {
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "balance_already_reset"))
+		return
+	}
+	if errors.Is(err, activeSvc.ErrAdjustmentHasDependentReset) {
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "dependent_balance_reset"))
+		return
+	}
 	common.RenderError(w, r, common.RenderWithRules(err, balanceAdjustmentErrorRules, common.ErrorInternalServer))
 }
 

@@ -121,6 +121,36 @@ func TestAdminCreateStaffAbsence_SickCascades(t *testing.T) {
 	assert.Nil(t, shift.SickAbsenceID)
 }
 
+func TestAdminCreateStaffAbsence_CompTimeAllowedForManager(t *testing.T) {
+	tc, token, subjectID, _ := setupAbsenceAdminTest(t)
+	tomorrow := timezone.TodayDate().AddDays(1)
+
+	rec := postAbsence(t, tc, token, subjectID, map[string]any{
+		"absence_type": "comp_time",
+		"date_start":   tomorrow.String(),
+		"date_end":     tomorrow.String(),
+		"half_day":     true,
+		"note":         "Überstundenabbau",
+	})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+
+	ctx := testpkg.TenantContext(1)
+	absences, err := repositories.NewFactory(tc.db).StaffAbsence.GetByStaffAndDateRange(
+		ctx,
+		subjectID,
+		tomorrow,
+		tomorrow,
+	)
+	require.NoError(t, err)
+	require.Len(t, absences, 1)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, tc.db, "active.staff_absences", absences[0].ID)
+	})
+	assert.Equal(t, activeModels.AbsenceTypeCompTime, absences[0].AbsenceType)
+	assert.True(t, absences[0].HalfDay)
+	assert.Equal(t, activeModels.AbsenceStatusReported, absences[0].Status)
+}
+
 func TestAdminCreateStaffAbsence_RequiresPermission(t *testing.T) {
 	tc, _, subjectID, _ := setupAbsenceAdminTest(t)
 	tomorrow := timezone.TodayDate().AddDays(1)

@@ -90,7 +90,7 @@ func TestStaffBalanceAdjustmentService_LocksEveryMutation(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		assert.Equal(t, []string{"lock", "create"}, events)
+		assert.Equal(t, []string{"lock", "list", "create"}, events)
 	})
 
 	t.Run("delete locks before lookup and delete", func(t *testing.T) {
@@ -128,8 +128,101 @@ func TestStaffBalanceAdjustmentService_LocksEveryMutation(t *testing.T) {
 		)
 
 		require.NoError(t, err)
-		assert.Equal(t, []string{"lock", "as-of", "create"}, events)
+		assert.Equal(t, []string{"lock", "list", "as-of", "create"}, events)
 		assert.Equal(t, -120, adjustment.MinutesDelta)
+	})
+}
+
+func TestStaffBalanceAdjustmentService_RejectsWritesThatPrecedeReset(t *testing.T) {
+	const (
+		staffID   = int64(41)
+		decidedBy = int64(42)
+	)
+	resetDate := timezone.TodayDate()
+	reset := &activeModels.StaffBalanceAdjustment{
+		StaffID:       staffID,
+		Type:          activeModels.BalanceAdjustmentTypeReset,
+		EffectiveDate: resetDate,
+	}
+	reset.ID = 20
+
+	t.Run("adjustment on reset date", func(t *testing.T) {
+		events := []string{}
+		repo := &recordingBalanceAdjustmentRepo{
+			events: &events,
+			resets: []*activeModels.StaffBalanceAdjustment{reset},
+		}
+		service := newRecordingBalanceAdjustmentService(&events, repo, nil)
+
+		_, err := service.CreateAdjustment(context.Background(), staffID, decidedBy, CreateBalanceAdjustmentRequest{
+			Type:          activeModels.BalanceAdjustmentTypePayout,
+			MinutesDelta:  -60,
+			EffectiveDate: resetDate,
+			Note:          "Nachträgliche Auszahlung",
+		})
+
+		require.ErrorIs(t, err, ErrAdjustmentHasDependentReset)
+		assert.Equal(t, []string{"lock", "list"}, events)
+	})
+
+	t.Run("reset before later reset", func(t *testing.T) {
+		events := []string{}
+		repo := &recordingBalanceAdjustmentRepo{
+			events: &events,
+			resets: []*activeModels.StaffBalanceAdjustment{reset},
+		}
+		monthService := &recordingBalanceMonthService{events: &events, balance: 180}
+		service := newRecordingBalanceAdjustmentService(&events, repo, monthService)
+
+		_, err := service.ResetBalance(
+			context.Background(),
+			staffID,
+			decidedBy,
+			resetDate.AddDays(-1),
+			0,
+			"Früherer Reset",
+		)
+
+		require.ErrorIs(t, err, ErrAdjustmentHasDependentReset)
+		assert.Equal(t, []string{"lock", "list"}, events)
+	})
+
+	t.Run("duplicate reset date", func(t *testing.T) {
+		events := []string{}
+		repo := &recordingBalanceAdjustmentRepo{
+			events: &events,
+			resets: []*activeModels.StaffBalanceAdjustment{reset},
+		}
+		monthService := &recordingBalanceMonthService{events: &events, balance: 180}
+		service := newRecordingBalanceAdjustmentService(&events, repo, monthService)
+
+		_, err := service.ResetBalance(
+			context.Background(),
+			staffID,
+			decidedBy,
+			resetDate,
+			0,
+			"Doppelter Reset",
+		)
+
+		require.ErrorIs(t, err, ErrBalanceAlreadyReset)
+		assert.Equal(t, []string{"lock", "list"}, events)
+	})
+
+	t.Run("adjustment after reset", func(t *testing.T) {
+		events := []string{}
+		repo := &recordingBalanceAdjustmentRepo{events: &events}
+		service := newRecordingBalanceAdjustmentService(&events, repo, nil)
+
+		_, err := service.CreateAdjustment(context.Background(), staffID, decidedBy, CreateBalanceAdjustmentRequest{
+			Type:          activeModels.BalanceAdjustmentTypeCompTime,
+			MinutesDelta:  -60,
+			EffectiveDate: resetDate.AddDays(1),
+			Note:          "Neue Periode",
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"lock", "list", "create"}, events)
 	})
 }
 

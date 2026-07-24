@@ -24,8 +24,8 @@ var (
 	// ErrBalanceAlreadyReset marks a second reset for the same staff member
 	// and effective date (double-click, concurrent admins) — HTTP 409.
 	ErrBalanceAlreadyReset = errors.New("balance already reset for this date")
-	// ErrAdjustmentHasDependentReset prevents deleting a transaction that a
-	// later reset used to calculate its persisted delta — HTTP 409.
+	// ErrAdjustmentHasDependentReset prevents a write from changing history
+	// that an existing reset used to calculate its persisted delta — HTTP 409.
 	ErrAdjustmentHasDependentReset = errors.New("later balance reset depends on this adjustment")
 )
 
@@ -133,6 +133,18 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 	if err := s.adjustmentRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, fmt.Errorf("failed to lock staff balance writes: %w", err)
 	}
+	resets, err := s.listResetsOnOrAfter(ctx, staffID, req.EffectiveDate)
+	if err != nil {
+		return nil, err
+	}
+	if len(resets) > 0 {
+		return nil, fmt.Errorf(
+			"%w: effective_date %s is not after reset %s",
+			ErrAdjustmentHasDependentReset,
+			req.EffectiveDate.String(),
+			resets[0].EffectiveDate.String(),
+		)
+	}
 
 	adjustment := &activeModels.StaffBalanceAdjustment{
 		StaffID:       staffID,
@@ -215,6 +227,21 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 	if err := s.adjustmentRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, fmt.Errorf("failed to lock staff balance writes: %w", err)
 	}
+	resets, err := s.listResetsOnOrAfter(ctx, staffID, effectiveDate)
+	if err != nil {
+		return nil, err
+	}
+	if len(resets) > 0 {
+		if resets[0].EffectiveDate == effectiveDate {
+			return nil, fmt.Errorf("%w: %s", ErrBalanceAlreadyReset, effectiveDate.String())
+		}
+		return nil, fmt.Errorf(
+			"%w: reset date %s is before existing reset %s",
+			ErrAdjustmentHasDependentReset,
+			effectiveDate.String(),
+			resets[0].EffectiveDate.String(),
+		)
+	}
 
 	previousBalance, err := s.monthService.GetClosingBalanceAsOf(ctx, staffID, effectiveDate)
 	if err != nil {
@@ -252,19 +279,9 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 }
 
 func (s *staffBalanceAdjustmentService) hasDependentReset(ctx context.Context, adjustment *activeModels.StaffBalanceAdjustment) (bool, error) {
-	options := modelBase.NewQueryOptions()
-	options.Filter.
-		Equal("staff_id", adjustment.StaffID).
-		Equal("type", activeModels.BalanceAdjustmentTypeReset).
-		GreaterThanOrEqual("effective_date", adjustment.EffectiveDate)
-	sorting := &modelBase.Sorting{}
-	sorting.AddField("effective_date", modelBase.SortAsc)
-	sorting.AddField("id", modelBase.SortAsc)
-	options.Sorting = sorting
-
-	resets, err := s.adjustmentRepo.List(ctx, options)
+	resets, err := s.listResetsOnOrAfter(ctx, adjustment.StaffID, adjustment.EffectiveDate)
 	if err != nil {
-		return false, fmt.Errorf("failed to check dependent balance resets: %w", err)
+		return false, err
 	}
 	for _, reset := range resets {
 		if reset.EffectiveDate.After(adjustment.EffectiveDate) ||
@@ -273,6 +290,24 @@ func (s *staffBalanceAdjustmentService) hasDependentReset(ctx context.Context, a
 		}
 	}
 	return false, nil
+}
+
+func (s *staffBalanceAdjustmentService) listResetsOnOrAfter(ctx context.Context, staffID int64, effectiveDate timezone.Date) ([]*activeModels.StaffBalanceAdjustment, error) {
+	options := modelBase.NewQueryOptions()
+	options.Filter.
+		Equal("staff_id", staffID).
+		Equal("type", activeModels.BalanceAdjustmentTypeReset).
+		GreaterThanOrEqual("effective_date", effectiveDate)
+	sorting := &modelBase.Sorting{}
+	sorting.AddField("effective_date", modelBase.SortAsc)
+	sorting.AddField("id", modelBase.SortAsc)
+	options.Sorting = sorting
+
+	resets, err := s.adjustmentRepo.List(ctx, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check dependent balance resets: %w", err)
+	}
+	return resets, nil
 }
 
 func validateAdjustmentCommon(staffID, decidedBy int64, effectiveDate timezone.Date, note string) error {

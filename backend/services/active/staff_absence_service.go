@@ -2,6 +2,7 @@ package active
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -13,6 +14,10 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
+
+// ErrManagerControlledAbsence marks absence mutations that staff may view but
+// only a time-tracking manager may create, change, or delete.
+var ErrManagerControlledAbsence = errors.New("absence type is manager-controlled")
 
 // CreateAbsenceRequest defines the request for creating an absence
 type CreateAbsenceRequest struct {
@@ -83,6 +88,7 @@ type VacationQuotaSummary struct {
 // StaffAbsenceService defines operations for staff absence management
 type StaffAbsenceService interface {
 	CreateAbsence(ctx context.Context, staffID int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error)
+	CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error)
 	// CreateAbsenceFor separates the absence's subject from its creator so an
 	// admin can file a sick report on a staff member's behalf (#1843). A sick
 	// full-day absence cascades into the plans via the ShiftPlanSyncer inside
@@ -90,6 +96,7 @@ type StaffAbsenceService interface {
 	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error)
 	UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, req UpdateAbsenceRequest) (*StaffAbsenceResponse, error)
 	DeleteAbsence(ctx context.Context, staffID int64, absenceID int64) error
+	DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error
 	// DeleteAbsenceFor is DeleteAbsence with an explicit actor (admin delete,
 	// #1843): deleting a sick report reverses its plan cascade first.
 	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
@@ -175,7 +182,16 @@ const defaultEntitledDays = 30.0
 
 // CreateAbsence creates a new absence record for the caller themself.
 func (s *staffAbsenceService) CreateAbsence(ctx context.Context, staffID int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
-	return s.CreateAbsenceFor(ctx, staffID, staffID, nil, req)
+	return s.CreateOwnAbsence(ctx, staffID, nil, req)
+}
+
+// CreateOwnAbsence is the self-service entry point. Comp-time absences change
+// the Stundenkonto and therefore require the manager-authorized staff route.
+func (s *staffAbsenceService) CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
+	if req.AbsenceType == activeModels.AbsenceTypeCompTime {
+		return nil, ErrManagerControlledAbsence
+	}
+	return s.CreateAbsenceFor(ctx, staffID, staffID, actorAccountID, req)
 }
 
 // CreateAbsenceFor creates an absence for subjectStaffID on createdByStaffID's
@@ -448,6 +464,10 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	if absence.StaffID != staffID {
 		return nil, fmt.Errorf("can only update own absences")
 	}
+	if absence.AbsenceType == activeModels.AbsenceTypeCompTime ||
+		(req.AbsenceType != nil && *req.AbsenceType == activeModels.AbsenceTypeCompTime) {
+		return nil, ErrManagerControlledAbsence
+	}
 	before := *absence
 	if err := validateAbsenceUpdate(absence, req); err != nil {
 		return nil, err
@@ -585,7 +605,13 @@ func (s *staffAbsenceService) checkOverlapExcludingSelf(ctx context.Context, sta
 // DeleteAbsence deletes an absence record (self-service; the caller is the
 // absence's owner and the acting person).
 func (s *staffAbsenceService) DeleteAbsence(ctx context.Context, staffID int64, absenceID int64) error {
-	return s.DeleteAbsenceFor(ctx, staffID, staffID, nil, absenceID)
+	return s.DeleteOwnAbsence(ctx, staffID, nil, absenceID)
+}
+
+// DeleteOwnAbsence is the self-service delete path. Manager-created comp-time
+// absences remain read-only for the affected staff member.
+func (s *staffAbsenceService) DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error {
+	return s.deleteAbsenceFor(ctx, staffID, staffID, actorAccountID, absenceID, false)
 }
 
 // DeleteAbsenceFor deletes subjectStaffID's absence on actorStaffID's behalf
@@ -595,6 +621,10 @@ func (s *staffAbsenceService) DeleteAbsence(ctx context.Context, staffID int64, 
 // the delete. CancelAbsence needs no such hook: it only accepts
 // requested/approved vacation-flow rows, never a reported sick absence.
 func (s *staffAbsenceService) DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error {
+	return s.deleteAbsenceFor(ctx, subjectStaffID, actorStaffID, actorAccountID, absenceID, true)
+}
+
+func (s *staffAbsenceService) deleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64, allowManagerControlled bool) error {
 	if err := s.lockStaffAbsenceWrites(ctx, subjectStaffID); err != nil {
 		return err
 	}
@@ -606,6 +636,9 @@ func (s *staffAbsenceService) DeleteAbsenceFor(ctx context.Context, subjectStaff
 	// Verify ownership
 	if absence.StaffID != subjectStaffID {
 		return fmt.Errorf("can only delete own absences")
+	}
+	if absence.AbsenceType == activeModels.AbsenceTypeCompTime && !allowManagerControlled {
+		return ErrManagerControlledAbsence
 	}
 	if isVacationWorkflowAbsence(absence) {
 		return fmt.Errorf("vacation workflow absences must be canceled through the vacation flow")
