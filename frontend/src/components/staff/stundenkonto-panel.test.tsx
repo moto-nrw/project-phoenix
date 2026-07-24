@@ -71,6 +71,26 @@ describe("StundenkontoPanel", () => {
     expect(screen.getByText("15.08.2026")).toBeInTheDocument();
   });
 
+  it("allows adjustments through the end of the supported future month", () => {
+    render(
+      <StundenkontoPanel
+        staffId="4"
+        balanceMinutes={180}
+        accountStartKey="2026-01-01"
+        todayKey="2026-07-24"
+        adjustments={[]}
+        onChanged={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Auszahlung" }));
+
+    expect(screen.getByLabelText("Wirksam am")).toHaveAttribute(
+      "max",
+      "2027-07-31",
+    );
+  });
+
   it("limits resets to the last closed Berlin day and describes the historical cutoff", () => {
     render(
       <StundenkontoPanel
