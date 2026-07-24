@@ -14,6 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -135,6 +136,35 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, rec.Code, "carryover above 10,000 hours must be rejected: %s", rec.Body.String())
 	})
 
+	t.Run("payout cannot overdraw the account", func(t *testing.T) {
+		rec := do(http.MethodPost, adjustmentsPath,
+			fmt.Sprintf(`{"type":"payout","minutes_delta":-1,"effective_date":"%s","note":"Ungedeckter Abzug"}`, resetDate), token)
+		require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+		assert.Contains(t, rec.Body.String(), `"code":"balance_adjustment_exceeds_balance"`)
+	})
+
+	// Accrue four hours before exercising payout and reset behavior. The source
+	// issue permits paying out plus-hours; an empty account is not a valid
+	// payout fixture.
+	tenantID := int64(testutil.DefaultTestClaims().TenantID)
+	checkIn := time.Date(resetDate.Year, resetDate.Month, resetDate.Day, 8, 0, 0, 0, time.UTC)
+	checkOut := checkIn.Add(4 * time.Hour)
+	accrualSession := &activeModels.WorkSession{
+		StaffID:      subject.ID,
+		Date:         resetDate,
+		Status:       activeModels.WorkSessionStatusPresent,
+		Source:       activeModels.WorkSessionSourceApp,
+		CheckInTime:  checkIn,
+		CheckOutTime: &checkOut,
+		CreatedBy:    subject.ID,
+	}
+	accrualSession.SetTenantID(tenantID)
+	_, err := tc.db.NewInsert().Model(accrualSession).Exec(testpkg.TenantContext(tenantID))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, tc.db, "active.work_sessions", accrualSession.ID)
+	})
+
 	t.Run("payout flows into month summary", func(t *testing.T) {
 		rec := do(http.MethodPost, adjustmentsPath,
 			fmt.Sprintf(`{"type":"payout","minutes_delta":-120,"effective_date":"%s","note":"Auszahlung Juli"}`, resetDate), token)
@@ -157,12 +187,12 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 	})
 
 	t.Run("reset zeroes the closing balance and conflicts on repeat", func(t *testing.T) {
-		// The subject has no schedule and no sessions, so before the reset the
-		// closing balance is exactly the payout: -120.
+		// The subject accrued 240 minutes and paid out 120, so the reset must
+		// remove the remaining positive 120-minute balance.
 		rec := do(http.MethodPost, resetPath,
 			fmt.Sprintf(`{"effective_date":"%s","carryover_minutes":0,"note":"Schuljahresende"}`, resetDate), token)
 		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
-		assert.Contains(t, rec.Body.String(), `"minutes_delta":120`, "reset delta must invert the -120 balance")
+		assert.Contains(t, rec.Body.String(), `"minutes_delta":-120`, "reset delta must invert the positive 120-minute balance")
 
 		rec = do(http.MethodGet, summaryPath, "", token)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -199,6 +229,24 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 	})
 
 	t.Run("delete removes the adjustment", func(t *testing.T) {
+		checkIn := time.Date(today.Year, today.Month, today.Day, 8, 0, 0, 0, time.UTC)
+		checkOut := checkIn.Add(time.Hour)
+		session := &activeModels.WorkSession{
+			StaffID:      subject.ID,
+			Date:         today,
+			Status:       activeModels.WorkSessionStatusPresent,
+			Source:       activeModels.WorkSessionSourceApp,
+			CheckInTime:  checkIn,
+			CheckOutTime: &checkOut,
+			CreatedBy:    subject.ID,
+		}
+		session.SetTenantID(tenantID)
+		_, err := tc.db.NewInsert().Model(session).Exec(testpkg.TenantContext(tenantID))
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			testpkg.CleanupTableRecords(t, tc.db, "active.work_sessions", session.ID)
+		})
+
 		rec := do(http.MethodPost, adjustmentsPath,
 			fmt.Sprintf(`{"type":"comp_time","minutes_delta":-30,"effective_date":"%s","note":"Tippfehler"}`, today.AddDays(1)), token)
 		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())

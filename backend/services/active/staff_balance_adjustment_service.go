@@ -32,6 +32,9 @@ var (
 	// balance while the stored reset delta stays fixed (see
 	// TestWTMAdjustments_LateHistoricalCorrectionRemainsVisibleAfterReset).
 	ErrAdjustmentHasDependentReset = errors.New("later balance reset depends on this adjustment")
+	// ErrAdjustmentExceedsBalance prevents payouts and lump-sum comp-time
+	// grants from reducing the account below zero — HTTP 409.
+	ErrAdjustmentExceedsBalance = errors.New("balance adjustment exceeds accrued balance")
 )
 
 const (
@@ -148,6 +151,21 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 			ErrAdjustmentHasDependentReset,
 			req.EffectiveDate.String(),
 			resets[0].EffectiveDate.String(),
+		)
+	}
+
+	closingBalance, err := s.monthService.GetClosingBalanceAsOf(ctx, staffID, req.EffectiveDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute balance for adjustment: %w", err)
+	}
+	requestedMinutes := -req.MinutesDelta
+	if requestedMinutes > closingBalance {
+		return nil, fmt.Errorf(
+			"%w: requested reduction of %d minutes exceeds closing balance of %d minutes on %s",
+			ErrAdjustmentExceedsBalance,
+			requestedMinutes,
+			closingBalance,
+			req.EffectiveDate.String(),
 		)
 	}
 

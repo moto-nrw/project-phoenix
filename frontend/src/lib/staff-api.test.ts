@@ -2195,6 +2195,32 @@ describe("staff-api", () => {
       );
     });
 
+    it("explains when an adjustment exceeds the accrued balance", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              error: "balance adjustment exceeds accrued balance",
+              code: "balance_adjustment_exceeds_balance",
+            }),
+          ),
+      } as Response);
+
+      await expect(
+        staffBalanceAdjustmentService.create("4", {
+          type: "payout",
+          minutesDelta: -120,
+          effectiveDate: "2026-07-31",
+          note: "Juligehalt",
+        }),
+      ).rejects.toThrow(
+        "Die Buchung übersteigt die zum gewählten Datum verfügbaren Plus-Stunden.",
+      );
+    });
+
     it("surfaces list, create, delete, reset, and coded reset conflicts", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch

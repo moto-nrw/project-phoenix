@@ -7,12 +7,13 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // balanceAdjustmentErrorRules classifies the adjustment service sentinels
-// (#1420): caller mistakes → 400, missing rows → 404. The two conflict
+// (#1420): caller mistakes → 400, missing rows → 404. The conflict
 // sentinels are rendered with machine-readable codes in
 // renderBalanceAdjustmentError before this table is consulted.
 var balanceAdjustmentErrorRules = []common.ErrorRule{
@@ -29,12 +30,20 @@ func renderBalanceAdjustmentError(w http.ResponseWriter, r *http.Request, err er
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "dependent_balance_reset"))
 		return
 	}
+	if errors.Is(err, activeSvc.ErrAdjustmentExceedsBalance) {
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "balance_adjustment_exceeds_balance"))
+		return
+	}
 	common.RenderError(w, r, common.RenderWithRules(err, balanceAdjustmentErrorRules, common.ErrorInternalServer))
 }
 
 func (rs *Resource) requireBalanceAdjustmentStaff(w http.ResponseWriter, r *http.Request, staffID int64) bool {
 	if _, err := rs.PersonService.GetStaffByID(r.Context(), staffID); err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+		if modelBase.IsNoRows(err) {
+			common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+		} else {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+		}
 		return false
 	}
 	return true

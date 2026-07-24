@@ -80,7 +80,8 @@ func TestStaffBalanceAdjustmentService_LocksEveryMutation(t *testing.T) {
 	t.Run("create locks before insert", func(t *testing.T) {
 		events := []string{}
 		repo := &recordingBalanceAdjustmentRepo{events: &events}
-		service := newRecordingBalanceAdjustmentService(&events, repo, nil)
+		monthService := &recordingBalanceMonthService{events: &events, balance: 60}
+		service := newRecordingBalanceAdjustmentService(&events, repo, monthService)
 
 		_, err := service.CreateAdjustment(context.Background(), staffID, decidedBy, CreateBalanceAdjustmentRequest{
 			Type:          activeModels.BalanceAdjustmentTypePayout,
@@ -90,7 +91,7 @@ func TestStaffBalanceAdjustmentService_LocksEveryMutation(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		assert.Equal(t, []string{"lock", "list", "create"}, events)
+		assert.Equal(t, []string{"lock", "list", "as-of", "create"}, events)
 	})
 
 	t.Run("delete locks before lookup and delete", func(t *testing.T) {
@@ -212,7 +213,8 @@ func TestStaffBalanceAdjustmentService_RejectsWritesThatPrecedeReset(t *testing.
 	t.Run("adjustment after reset", func(t *testing.T) {
 		events := []string{}
 		repo := &recordingBalanceAdjustmentRepo{events: &events}
-		service := newRecordingBalanceAdjustmentService(&events, repo, nil)
+		monthService := &recordingBalanceMonthService{events: &events, balance: 60}
+		service := newRecordingBalanceAdjustmentService(&events, repo, monthService)
 
 		_, err := service.CreateAdjustment(context.Background(), staffID, decidedBy, CreateBalanceAdjustmentRequest{
 			Type:          activeModels.BalanceAdjustmentTypeCompTime,
@@ -222,8 +224,39 @@ func TestStaffBalanceAdjustmentService_RejectsWritesThatPrecedeReset(t *testing.
 		})
 
 		require.NoError(t, err)
-		assert.Equal(t, []string{"lock", "list", "create"}, events)
+		assert.Equal(t, []string{"lock", "list", "as-of", "create"}, events)
 	})
+}
+
+func TestStaffBalanceAdjustmentService_RejectsAdjustmentAboveClosingBalance(t *testing.T) {
+	const (
+		staffID   = int64(41)
+		decidedBy = int64(42)
+	)
+	effectiveDate := timezone.NewDate(2026, time.July, 7)
+
+	for _, adjustmentType := range []string{
+		activeModels.BalanceAdjustmentTypePayout,
+		activeModels.BalanceAdjustmentTypeCompTime,
+	} {
+		t.Run(adjustmentType, func(t *testing.T) {
+			events := []string{}
+			repo := &recordingBalanceAdjustmentRepo{events: &events}
+			monthService := &recordingBalanceMonthService{events: &events, balance: 59}
+			service := newRecordingBalanceAdjustmentService(&events, repo, monthService)
+
+			_, err := service.CreateAdjustment(context.Background(), staffID, decidedBy, CreateBalanceAdjustmentRequest{
+				Type:          adjustmentType,
+				MinutesDelta:  -60,
+				EffectiveDate: effectiveDate,
+				Note:          "Nicht gedeckter Abzug",
+			})
+
+			require.ErrorIs(t, err, ErrAdjustmentExceedsBalance)
+			assert.Contains(t, err.Error(), "closing balance of 59 minutes")
+			assert.Equal(t, []string{"lock", "list", "as-of"}, events)
+		})
+	}
 }
 
 func TestStaffBalanceAdjustmentService_RejectsOutOfRangeAmounts(t *testing.T) {

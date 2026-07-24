@@ -1221,6 +1221,11 @@ class StaffBalanceAdjustmentService {
           "Die Buchung liegt vor einem vorhandenen Reset und würde dessen Saldo verfälschen.",
         );
       }
+      if (error.code === "balance_adjustment_exceeds_balance") {
+        throw new Error(
+          "Die Buchung übersteigt die zum gewählten Datum verfügbaren Plus-Stunden.",
+        );
+      }
       throw new Error(error.message);
     }
     const json = (await response.json()) as { data: BackendBalanceAdjustment };
