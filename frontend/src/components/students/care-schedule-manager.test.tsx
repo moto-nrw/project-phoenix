@@ -481,6 +481,46 @@ describe("CareScheduleManager", () => {
     expect(screen.getAllByText("17:17").length).toBeGreaterThan(0);
   });
 
+  it("keeps the initial result when a newer refresh fails instead of blanking the editor", async () => {
+    // The initial load and an SSE refresh overlap; the refresh loses. The
+    // initial result must still be applied — dropping it because a newer fetch
+    // merely EXISTED left the editor with no data, no error and nothing to
+    // retry, since a background refresh reports failures to the log only.
+    let resolveInitial: (value: PickupData) => void = () => undefined;
+    mockFetchStudentPickupData.mockImplementationOnce(
+      () =>
+        new Promise<PickupData>((resolve) => {
+          resolveInitial = resolve;
+        }),
+    );
+    mockFetchStudentPickupData.mockImplementationOnce(() =>
+      Promise.reject(new Error("Netzwerkfehler")),
+    );
+
+    render(
+      <CareScheduleManager studentId="42" statusDays={statusDays} readOnly />,
+    );
+
+    // The refresh starts (and fails) while the initial load is still pending.
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent("phoenix:care-schedule-stale"));
+      await Promise.resolve();
+    });
+
+    // Now the initial load succeeds — last one to resolve, but the only data
+    // anyone has.
+    await act(async () => {
+      resolveInitial(pickupData);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
+    });
+    expect(screen.getAllByText("15:15").length).toBeGreaterThan(0);
+    expect(document.querySelector(".animate-spin")).not.toBeInTheDocument();
+  });
+
   it("does not raise an error banner from a request a newer refresh already overtook", async () => {
     // The initial load hangs, a remote refresh overtakes it and renders fresh
     // data, and only then does the initial load fail. Its error belongs to state

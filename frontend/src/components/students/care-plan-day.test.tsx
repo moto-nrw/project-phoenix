@@ -91,6 +91,61 @@ describe("CarePlanDayTimeline", () => {
     expect(screen.getByText(/abgesagt/)).toBeInTheDocument();
   });
 
+  it("keeps a cancelled block out of the chronological timeline it no longer occupies", () => {
+    // A cancelled 12:00–13:00 activity frees its slot, so the free-care band
+    // spans the whole 08:00–15:30 window. Listing the block chronologically as
+    // well would put two contradictory entries over the same minutes, so it
+    // moves to its own "Abgesagt" section — still visible, no longer overlapping.
+    render(
+      <CarePlanDayTimeline
+        day={day({
+          instances: [
+            instance({ status: "cancelled" }),
+            instance({
+              id: "2",
+              title: "Lernzeit",
+              startTime: "13:00",
+              endTime: "14:00",
+            }),
+          ],
+        })}
+        deviation={null}
+      />,
+    );
+
+    // Free care now runs straight through the cancelled slot (08:00–13:00)
+    // instead of stopping at 12:00 and resuming at 13:00 around a block that
+    // is not happening.
+    expect(screen.getAllByText("Freie Betreuung")).toHaveLength(2);
+    expect(screen.getByText("08:00–13:00")).toBeInTheDocument();
+    expect(screen.getByText("14:00–15:30")).toBeInTheDocument();
+
+    // Cancelled entry is present, labelled, and rendered after the live plan.
+    expect(screen.getByText("Abgesagt")).toBeInTheDocument();
+    expect(screen.getByText(/abgesagt/)).toBeInTheDocument();
+
+    const order = screen
+      .getAllByText(/Mittagessen|Lernzeit|Abgesagt/)
+      .map((el) => el.textContent);
+    expect(order.indexOf("Abgesagt")).toBeGreaterThan(
+      order.indexOf("Lernzeit"),
+    );
+  });
+
+  it("hides the Abgesagt label in compact (week-column) mode", () => {
+    render(
+      <CarePlanDayTimeline
+        day={day({ instances: [instance({ status: "cancelled" })] })}
+        deviation={null}
+        compact
+      />,
+    );
+    // Too narrow to spend a line on a heading; the struck-through title and the
+    // "abgesagt" tag already identify the block.
+    expect(screen.queryByText("Abgesagt")).not.toBeInTheDocument();
+    expect(screen.getByText(/abgesagt/)).toBeInTheDocument();
+  });
+
   it("shows the deviation banner and suppresses the plan for an all-day absence", () => {
     // A status-day deviation (Krank/Entschuldigt/Klassenfahrt) IS an all-day
     // absence, so the normal timeline must not render beneath the banner even

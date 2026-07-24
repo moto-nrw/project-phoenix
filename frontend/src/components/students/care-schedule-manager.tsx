@@ -303,24 +303,27 @@ export function CareScheduleManager({
     setSelectedDateKey(formatDateISO((today ?? days[0])!.date));
   }, [days, selectedDateKey]);
 
-  // Monotonic id claimed by every care-data fetch. Only the newest claim may
-  // write state: arrival and pickup are fetched as two independent requests and
-  // several fetches can be in flight at once (two SSE announcements, or an SSE
-  // announcement racing the refetch after a local save). They resolve in
-  // arbitrary order, so without this an older response could land last and
-  // overwrite newer schedule data — including reverting a save the user just
-  // made. Start order is the correct ordering key: a later-started fetch reads
-  // the server at a later point, so its data is at least as fresh.
+  // Monotonic id claimed by every care-data fetch, in start order: arrival and
+  // pickup are two independent requests and several fetches can be in flight at
+  // once (two SSE announcements, or one racing the refetch after a local save).
+  // A later-started fetch reads the server later, so its data is at least as
+  // fresh — which makes start order the right ordering key.
   const careDataRequestId = useRef(0);
+  // The newest id whose result actually reached the screen. Ordering is decided
+  // against THIS, not against the newest claim: a claim only means a fetch
+  // started, and it may still fail. Comparing against the newest claim discarded
+  // a successful result the moment any later fetch existed, so an initial load
+  // that succeeded while a doomed SSE refresh was in flight was thrown away and
+  // the editor rendered blank — no data, no error, nothing to retry.
+  const renderedCareDataRequestId = useRef(0);
 
-  // Claims the next id for a fetch. The caller keeps it so BOTH the success and
-  // the failure path can ask whether they are still the newest attempt.
   const claimCareDataRequest = useCallback(
     () => ++careDataRequestId.current,
     [],
   );
-  const isNewestCareDataRequest = useCallback(
-    (requestId: number) => requestId === careDataRequestId.current,
+  /** Would this result be newer than what the user is already looking at? */
+  const isFresherThanRendered = useCallback(
+    (requestId: number) => requestId > renderedCareDataRequestId.current,
     [],
   );
 
@@ -330,8 +333,12 @@ export function CareScheduleManager({
         fetchArrivalData(studentId),
         fetchStudentPickupData(studentId),
       ]);
-      // Superseded while in flight — drop the result rather than clobber newer state.
-      if (!isNewestCareDataRequest(requestId)) return;
+      // Older than what is on screen — drop it rather than clobber newer state.
+      // A result is never dropped merely because a newer fetch is still running:
+      // if that one succeeds it simply overwrites this a moment later, and if it
+      // fails the user keeps real data instead of an empty editor.
+      if (!isFresherThanRendered(requestId)) return;
+      renderedCareDataRequestId.current = requestId;
       setArrivalData(arrival);
       setPickupData(pickup);
       // A newer read succeeded, so any banner or spinner an older attempt is
@@ -341,7 +348,7 @@ export function CareScheduleManager({
       setError(null);
       setIsLoading(false);
     },
-    [studentId, isNewestCareDataRequest],
+    [studentId, isFresherThanRendered],
   );
 
   const loadCareData = useCallback(async () => {
@@ -359,10 +366,11 @@ export function CareScheduleManager({
         error: message,
         student_id: studentId,
       });
-      // Same ordering rule as the success path: a failed attempt that a newer
-      // fetch has already overtaken must not raise an error banner over the
-      // fresh data that newer fetch just rendered.
-      if (!isNewestCareDataRequest(requestId)) return;
+      // Same ordering rule as the success path, against the same marker: only
+      // stay silent when newer data is ALREADY rendered. If nothing has been
+      // rendered yet the failure is what the user needs to see, even when a
+      // later fetch happens to be in flight.
+      if (!isFresherThanRendered(requestId)) return;
       setError(message);
     } finally {
       // Deliberately NOT gated on the request id: this is the only path that
@@ -375,7 +383,7 @@ export function CareScheduleManager({
   }, [
     claimCareDataRequest,
     fetchCareDataInto,
-    isNewestCareDataRequest,
+    isFresherThanRendered,
     studentId,
   ]);
 

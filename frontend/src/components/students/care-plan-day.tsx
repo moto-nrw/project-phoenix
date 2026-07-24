@@ -45,15 +45,31 @@ const DEVIATION_COLORS: Record<DayDeviation["kind"], string> = {
   class_trip: LOCATION_COLORS.CLASS_TRIP, // blue
 };
 
-/** Combine activity blocks and free-care bands into one time-sorted list. */
+/** A cancelled block frees its slot instead of occupying it. */
+function isCancelled(instance: CarePlanInstance): boolean {
+  return instance.status === "cancelled";
+}
+
+/**
+ * Combine activity blocks and free-care bands into one time-sorted list.
+ *
+ * Cancelled blocks are deliberately NOT part of it: computeFreeCareBands treats
+ * their slot as free (isOccupying in care-plan-helpers.ts), so a cancelled
+ * 12:00–13:00 activity already appears as a 12:00–13:00 "Freie Betreuung" band.
+ * Listing the block chronologically as well put two contradictory entries over
+ * the same minutes. The cancellation is still shown — see the separate section
+ * the component renders below the timeline.
+ */
 function buildTimeline(day: CarePlanDay): TimelineItem[] {
   const bands = computeFreeCareBands(day);
   const items: TimelineItem[] = [
-    ...day.instances.map((instance): TimelineItem => ({
-      kind: "instance",
-      startMin: parseTimeToMinutes(instance.startTime),
-      instance,
-    })),
+    ...day.instances
+      .filter((instance) => !isCancelled(instance))
+      .map((instance): TimelineItem => ({
+        kind: "instance",
+        startMin: parseTimeToMinutes(instance.startTime),
+        instance,
+      })),
     ...bands.map((band): TimelineItem => ({
       kind: "free",
       startMin: parseTimeToMinutes(band.startTime),
@@ -260,7 +276,14 @@ export function CarePlanDayTimeline({
   // normal timeline rendered UNDER the "Krank" banner, contradicting it.
   const isAbsent = absence.absent || deviation != null;
   const timeline = day ? buildTimeline(day) : [];
-  const isEmpty = !hasArrival && !hasPickup && timeline.length === 0;
+  // Kept out of the chronological list (their slot already shows as free care)
+  // but still worth showing: "Mittagessen fällt aus" is information staff act on.
+  const cancelledInstances = day ? day.instances.filter(isCancelled) : [];
+  const isEmpty =
+    !hasArrival &&
+    !hasPickup &&
+    timeline.length === 0 &&
+    cancelledInstances.length === 0;
 
   return (
     <div className={compact ? "space-y-2" : "space-y-2.5"}>
@@ -301,6 +324,24 @@ export function CarePlanDayTimeline({
 
           {hasPickup ? (
             <SlotAnchor slot={day!.pickup} label="Abholung" icon="out" />
+          ) : null}
+
+          {cancelledInstances.length > 0 ? (
+            <div className="space-y-2 pt-0.5">
+              {/* Label only in the full view: a week column is too narrow to
+                  spend a line on it, and the line-through title plus the
+                  "abgesagt" tag already identify these blocks. */}
+              {!compact ? (
+                <p className="text-xs font-semibold text-gray-500">Abgesagt</p>
+              ) : null}
+              {cancelledInstances.map((instance) => (
+                <InstanceBlock
+                  key={`c-${instance.id}`}
+                  instance={instance}
+                  compact={compact}
+                />
+              ))}
+            </div>
           ) : null}
         </>
       )}
