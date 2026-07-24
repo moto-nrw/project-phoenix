@@ -610,7 +610,7 @@ export default function StaffCalendarPage() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div className="w-full">
       <PersonalCalendar
         title="Mein Kalender"
         subtitle="Deine Termine, Einladungen, Dienstplan-Schichten und zugewiesenen Betreuungsangebote."
@@ -755,14 +755,14 @@ export default function StaffCalendarPage() {
               Beschreibung
             </span>
             <textarea
-              className="block min-h-24 w-full rounded-lg border-0 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+              className="block min-h-24 w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               disabled={submitting}
             />
           </label>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className={`grid gap-4 ${editingId ? "" : "md:grid-cols-2"}`}>
             {!editingId ? (
               <label htmlFor="calendar-delivery-mode" className="block">
                 <span className="mb-2 block text-sm font-medium text-gray-700">
@@ -808,17 +808,6 @@ export default function StaffCalendarPage() {
                 ]}
               />
             </label>
-            {!editingId ? (
-              <Input
-                label="Ziele suchen"
-                name="calendar-target-search"
-                controlSize="compact"
-                value={targetSearch}
-                onChange={(event) => setTargetSearch(event.target.value)}
-                disabled={submitting}
-                placeholder="Name, Klasse oder Gruppe"
-              />
-            ) : null}
           </div>
 
           {!editingId ? (
@@ -831,6 +820,16 @@ export default function StaffCalendarPage() {
                   {targets.length} Ziel{targets.length === 1 ? "" : "e"}{" "}
                   ausgewählt
                 </span>
+              </div>
+              <div className="mb-3">
+                <Input
+                  label="Ziele suchen"
+                  name="calendar-target-search"
+                  value={targetSearch}
+                  onChange={(event) => setTargetSearch(event.target.value)}
+                  disabled={submitting}
+                  placeholder="Name, Klasse oder Gruppe"
+                />
               </div>
               <div className="grid gap-3 lg:grid-cols-2">
                 {targetGroups.map((group) => (
@@ -1096,6 +1095,6 @@ export default function StaffCalendarPage() {
           </div>
         ) : null}
       </Modal>
-    </main>
+    </div>
   );
 }

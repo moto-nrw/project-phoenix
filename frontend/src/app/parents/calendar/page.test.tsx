@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockGetParentCalendar,
@@ -72,8 +72,17 @@ const calendarResponse: CalendarResponse = {
 describe("ParentCalendarPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The page derives its week from `new Date()`; pin the clock into the
+    // fixture week so the events fall in the visible range (Date only, so
+    // waitFor's real timers keep working). Fake the clock BEFORE any render.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 0, 7));
     mockGetParentCalendar.mockResolvedValue(calendarResponse);
     mockRespondParentCalendar.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("loads parent calendar events and stores RSVP responses", async () => {
@@ -86,7 +95,11 @@ describe("ParentCalendarPage", () => {
       expect.any(Date),
     );
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Absagen" })[0]!);
+    // RSVP now lives in the event detail sheet: open the appointment first.
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /Elterngespräch/ })[0]!,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Absagen" }));
 
     await waitFor(() =>
       expect(mockRespondParentCalendar).toHaveBeenCalledWith("77", "declined"),
@@ -106,7 +119,10 @@ describe("ParentCalendarPage", () => {
     render(<ParentCalendarPage />);
     expect(await screen.findAllByText("Elterngespräch")).not.toHaveLength(0);
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Zusagen" })[0]!);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /Elterngespräch/ })[0]!,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Zusagen" }));
     await waitFor(() =>
       expect(mockToastError).toHaveBeenCalledWith("no access"),
     );

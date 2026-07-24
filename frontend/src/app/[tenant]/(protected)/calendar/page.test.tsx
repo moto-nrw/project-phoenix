@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockUseSWRAuth,
@@ -112,6 +112,11 @@ function mockCalendarSWR() {
 describe("StaffCalendarPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The page derives its week from `new Date()`; pin the clock into the
+    // fixture week so events fall in the visible range (Date only, so waitFor's
+    // real timers keep working). Fake the clock BEFORE any render.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 0, 7));
     mockCalendarSWR();
     mockUseSession.mockReturnValue({
       data: { user: { permissions: ["calendar:own", "calendar:manage"] } },
@@ -121,6 +126,10 @@ describe("StaffCalendarPage", () => {
     mockCreateStaffAppointment.mockResolvedValue({ appointment: { id: "1" } });
     mockUpdateStaffAppointment.mockResolvedValue({ appointment: { id: "5" } });
     mockMutate.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("edits a recurring appointment using the series base date, not the clicked occurrence", async () => {
@@ -182,9 +191,15 @@ describe("StaffCalendarPage", () => {
       },
     });
 
+    // This fixture's occurrence sits in the week of 2026-01-19.
+    vi.setSystemTime(new Date(2026, 0, 21));
     render(<StaffCalendarPage />);
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Bearbeiten" })[0]!);
+    // Management actions now live in the event detail sheet: open it first.
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /Wöchentliche AG/ })[0]!,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     // The modal opens once the detail resolves; the date input shows the BASE
     // series date, not the clicked occurrence date.
     const startInput = (await screen.findByLabelText(
@@ -213,7 +228,8 @@ describe("StaffCalendarPage", () => {
     render(<StaffCalendarPage />);
 
     expect(screen.getAllByText("Teamplanung").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getAllByRole("button", { name: "Zusagen" })[0]!);
+    fireEvent.click(screen.getAllByRole("button", { name: /Teamplanung/ })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Zusagen" }));
 
     await waitFor(() =>
       expect(mockRespondStaffCalendar).toHaveBeenCalledWith("42", "accepted"),
