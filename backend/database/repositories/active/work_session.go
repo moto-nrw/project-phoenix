@@ -35,6 +35,24 @@ func NewWorkSessionRepository(db *bun.DB) active.WorkSessionRepository {
 	}
 }
 
+// LockStaffBalanceWrites serializes session and break mutations with balance
+// adjustments and effective absence changes for the same staff member.
+func (r *WorkSessionRepository) LockStaffBalanceWrites(ctx context.Context, staffID int64) error {
+	return lockStaffBalanceWrites(ctx, r.db, staffID)
+}
+
+// LockStaffBalanceWritesForSession resolves the staff member from a session
+// ID, then takes the shared balance lock. This is a domain operation rather
+// than a per-field finder: break schedulers must serialize before mutating but
+// only have the parent session ID.
+func (r *WorkSessionRepository) LockStaffBalanceWritesForSession(ctx context.Context, sessionID int64) error {
+	session, err := r.FindByID(ctx, sessionID)
+	if err != nil {
+		return fmt.Errorf("resolve work session for balance lock: %w", err)
+	}
+	return lockStaffBalanceWrites(ctx, r.db, session.StaffID)
+}
+
 // GetByStaffAndDate returns the work session for a staff member on a given date
 func (r *WorkSessionRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*active.WorkSession, error) {
 	session := new(active.WorkSession)

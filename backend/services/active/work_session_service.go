@@ -367,6 +367,13 @@ func (s *workSessionService) getLogger() *slog.Logger {
 	return cmp.Or(s.logger, slog.Default())
 }
 
+func (s *workSessionService) lockStaffBalanceWrites(ctx context.Context, staffID int64) error {
+	if err := s.repo.LockStaffBalanceWrites(ctx, staffID); err != nil {
+		return fmt.Errorf("failed to lock staff balance writes: %w", err)
+	}
+	return nil
+}
+
 // NewWorkSessionService creates a new work session service
 func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, staffRepo userModels.StaffRepository, scheduleRepo configModels.StaffWorkScheduleRepository, workModelRepo configModels.WorkTimeModelRepository, settings settingsResolver, logger *slog.Logger) WorkSessionService {
 	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, settings: settings, logger: logger}
@@ -416,6 +423,9 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, lookupD
 	}
 	if source != activeModels.WorkSessionSourceApp && source != activeModels.WorkSessionSourceNFC {
 		return nil, fmt.Errorf("source must be 'app' or 'nfc'")
+	}
+	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
+		return nil, err
 	}
 
 	now := s.now()
@@ -596,6 +606,9 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64, reason
 
 // CheckOutOn ends the open session of an explicit calendar day.
 func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day timezone.Date, reason string) (*activeModels.WorkSession, error) {
+	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
+		return nil, err
+	}
 	// Get the open session of the requested day
 	session, err := s.repo.GetOpenByStaffAndDate(ctx, staffID, day)
 	if err != nil {
@@ -831,6 +844,9 @@ func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plan
 
 // StartBreakOn starts a break on the open session of an explicit calendar day.
 func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, day timezone.Date, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
+	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
+		return nil, err
+	}
 	// Get the open session of the requested day
 	session, err := s.repo.GetOpenByStaffAndDateForUpdate(ctx, staffID, day)
 	if err != nil {
@@ -890,6 +906,9 @@ func (s *workSessionService) EndBreak(ctx context.Context, staffID int64) (*acti
 
 // EndBreakOn ends the active break on the open session of an explicit calendar day.
 func (s *workSessionService) EndBreakOn(ctx context.Context, staffID int64, day timezone.Date) (*activeModels.WorkSession, error) {
+	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
+		return nil, err
+	}
 	// Get the open session of the requested day
 	session, err := s.repo.GetOpenByStaffAndDate(ctx, staffID, day)
 	if err != nil {
@@ -1002,6 +1021,9 @@ func (uc *sessionUpdateContext) addAuditEdit(field string, oldVal, newVal *strin
 // audit entries. Self-edit path: the requesting staff must own the session.
 // Notes are only required when changing status (Vor Ort ↔ Homeoffice).
 func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error) {
+	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
+		return nil, err
+	}
 	session, err := s.repo.FindByID(ctx, sessionID)
 	if err != nil {
 		return nil, s.handleSessionNotFoundError(err)
@@ -1080,6 +1102,9 @@ func (s *workSessionService) selfEditChangesRecordedTimes(session *activeModels.
 // audit trail, and any foreign edit needs a reason. We're stricter than
 // self-edit on purpose.
 func (s *workSessionService) UpdateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error) {
+	if err := s.lockStaffBalanceWrites(ctx, targetStaffID); err != nil {
+		return nil, err
+	}
 	session, err := s.repo.FindByID(ctx, sessionID)
 	if err != nil {
 		return nil, s.handleSessionNotFoundError(err)
@@ -1164,6 +1189,9 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 	}
 	if req.BreakMinutes < 0 {
 		return nil, fmt.Errorf("break_minutes must not be negative")
+	}
+	if err := s.lockStaffBalanceWrites(ctx, targetStaffID); err != nil {
+		return nil, err
 	}
 
 	checkOut := req.CheckOutTime
@@ -1792,6 +1820,9 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 
 	count := 0
 	for _, session := range openSessions {
+		if err := s.lockStaffBalanceWrites(ctx, session.StaffID); err != nil {
+			return count, err
+		}
 		// Set check-out time to 23:59:59 of the session date in Berlin timezone.
 		endOfDay := session.Date.EndOfDay()
 
@@ -1863,6 +1894,9 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 	tenantID := tenant.FromContext(ctx)
 	count := 0
 	for _, listedSession := range openSessions {
+		if err := s.lockStaffBalanceWrites(ctx, listedSession.StaffID); err != nil {
+			return count, err
+		}
 		session, err := s.repo.LockOpenByIDForUpdate(ctx, listedSession.ID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -2310,6 +2344,9 @@ func (s *workSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, err
 
 	count := 0
 	for _, brk := range expiredBreaks {
+		if err := s.repo.LockStaffBalanceWritesForSession(ctx, brk.SessionID); err != nil {
+			return count, fmt.Errorf("failed to lock staff balance writes: %w", err)
+		}
 		// Use planned_end_time as the end time for accurate duration
 		endTime := *brk.PlannedEndTime
 		duration := int(math.Round(endTime.Sub(brk.StartedAt).Minutes()))

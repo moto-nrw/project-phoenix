@@ -25,6 +25,7 @@ import (
 // ============================================================================
 
 type wsMockWorkSessionRepository struct {
+	lockBalanceWritesFunc   func(ctx context.Context, staffID int64) error
 	createFunc              func(ctx context.Context, entity *activeModels.WorkSession) error
 	findByIDFunc            func(ctx context.Context, id any) (*activeModels.WorkSession, error)
 	updateFunc              func(ctx context.Context, entity *activeModels.WorkSession) error
@@ -39,6 +40,17 @@ type wsMockWorkSessionRepository struct {
 	getTodayPresenceMapFunc func(ctx context.Context) (map[int64]string, error)
 	closeSessionFunc        func(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error)
 	updateBreakMinutesFunc  func(ctx context.Context, id int64, breakMinutes int) error
+}
+
+func (m *wsMockWorkSessionRepository) LockStaffBalanceWrites(ctx context.Context, staffID int64) error {
+	if m.lockBalanceWritesFunc != nil {
+		return m.lockBalanceWritesFunc(ctx, staffID)
+	}
+	return nil
+}
+
+func (m *wsMockWorkSessionRepository) LockStaffBalanceWritesForSession(context.Context, int64) error {
+	return nil
 }
 
 func (m *wsMockWorkSessionRepository) Create(ctx context.Context, entity *activeModels.WorkSession) error {
@@ -628,6 +640,36 @@ func wsCreateTestService() (*workSessionService, *wsMockWorkSessionRepository, *
 // ============================================================================
 // CheckIn Tests
 // ============================================================================
+
+func TestWorkSessionService_CheckInLocksBalanceBeforeLookupAndWrite(t *testing.T) {
+	service, sessionRepo, _, _, _ := wsCreateTestService()
+	events := []string{}
+	staffID := int64(71)
+	sessionRepo.lockBalanceWritesFunc = func(_ context.Context, gotStaffID int64) error {
+		assert.Equal(t, staffID, gotStaffID)
+		events = append(events, "lock")
+		return nil
+	}
+	sessionRepo.getByStaffAndDateFunc = func(context.Context, int64, timezone.Date) (*activeModels.WorkSession, error) {
+		events = append(events, "lookup")
+		return nil, sql.ErrNoRows
+	}
+	sessionRepo.createFunc = func(context.Context, *activeModels.WorkSession) error {
+		events = append(events, "create")
+		return nil
+	}
+
+	_, err := service.CheckIn(
+		context.Background(),
+		staffID,
+		activeModels.WorkSessionStatusPresent,
+		activeModels.WorkSessionSourceApp,
+		"",
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"lock", "lookup", "create"}, events)
+}
 
 func TestWSCheckIn_Success(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()

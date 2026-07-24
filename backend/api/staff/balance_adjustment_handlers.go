@@ -17,6 +17,7 @@ var balanceAdjustmentErrorRules = []common.ErrorRule{
 	{Target: activeSvc.ErrAdjustmentInvalid, Render: common.ErrorInvalidRequest},
 	{Target: activeSvc.ErrAdjustmentNotFound, Render: common.ErrorNotFound},
 	{Target: activeSvc.ErrBalanceAlreadyReset, Render: common.ErrorConflict},
+	{Target: activeSvc.ErrAdjustmentHasDependentReset, Render: common.ErrorConflict},
 }
 
 func renderBalanceAdjustmentError(w http.ResponseWriter, r *http.Request, err error) {

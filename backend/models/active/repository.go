@@ -285,6 +285,14 @@ type GroupMappingRepository interface {
 type WorkSessionRepository interface {
 	base.Repository[*WorkSession]
 
+	// LockStaffBalanceWrites serializes all work-session and break mutations
+	// with absence and adjustment mutations for the same staff member.
+	LockStaffBalanceWrites(ctx context.Context, staffID int64) error
+	// LockStaffBalanceWritesForSession resolves a session's owner and takes
+	// the same balance lock. Scheduler paths that start from a break only
+	// know the session ID.
+	LockStaffBalanceWritesForSession(ctx context.Context, sessionID int64) error
+
 	// GetByStaffAndDate returns the work session for a staff member on a given date
 	GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*WorkSession, error)
 
@@ -335,7 +343,8 @@ type StaffAbsenceRepository interface {
 	base.Repository[*StaffAbsence]
 
 	// LockStaffAbsenceWrites serializes absence lifecycle writes for one staff
-	// member inside the ambient tenant transaction. Callers must acquire it
+	// member inside the ambient tenant transaction. It also takes the shared
+	// balance lock before the absence-specific lock. Callers must acquire it
 	// before any overlap read-check-write sequence.
 	LockStaffAbsenceWrites(ctx context.Context, staffID int64) error
 

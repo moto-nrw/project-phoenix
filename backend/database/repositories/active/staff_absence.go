@@ -46,8 +46,9 @@ func (r *StaffAbsenceRepository) List(ctx context.Context, options *modelBase.Qu
 }
 
 // LockStaffAbsenceWrites serializes overlap-sensitive absence writes for one
-// tenant/staff pair. The transaction-scoped lock stays held through any sick
-// plan cascade or reversal performed by the service.
+// tenant/staff pair. It takes the shared balance lock first because effective
+// absence mutations also change the Stundenkonto. The transaction-scoped
+// locks stay held through any sick plan cascade or reversal.
 func (r *StaffAbsenceRepository) LockStaffAbsenceWrites(ctx context.Context, staffID int64) error {
 	if staffID <= 0 {
 		return errors.New("staff id is required")
@@ -55,6 +56,9 @@ func (r *StaffAbsenceRepository) LockStaffAbsenceWrites(ctx context.Context, sta
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
 		return errors.New("tenant id is required")
+	}
+	if err := lockStaffBalanceWrites(ctx, r.db, staffID); err != nil {
+		return err
 	}
 	key := fmt.Sprintf("staff-absence:%d:%d", tenantID, staffID)
 	if err := base.AcquireXactLock(ctx, r.db, key); err != nil {

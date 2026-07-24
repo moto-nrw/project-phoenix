@@ -24,11 +24,24 @@ var (
 	// ErrBalanceAlreadyReset marks a second reset for the same staff member
 	// and effective date (double-click, concurrent admins) — HTTP 409.
 	ErrBalanceAlreadyReset = errors.New("balance already reset for this date")
+	// ErrAdjustmentHasDependentReset prevents deleting a transaction that a
+	// later reset used to calculate its persisted delta — HTTP 409.
+	ErrAdjustmentHasDependentReset = errors.New("later balance reset depends on this adjustment")
 )
 
-// resetUniqueConstraintName is the partial unique index guarding one reset
-// per staff and effective date (migration 1.15.218).
-const resetUniqueConstraintName = "uq_sba_reset_per_day"
+const (
+	// resetUniqueConstraintName is the partial unique index guarding one reset
+	// per staff and effective date (migration 1.15.218).
+	resetUniqueConstraintName = "uq_sba_reset_per_day"
+
+	// These bounds mirror the privileged admin UI. They are business limits,
+	// not presentation hints: direct API callers must not bypass them.
+	maxBalanceAdjustmentMinutes = 1_000 * 60
+	maxBalanceCarryoverMinutes  = 10_000 * 60
+
+	minPostgresInteger = -1 << 31
+	maxPostgresInteger = 1<<31 - 1
+)
 
 // CreateBalanceAdjustmentRequest carries a payout or lump-sum comp-time
 // grant (#1420 5a). MinutesDelta is signed and must be negative — both types
@@ -108,6 +121,9 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 	if req.MinutesDelta >= 0 {
 		return nil, fmt.Errorf("%w: minutes_delta must be negative", ErrAdjustmentInvalid)
 	}
+	if req.MinutesDelta < -maxBalanceAdjustmentMinutes {
+		return nil, fmt.Errorf("%w: minutes_delta must not exceed %d minutes", ErrAdjustmentInvalid, maxBalanceAdjustmentMinutes)
+	}
 	if err := validateAdjustmentCommon(staffID, decidedBy, req.EffectiveDate, req.Note); err != nil {
 		return nil, err
 	}
@@ -154,6 +170,13 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 	if adjustment == nil || adjustment.StaffID != staffID {
 		return fmt.Errorf("%w: id %d", ErrAdjustmentNotFound, adjustmentID)
 	}
+	dependent, err := s.hasDependentReset(ctx, adjustment)
+	if err != nil {
+		return err
+	}
+	if dependent {
+		return fmt.Errorf("%w: adjustment id %d", ErrAdjustmentHasDependentReset, adjustmentID)
+	}
 	if err := s.adjustmentRepo.Delete(ctx, adjustmentID); err != nil {
 		return fmt.Errorf("failed to delete balance adjustment: %w", err)
 	}
@@ -169,6 +192,13 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, carryoverMinutes int, note string) (*activeModels.StaffBalanceAdjustment, error) {
 	if err := validateAdjustmentCommon(staffID, decidedBy, effectiveDate, note); err != nil {
 		return nil, err
+	}
+	if carryoverMinutes < 0 || carryoverMinutes > maxBalanceCarryoverMinutes {
+		return nil, fmt.Errorf(
+			"%w: carryover_minutes must be between 0 and %d",
+			ErrAdjustmentInvalid,
+			maxBalanceCarryoverMinutes,
+		)
 	}
 	// A future-dated reset would freeze today's balance as the delta while
 	// days keep accruing until the date arrives — the stored delta would no
@@ -190,11 +220,15 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute balance for reset: %w", err)
 	}
+	delta := int64(carryoverMinutes) - int64(previousBalance)
+	if delta < minPostgresInteger || delta > maxPostgresInteger {
+		return nil, fmt.Errorf("%w: calculated reset delta is outside the supported range", ErrAdjustmentInvalid)
+	}
 
 	adjustment := &activeModels.StaffBalanceAdjustment{
 		StaffID:       staffID,
 		Type:          activeModels.BalanceAdjustmentTypeReset,
-		MinutesDelta:  carryoverMinutes - previousBalance,
+		MinutesDelta:  int(delta),
 		EffectiveDate: effectiveDate,
 		Note:          note,
 		DecidedBy:     decidedBy,
@@ -215,6 +249,30 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 		"decided_by", decidedBy,
 	)
 	return adjustment, nil
+}
+
+func (s *staffBalanceAdjustmentService) hasDependentReset(ctx context.Context, adjustment *activeModels.StaffBalanceAdjustment) (bool, error) {
+	options := modelBase.NewQueryOptions()
+	options.Filter.
+		Equal("staff_id", adjustment.StaffID).
+		Equal("type", activeModels.BalanceAdjustmentTypeReset).
+		GreaterThanOrEqual("effective_date", adjustment.EffectiveDate)
+	sorting := &modelBase.Sorting{}
+	sorting.AddField("effective_date", modelBase.SortAsc)
+	sorting.AddField("id", modelBase.SortAsc)
+	options.Sorting = sorting
+
+	resets, err := s.adjustmentRepo.List(ctx, options)
+	if err != nil {
+		return false, fmt.Errorf("failed to check dependent balance resets: %w", err)
+	}
+	for _, reset := range resets {
+		if reset.EffectiveDate.After(adjustment.EffectiveDate) ||
+			(reset.EffectiveDate == adjustment.EffectiveDate && reset.ID > adjustment.ID) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func validateAdjustmentCommon(staffID, decidedBy int64, effectiveDate timezone.Date, note string) error {

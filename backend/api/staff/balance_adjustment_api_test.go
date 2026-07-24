@@ -59,6 +59,7 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 	resetPath := fmt.Sprintf("/staff/%d/time-tracking/reset", subject.ID)
 	summaryPath := fmt.Sprintf("/staff/%d/time-tracking/month-summary?year=%d&month=%d", subject.ID, today.Year, int(today.Month))
 	listPath := fmt.Sprintf("%s?from=%d-01-01&to=%d-12-31", adjustmentsPath, today.Year, today.Year)
+	var payoutID int64
 
 	t.Run("requires manage permission", func(t *testing.T) {
 		ownToken := authToken(t, "time_tracking:own")
@@ -119,12 +120,31 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 		rec = do(http.MethodPost, adjustmentsPath,
 			fmt.Sprintf(`{"type":"reset","minutes_delta":-60,"effective_date":"%s","note":"x"}`, today), token)
 		require.Equal(t, http.StatusBadRequest, rec.Code, "reset type must not be creatable directly: %s", rec.Body.String())
+
+		rec = do(http.MethodPost, adjustmentsPath,
+			fmt.Sprintf(`{"type":"payout","minutes_delta":-60001,"effective_date":"%s","note":"x"}`, today), token)
+		require.Equal(t, http.StatusBadRequest, rec.Code, "payouts above 1,000 hours must be rejected: %s", rec.Body.String())
+
+		rec = do(http.MethodPost, resetPath,
+			fmt.Sprintf(`{"effective_date":"%s","carryover_minutes":-1,"note":"x"}`, today), token)
+		require.Equal(t, http.StatusBadRequest, rec.Code, "negative carryover must be rejected: %s", rec.Body.String())
+
+		rec = do(http.MethodPost, resetPath,
+			fmt.Sprintf(`{"effective_date":"%s","carryover_minutes":600001,"note":"x"}`, today), token)
+		require.Equal(t, http.StatusBadRequest, rec.Code, "carryover above 10,000 hours must be rejected: %s", rec.Body.String())
 	})
 
 	t.Run("payout flows into month summary", func(t *testing.T) {
 		rec := do(http.MethodPost, adjustmentsPath,
 			fmt.Sprintf(`{"type":"payout","minutes_delta":-120,"effective_date":"%s","note":"Auszahlung Juli"}`, today), token)
 		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+		var created struct {
+			Data struct {
+				ID int64 `json:"id"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &created))
+		payoutID = created.Data.ID
 
 		rec = do(http.MethodGet, listPath, "", token)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -150,6 +170,9 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 		rec = do(http.MethodPost, resetPath,
 			fmt.Sprintf(`{"effective_date":"%s","carryover_minutes":0,"note":"Doppelklick"}`, today), token)
 		require.Equal(t, http.StatusConflict, rec.Code, "second reset for the same date must conflict: %s", rec.Body.String())
+
+		rec = do(http.MethodDelete, fmt.Sprintf("%s/%d", adjustmentsPath, payoutID), "", token)
+		require.Equal(t, http.StatusConflict, rec.Code, "an adjustment used by a later reset must not be deleted: %s", rec.Body.String())
 	})
 
 	t.Run("future reset rejected", func(t *testing.T) {

@@ -2,8 +2,6 @@ package active
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -40,18 +38,7 @@ func (r *StaffBalanceAdjustmentRepository) List(ctx context.Context, options *mo
 // tenant/staff pair. Every adjustment mutation takes the same lock so no
 // create/delete can commit inside ResetBalance's read-compute-insert sequence.
 func (r *StaffBalanceAdjustmentRepository) LockStaffBalanceWrites(ctx context.Context, staffID int64) error {
-	if staffID <= 0 {
-		return errors.New("staff id is required")
-	}
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		return errors.New("tenant id is required")
-	}
-	key := fmt.Sprintf("staff-balance:%d:%d", tenantID, staffID)
-	if err := base.AcquireXactLock(ctx, r.db, key); err != nil {
-		return fmt.Errorf("lock staff balance writes: %w", err)
-	}
-	return nil
+	return lockStaffBalanceWrites(ctx, r.db, staffID)
 }
 
 // GetByStaffAndDateRange returns adjustments whose effective_date lies in
