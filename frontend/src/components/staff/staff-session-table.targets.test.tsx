@@ -232,6 +232,30 @@ describe("StaffSessionTable Abwesenheitsstatus", () => {
 
     expect(screen.getByText("Freizeitausgleich")).toBeInTheDocument();
   });
+
+  it("kennzeichnet administrativ angelegten halben Freizeitausgleich", () => {
+    renderTable({
+      dailyTargets: new Map([["2026-01-05", 480]]),
+      absences: [
+        {
+          id: 74,
+          staff_id: 1,
+          absence_type: "comp_time",
+          date_start: "2026-01-05",
+          date_end: "2026-01-05",
+          half_day: true,
+          start_half_day: false,
+          end_half_day: false,
+          status: "reported",
+          note: "",
+        },
+      ],
+    });
+
+    expect(
+      screen.getByText("Freizeitausgleich · Halber Tag"),
+    ).toBeInTheDocument();
+  });
 });
 
 // #1967: Sa/So waren hart aus der Tagesansicht gefiltert, während Monatskarte

@@ -1296,6 +1296,11 @@ class StaffBalanceAdjustmentService {
           "Der Reset liegt vor einem späteren Reset und würde dessen Saldo verfälschen.",
         );
       }
+      if (error.code === "balance_adjustment_exceeds_balance") {
+        throw new Error(
+          "Der Reset kann nicht durchgeführt werden, weil spätere Buchungen oder Freizeitausgleichstage vom aktuellen Guthaben abhängen.",
+        );
+      }
       throw new Error(error.message);
     }
     const json = (await response.json()) as { data: BackendBalanceAdjustment };

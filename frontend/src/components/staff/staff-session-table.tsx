@@ -366,6 +366,7 @@ export function StaffSessionTable({
               const status = computeRowStatus(
                 session,
                 absence,
+                key,
                 holidayName,
                 closingReason,
                 target,
@@ -661,7 +662,7 @@ function SessionEditHistory({
 type RowStatus =
   | { kind: "present" }
   | { kind: "home-office" }
-  | { kind: "absence"; absenceType: string }
+  | { kind: "absence"; absenceType: string; halfDay: boolean }
   | { kind: "holiday"; name: string }
   | { kind: "closing"; reason: string }
   | { kind: "missing" };
@@ -700,6 +701,7 @@ function PlannedShiftCell({
 function computeRowStatus(
   session: StaffHistorySession | undefined,
   absence: StaffAbsenceRow | undefined,
+  dateKey: string,
   holidayName: string | undefined,
   closingReason: string | undefined,
   target: number,
@@ -726,7 +728,19 @@ function computeRowStatus(
   // Absence wins over "missing" so an admin sees Krank/Urlaub instead of a
   // misleading "Nicht erfasst" badge (the MA-side already does this).
   if (absence) {
-    return { kind: "absence", absenceType: absence.absence_type };
+    const startDate = absence.date_start.slice(0, 10);
+    const endDate = absence.date_end.slice(0, 10);
+    const legacyHalfDay =
+      absence.half_day && !absence.start_half_day && !absence.end_half_day;
+    const halfDay =
+      legacyHalfDay ||
+      (dateKey === startDate && Boolean(absence.start_half_day)) ||
+      (dateKey === endDate && Boolean(absence.end_half_day));
+    return {
+      kind: "absence",
+      absenceType: absence.absence_type,
+      halfDay,
+    };
   }
   if (target > 0 && !isFuture) {
     return { kind: "missing" };
@@ -770,8 +784,11 @@ function StatusBadge({ status }: { readonly status: RowStatus }) {
     );
   }
   if (status.kind === "absence") {
-    const label =
+    const absenceLabel =
       ABSENCE_TYPE_LABEL[status.absenceType] ?? ABSENCE_TYPE_LABEL.other!;
+    const label = status.halfDay
+      ? `${absenceLabel} · Halber Tag`
+      : absenceLabel;
     const color =
       ABSENCE_TYPE_HEX[status.absenceType] ?? ABSENCE_TYPE_HEX.other!;
     return <StatusDotBadge label={label} color={color} />;

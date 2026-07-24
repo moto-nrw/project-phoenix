@@ -2247,6 +2247,31 @@ describe("staff-api", () => {
       );
     });
 
+    it("explains when a reset would invalidate later balance reductions", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              error: "balance adjustment exceeds accrued balance",
+              code: "balance_adjustment_exceeds_balance",
+            }),
+          ),
+      } as Response);
+
+      await expect(
+        staffBalanceAdjustmentService.reset("4", {
+          effectiveDate: "2026-07-31",
+          carryoverMinutes: 0,
+          note: "Schuljahreswechsel",
+        }),
+      ).rejects.toThrow(
+        "Der Reset kann nicht durchgeführt werden, weil spätere Buchungen oder Freizeitausgleichstage vom aktuellen Guthaben abhängen.",
+      );
+    });
+
     it("explains when deleting a positive reset would overdraw later entries", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({

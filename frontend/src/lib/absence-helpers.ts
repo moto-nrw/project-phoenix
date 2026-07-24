@@ -97,7 +97,13 @@ export function dayCountFor(a: AbsenceDayCountInput): number {
   const endISO = a.dateEnd.slice(0, 10);
   const base = countWorkdaysInclusive(startISO, endISO);
   if (base <= 0) return base;
-  if (!a.hasBoundaryFields) return a.halfDay ? base - 0.5 : base;
+  // Admin-created sick/comp-time rows use the legacy half_day flag. The
+  // non-null database boundary columns are still serialized as false/false,
+  // so field presence alone cannot distinguish those rows from a full day.
+  const legacyHalfDay = a.halfDay && !a.startHalfDay && !a.endHalfDay;
+  if (!a.hasBoundaryFields || legacyHalfDay) {
+    return a.halfDay ? base - 0.5 : base;
+  }
   const start = new Date(`${startISO}T00:00:00`);
   const end = new Date(`${endISO}T00:00:00`);
   const sameDay = startISO === endISO;
