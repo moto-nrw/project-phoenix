@@ -1746,6 +1746,18 @@ func TestClassifyAbsenceError(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, w.Code)
 		assert.JSONEq(t, `{"status":"error","error":"absence type is manager-controlled","code":"manager_controlled_absence"}`, w.Body.String())
 	})
+
+	t.Run("wrapped comp-time overdraft returns coded conflict", func(t *testing.T) {
+		serviceErr := fmt.Errorf("validate comp_time absence: %w", activeSvc.ErrCompTimeExceedsBalance)
+		renderer := classifyAbsenceError(serviceErr)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		err := render.Render(w, r, renderer)
+		require.NoError(t, err)
+
+		require.Equal(t, http.StatusConflict, w.Code)
+		assert.JSONEq(t, `{"status":"error","error":"validate comp_time absence: comp_time absence exceeds accrued balance","code":"comp_time_exceeds_balance"}`, w.Body.String())
+	})
 }
 
 // --- parseDateRange tests ---
