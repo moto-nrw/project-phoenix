@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { FormEvent } from "react";
-import { CalendarPlus, Trash2 } from "lucide-react";
+import type { FormEvent, SelectHTMLAttributes } from "react";
+import { CalendarPlus, ChevronDown, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 
 import {
@@ -83,6 +83,31 @@ const weekdays = [
   { value: "saturday", label: "Sa" },
   { value: "sunday", label: "So" },
 ];
+
+// Native <select> styled to match the default Input control (same height,
+// radius, ring). appearance-none drops the browser arrow so we can place our
+// own chevron with controlled spacing (see ModalSelect); pr-10 keeps long
+// option text clear of it.
+const selectClassName =
+  "block w-full appearance-none rounded-lg border-0 bg-white px-4 py-3 pr-10 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500";
+
+// A kit-styled native select with a custom, consistently-placed chevron.
+function ModalSelect({
+  children,
+  ...props
+}: SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <div className="relative">
+      <select className={selectClassName} {...props}>
+        {children}
+      </select>
+      <ChevronDown
+        className="pointer-events-none absolute top-1/2 right-3.5 h-4 w-4 -translate-y-1/2 text-gray-400"
+        aria-hidden
+      />
+    </div>
+  );
+}
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -609,7 +634,7 @@ export default function StaffCalendarPage() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div className="w-full">
       <PersonalCalendar
         title="Mein Kalender"
         subtitle="Deine Termine, Einladungen, Dienstplan-Schichten und zugewiesenen Betreuungsangebote."
@@ -754,21 +779,21 @@ export default function StaffCalendarPage() {
               Beschreibung
             </span>
             <textarea
-              className="block min-h-24 w-full rounded-lg border-0 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+              className="block min-h-24 w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               disabled={submitting}
             />
           </label>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className={`grid gap-4 ${editingId ? "" : "md:grid-cols-2"}`}>
             {!editingId ? (
-              <label className="block">
+              <label className="block" htmlFor="calendar-delivery-mode">
                 <span className="mb-2 block text-sm font-medium text-gray-700">
                   Antwortregel
                 </span>
-                <select
-                  className="block h-10 w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+                <ModalSelect
+                  id="calendar-delivery-mode"
                   value={deliveryMode}
                   onChange={(event) =>
                     setDeliveryMode(event.target.value as CalendarDeliveryMode)
@@ -781,15 +806,15 @@ export default function StaffCalendarPage() {
                   <option value="informational">
                     Nur informieren: ohne Rückmeldung eintragen
                   </option>
-                </select>
+                </ModalSelect>
               </label>
             ) : null}
-            <label className="block">
+            <label className="block" htmlFor="calendar-overview-visibility">
               <span className="mb-2 block text-sm font-medium text-gray-700">
                 Teilnehmerübersicht
               </span>
-              <select
-                className="block h-10 w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+              <ModalSelect
+                id="calendar-overview-visibility"
                 value={overviewVisibility}
                 onChange={(event) =>
                   setOverviewVisibility(
@@ -801,19 +826,8 @@ export default function StaffCalendarPage() {
                 <option value="organizer">Nur ich</option>
                 <option value="staff">Mitarbeitende mit Termin</option>
                 <option value="all">Alle Eingeladenen</option>
-              </select>
+              </ModalSelect>
             </label>
-            {!editingId ? (
-              <Input
-                label="Ziele suchen"
-                name="calendar-target-search"
-                controlSize="compact"
-                value={targetSearch}
-                onChange={(event) => setTargetSearch(event.target.value)}
-                disabled={submitting}
-                placeholder="Name, Klasse oder Gruppe"
-              />
-            ) : null}
           </div>
 
           {!editingId ? (
@@ -826,6 +840,16 @@ export default function StaffCalendarPage() {
                   {targets.length} Ziel{targets.length === 1 ? "" : "e"}{" "}
                   ausgewählt
                 </span>
+              </div>
+              <div className="mb-3">
+                <Input
+                  label="Ziele suchen"
+                  name="calendar-target-search"
+                  value={targetSearch}
+                  onChange={(event) => setTargetSearch(event.target.value)}
+                  disabled={submitting}
+                  placeholder="Name, Klasse oder Gruppe"
+                />
               </div>
               <div className="grid gap-3 lg:grid-cols-2">
                 {targetGroups.map((group) => (
@@ -907,12 +931,12 @@ export default function StaffCalendarPage() {
           ) : null}
 
           <div className="grid gap-4 md:grid-cols-3">
-            <label className="block">
+            <label className="block" htmlFor="calendar-recurrence-frequency">
               <span className="mb-2 block text-sm font-medium text-gray-700">
                 Wiederholung
               </span>
-              <select
-                className="block h-10 w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+              <ModalSelect
+                id="calendar-recurrence-frequency"
                 value={frequency}
                 onChange={(event) =>
                   setFrequency(event.target.value as RecurrenceFrequency)
@@ -924,7 +948,7 @@ export default function StaffCalendarPage() {
                 <option value="weekly">Wöchentlich</option>
                 <option value="monthly">Monatlich</option>
                 <option value="yearly">Jährlich</option>
-              </select>
+              </ModalSelect>
             </label>
             <Input
               label="Intervall"
@@ -1091,6 +1115,6 @@ export default function StaffCalendarPage() {
           </div>
         ) : null}
       </Modal>
-    </main>
+    </div>
   );
 }
