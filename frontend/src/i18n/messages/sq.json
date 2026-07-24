@@ -568,6 +568,7 @@
       "extraTitle": "Të dhëna të tjera",
       "extraDescription": "OGS-ja ka nevojë për këto të dhëna shtesë krahas të dhënave bazë. Pyetjet e detyrueshme janë shënuar me yll.",
       "childrenDescription": "Regjistroni çdo fëmijë veçmas. Për motrat/vëllezërit mund të shtoni të dhëna të tjera fëmije me butonin.",
+      "newStudentsOnlyNotice": "Kjo fazë regjistrimi është vetëm për fëmijë të rinj. Fëmijët tashmë të regjistruar në shkollë nuk mund të riregjistrohen këtu.",
       "consentDescription": "Ju lutemi lexoni me kujdes pëlqimet. Pëlqimet e detyrueshme duhet të zgjidhen aktivisht."
     },
     "fields": {

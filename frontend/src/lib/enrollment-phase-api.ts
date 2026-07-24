@@ -9,7 +9,8 @@ export type PhaseKind = "school_year" | "holiday" | "custom";
 // school are rejected server-side; "linked_parents" = hidden from the public
 // listing, only parent accounts with a guardian link + submit permission may
 // apply via the parents portal.
-export type PhaseAudience = "open" | "new_students" | "linked_parents";
+export type PhaseAudience =
+  "open" | "new_students" | "existing_students" | "linked_parents";
 export type PhaseCareOverflowMode = "waitlist" | "reject" | "allow";
 export type PhaseCareOfferingSelectionMode =
   "optional" | "at_least_one" | "exactly_one";

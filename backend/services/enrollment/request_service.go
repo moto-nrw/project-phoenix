@@ -94,6 +94,10 @@ var (
 	ErrPhaseNotEligible      = errors.New("phase is not open for this applicant")
 	ErrChildClassNotEligible = fmt.Errorf("%w: child school class is not eligible for this phase", ErrInvalidSubmission)
 	ErrChildAlreadyEnrolled  = fmt.Errorf("%w: child is already enrolled at this school", ErrInvalidSubmission)
+	// ErrChildNotEnrolled backs the existing_students audience — the
+	// inverse of ErrChildAlreadyEnrolled: a phase open only to already
+	// enrolled students rejects a child with no matching enrolled record.
+	ErrChildNotEnrolled = fmt.Errorf("%w: child is not enrolled at this school", ErrInvalidSubmission)
 	// ErrPhaseAudienceRestricted is the public form-load gate for
 	// audience-restricted phases (#1663): a linked_parents phase cannot be
 	// bootstrapped anonymously, so the unauthenticated public path rejects
@@ -3191,6 +3195,10 @@ func EffectiveFormCapabilities(capabilities FormCapabilities, offerings []*enrol
 //     second submission. Best-effort by design — it blocks the honest
 //     mistake, not a determined false declaration, exactly like the paper
 //     form it replaces.
+//   - existing_students audience: the inverse — a child with NO matching
+//     already-enrolled student is rejected, so every submitted child must
+//     already be enrolled (re-enrollment / renewal). Same name+birthday
+//     lookup, same best-effort semantics; account linkage is not required.
 func (s *requestService) validatePhaseEligibility(ctx context.Context, phase *enrollmentModels.Phase, req SubmitRequest) error {
 	if req.AllowClosedPhase {
 		return nil
@@ -3232,15 +3240,26 @@ func (s *requestService) validatePhaseChildEligibility(ctx context.Context, phas
 		}
 	}
 
-	if phase.Audience == enrollmentModels.PhaseAudienceNewStudents && s.StudentRepo != nil {
+	// new_students and existing_students are the two child-scoped
+	// enrolled-status gates (#1663): new_students rejects a child that
+	// already matches an enrolled record; existing_students rejects a
+	// child that does NOT — every submitted child must already be
+	// enrolled (a re-enrollment / renewal phase). Both consult the same
+	// name+birthday lookup, so they share one probe per child.
+	if s.StudentRepo != nil &&
+		(phase.Audience == enrollmentModels.PhaseAudienceNewStudents ||
+			phase.Audience == enrollmentModels.PhaseAudienceExistingStudents) {
 		for i := range req.Children {
 			exists, err := s.StudentRepo.ExistsEnrolledByNameAndBirthday(ctx, req.TenantID,
 				req.Children[i].FirstName, req.Children[i].LastName, req.Children[i].DateOfBirth)
 			if err != nil {
 				return fmt.Errorf("submit: check enrolled student for child %d: %w", i, err)
 			}
-			if exists {
+			if phase.Audience == enrollmentModels.PhaseAudienceNewStudents && exists {
 				return fmt.Errorf("%w: child %d", ErrChildAlreadyEnrolled, i)
+			}
+			if phase.Audience == enrollmentModels.PhaseAudienceExistingStudents && !exists {
+				return fmt.Errorf("%w: child %d", ErrChildNotEnrolled, i)
 			}
 		}
 	}

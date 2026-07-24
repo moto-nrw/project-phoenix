@@ -352,12 +352,14 @@ export interface PublicPhase {
   care_offering_selection_mode: CareOfferingSelectionMode;
   /**
    * Applicant restriction (#1663). "open" (or missing) = anyone may apply;
-   * "new_students" = only children not already enrolled at the school —
-   * the public picker labels this so anonymous parents see the restriction
-   * before filling the form. "linked_parents" phases never reach the public
-   * picker (filtered server-side).
+   * "new_students" = only children not already enrolled at the school;
+   * "existing_students" = the inverse, only children already enrolled may
+   * apply (re-enrollment / renewal) — the public picker labels both so
+   * anonymous parents see the restriction before filling the form.
+   * "linked_parents" phases never reach the public picker (filtered
+   * server-side).
    */
-  audience?: "open" | "new_students" | "linked_parents";
+  audience?: "open" | "new_students" | "existing_students" | "linked_parents";
 }
 
 /**

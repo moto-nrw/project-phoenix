@@ -566,6 +566,7 @@
       "childrenKicker": "Step 2",
       "childrenTitle": "Child or children",
       "childrenDescription": "Enter each child separately. You can add siblings with the button.",
+      "newStudentsOnlyNotice": "This enrollment phase is for new children only. Children already enrolled at the school cannot be re-enrolled here.",
       "consentKicker": "Step 3",
       "consentTitle": "Consents",
       "consentDescription": "Please read the consents carefully. Required consents must be selected actively."

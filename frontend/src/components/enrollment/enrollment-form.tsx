@@ -18,6 +18,7 @@ import {
   type SubmitChildPayload,
   type SubmitGuardianPayload,
   type EnrollmentEditDraft,
+  type PublicPhase,
   type PublicSchoolClassConfig,
   EMPTY_SCHOOL_CLASS_CONFIG,
 } from "~/lib/enrollment-submission-api";
@@ -167,6 +168,14 @@ export interface EnrollmentFormPrefetchedData {
   schoolClass?: PublicSchoolClassConfig;
   collectGradeLevel?: boolean;
   careOfferingsEnabled?: boolean;
+  /**
+   * Phase applicant restriction (#1663). Only meaningful on the parent
+   * portal path, which prefills linked children: a "new_students" phase
+   * rejects any already-enrolled child, so the form must hide the
+   * "reuse an existing child" panel and explain why instead of letting
+   * the parent adopt a child the server will reject.
+   */
+  audience?: PublicPhase["audience"];
 }
 
 /**
@@ -205,6 +214,11 @@ export function EnrollmentForm({
     [intl, localizedCopy],
   );
   const { tenantSlug } = useTenant();
+  // A "new_students" phase rejects any already-enrolled child at submit
+  // (#1663). The parent portal prefills the guardian's linked children, so
+  // offering to reuse one would always fail server-side — hide the reuse
+  // panel and explain the restriction instead.
+  const isNewStudentsPhase = prefetchedData?.audience === "new_students";
   const initialOfferings = prefetchedData?.offerings ?? [];
   const initialRequiredOfferingIDs = initialOfferings
     .filter((o) => o.is_required && careOfferingIsAvailable(o, undefined))
@@ -1477,59 +1491,71 @@ export function EnrollmentForm({
           ) : null}
         </div>
 
-        {profile && profile.children.length > 0 && !lockChildStructure && (
-          <ExistingChildrenPanel
-            existing={profile.children}
-            usedIDs={usedExistingChildIDs}
-            tr={tr}
-            onAdopt={(child) => {
-              const newSlot: ChildDraft = blankChild(requiredOfferingIDs);
-              newSlot.first_name = child.first_name;
-              newSlot.last_name = child.last_name;
-              newSlot.target_grade_level =
-                child.grade_level != null ? String(child.grade_level) : "";
-              for (const offering of availableCareOfferings(
-                offerings,
-                newSlot.target_grade_level,
-              )) {
-                if (offering.is_required) {
-                  newSlot.offering_ids.add(offering.id);
-                }
-              }
-              // Prefill the concrete class only when it matches one of the
-              // phase's offered classes, so re-enrolling an existing "2a"
-              // child defaults sensibly without injecting a stale/unknown
-              // value into the dropdown (#1833).
-              newSlot.target_school_class =
-                schoolClassConfig.available_classes.includes(
-                  child.school_class,
-                ) &&
-                classMatchesGrade(
-                  child.school_class,
+        {profile &&
+          profile.children.length > 0 &&
+          !lockChildStructure &&
+          isNewStudentsPhase && (
+            <p className="rounded-lg border border-[#F78C10]/30 bg-[#F78C10]/5 px-4 py-3 text-sm text-gray-700">
+              {tr("sections.newStudentsOnlyNotice")}
+            </p>
+          )}
+
+        {profile &&
+          profile.children.length > 0 &&
+          !lockChildStructure &&
+          !isNewStudentsPhase && (
+            <ExistingChildrenPanel
+              existing={profile.children}
+              usedIDs={usedExistingChildIDs}
+              tr={tr}
+              onAdopt={(child) => {
+                const newSlot: ChildDraft = blankChild(requiredOfferingIDs);
+                newSlot.first_name = child.first_name;
+                newSlot.last_name = child.last_name;
+                newSlot.target_grade_level =
+                  child.grade_level != null ? String(child.grade_level) : "";
+                for (const offering of availableCareOfferings(
+                  offerings,
                   newSlot.target_grade_level,
-                )
-                  ? child.school_class
-                  : "";
-              setChildren((prev) => {
-                // Replace the first empty slot if one exists, otherwise
-                // append. Avoids leaving a stranded empty card after
-                // every adoption.
-                const emptyIdx = prev.findIndex(
-                  (c) => !c.first_name && !c.last_name && !c.date_of_birth,
-                );
-                if (emptyIdx >= 0) {
-                  return prev.map((c, i) => (i === emptyIdx ? newSlot : c));
+                )) {
+                  if (offering.is_required) {
+                    newSlot.offering_ids.add(offering.id);
+                  }
                 }
-                return [...prev, newSlot];
-              });
-              setUsedExistingChildIDs((prev) => {
-                const next = new Set(prev);
-                next.add(child.id);
-                return next;
-              });
-            }}
-          />
-        )}
+                // Prefill the concrete class only when it matches one of the
+                // phase's offered classes, so re-enrolling an existing "2a"
+                // child defaults sensibly without injecting a stale/unknown
+                // value into the dropdown (#1833).
+                newSlot.target_school_class =
+                  schoolClassConfig.available_classes.includes(
+                    child.school_class,
+                  ) &&
+                  classMatchesGrade(
+                    child.school_class,
+                    newSlot.target_grade_level,
+                  )
+                    ? child.school_class
+                    : "";
+                setChildren((prev) => {
+                  // Replace the first empty slot if one exists, otherwise
+                  // append. Avoids leaving a stranded empty card after
+                  // every adoption.
+                  const emptyIdx = prev.findIndex(
+                    (c) => !c.first_name && !c.last_name && !c.date_of_birth,
+                  );
+                  if (emptyIdx >= 0) {
+                    return prev.map((c, i) => (i === emptyIdx ? newSlot : c));
+                  }
+                  return [...prev, newSlot];
+                });
+                setUsedExistingChildIDs((prev) => {
+                  const next = new Set(prev);
+                  next.add(child.id);
+                  return next;
+                });
+              }}
+            />
+          )}
 
         {children.map((child, i) => {
           const childOfferings = availableCareOfferings(

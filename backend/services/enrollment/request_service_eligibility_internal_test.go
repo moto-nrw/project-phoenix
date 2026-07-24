@@ -168,6 +168,33 @@ func TestPhaseEligibility_ClassBypassClosedAfterCanonicalization(t *testing.T) {
 	require.ErrorIs(t, err, ErrChildClassNotEligible, "collection-off must not bypass the class gate")
 }
 
+func TestValidatePhaseEligibility_ExistingStudentsRejectsUnknownChild(t *testing.T) {
+	repo := &stubEligibilityStudentRepo{exists: false}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
+	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
+	tenantID := int64(9052)
+
+	err := svc.validatePhaseEligibility(context.Background(), phase, SubmitRequest{
+		TenantID: tenantID,
+		Children: []SubmitChild{{FirstName: "Kim", LastName: "Test", DateOfBirth: timezone.NewDate(2019, 4, 12)}},
+	})
+	require.ErrorIs(t, err, ErrChildNotEnrolled)
+	require.ErrorIs(t, err, ErrInvalidSubmission, "not-enrolled error must keep the 400 category")
+	assert.Equal(t, tenantID, repo.gotTenant, "lookup must be tenant-scoped explicitly")
+}
+
+func TestValidatePhaseEligibility_ExistingStudentsAcceptsEnrolledChild(t *testing.T) {
+	repo := &stubEligibilityStudentRepo{exists: true}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
+	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
+
+	err := svc.validatePhaseEligibility(context.Background(), phase, SubmitRequest{
+		TenantID: int64(9053),
+		Children: []SubmitChild{{FirstName: "Kim", LastName: "Test", DateOfBirth: timezone.NewDate(2019, 4, 12)}},
+	})
+	require.NoError(t, err)
+}
+
 // validatePhaseChildEligibility is the gate the editable-request path reuses.
 // It must enforce the per-child rules (class + already-enrolled) but must NOT
 // re-apply the linked_parents audience gate — an editable request already

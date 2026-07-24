@@ -6,14 +6,27 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
+
+// PhaseSettingsResolver is the narrow slice of the settings service the
+// phase service needs: the two toggles that decide whether the enrollment
+// form collects a concrete school class. A class-based eligibility
+// restriction (eligible_school_classes) is uncheckable — and every
+// submission is rejected — when the class is never collected, so
+// Create/Update reject that configuration up front. Optional: when nil
+// (unit tests with mocks) the collectability guard is skipped.
+type PhaseSettingsResolver interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+}
 
 // PhaseService sentinel errors. The HTTP layer maps these to status
 // codes; tests assert on them via errors.Is.
@@ -78,8 +91,12 @@ type PhaseServiceConfig struct {
 	CalendarPeriods                 scheduleService.CalendarPeriodService
 	LockTemplateRecurrence          func(context.Context) error
 	ValidateCareOfferingPhaseChange func(context.Context, int64, *enrollmentModels.Phase) error
-	DB                              *bun.DB
-	Logger                          *slog.Logger
+	// Settings resolves the concrete-class collection toggles used to
+	// reject unsatisfiable eligibility configs. Optional: nil skips the
+	// guard (unit tests with mocks; the CHECK/model rules still apply).
+	Settings PhaseSettingsResolver
+	DB       *bun.DB
+	Logger   *slog.Logger
 }
 
 type phaseService struct {
@@ -91,6 +108,7 @@ type phaseService struct {
 	calendarPeriods                 scheduleService.CalendarPeriodService
 	lockTemplateRecurrence          func(context.Context) error
 	validateCareOfferingPhaseChange func(context.Context, int64, *enrollmentModels.Phase) error
+	settings                        PhaseSettingsResolver
 	txHandler                       *modelBase.TxHandler
 	logger                          *slog.Logger
 }
@@ -113,9 +131,47 @@ func NewPhaseService(cfg PhaseServiceConfig) PhaseService {
 		calendarPeriods:                 cfg.CalendarPeriods,
 		lockTemplateRecurrence:          cfg.LockTemplateRecurrence,
 		validateCareOfferingPhaseChange: cfg.ValidateCareOfferingPhaseChange,
+		settings:                        cfg.Settings,
 		txHandler:                       txHandler,
 		logger:                          logger,
 	}
+}
+
+// validateEligibleClassesCollectable rejects a class-based eligibility
+// restriction the school cannot actually collect. eligible_school_classes
+// is checked at submit against each child's declared concrete class, but
+// the form only collects that class when BOTH collect_grade_level and
+// collect_school_class are on (a class without its grade is ambiguous).
+// With collection off, validateAndNormalizeSchoolClasses forces every
+// child's class to nil, so a non-empty eligibility list rejects every
+// submission with class_not_eligible. Reject the config here so the admin
+// enables class collection (or clears the list) first (#1663). Skipped
+// when no settings resolver is wired.
+func (s *phaseService) validateEligibleClassesCollectable(ctx context.Context, phase *enrollmentModels.Phase) error {
+	if s.settings == nil || !hasNonEmptyEligibleClass(phase.EligibleSchoolClasses) {
+		return nil
+	}
+	collectGrade, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectGradeLevel)
+	if err != nil {
+		return fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentCollectGradeLevel, err)
+	}
+	collectClass, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectSchoolClass)
+	if err != nil {
+		return fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentCollectSchoolClass, err)
+	}
+	if !collectGrade || !collectClass {
+		return fmt.Errorf("%w: eligible_school_classes requires the concrete-class collection settings (Klassen-Abfrage) to be active", ErrInvalidPhase)
+	}
+	return nil
+}
+
+func hasNonEmptyEligibleClass(classes []string) bool {
+	for _, c := range classes {
+		if strings.TrimSpace(c) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // validateCalendarPeriodLink checks that a linked calendar period exists
@@ -214,6 +270,9 @@ func (s *phaseService) Create(ctx context.Context, phase *enrollmentModels.Phase
 	if err := phase.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidPhase, err)
 	}
+	if err := s.validateEligibleClassesCollectable(ctx, phase); err != nil {
+		return nil, err
+	}
 	if err := s.validateCalendarPeriodLink(ctx, phase); err != nil {
 		return nil, err
 	}
@@ -236,6 +295,9 @@ func (s *phaseService) Update(ctx context.Context, phase *enrollmentModels.Phase
 	}
 	if err := phase.Validate(); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidPhase, err)
+	}
+	if err := s.validateEligibleClassesCollectable(ctx, phase); err != nil {
+		return err
 	}
 	if err := s.validateCalendarPeriodLink(ctx, phase); err != nil {
 		return err

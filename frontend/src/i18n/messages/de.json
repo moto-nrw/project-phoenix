@@ -569,6 +569,7 @@
       "childrenKicker": "Schritt 2",
       "childrenTitle": "Kind oder Kinder",
       "childrenDescription": "Erfassen Sie jedes Kind einzeln. Für Geschwister können Sie über die Schaltfläche weitere Kind-Daten hinzufügen.",
+      "newStudentsOnlyNotice": "Diese Anmeldephase richtet sich nur an neue Kinder. Bereits an der Schule angemeldete Kinder können hier nicht erneut angemeldet werden.",
       "consentKicker": "Schritt 3",
       "consentTitle": "Zustimmungen",
       "consentDescription": "Bitte lesen Sie die Zustimmungen sorgfältig. Erforderliche Zustimmungen müssen aktiv ausgewählt werden."

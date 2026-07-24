@@ -1244,6 +1244,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
 		},
 		ValidateCareOfferingPhaseChange: careOfferingPhaseValidator.ValidatePhaseChange,
+		Settings:                        settingsService,
 		DB:                              db,
 		Logger:                          logger.With("service", "enrollment-phase"),
 	})

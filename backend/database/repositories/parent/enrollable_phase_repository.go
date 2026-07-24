@@ -31,6 +31,14 @@ func NewEnrollablePhaseRepository(db *bun.DB) parentModels.EnrollablePhaseReposi
 // uses the parent's account_id to LEFT JOIN against account_tenants
 // so each row carries an already_linked flag.
 //
+// Hidden schools (platform.schools.hidden) are excluded from cross-school
+// discovery the same way the public tenant listing excludes them: an
+// unlinked parent must not learn a hidden school's name or phase details
+// through this picker. A hidden school stays visible only to a parent who
+// is ALREADY an active member of it (at.account_id IS NOT NULL / the
+// already_linked flag), so existing families keep seeing their own
+// school's re-enrollment phases.
+//
 // Eligibility (#1663): a phase with audience=linked_parents is listed
 // only when the account holds a guardian relationship at the school —
 // backed by an ACTIVE auth.account_tenants mapping — that grants
@@ -125,6 +133,7 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 		WHERE ph.is_active = TRUE
 		  AND sch.active   = TRUE
 		  AND sch.deleted_at IS NULL
+		  AND (sch.hidden = FALSE OR at.account_id IS NOT NULL)
 		  AND (ph.enrollment_open_at IS NULL OR ph.enrollment_open_at <= NOW())
 		  AND (ph.enrollment_close_at IS NULL OR ph.enrollment_close_at >= NOW())
 		  AND (ph.audience <> 'linked_parents' OR guard.has_submit_permission)

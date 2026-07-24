@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -78,25 +79,34 @@ var validPhaseRolloverModes = map[string]bool{
 }
 
 // PhaseAudience values match enrollment.phases.audience (migration
-// 1.15.219, issue #1663). They answer "who may apply to this phase":
+// 1.15.219 + 1.15.220, issue #1663). They answer "who may apply to this
+// phase":
 //
-//   - open           → everyone, including anonymous public visitors
-//   - new_students   → anonymous allowed, but children who are already
+//   - open              → everyone, including anonymous public visitors
+//   - new_students      → anonymous allowed, but children who are already
 //     enrolled at the school are rejected at submit
-//   - linked_parents → only authenticated parent accounts with an
+//   - existing_students → anonymous allowed, but the inverse of
+//     new_students: every submitted child must already be enrolled at the
+//     school (matched by name + birthday). Backs the "only already
+//     enrolled students may apply" rule from #1663 — a re-enrollment /
+//     renewal phase. Account linkage is NOT required; the gate is per
+//     child, so it is distinct from linked_parents.
+//   - linked_parents    → only authenticated parent accounts with an
 //     active guardian link at the school; the phase is hidden from the
 //     anonymous public listing because linkage cannot be verified
 //     without a login
 const (
-	PhaseAudienceOpen          = "open"
-	PhaseAudienceNewStudents   = "new_students"
-	PhaseAudienceLinkedParents = "linked_parents"
+	PhaseAudienceOpen             = "open"
+	PhaseAudienceNewStudents      = "new_students"
+	PhaseAudienceExistingStudents = "existing_students"
+	PhaseAudienceLinkedParents    = "linked_parents"
 )
 
 var validPhaseAudiences = map[string]bool{
-	PhaseAudienceOpen:          true,
-	PhaseAudienceNewStudents:   true,
-	PhaseAudienceLinkedParents: true,
+	PhaseAudienceOpen:             true,
+	PhaseAudienceNewStudents:      true,
+	PhaseAudienceExistingStudents: true,
+	PhaseAudienceLinkedParents:    true,
 }
 
 // Phase is one row in enrollment.phases - a discrete, admin-managed
@@ -255,11 +265,23 @@ func (p *Phase) Validate() error {
 		p.Audience = PhaseAudienceOpen
 	}
 	if !validPhaseAudiences[p.Audience] {
-		return fmt.Errorf("audience must be one of open/new_students/linked_parents, got %q", p.Audience)
+		return fmt.Errorf("audience must be one of open/new_students/existing_students/linked_parents, got %q", p.Audience)
 	}
 	// Same NOT NULL jsonb coalescing as AvailableSchoolClasses above.
 	if p.EligibleSchoolClasses == nil {
 		p.EligibleSchoolClasses = []string{}
+	}
+	// A grade-1 concrete class ("1a") can never be declared on a
+	// submission: the form only ever collects the concrete class from
+	// grade 2 up (grade 1 is grade-level-only), so validateAndNormalize
+	// SchoolClasses forces it to nil. An eligible_school_classes entry
+	// targeting grade 1 is therefore unsatisfiable — every affected child
+	// would be rejected with class_not_eligible after completing the whole
+	// form. Reject the config here so the admin fixes it up front (#1663).
+	for _, c := range p.EligibleSchoolClasses {
+		if schoolclass.GradePrefix(strings.TrimSpace(c)) == "1" {
+			return fmt.Errorf("eligible_school_classes may not target grade 1 (%q): a grade-1 concrete class is never collected, so the restriction can never be met", c)
+		}
 	}
 	return nil
 }

@@ -156,6 +156,70 @@ func TestEnrollablePhaseRepository_ListEnrollable_DeactivatedMappingHidesLinkedP
 		"a former guardian whose account_tenants mapping is deactivated must not see linked_parents phases")
 }
 
+// setSchoolHidden flips platform.schools.hidden for a tenant, simulating an
+// operator hiding a school from public discovery.
+func setSchoolHidden(t *testing.T, db *bun.DB, tenantID int64, hidden bool) {
+	t.Helper()
+	_, err := db.NewRaw(`UPDATE platform.schools SET hidden = ? WHERE id = ?`, hidden, tenantID).Exec(context.Background())
+	require.NoError(t, err)
+}
+
+// --- ListEnrollable: hidden-school discovery (#1663) -------------------
+
+func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolExcludedForUnlinkedParent(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
+	enableEnrollmentForTenant(t, db, chain.TenantID)
+	// The chain reuses the shared tenant 1; always restore hidden so this
+	// test can never leak the flag onto tenant-1 tests that run after it.
+	// A defer (not t.Cleanup) so it runs before the deferred db.Close.
+	defer setSchoolHidden(t, db, chain.TenantID, false)
+	setSchoolHidden(t, db, chain.TenantID, true)
+
+	openName := fmt.Sprintf("eligibility-hidden-%d", time.Now().UnixNano())
+	defer wipePhasesForTenant(db, chain.TenantID, "eligibility-hidden")
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, openName, enrollmentModels.PhaseAudienceOpen)
+
+	// Fresh account: not a member of the hidden school.
+	fresh := testpkg.CreateTestAccount(t, db, "hidden-unlinked")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", fresh.ID).Exec(context.Background())
+	})
+
+	names := phaseNamesOf(listEnrollableAsAdmin(t, db, fresh.ID))
+	assert.NotContains(t, names, openName,
+		"a hidden school's phases must not surface to an unlinked parent (matches the public tenant listing)")
+
+	// The very same phase is discoverable once the school is un-hidden.
+	setSchoolHidden(t, db, chain.TenantID, false)
+	visible := phaseNamesOf(listEnrollableAsAdmin(t, db, fresh.ID))
+	assert.Contains(t, visible, openName,
+		"a non-hidden school's open phase is discoverable by any parent")
+}
+
+func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolVisibleToActiveMember(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
+	enableEnrollmentForTenant(t, db, chain.TenantID)
+	// The chain reuses the shared tenant 1; always restore hidden so this
+	// test can never leak the flag onto tenant-1 tests that run after it.
+	// A defer (not t.Cleanup) so it runs before the deferred db.Close.
+	defer setSchoolHidden(t, db, chain.TenantID, false)
+	setSchoolHidden(t, db, chain.TenantID, true)
+
+	openName := fmt.Sprintf("eligibility-hiddenmember-%d", time.Now().UnixNano())
+	defer wipePhasesForTenant(db, chain.TenantID, "eligibility-hiddenmember")
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, openName, enrollmentModels.PhaseAudienceOpen)
+
+	names := phaseNamesOf(listEnrollableAsAdmin(t, db, chain.AccountID))
+	assert.Contains(t, names, openName,
+		"an active member must still see their own (hidden) school's phases")
+}
+
 // --- GuardianSubmitStatus ----------------------------------------------
 
 func TestEnrollablePhaseRepository_GuardianSubmitStatus_DeactivatedMappingDropsSubmitPermission(t *testing.T) {

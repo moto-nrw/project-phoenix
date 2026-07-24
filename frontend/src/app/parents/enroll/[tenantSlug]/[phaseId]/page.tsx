@@ -179,5 +179,9 @@ function toParentPrefetchedData(
     // scoped to the parent API, independent of public metadata transport.
     profile,
     schoolClass: bootstrap.school_class,
+    // Carry the phase audience so the form can suppress linked-child reuse
+    // on a new_students phase instead of letting the parent adopt an
+    // already-enrolled child the server would reject (#1663).
+    audience: bootstrap.phase.audience,
   };
 }

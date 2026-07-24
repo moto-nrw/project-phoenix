@@ -1178,6 +1178,51 @@ describe("EnrollmentForm", () => {
     );
   });
 
+  it("hides linked-child reuse and explains it on a new_students phase", async () => {
+    // Parent portal path: a new_students phase rejects any already-enrolled
+    // child at submit, so the reuse panel must not be offered (#1663).
+    renderForm({
+      prefetchedData: {
+        schema: schema(),
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts(),
+        profile: profile(),
+        audience: "new_students",
+      },
+    });
+    await waitForLoaded();
+
+    expect(screen.queryByText("Bestehende Kinder")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Übernehmen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/richtet sich nur an neue Kinder/),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps linked-child reuse on an existing_students phase", async () => {
+    renderForm({
+      prefetchedData: {
+        schema: schema(),
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts(),
+        profile: profile(),
+        audience: "existing_students",
+      },
+    });
+    await waitForLoaded();
+
+    expect(screen.getByText("Bestehende Kinder")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/richtet sich nur an neue Kinder/),
+    ).not.toBeInTheDocument();
+  });
+
   it("requires care offerings and parent-choice days before submit", async () => {
     renderForm();
     await waitForLoaded();
