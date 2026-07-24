@@ -43,6 +43,16 @@ func (rs *Resource) parseAndGetStudent(w http.ResponseWriter, r *http.Request) (
 		return nil, false
 	}
 
+	// A graduated (alumnus) student is soft-deleted: invisible to every staff
+	// list and export. GetStudentByID is unfiltered, so this shared per-student
+	// gate is where a bookmarked ID or a direct API call to any update /
+	// status-day / schedule / RFID / privacy / delete route is rejected — the
+	// same 404 those routes returned back when graduates were hard-deleted (#405).
+	if student.Status == users.StudentStatusAlumnus {
+		renderError(w, r, common.ErrorNotFound(errors.New("student not found")))
+		return nil, false
+	}
+
 	return student, true
 }
 

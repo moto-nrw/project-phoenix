@@ -104,15 +104,28 @@ type SuggestedMapping struct {
 // Error message format constants
 const errFmtTransitionNotFound = "transition not found: %w"
 
+// RosterReconciler adjusts already-materialized FUTURE timetable rosters when a
+// grade transition graduates or restores students. The materializer is
+// insert-only, so a graduation applied after upcoming instances were
+// materialized leaves the departed children on those rosters, and a revert
+// cannot re-add a child to an instance materialized while they were an alumnus.
+// Implemented by services/schedule.RosterReconciler; optional so unit tests that
+// do not exercise timetable reconciliation can leave it nil (#405 review).
+type RosterReconciler interface {
+	RemoveStudentsFromFutureRosters(ctx context.Context, studentIDs []int64) error
+	RestoreStudentsToFutureRosters(ctx context.Context, studentIDs []int64) error
+}
+
 // GradeTransitionService manages grade transitions: CRUD, preview/apply,
 // revert, and mapping utilities.
 type GradeTransitionService struct {
-	transitionRepo education.GradeTransitionRepository
-	studentRepo    users.StudentRepository
-	personRepo     users.PersonRepository
-	visitRepo      activeModels.VisitRepository
-	attendanceRepo activeModels.AttendanceRepository
-	db             *bun.DB
+	transitionRepo   education.GradeTransitionRepository
+	studentRepo      users.StudentRepository
+	personRepo       users.PersonRepository
+	visitRepo        activeModels.VisitRepository
+	attendanceRepo   activeModels.AttendanceRepository
+	rosterReconciler RosterReconciler
+	db               *bun.DB
 }
 
 // GradeTransitionServiceDependencies contains dependencies for the service
@@ -125,18 +138,23 @@ type GradeTransitionServiceDependencies struct {
 	// tests that don't exercise the check can leave them nil.
 	VisitRepo      activeModels.VisitRepository
 	AttendanceRepo activeModels.AttendanceRepository
-	DB             *bun.DB
+	// RosterReconciler reconciles already-materialized future timetable rosters
+	// on apply (drop graduates) and revert (restore reactivated students).
+	// Optional; nil disables reconciliation for tests that don't exercise it.
+	RosterReconciler RosterReconciler
+	DB               *bun.DB
 }
 
 // NewGradeTransitionService creates a new grade transition service
 func NewGradeTransitionService(deps GradeTransitionServiceDependencies) *GradeTransitionService {
 	return &GradeTransitionService{
-		transitionRepo: deps.TransitionRepo,
-		studentRepo:    deps.StudentRepo,
-		personRepo:     deps.PersonRepo,
-		visitRepo:      deps.VisitRepo,
-		attendanceRepo: deps.AttendanceRepo,
-		db:             deps.DB,
+		transitionRepo:   deps.TransitionRepo,
+		studentRepo:      deps.StudentRepo,
+		personRepo:       deps.PersonRepo,
+		visitRepo:        deps.VisitRepo,
+		attendanceRepo:   deps.AttendanceRepo,
+		rosterReconciler: deps.RosterReconciler,
+		db:               deps.DB,
 	}
 }
 
@@ -450,6 +468,14 @@ func (s *GradeTransitionService) addPreviewWarnings(preview *TransitionPreview) 
 
 // Apply executes the grade transition
 func (s *GradeTransitionService) Apply(ctx context.Context, id int64, accountID int64) (*TransitionResult, error) {
+	// Serialize against a concurrent apply/revert for this tenant BEFORE reading
+	// anything: the class snapshots and student locks taken below must not be
+	// invalidated by an interleaved revert that rewrites the same classes and
+	// statuses (#405 review). The lock releases at COMMIT/ROLLBACK.
+	if err := s.transitionRepo.LockTenantTransitions(ctx); err != nil {
+		return nil, err
+	}
+
 	transition, err := s.transitionRepo.FindByIDWithMappings(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf(errFmtTransitionNotFound, err)
@@ -494,17 +520,27 @@ func (s *GradeTransitionService) executeApply(
 	result *TransitionResult,
 ) error {
 	promoteClasses, graduateClasses := categorizeMappings(transition.Mappings)
-	allClasses := append(promoteClasses, graduateClasses...)
+
+	// Resolve the definitive graduating cohort ONCE and hold a FOR UPDATE lock on
+	// every row. The check-in guard, the history snapshot, and the final status
+	// flip all operate on exactly this locked set, so the rows checked, recorded,
+	// and mutated are identical — a student inserted or moved into a graduating
+	// class after this point is never silently graduated without those guards
+	// (#405 review).
+	graduates, err := s.lockGraduatingStudents(ctx, graduateClasses)
+	if err != nil {
+		return err
+	}
 
 	// A graduating child who is still checked in would be stranded: the row
 	// flips to alumnus (open visit/attendance left dangling, still visible in
 	// the active room), yet the kiosk rejects every alumnus checkout. Refuse
 	// the whole apply until they are checked out.
-	if err := s.ensureGraduatesNotCheckedIn(ctx, graduateClasses); err != nil {
+	if err := s.ensureGraduatesNotCheckedIn(ctx, graduates); err != nil {
 		return err
 	}
 
-	if err := s.recordTransitionHistory(ctx, transition.ID, transition.Mappings, allClasses); err != nil {
+	if err := s.recordTransitionHistory(ctx, transition.ID, transition.Mappings, promoteClasses, graduates); err != nil {
 		return err
 	}
 
@@ -515,7 +551,7 @@ func (s *GradeTransitionService) executeApply(
 	// promoted-in students past it, since graduated rows are alumnus and the
 	// promotion query skips them. Reversing this order graduated the freshly
 	// promoted children by mistake (#405 review).
-	if err := s.applyGraduations(ctx, graduateClasses, result); err != nil {
+	if err := s.applyGraduations(ctx, graduates, result); err != nil {
 		return err
 	}
 
@@ -523,56 +559,102 @@ func (s *GradeTransitionService) executeApply(
 		return err
 	}
 
+	// Drop the departed children from already-materialized upcoming rosters so
+	// they stop counting on future timetables and staffing ratios (#405 review).
+	if err := s.reconcileGraduatedRosters(ctx, graduates); err != nil {
+		return err
+	}
+
 	return s.markTransitionApplied(ctx, transition, accountID)
 }
 
-// ensureGraduatesNotCheckedIn refuses the apply when any student in a
-// graduating class is currently checked in — an open visit (in a room) or an
-// open attendance record for today. Such a child would become an alumnus with a
-// dangling open record the kiosk can no longer close (it rejects every alumnus
-// checkout). No-op when neither repository is wired (unit tests) or there is
-// nothing to graduate.
-func (s *GradeTransitionService) ensureGraduatesNotCheckedIn(ctx context.Context, graduateClasses []string) error {
-	if len(graduateClasses) == 0 || (s.visitRepo == nil && s.attendanceRepo == nil) {
-		return nil
+// lockGraduatingStudents fetches the students in the graduating classes and
+// takes a FOR UPDATE lock on each surviving row in ascending id order (the
+// deadlock-safe order every other student-row locker uses). The returned slice
+// is the exact set the rest of the apply checks, records, and graduates; a row
+// that vanished before it could be locked is dropped. With no student repository
+// wired (pure unit tests) the fetched set is returned unlocked (#405 review).
+func (s *GradeTransitionService) lockGraduatingStudents(
+	ctx context.Context,
+	graduateClasses []string,
+) ([]*education.StudentClassInfo, error) {
+	if len(graduateClasses) == 0 {
+		return nil, nil
 	}
 
 	students, err := s.transitionRepo.GetStudentsByClasses(ctx, graduateClasses)
 	if err != nil {
-		return fmt.Errorf("failed to get graduating students: %w", err)
+		return nil, fmt.Errorf("failed to get graduating students: %w", err)
 	}
 	if len(students) == 0 {
+		return nil, nil
+	}
+
+	sort.Slice(students, func(i, j int) bool { return students[i].StudentID < students[j].StudentID })
+
+	if s.studentRepo == nil {
+		return students, nil
+	}
+
+	// The kiosk/web check-in write path also takes a FOR UPDATE lock on the
+	// student row (services/active.ensureStudentCheckinAllowed), so the two
+	// transactions serialize on the shared row instead of racing: either a
+	// concurrent check-in commits first and we observe its open record below (and
+	// refuse), or we win the lock and the check-in re-reads the alumnus status
+	// afterwards (and refuses).
+	locked := make([]*education.StudentClassInfo, 0, len(students))
+	for _, student := range students {
+		if _, err := s.studentRepo.FindByIDForUpdate(ctx, student.StudentID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				continue // row vanished before we could lock it — nothing to graduate
+			}
+			return nil, fmt.Errorf("failed to lock graduating student %d: %w", student.StudentID, err)
+		}
+		locked = append(locked, student)
+	}
+
+	return locked, nil
+}
+
+// reconcileGraduatedRosters removes the graduated students from already-
+// materialized future timetable rosters. No-op when no reconciler is wired.
+func (s *GradeTransitionService) reconcileGraduatedRosters(
+	ctx context.Context,
+	graduates []*education.StudentClassInfo,
+) error {
+	if s.rosterReconciler == nil || len(graduates) == 0 {
+		return nil
+	}
+	if err := s.rosterReconciler.RemoveStudentsFromFutureRosters(ctx, studentIDsOf(graduates)); err != nil {
+		return fmt.Errorf("failed to reconcile graduated rosters: %w", err)
+	}
+	return nil
+}
+
+// studentIDsOf projects the student IDs out of a StudentClassInfo slice.
+func studentIDsOf(students []*education.StudentClassInfo) []int64 {
+	ids := make([]int64, 0, len(students))
+	for _, st := range students {
+		ids = append(ids, st.StudentID)
+	}
+	return ids
+}
+
+// ensureGraduatesNotCheckedIn refuses the apply when any of the (already
+// FOR UPDATE-locked) graduating students is currently checked in — an open visit
+// (in a room) or an open attendance record for today. Such a child would become
+// an alumnus with a dangling open record the kiosk can no longer close (it
+// rejects every alumnus checkout). No-op when neither repository is wired (unit
+// tests) or there is nothing to graduate. Because the caller already holds the
+// FOR UPDATE lock on these rows, a concurrent check-in either committed before
+// the lock (and is observed here) or blocks until this apply commits and then
+// re-reads the alumnus status.
+func (s *GradeTransitionService) ensureGraduatesNotCheckedIn(ctx context.Context, graduates []*education.StudentClassInfo) error {
+	if len(graduates) == 0 || (s.visitRepo == nil && s.attendanceRepo == nil) {
 		return nil
 	}
 
-	ids := make([]int64, 0, len(students))
-	for _, student := range students {
-		ids = append(ids, student.StudentID)
-	}
-
-	// Lock the graduating student rows FOR UPDATE *before* reading their
-	// check-in state, and hold the lock for the whole apply transaction. The
-	// kiosk/web check-in write path also takes a FOR UPDATE lock on the student
-	// row it writes for (services/active.ensureStudentCheckinAllowed), so the
-	// two transactions serialize on the shared row instead of racing: either a
-	// concurrent check-in commits first and we observe its open attendance/visit
-	// below (and refuse), or we win the lock and the check-in re-reads the
-	// alumnus status afterwards (and refuses). Without this lock the reads are a
-	// snapshot and a concurrent check-in could still strand a freshly graduated
-	// child with an open record the kiosk can no longer close (#405).
-	// Ascending id order matches the convention used by every other student-row
-	// locker, so cross-transaction lock ordering cannot deadlock.
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	if s.studentRepo != nil {
-		for _, id := range ids {
-			if _, err := s.studentRepo.FindByIDForUpdate(ctx, id); err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					continue // row vanished before we could lock it — nothing to strand
-				}
-				return fmt.Errorf("failed to lock graduating student %d: %w", id, err)
-			}
-		}
-	}
+	ids := studentIDsOf(graduates)
 
 	checkedIn := make(map[int64]struct{})
 
@@ -617,16 +699,27 @@ func categorizeMappings(mappings []*education.GradeTransitionMapping) (promote, 
 }
 
 // recordTransitionHistory creates history records for all affected students.
+// Promoted students are read from their (promote) classes here; graduating
+// students are the already FOR UPDATE-locked set threaded in from the caller, so
+// the rows recorded in history are exactly the rows that get graduated (#405
+// review).
 func (s *GradeTransitionService) recordTransitionHistory(
 	ctx context.Context,
 	transitionID int64,
 	mappings []*education.GradeTransitionMapping,
-	allClasses []string,
+	promoteClasses []string,
+	graduates []*education.StudentClassInfo,
 ) error {
-	students, err := s.transitionRepo.GetStudentsByClasses(ctx, allClasses)
+	promoted, err := s.transitionRepo.GetStudentsByClasses(ctx, promoteClasses)
 	if err != nil {
 		return fmt.Errorf("failed to get students: %w", err)
 	}
+
+	// A student belongs to exactly one class, which is either a promote class or
+	// a graduate class, so the two sets are disjoint — no dedup needed.
+	students := make([]*education.StudentClassInfo, 0, len(promoted)+len(graduates))
+	students = append(students, promoted...)
+	students = append(students, graduates...)
 
 	if len(students) == 0 {
 		return nil
@@ -702,18 +795,21 @@ func (s *GradeTransitionService) applyPromotions(
 	return nil
 }
 
-// applyGraduations soft-deletes graduating students by marking them alumnus.
-// Rows survive so a revert can restore them.
+// applyGraduations soft-deletes the graduating students by marking them alumnus.
+// It mutates exactly the FOR UPDATE-locked rows the caller checked and recorded
+// — never a blind class-wide update — so a student concurrently inserted into a
+// graduating class cannot be graduated without the check-in guard and history
+// (#405 review). Rows survive so a revert can restore them.
 func (s *GradeTransitionService) applyGraduations(
 	ctx context.Context,
-	graduateClasses []string,
+	graduates []*education.StudentClassInfo,
 	result *TransitionResult,
 ) error {
-	if len(graduateClasses) == 0 {
+	if len(graduates) == 0 {
 		return nil
 	}
 
-	graduated, err := s.transitionRepo.GraduateStudentsByClasses(ctx, graduateClasses)
+	graduated, err := s.transitionRepo.GraduateStudentsByIDs(ctx, studentIDsOf(graduates))
 	if err != nil {
 		return fmt.Errorf("failed to graduate students: %w", err)
 	}
@@ -752,6 +848,13 @@ func finalizeApplyResult(result *TransitionResult) {
 
 // Revert undoes an applied grade transition
 func (s *GradeTransitionService) Revert(ctx context.Context, id int64, accountID int64) (*TransitionResult, error) {
+	// Same tenant-wide lock Apply takes: apply and revert share this resource so
+	// a revert of the current latest transition cannot interleave with an apply of
+	// a newer draft (#405 review). The lock releases at COMMIT/ROLLBACK.
+	if err := s.transitionRepo.LockTenantTransitions(ctx); err != nil {
+		return nil, err
+	}
+
 	transition, err := s.transitionRepo.FindByIDWithMappings(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf(errFmtTransitionNotFound, err)
@@ -823,7 +926,33 @@ func (s *GradeTransitionService) executeRevert(
 		return err
 	}
 
+	// Re-add the restored children to already-materialized upcoming rosters they
+	// were dropped from (on apply) or never added to (materialized while alumni)
+	// (#405 review).
+	if err := s.reconcileRestoredRosters(ctx, graduated); err != nil {
+		return err
+	}
+
 	return s.markTransitionReverted(ctx, transition, accountID)
+}
+
+// reconcileRestoredRosters re-adds the reactivated students to future timetable
+// rosters their enrollment still covers. No-op when no reconciler is wired.
+func (s *GradeTransitionService) reconcileRestoredRosters(
+	ctx context.Context,
+	graduated []*education.GradeTransitionHistory,
+) error {
+	if s.rosterReconciler == nil || len(graduated) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(graduated))
+	for _, h := range graduated {
+		ids = append(ids, h.StudentID)
+	}
+	if err := s.rosterReconciler.RestoreStudentsToFutureRosters(ctx, ids); err != nil {
+		return fmt.Errorf("failed to reconcile restored rosters: %w", err)
+	}
+	return nil
 }
 
 // revertPromotedStudents reverts promoted students to their original classes.

@@ -215,6 +215,16 @@ type InstanceStudentRepository interface {
 	// DeleteByInstanceID removes all attendance rows for an instance.
 	DeleteByInstanceID(ctx context.Context, instanceID int64) error
 
+	// DeleteExpectedByStudentIDsAfter removes still-planned ('expected')
+	// attendance rows for the given students on non-cancelled instances dated
+	// strictly after `after`. Past and in-progress-day rows are kept as a
+	// historical record, and any row a human or a check-in has already acted on
+	// (status != 'expected') is left untouched. Used when a grade transition
+	// graduates a cohort after the scheduler has already materialized upcoming
+	// instances, so departed children stop counting on future timetables and
+	// staffing ratios (#405 review). Tenant-scoped; returns the rows removed.
+	DeleteExpectedByStudentIDsAfter(ctx context.Context, studentIDs []int64, after timezone.Date) (int, error)
+
 	// UpdateAttendanceFromCheckin opens observed presence for an expected row,
 	// a broad-status absence, or a checked-out present row. It stamps the first
 	// checked_in_at and re-stamps it on re-entry; already-open presence

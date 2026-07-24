@@ -760,6 +760,50 @@ func (r *InstanceStudentRepository) DeleteByInstanceID(ctx context.Context, inst
 	return nil
 }
 
+// DeleteExpectedByStudentIDsAfter removes still-planned ('expected') rows for
+// the given students on non-cancelled instances dated strictly after `after`.
+// Cross-table predicate (join on activity_instances for date/status), so it is
+// expressed as one DELETE ... USING statement in the repository rather than the
+// generic builder. Tenant-scoped; a nil/empty student set is a no-op.
+func (r *InstanceStudentRepository) DeleteExpectedByStudentIDsAfter(ctx context.Context, studentIDs []int64, after timezone.Date) (int, error) {
+	if len(studentIDs) == 0 {
+		return 0, nil
+	}
+
+	const rawSQL = `
+		DELETE FROM schedule.instance_students AS s
+		USING schedule.activity_instances AS ai
+		WHERE s.instance_id = ai.id
+		  AND s.student_id IN (?)
+		  AND s.status = ?
+		  AND ai.date > ?
+		  AND ai.status <> ?
+		  AND s.tenant_id = ?`
+
+	result, err := base.GetDB(ctx, r.db).ExecContext(ctx, rawSQL,
+		bun.In(studentIDs),
+		schedule.AttendanceStatusExpected,
+		after,
+		schedule.InstanceStatusCancelled,
+		tenant.FromContext(ctx),
+	)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "delete expected by student ids after",
+			Err: err,
+		}
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "get rows affected",
+			Err: err,
+		}
+	}
+	return int(affected), nil
+}
+
 // MarkExpectedAbsentByActiveGroupIDs flips status 'expected' → 'absent' for
 // students on still-active instances bridged to the given active.groups.
 // Custom method (backend-conventions Rule 2): the subquery join on

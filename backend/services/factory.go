@@ -283,14 +283,24 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.Student,
 	)
 
+	// Reconciles already-materialized future timetable rosters when a grade
+	// transition graduates or restores students (#405).
+	rosterReconciler := schedule.NewRosterReconciler(
+		repos.ActivityInstance,
+		repos.InstanceStudent,
+		repos.StudentEnrollment,
+		logger,
+	)
+
 	// Initialize grade transition service
 	gradeTransitionService := education.NewGradeTransitionService(education.GradeTransitionServiceDependencies{
-		TransitionRepo: repos.GradeTransition,
-		StudentRepo:    repos.Student,
-		PersonRepo:     repos.Person,
-		VisitRepo:      repos.ActiveVisit,
-		AttendanceRepo: repos.Attendance,
-		DB:             db,
+		TransitionRepo:   repos.GradeTransition,
+		StudentRepo:      repos.Student,
+		PersonRepo:       repos.Person,
+		VisitRepo:        repos.ActiveVisit,
+		AttendanceRepo:   repos.Attendance,
+		RosterReconciler: rosterReconciler,
+		DB:               db,
 	})
 
 	// Initialize settings service (new schema-driven settings system)

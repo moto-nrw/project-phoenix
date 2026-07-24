@@ -121,6 +121,15 @@ type GradeTransitionRepository interface {
 	// reverse-order unwind: only the latest applied transition may be reverted,
 	// and the lock serializes concurrent reverts of the same row.
 	LockLatestApplied(ctx context.Context) (*GradeTransition, error)
+	// LockTenantTransitions takes a tenant-wide transaction-scoped advisory lock
+	// that BOTH Apply and Revert acquire before doing any work. It is the shared
+	// resource that serializes the two operations against each other: without it
+	// an apply of a new draft can interleave with a revert of the current latest
+	// transition, snapshotting pre-revert classes, losing its guarded class
+	// update after the revert changes them, and still marking itself applied with
+	// history describing changes it never made (#405 review). Requires the
+	// caller's tenant transaction in context; the lock releases at COMMIT/ROLLBACK.
+	LockTenantTransitions(ctx context.Context) error
 
 	// Mapping operations
 	CreateMapping(ctx context.Context, m *GradeTransitionMapping) error
@@ -146,6 +155,12 @@ type GradeTransitionRepository interface {
 	// revert never clobbers a newer correction.
 	RevertStudentClass(ctx context.Context, studentID int64, fromClass, toClass string) (int64, error)
 	GraduateStudentsByClasses(ctx context.Context, classes []string) (int64, error)
+	// GraduateStudentsByIDs soft-deletes exactly the given student IDs (status
+	// flips to alumnus) provided they are not already alumni. Apply graduates the
+	// same locked rows it checked for open check-ins and recorded in history, so
+	// a student inserted or moved into a graduating class after the initial lookup
+	// is never silently graduated without those guards (#405 review).
+	GraduateStudentsByIDs(ctx context.Context, studentIDs []int64) (int64, error)
 	ReactivateStudentsByIDs(ctx context.Context, studentIDs []int64) (int64, error)
 	ReactivateStudentsToStatus(ctx context.Context, studentIDs []int64, targetStatus string) (int64, error)
 }

@@ -235,6 +235,10 @@ func (f *fakeInstanceStudentRepo) DeleteByInstanceID(context.Context, int64) err
 	panic("unused")
 }
 
+func (f *fakeInstanceStudentRepo) DeleteExpectedByStudentIDsAfter(context.Context, []int64, timezone.Date) (int, error) {
+	panic("unused")
+}
+
 func (f *fakeInstanceStudentRepo) UpdateAttendanceFields(context.Context, int64, scheduleModel.AttendanceFieldPatch) error {
 	panic("unused")
 }
@@ -884,5 +888,9 @@ func (f *fakeInstanceRepo) UpdateColumns(context.Context, *scheduleModel.Activit
 }
 
 func (f *fakeInstanceRepo) FindByIDs(context.Context, []int64) ([]*scheduleModel.ActivityInstance, error) {
+	return nil, nil
+}
+
+func (f *fakeInstanceRepo) FindFuturePlannedTemplateBacked(context.Context, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }

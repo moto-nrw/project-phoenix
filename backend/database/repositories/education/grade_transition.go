@@ -261,6 +261,23 @@ func (r *GradeTransitionRepository) LockLatestApplied(ctx context.Context) (*edu
 	return t, nil
 }
 
+// LockTenantTransitions takes a tenant-wide EXCLUSIVE transaction-scoped
+// advisory lock. Both Apply and Revert acquire it first, so the two operations
+// serialize against one another instead of interleaving (an apply snapshotting
+// classes a concurrent revert then changes underneath it). The key is scoped by
+// tenant so different schools never block each other; the lock releases
+// automatically at COMMIT/ROLLBACK of the caller's transaction (#405 review).
+func (r *GradeTransitionRepository) LockTenantTransitions(ctx context.Context) error {
+	key := fmt.Sprintf("education.grade_transitions:%d", tenant.FromContext(ctx))
+	if err := base.AcquireXactLock(ctx, r.db, key); err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "lock tenant grade transitions",
+			Err: err,
+		}
+	}
+	return nil
+}
+
 // FindByStatus retrieves grade transitions with a specific status
 func (r *GradeTransitionRepository) FindByStatus(ctx context.Context, status string) ([]*education.GradeTransition, error) {
 	var transitions []*education.GradeTransition
@@ -671,6 +688,45 @@ func (r *GradeTransitionRepository) GraduateStudentsByClasses(ctx context.Contex
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "graduate students by classes",
+			Err: err,
+		}
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "get rows affected",
+			Err: err,
+		}
+	}
+
+	return affected, nil
+}
+
+// GraduateStudentsByIDs soft-deletes exactly the given students (status flips to
+// alumnus). Only rows still non-alumnus are touched, so a re-run is idempotent.
+// Apply passes the same FOR UPDATE-locked IDs it checked for open check-ins and
+// wrote to history, so the checked / recorded / mutated sets are identical and a
+// concurrently inserted student cannot be graduated without those guards (#405).
+func (r *GradeTransitionRepository) GraduateStudentsByIDs(ctx context.Context, studentIDs []int64) (int64, error) {
+	if len(studentIDs) == 0 {
+		return 0, nil
+	}
+
+	updQuery := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*struct{})(nil)).
+		ModelTableExpr(`users.students AS "student"`).
+		Set("status = ?", string(users.StudentStatusAlumnus)).
+		Set("updated_at = NOW()").
+		Where(`"student".id IN (?)`, bun.List(studentIDs)).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
+
+	updQuery = base.WithTenantFilter(ctx, updQuery, "student")
+
+	result, err := updQuery.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "graduate students by ids",
 			Err: err,
 		}
 	}

@@ -512,6 +512,26 @@ func TestGetStudent(t *testing.T) {
 
 		testutil.AssertBadRequest(t, rr)
 	})
+
+	// A graduated (alumnus) student is soft-deleted. GetStudentByID is
+	// unfiltered, so the shared parseAndGetStudent gate must reject a bookmarked
+	// or directly-called per-student route with 404 — the same status these
+	// routes returned when graduates were hard-deleted (#405).
+	t.Run("not_found_for_alumnus", func(t *testing.T) {
+		alumnus := testpkg.CreateTestStudent(t, tc.db, "Graduated", "Alumnus", "GS-Alum")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, alumnus.ID)
+		_, err := tc.db.NewUpdate().
+			TableExpr(`users.students`).
+			Set("status = ?", string(usersModel.StudentStatusAlumnus)).
+			Where("id = ?", alumnus.ID).
+			Exec(t.Context())
+		require.NoError(t, err)
+
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", alumnus.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertNotFound(t, rr)
+	})
 }
 
 // =============================================================================

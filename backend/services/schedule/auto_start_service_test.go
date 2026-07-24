@@ -260,6 +260,10 @@ func (r *autoStartInstanceRepo) FindByActiveGroupID(context.Context, int64) (*sc
 func (r *autoStartInstanceRepo) FindByIDs(context.Context, []int64) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
+
+func (r *autoStartInstanceRepo) FindFuturePlannedTemplateBacked(context.Context, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+	return nil, nil
+}
 func (r *autoStartInstanceRepo) MarkCompleted(context.Context, int64, time.Time) error {
 	return nil
 }

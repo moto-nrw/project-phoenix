@@ -158,6 +158,31 @@ func (r *ActivityInstanceRepository) FindByTenantAndDate(ctx context.Context, da
 	return instances, nil
 }
 
+// FindFuturePlannedTemplateBacked returns planned, template-backed instances
+// dated strictly after `after` for the current tenant. Feeds the grade-transition
+// revert reconciliation (re-adding restored students the materializer skipped).
+func (r *ActivityInstanceRepository) FindFuturePlannedTemplateBacked(ctx context.Context, after timezone.Date) ([]*schedule.ActivityInstance, error) {
+	var instances []*schedule.ActivityInstance
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&instances).
+		ModelTableExpr(modelTblActivityInstance).
+		Where(`"activity_instance".date > ?`, after).
+		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
+		Where(`"activity_instance".activity_group_id IS NOT NULL`).
+		Order("date ASC", "start_time ASC")
+
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find future planned template-backed instances",
+			Err: err,
+		}
+	}
+	return instances, nil
+}
+
 // FindByTenantAndDateRange returns instances within an inclusive date range.
 func (r *ActivityInstanceRepository) FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*schedule.ActivityInstance, error) {
 	var instances []*schedule.ActivityInstance
