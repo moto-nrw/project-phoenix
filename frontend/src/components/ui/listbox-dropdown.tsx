@@ -88,13 +88,18 @@ function typeaheadMatchIndex<K extends string>(
   options: readonly ListboxDropdownOption<K>[],
   buffer: string,
   startIndex: number,
+  hasAnchor: boolean,
 ): number {
   if (options.length === 0 || buffer.length === 0) return -1;
   // A repeated single character cycles through options sharing that initial
   // letter instead of demanding a label like "aaa".
   const cycling = buffer.length === 1 || isRepeatedCharacter(buffer);
   const needle = (cycling ? buffer[0]! : buffer).toLowerCase();
-  const firstOffset = cycling ? 1 : 0;
+  // Skip the start index only when it is a genuine selection/focus (cycle to
+  // the NEXT match). With no real anchor — an empty value on a placeholder-only
+  // select whose startIndex is synthesized to the first option — search from
+  // index 0 inclusive so the first matching option is reachable.
+  const firstOffset = cycling && hasAnchor ? 1 : 0;
 
   for (
     let offset = firstOffset;
@@ -232,10 +237,15 @@ export function ListboxDropdown<K extends string>({
       typeaheadTimerRef.current = null;
     }, TYPEAHEAD_RESET_MS);
 
+    // While open the focused option is a real anchor; while closed only a
+    // value that matches an actual option is — otherwise selectedIndex is a
+    // synthesized fallback and typeahead must not skip past it.
+    const hasAnchor = open || selectedOption !== undefined;
     const matchIndex = typeaheadMatchIndex(
       options,
       typeaheadBufferRef.current,
       open ? focusIndex : selectedIndex,
+      hasAnchor,
     );
     if (matchIndex >= 0) {
       setFocusIndex(matchIndex);

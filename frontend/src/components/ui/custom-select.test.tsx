@@ -339,6 +339,30 @@ describe("CustomSelect", () => {
         screen.getByRole("option", { name: "Gesperrt" }),
       ).not.toHaveFocus();
     });
+
+    it("focuses the first match when typing on a placeholder-only select with no empty option", () => {
+      // No empty option and an empty value: selectedIndex is synthesized to the
+      // first option, so single-char typeahead must NOT skip past it.
+      render(
+        <CustomSelect
+          value=""
+          options={[
+            { value: "anna", label: "Anna Becker" },
+            { value: "anton", label: "Anton Maler" },
+          ]}
+          onChange={vi.fn()}
+          ariaLabel="Betreuungsperson"
+        />,
+      );
+
+      fireEvent.keyDown(
+        screen.getByRole("combobox", { name: "Betreuungsperson" }),
+        { key: "a" },
+      );
+
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "Anna Becker" })).toHaveFocus();
+    });
   });
 
   it("keeps a hidden form value", () => {

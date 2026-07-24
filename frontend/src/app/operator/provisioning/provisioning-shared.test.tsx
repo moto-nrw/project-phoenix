@@ -357,6 +357,26 @@ describe("SelectWithChevron", () => {
     fireEvent.click(screen.getByRole("combobox", { name: "Test" }));
     expect(screen.getAllByRole("option")).toHaveLength(3);
   });
+
+  it("names both the trigger and popup listbox from the FormField label when no aria-label is given", () => {
+    render(
+      <FormField label="System-Rolle" htmlFor="role-field">
+        <SelectWithChevron id="role-field" value="">
+          <option value="a">Option A</option>
+          <option value="b">Option B</option>
+        </SelectWithChevron>
+      </FormField>,
+    );
+
+    expect(
+      screen.getByRole("combobox", { name: "System-Rolle" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "System-Rolle" }));
+    expect(
+      screen.getByRole("listbox", { name: "System-Rolle" }),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("PlusIcon", () => {

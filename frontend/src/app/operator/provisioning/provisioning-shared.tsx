@@ -16,6 +16,7 @@ export function FormField({
   return (
     <div>
       <label
+        id={`${htmlFor}-label`}
         htmlFor={htmlFor}
         className="mb-1 block text-sm font-medium text-gray-700"
       >
@@ -169,6 +170,12 @@ export function SelectWithChevron({
       };
     });
 
+  // Without an explicit aria-label, name the field (trigger AND popup listbox)
+  // from the associated FormField <label>, which carries id `${id}-label`.
+  // CustomSelect forwards ariaLabelledBy to the popup, which cannot be reached
+  // by the label's htmlFor the way the trigger button is.
+  const ariaLabelledBy = !ariaLabel && id ? `${id}-label` : undefined;
+
   return (
     <CustomSelect
       id={id}
@@ -183,6 +190,7 @@ export function SelectWithChevron({
       disabled={disabled}
       required={required}
       ariaLabel={ariaLabel}
+      ariaLabelledBy={ariaLabelledBy}
     />
   );
 }
