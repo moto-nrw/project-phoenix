@@ -34,6 +34,7 @@ function dayCountFor(a: StaffAbsence): number {
     workingDays: a.workingDays,
     dateStart: a.dateStart,
     dateEnd: a.dateEnd,
+    halfDay: a.halfDay,
     startHalfDay: a.startHalfDay,
     endHalfDay: a.endHalfDay,
     hasBoundaryFields: true,
@@ -124,11 +125,13 @@ export function LeaveRequestsCard() {
 
   const sortedQuestionedVacations = useMemo(
     () =>
-      questionedVacations.slice().sort(
-        (a, b) =>
-          new Date(b.requestedAt ?? b.dateStart).getTime() -
-          new Date(a.requestedAt ?? a.dateStart).getTime(),
-      ),
+      questionedVacations
+        .slice()
+        .sort(
+          (a, b) =>
+            new Date(b.requestedAt ?? b.dateStart).getTime() -
+            new Date(a.requestedAt ?? a.dateStart).getTime(),
+        ),
     [questionedVacations],
   );
 
@@ -377,10 +380,7 @@ function AbsenceRequestItem({
         </div>
       </div>
       {showResubmit && onResubmitted && (
-        <ResubmitAbsenceForm
-          absence={absence}
-          onResubmitted={onResubmitted}
-        />
+        <ResubmitAbsenceForm absence={absence} onResubmitted={onResubmitted} />
       )}
     </li>
   );

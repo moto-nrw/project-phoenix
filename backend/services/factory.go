@@ -67,6 +67,7 @@ type Factory struct {
 	Holidays                 schedule.HolidayService
 	ClosingDays              schedule.ClosingDayService
 	StaffAbsence             active.StaffAbsenceService
+	StaffBalanceAdjust       active.StaffBalanceAdjustmentService
 	Activities               activities.ActivityService
 	Education                education.Service
 	GradeTransition          *education.GradeTransitionService
@@ -369,6 +370,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	closingDayService := schedule.NewClosingDayService(repos.ClosingDay)
 	nonWorkingDayService := schedule.NewNonWorkingDayResolver(holidayService, closingDayService)
 	workTimeMonthService.SetHolidayReader(nonWorkingDayService)
+	// Stundenkonto transactions (#1420) enter the carry chain by effective date.
+	workTimeMonthService.SetAdjustmentReader(repos.StaffBalanceAdjust)
 	// The session service's weekly summaries reduce their Soll by holidays
 	// too. The setter is not part of the WorkSessionService interface (it
 	// would break external mocks), hence the assertion.
@@ -379,7 +382,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	}
 
 	// Initialize staff absence service
-	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit)
+	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, settingsService, workTimeMonthService)
+
+	// Stundenkonto lifecycle transactions (#1420): payout, comp-time grants,
+	// school-year reset. Reads the live balance through the month service.
+	staffBalanceAdjustService := active.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, settingsService, activeLogger)
 
 	// Absence email notifications (#1419 4d). Setter injection keeps the
 	// constructor stable and unit tests email-free (mirrors SetShiftPlanSyncer);
@@ -1564,6 +1571,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Holidays:                 holidayService,
 		ClosingDays:              closingDayService,
 		StaffAbsence:             staffAbsenceService,
+		StaffBalanceAdjust:       staffBalanceAdjustService,
 		Activities:               activitiesService,
 		Education:                educationService,
 		GradeTransition:          gradeTransitionService,

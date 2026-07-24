@@ -224,7 +224,8 @@ export default function StaffDetailContent() {
   const params = useParams();
   const staffId = params.id as string;
   const canEdit = isAdmin(session);
-  const canManageSickReports = hasPermission(session, "time_tracking:manage");
+  const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
+  const canViewOverview = canEdit || canManageTimeTracking;
 
   const {
     data: staff,
@@ -282,7 +283,7 @@ export default function StaffDetailContent() {
     return <StaffDetailSkeleton />;
   }
 
-  if (!canEdit && !canManageSickReports) {
+  if (!canViewOverview) {
     router.replace("/staff");
     return <StaffDetailSkeleton />;
   }
@@ -342,16 +343,18 @@ export default function StaffDetailContent() {
 
       {/* Tabs */}
       <Tabs
-        defaultValue={canEdit ? "uebersicht" : "abwesenheiten"}
+        defaultValue={canViewOverview ? "uebersicht" : "abwesenheiten"}
         className="w-full"
       >
         <TabsList
           variant="line"
           className="mb-6 w-full [scrollbar-width:none] justify-start overflow-x-auto pb-px [&::-webkit-scrollbar]:hidden"
         >
+          {canViewOverview ? (
+            <TabsTrigger value="uebersicht">Übersicht</TabsTrigger>
+          ) : null}
           {canEdit ? (
             <>
-              <TabsTrigger value="uebersicht">Übersicht</TabsTrigger>
               <TabsTrigger value="zeiterfassung">Zeiterfassung</TabsTrigger>
               <TabsTrigger value="arbeitszeitmodell">
                 Arbeitszeitmodell
@@ -380,12 +383,14 @@ export default function StaffDetailContent() {
           ) : null}
         </TabsList>
 
+        {canViewOverview ? (
+          <TabsPrimitive.Content value="uebersicht">
+            <UebersichtTab staffId={staffId} />
+          </TabsPrimitive.Content>
+        ) : null}
+
         {canEdit ? (
           <>
-            <TabsPrimitive.Content value="uebersicht">
-              <UebersichtTab staffId={staffId} />
-            </TabsPrimitive.Content>
-
             <TabsPrimitive.Content value="zeiterfassung">
               <ZeiterfassungTab staffId={staffId} />
             </TabsPrimitive.Content>
@@ -400,7 +405,7 @@ export default function StaffDetailContent() {
           <AbwesenheitenTab
             staffId={staffId}
             canEdit={canEdit}
-            canManageSickReports={canManageSickReports}
+            canManageSickReports={canManageTimeTracking}
             staff={staff}
           />
         </TabsPrimitive.Content>

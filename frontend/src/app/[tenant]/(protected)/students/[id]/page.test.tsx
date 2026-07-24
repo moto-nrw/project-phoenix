@@ -1703,6 +1703,90 @@ describe("StudentDetailPage", () => {
       ).not.toBeInTheDocument();
     });
 
+    it("hides the Betreuungsplan tab without schedules:read", () => {
+      // Default mock session is config:manage only -> no schedules:read.
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.queryByRole("tab", { name: "Betreuungsplan" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the Betreuungsplan tab with schedules:read", () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["config:manage", "schedules:read"],
+          },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tab", { name: "Betreuungsplan" }),
+      ).toBeInTheDocument();
+    });
+
+    it("hides the Betreuungsplan tab in the limited-access view despite schedules:read", () => {
+      // Deliberate, not an oversight: has_full_access on the student response is
+      // authorize.CanReadStudent, the SAME predicate the backend applies inside
+      // GET /timetable/student/{id}/{day,week} (api/timetable/api.go gates the
+      // route on schedules:read, resolveStudentForRead then runs CanReadStudent).
+      // A limited-access viewer therefore gets 403 from the care-plan endpoints,
+      // so showing the tab would only offer a permanently failing panel.
+      mockUseStudentData.mockReturnValue(limitedAccess);
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["config:manage", "schedules:read"],
+          },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.queryByRole("tab", { name: "Betreuungsplan" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the Betreuungsplan tab to a non-supervisor under gdpr.student_data_scope=all_staff", () => {
+      // The complement of the test above, and the case worth pinning: under
+      // `all_staff` the backend's read predicate (authorize.CanReadStudent)
+      // returns true for EVERY staff member, so has_full_access arrives true
+      // even for someone who supervises none of this child's groups — and the
+      // care-plan endpoints, gated on that same predicate, will serve them.
+      // The tab must therefore appear. It is gated on read access, never on the
+      // stricter supervisor/admin write predicate (has_write_access).
+      mockUseStudentData.mockReturnValue({
+        ...limitedAccess,
+        hasFullAccess: true, // all_staff scope grants read access…
+        hasWriteAccess: false, // …while writes stay supervisor-only
+        myGroups: [],
+        mySupervisedRooms: [],
+      });
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["schedules:read"],
+          },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tab", { name: "Betreuungsplan" }),
+      ).toBeInTheDocument();
+    });
+
     it("defaults to the Stammdaten tab when no tab param is set", () => {
       render(<StudentDetailPage />);
 

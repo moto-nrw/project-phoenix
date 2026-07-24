@@ -2,6 +2,7 @@ package active
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -13,6 +14,15 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
+
+// ErrManagerControlledAbsence marks absence mutations that staff may view but
+// only a time-tracking manager may create, change, or delete.
+var ErrManagerControlledAbsence = errors.New("absence type is manager-controlled")
+
+// ErrCompTimeExceedsBalance prevents a comp_time absence from deducting more
+// daily-target minutes than the Stundenkonto has accrued before the absence
+// starts — the same overdraft guard the balance adjustments enforce (#1420).
+var ErrCompTimeExceedsBalance = errors.New("comp_time absence exceeds accrued balance")
 
 // CreateAbsenceRequest defines the request for creating an absence
 type CreateAbsenceRequest struct {
@@ -83,6 +93,7 @@ type VacationQuotaSummary struct {
 // StaffAbsenceService defines operations for staff absence management
 type StaffAbsenceService interface {
 	CreateAbsence(ctx context.Context, staffID int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error)
+	CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error)
 	// CreateAbsenceFor separates the absence's subject from its creator so an
 	// admin can file a sick report on a staff member's behalf (#1843). A sick
 	// full-day absence cascades into the plans via the ShiftPlanSyncer inside
@@ -90,6 +101,7 @@ type StaffAbsenceService interface {
 	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error)
 	UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, req UpdateAbsenceRequest) (*StaffAbsenceResponse, error)
 	DeleteAbsence(ctx context.Context, staffID int64, absenceID int64) error
+	DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error
 	// DeleteAbsenceFor is DeleteAbsence with an explicit actor (admin delete,
 	// #1843): deleting a sick report reverses its plan cascade first.
 	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
@@ -132,6 +144,10 @@ type staffAbsenceService struct {
 	workSessionRepo activeModels.WorkSessionRepository
 	quotaRepo       activeModels.StaffVacationQuotaRepository
 	auditRepo       activeModels.StaffAbsenceAuditRepository
+	settings        monthSettingsResolver
+	// monthService provides the daily-target and closing-balance math for
+	// the comp_time overdraft guard; nil in bare-constructed unit tests.
+	monthService    WorkTimeMonthService
 	shiftPlanSyncer ShiftPlanSyncer
 	// emailDeps is nil unless SetAbsenceEmailDeps wired it (factory only);
 	// nil means no absence emails are sent (#1419 4d).
@@ -159,12 +175,16 @@ func NewStaffAbsenceService(
 	workSessionRepo activeModels.WorkSessionRepository,
 	quotaRepo activeModels.StaffVacationQuotaRepository,
 	auditRepo activeModels.StaffAbsenceAuditRepository,
+	settings monthSettingsResolver,
+	monthService WorkTimeMonthService,
 ) StaffAbsenceService {
 	return &staffAbsenceService{
 		absenceRepo:     absenceRepo,
 		workSessionRepo: workSessionRepo,
 		quotaRepo:       quotaRepo,
 		auditRepo:       auditRepo,
+		settings:        settings,
+		monthService:    monthService,
 	}
 }
 
@@ -175,7 +195,16 @@ const defaultEntitledDays = 30.0
 
 // CreateAbsence creates a new absence record for the caller themself.
 func (s *staffAbsenceService) CreateAbsence(ctx context.Context, staffID int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
-	return s.CreateAbsenceFor(ctx, staffID, staffID, nil, req)
+	return s.CreateOwnAbsence(ctx, staffID, nil, req)
+}
+
+// CreateOwnAbsence is the self-service entry point. Comp-time absences change
+// the Stundenkonto and therefore require the manager-authorized staff route.
+func (s *staffAbsenceService) CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
+	if req.AbsenceType == activeModels.AbsenceTypeCompTime {
+		return nil, ErrManagerControlledAbsence
+	}
+	return s.CreateAbsenceFor(ctx, staffID, staffID, actorAccountID, req)
 }
 
 // CreateAbsenceFor creates an absence for subjectStaffID on createdByStaffID's
@@ -195,6 +224,9 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 	if err := validateSickAbsenceRange(req.AbsenceType, dateStart, dateEnd); err != nil {
 		return nil, err
 	}
+	if err := s.rejectPreAccountCompTime(ctx, req.AbsenceType, dateStart, dateEnd); err != nil {
+		return nil, err
+	}
 	if err := s.lockStaffAbsenceWrites(ctx, subjectStaffID); err != nil {
 		return nil, err
 	}
@@ -209,8 +241,13 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 	if blocking := filterBlockingAbsences(existing); len(blocking) > 0 {
 		resp, err = s.mergeOverlappingAbsences(ctx, blocking, dateStart, dateEnd, req)
 	} else {
-		if err := validateSingleDayHalfDaySick(req.AbsenceType, req.HalfDay, dateStart, dateEnd); err != nil {
+		if err := validateSingleDayHalfDayAbsence(req.AbsenceType, req.HalfDay, dateStart, dateEnd); err != nil {
 			return nil, err
+		}
+		if req.AbsenceType == activeModels.AbsenceTypeCompTime {
+			if err := s.validateCompTimeBalance(ctx, subjectStaffID, dateStart, dateEnd, req.HalfDay, nil); err != nil {
+				return nil, err
+			}
 		}
 		s.warnIfWorkSessionsExist(ctx, subjectStaffID, dateStart, dateEnd)
 		resp, err = s.createNewAbsence(ctx, subjectStaffID, createdByStaffID, dateStart, dateEnd, req)
@@ -257,6 +294,12 @@ func parseDateRange(startStr, endStr string) (timezone.Date, timezone.Date, erro
 	if err != nil {
 		return timezone.Date{}, timezone.Date{}, fmt.Errorf("invalid date_end format, expected YYYY-MM-DD")
 	}
+	// Reject reversed ranges here instead of letting them hit the DB check
+	// constraint chk_sa_dates, which would surface as a 500 (#1420 review).
+	// The "invalid" prefix is what the handlers classify as a 400.
+	if dateEnd.Before(dateStart) {
+		return timezone.Date{}, timezone.Date{}, fmt.Errorf("invalid date range: date_end must not be before date_start")
+	}
 	return dateStart, dateEnd, nil
 }
 
@@ -271,7 +314,7 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	if err := validateSameAbsenceType(existing, req.AbsenceType); err != nil {
 		return nil, err
 	}
-	if err := validateSameSickDuration(existing, req); err != nil {
+	if err := validateSameMergeDuration(existing, req); err != nil {
 		return nil, err
 	}
 
@@ -280,8 +323,13 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	if err := validateSickAbsenceRange(req.AbsenceType, mergedStart, mergedEnd); err != nil {
 		return nil, err
 	}
-	if err := validateSingleDayHalfDaySick(req.AbsenceType, req.HalfDay, mergedStart, mergedEnd); err != nil {
+	if err := validateSingleDayHalfDayAbsence(req.AbsenceType, req.HalfDay, mergedStart, mergedEnd); err != nil {
 		return nil, err
+	}
+	if req.AbsenceType == activeModels.AbsenceTypeCompTime {
+		if err := s.validateCompTimeBalance(ctx, existing[0].StaffID, mergedStart, mergedEnd, req.HalfDay, existing); err != nil {
+			return nil, err
+		}
 	}
 
 	// Update the primary absence with merged range
@@ -317,12 +365,19 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	return toAbsenceResponse(primary), nil
 }
 
-func validateSameSickDuration(existing []*activeModels.StaffAbsence, req CreateAbsenceRequest) error {
-	if req.AbsenceType != activeModels.AbsenceTypeSick {
+// validateSameMergeDuration rejects merging half-day with full-day rows for
+// the duration-sensitive types: sick cascades per day, comp_time deducts the
+// Stundenkonto. The merge keeps the primary's HalfDay flag, so a mismatch
+// would silently rewrite the requested duration (#1420).
+func validateSameMergeDuration(existing []*activeModels.StaffAbsence, req CreateAbsenceRequest) error {
+	if req.AbsenceType != activeModels.AbsenceTypeSick && req.AbsenceType != activeModels.AbsenceTypeCompTime {
 		return nil
 	}
 	for _, absence := range existing {
 		if absence.HalfDay != req.HalfDay {
+			if req.AbsenceType == activeModels.AbsenceTypeCompTime {
+				return fmt.Errorf("invalid comp_time absence: half-day and full-day entries cannot be merged")
+			}
 			return fmt.Errorf("invalid sick absence: half-day and full-day reports cannot be merged")
 		}
 	}
@@ -339,11 +394,143 @@ func validateSickAbsenceRange(absenceType string, start, end timezone.Date) erro
 	return nil
 }
 
-func validateSingleDayHalfDaySick(absenceType string, halfDay bool, start, end timezone.Date) error {
-	if absenceType == activeModels.AbsenceTypeSick && halfDay && start != end {
+func validateSingleDayHalfDayAbsence(absenceType string, halfDay bool, start, end timezone.Date) error {
+	if !halfDay || start == end {
+		return nil
+	}
+	switch absenceType {
+	case activeModels.AbsenceTypeSick:
 		return fmt.Errorf("invalid sick absence: half-day reports must cover exactly one date")
+	case activeModels.AbsenceTypeCompTime:
+		return fmt.Errorf("invalid comp_time absence: half-day reports must cover exactly one date")
 	}
 	return nil
+}
+
+// rejectPreAccountCompTime fails a comp_time absence dated before the account
+// start: balance aggregation begins at the anchor, so such an absence would
+// appear in the history without ever reducing the Stundenkonto (mirrors
+// rejectPreAccountDate on balance adjustments, #1420).
+func (s *staffAbsenceService) rejectPreAccountCompTime(ctx context.Context, absenceType string, dateStart, dateEnd timezone.Date) error {
+	if absenceType != activeModels.AbsenceTypeCompTime {
+		return nil
+	}
+	anchor, err := resolveAccountAnchor(ctx, s.settings, slog.Default(), monthOf(timezone.TodayDate()))
+	if err != nil {
+		return fmt.Errorf("failed to resolve account start for comp_time absence: %w", err)
+	}
+	if dateStart.Before(anchor) {
+		return fmt.Errorf("invalid comp_time absence: date_start %s lies before the account start %s", dateStart.String(), anchor.String())
+	}
+	// Mirror the Monatskarte's future bound: the overdraft guard reads the
+	// closing balance before dateStart, which has no defined result beyond
+	// the carry-chain horizon (#1420 review).
+	if horizon := monthOf(timezone.TodayDate()).addMonths(maxFutureMonths); horizon.before(monthOf(dateEnd)) {
+		return fmt.Errorf("invalid comp_time absence: date_end %s is more than %d months ahead", dateEnd.String(), maxFutureMonths)
+	}
+	return nil
+}
+
+// validateCompTimeBalance rejects a comp_time absence whose additional
+// daily-target deduction would invalidate an existing later ledger debit or
+// comp-time commitment. It must run under the shared staff balance lock
+// (lockStaffAbsenceWrites takes it), mirroring the adjustment overdraft guard.
+// Existing rows are already reserved by GetBalanceReductionCapacity during a
+// merge, so only the newly added part of the merged range consumes capacity.
+func (s *staffAbsenceService) validateCompTimeBalance(
+	ctx context.Context,
+	staffID int64,
+	start, end timezone.Date,
+	halfDay bool,
+	existing []*activeModels.StaffAbsence,
+) error {
+	if s.monthService == nil {
+		// Bare-constructed unit tests without month math; the factory always
+		// wires the real service.
+		return nil
+	}
+	additionalDeduction, err := s.getAdditionalCompTimeDeduction(
+		ctx, staffID, start, end, halfDay, existing,
+	)
+	if err != nil {
+		return err
+	}
+	if additionalDeduction <= 0 {
+		return nil
+	}
+
+	reductionCapacity, err := s.monthService.GetBalanceReductionCapacity(ctx, staffID, start)
+	if err != nil {
+		return fmt.Errorf("failed to compute reduction capacity for comp_time absence: %w", err)
+	}
+	today := timezone.TodayDate()
+	if !start.After(today) {
+		historicalEnd := end
+		if historicalEnd.After(today) {
+			historicalEnd = today
+		}
+		realizedDeduction, err := s.getAdditionalCompTimeDeduction(
+			ctx, staffID, start, historicalEnd, halfDay, existing,
+		)
+		if err != nil {
+			return err
+		}
+		// Today's and historical closing balances already include the missing
+		// target minutes that the absence names. Add only that realized part
+		// back before comparing the whole request, or the guard charges it
+		// twice. Future days remain fully reserved.
+		reductionCapacity += realizedDeduction
+	}
+	if additionalDeduction > reductionCapacity {
+		return fmt.Errorf(
+			"%w: comp_time absence adds %d minutes but only %d minutes remain available from %s onward",
+			ErrCompTimeExceedsBalance,
+			additionalDeduction,
+			reductionCapacity,
+			start.String(),
+		)
+	}
+	return nil
+}
+
+func (s *staffAbsenceService) getAdditionalCompTimeDeduction(
+	ctx context.Context,
+	staffID int64,
+	start, end timezone.Date,
+	halfDay bool,
+	existing []*activeModels.StaffAbsence,
+) (int, error) {
+	deduction, err := s.monthService.GetCompTimeDeductionMinutes(ctx, staffID, start, end, halfDay)
+	if err != nil {
+		return 0, fmt.Errorf("failed to compute comp_time deduction: %w", err)
+	}
+
+	reservedDeduction := 0
+	for _, absence := range existing {
+		overlapStart := absence.DateStart
+		if overlapStart.Before(start) {
+			overlapStart = start
+		}
+		overlapEnd := absence.DateEnd
+		if overlapEnd.After(end) {
+			overlapEnd = end
+		}
+		if overlapEnd.Before(overlapStart) {
+			continue
+		}
+		reserved, err := s.monthService.GetCompTimeDeductionMinutes(
+			ctx,
+			staffID,
+			overlapStart,
+			overlapEnd,
+			absence.HalfDay,
+		)
+		if err != nil {
+			return 0, fmt.Errorf("failed to compute existing comp_time deduction: %w", err)
+		}
+		reservedDeduction += reserved
+	}
+	return deduction - reservedDeduction, nil
 }
 
 func (s *staffAbsenceService) lockStaffAbsenceWrites(ctx context.Context, staffID int64) error {
@@ -448,6 +635,10 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	if absence.StaffID != staffID {
 		return nil, fmt.Errorf("can only update own absences")
 	}
+	if absence.AbsenceType == activeModels.AbsenceTypeCompTime ||
+		(req.AbsenceType != nil && *req.AbsenceType == activeModels.AbsenceTypeCompTime) {
+		return nil, ErrManagerControlledAbsence
+	}
 	before := *absence
 	if err := validateAbsenceUpdate(absence, req); err != nil {
 		return nil, err
@@ -460,7 +651,7 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	if err := validateSickAbsenceRange(absence.AbsenceType, absence.DateStart, absence.DateEnd); err != nil {
 		return nil, err
 	}
-	if err := validateSingleDayHalfDaySick(absence.AbsenceType, absence.HalfDay, absence.DateStart, absence.DateEnd); err != nil {
+	if err := validateSingleDayHalfDayAbsence(absence.AbsenceType, absence.HalfDay, absence.DateStart, absence.DateEnd); err != nil {
 		return nil, err
 	}
 
@@ -585,7 +776,13 @@ func (s *staffAbsenceService) checkOverlapExcludingSelf(ctx context.Context, sta
 // DeleteAbsence deletes an absence record (self-service; the caller is the
 // absence's owner and the acting person).
 func (s *staffAbsenceService) DeleteAbsence(ctx context.Context, staffID int64, absenceID int64) error {
-	return s.DeleteAbsenceFor(ctx, staffID, staffID, nil, absenceID)
+	return s.DeleteOwnAbsence(ctx, staffID, nil, absenceID)
+}
+
+// DeleteOwnAbsence is the self-service delete path. Manager-created comp-time
+// absences remain read-only for the affected staff member.
+func (s *staffAbsenceService) DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error {
+	return s.deleteAbsenceFor(ctx, staffID, staffID, actorAccountID, absenceID, false)
 }
 
 // DeleteAbsenceFor deletes subjectStaffID's absence on actorStaffID's behalf
@@ -595,6 +792,10 @@ func (s *staffAbsenceService) DeleteAbsence(ctx context.Context, staffID int64, 
 // the delete. CancelAbsence needs no such hook: it only accepts
 // requested/approved vacation-flow rows, never a reported sick absence.
 func (s *staffAbsenceService) DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error {
+	return s.deleteAbsenceFor(ctx, subjectStaffID, actorStaffID, actorAccountID, absenceID, true)
+}
+
+func (s *staffAbsenceService) deleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64, allowManagerControlled bool) error {
 	if err := s.lockStaffAbsenceWrites(ctx, subjectStaffID); err != nil {
 		return err
 	}
@@ -606,6 +807,9 @@ func (s *staffAbsenceService) DeleteAbsenceFor(ctx context.Context, subjectStaff
 	// Verify ownership
 	if absence.StaffID != subjectStaffID {
 		return fmt.Errorf("can only delete own absences")
+	}
+	if absence.AbsenceType == activeModels.AbsenceTypeCompTime && !allowManagerControlled {
+		return ErrManagerControlledAbsence
 	}
 	if isVacationWorkflowAbsence(absence) {
 		return fmt.Errorf("vacation workflow absences must be canceled through the vacation flow")

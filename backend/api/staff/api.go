@@ -25,6 +25,7 @@ type Resource struct {
 	WorkSessionService      activeSvc.WorkSessionService
 	StaffAbsenceService     activeSvc.StaffAbsenceService
 	WorkTimeMonthService    activeSvc.WorkTimeMonthService
+	BalanceAdjustService    activeSvc.StaffBalanceAdjustmentService
 	db                      *bun.DB
 	logger                  *slog.Logger
 }
@@ -38,6 +39,7 @@ func NewResource(
 	workSessionService activeSvc.WorkSessionService,
 	staffAbsenceService activeSvc.StaffAbsenceService,
 	workTimeMonthService activeSvc.WorkTimeMonthService,
+	balanceAdjustService activeSvc.StaffBalanceAdjustmentService,
 	db *bun.DB,
 	logger *slog.Logger,
 ) *Resource {
@@ -49,6 +51,7 @@ func NewResource(
 		WorkSessionService:      workSessionService,
 		StaffAbsenceService:     staffAbsenceService,
 		WorkTimeMonthService:    workTimeMonthService,
+		BalanceAdjustService:    balanceAdjustService,
 		db:                      db,
 		logger:                  logger,
 	}
@@ -95,6 +98,12 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/month-summary", rs.getStaffMonthSummary)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/schedule-targets", rs.getStaffScheduleTargets)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/export", rs.exportStaffSessions)
+
+		// Stundenkonto lifecycle (#1420): payout / comp-time adjustments + reset
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/adjustments", rs.listBalanceAdjustments)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/time-tracking/adjustments", rs.createBalanceAdjustment)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}/time-tracking/adjustments/{adjustmentId}", rs.deleteBalanceAdjustment)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/time-tracking/reset", rs.resetStaffBalance)
 
 		// Vacation workflow admin-side (Tranche 4)
 		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Get("/absences/pending", rs.listPendingAbsenceRequests)

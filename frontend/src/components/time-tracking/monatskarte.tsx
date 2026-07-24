@@ -7,7 +7,10 @@
 // automatically when past months are corrected.
 
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
-import { formatDuration } from "~/lib/time-tracking-helpers";
+import {
+  balanceAdjustmentTypeLabel,
+  formatDuration,
+} from "~/lib/time-tracking-helpers";
 import type { MonthSummary } from "~/lib/time-tracking-helpers";
 
 const MONTH_NAMES = [
@@ -203,6 +206,18 @@ export function Monatskarte({
             )}
           </>
         )}
+        {/* Stundenkonto-Buchungen (#1420): Auszahlung, Freizeitausgleich,
+            Reset — eine Zeile pro Buchung, damit die Kette Soll → Ist →
+            Anpassungen → Saldo von oben nach unten nachrechenbar bleibt. */}
+        {summary.adjustments.map((adjustment) => (
+          <SummaryRow
+            key={adjustment.id}
+            label={balanceAdjustmentTypeLabel(adjustment.type)}
+            hint={formatIsoDateGerman(adjustment.effectiveDate)}
+            value={formatSignedDuration(adjustment.minutesDelta)}
+            valueClass={deltaClass(adjustment.minutesDelta)}
+          />
+        ))}
         <SummaryRow
           label="Dienstplan geplant"
           hint={planCoverage.hint}

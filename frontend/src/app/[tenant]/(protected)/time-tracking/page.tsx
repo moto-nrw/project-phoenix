@@ -2273,6 +2273,7 @@ function EditSessionModal({
   const hasSession = session !== null;
   const hasAbsence = absence !== null;
   const hasBoth = hasSession && hasAbsence;
+  const isManagerControlledAbsence = absence?.absenceType === "comp_time";
 
   useEffect(() => {
     if (isOpen) {
@@ -2468,12 +2469,18 @@ function EditSessionModal({
     </div>
   );
 
+  const readOnlyAbsenceFooter = (
+    <Button type="button" variant="outline" size="md" onClick={onClose}>
+      Schließen
+    </Button>
+  );
+
   const footer = getEditModalFooter(
     hasBoth,
     hasAbsence,
     activeTab,
     sessionFooter,
-    absenceFooter,
+    isManagerControlledAbsence ? readOnlyAbsenceFooter : absenceFooter,
   );
 
   return (
@@ -2696,113 +2703,146 @@ function EditSessionModal({
         {/* ── Absence section ──────────────────────────────────────────── */}
         {hasAbsence && (!hasBoth || activeTab === "absence") && (
           <>
-            {/* Absence type */}
-            <div>
-              <label
-                id="edit-abs-type-label"
-                htmlFor="edit-abs-type"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Art der Abwesenheit
-              </label>
-              <CustomSelect
-                id="edit-abs-type"
-                ariaLabelledBy="edit-abs-type-label"
-                value={absType}
-                onChange={(next) => setAbsType(next as AbsenceType)}
-                options={ABSENCE_TYPE_OPTIONS}
-              />
-            </div>
-
-            {/* Date range */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label
-                  htmlFor="edit-abs-start"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Von
-                </label>
-                <input
-                  id="edit-abs-start"
-                  type="date"
-                  value={absDateStart}
-                  onChange={(e) => setAbsDateStart(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                  required
+            {isManagerControlledAbsence ? (
+              <div className="space-y-4">
+                <Alert
+                  type="info"
+                  message="Freizeitausgleich wird von der Leitung eingetragen und kann hier nicht geändert oder gelöscht werden."
                 />
+                <dl className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="font-medium text-gray-500">Zeitraum</dt>
+                    <dd className="mt-1 text-gray-900">
+                      {absence.dateStart} bis {absence.dateEnd}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-gray-500">Umfang</dt>
+                    <dd className="mt-1 text-gray-900">
+                      {absence.halfDay ? "Halber Tag" : "Ganzer Tag"}
+                    </dd>
+                  </div>
+                  {absence.note && (
+                    <div className="sm:col-span-2">
+                      <dt className="font-medium text-gray-500">Bemerkung</dt>
+                      <dd className="mt-1 text-gray-900">{absence.note}</dd>
+                    </div>
+                  )}
+                </dl>
               </div>
-              <div>
-                <label
-                  htmlFor="edit-abs-end"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Bis
-                </label>
-                <input
-                  id="edit-abs-end"
-                  type="date"
-                  value={absDateEnd}
-                  min={absDateStart}
-                  onChange={(e) => setAbsDateEnd(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                  required
-                />
-              </div>
-            </div>
+            ) : (
+              <>
+                {/* Absence type */}
+                <div>
+                  <label
+                    id="edit-abs-type-label"
+                    htmlFor="edit-abs-type"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    Art der Abwesenheit
+                  </label>
+                  <CustomSelect
+                    id="edit-abs-type"
+                    ariaLabelledBy="edit-abs-type-label"
+                    value={absType}
+                    onChange={(next) => setAbsType(next as AbsenceType)}
+                    options={ABSENCE_TYPE_OPTIONS}
+                  />
+                </div>
 
-            {/* Half day toggle */}
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                role="switch"
-                aria-label="Halber Tag"
-                aria-checked={absHalfDay}
-                onClick={() => setAbsHalfDay(!absHalfDay)}
-                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors ${absHalfDay ? "bg-gray-900" : "bg-gray-200"}`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-4 w-4 translate-y-0.5 rounded-full bg-white transition-transform ${absHalfDay ? "translate-x-4.5" : "translate-x-0.5"}`}
-                />
-              </button>
-              <span className="text-sm font-medium text-gray-700">
-                Halber Tag
-              </span>
-            </div>
+                {/* Date range */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="edit-abs-start"
+                      className="mb-1 block text-sm font-medium text-gray-700"
+                    >
+                      Von
+                    </label>
+                    <input
+                      id="edit-abs-start"
+                      type="date"
+                      value={absDateStart}
+                      onChange={(e) => setAbsDateStart(e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="edit-abs-end"
+                      className="mb-1 block text-sm font-medium text-gray-700"
+                    >
+                      Bis
+                    </label>
+                    <input
+                      id="edit-abs-end"
+                      type="date"
+                      value={absDateEnd}
+                      min={absDateStart}
+                      onChange={(e) => setAbsDateEnd(e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
+                      required
+                    />
+                  </div>
+                </div>
 
-            {/* Absence note */}
-            <div>
-              <label
-                htmlFor="edit-abs-note"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Bemerkung{" "}
-                <span className="font-normal text-gray-400">(optional)</span>
-              </label>
-              <textarea
-                id="edit-abs-note"
-                value={absNote}
-                onChange={(e) => setAbsNote(e.target.value)}
-                rows={2}
-                maxLength={2000}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                placeholder="z.B. Arzttermin, Schulung ..."
-              />
-            </div>
+                {/* Half day toggle */}
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-label="Halber Tag"
+                    aria-checked={absHalfDay}
+                    onClick={() => setAbsHalfDay(!absHalfDay)}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors ${absHalfDay ? "bg-gray-900" : "bg-gray-200"}`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 translate-y-0.5 rounded-full bg-white transition-transform ${absHalfDay ? "translate-x-4.5" : "translate-x-0.5"}`}
+                    />
+                  </button>
+                  <span className="text-sm font-medium text-gray-700">
+                    Halber Tag
+                  </span>
+                </div>
 
-            {/* Destructive action */}
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={handleAbsenceDelete}
-                disabled={absenceDeleting}
-                className="text-sm font-medium text-red-500 transition-colors hover:text-red-700 disabled:opacity-50"
-              >
-                {absenceDeleting
-                  ? "Abwesenheit wird gelöscht..."
-                  : "Abwesenheit löschen"}
-              </button>
-            </div>
+                {/* Absence note */}
+                <div>
+                  <label
+                    htmlFor="edit-abs-note"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    Bemerkung{" "}
+                    <span className="font-normal text-gray-400">
+                      (optional)
+                    </span>
+                  </label>
+                  <textarea
+                    id="edit-abs-note"
+                    value={absNote}
+                    onChange={(e) => setAbsNote(e.target.value)}
+                    rows={2}
+                    maxLength={2000}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
+                    placeholder="z.B. Arzttermin, Schulung ..."
+                  />
+                </div>
+
+                {/* Destructive action */}
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={handleAbsenceDelete}
+                    disabled={absenceDeleting}
+                    className="text-sm font-medium text-red-500 transition-colors hover:text-red-700 disabled:opacity-50"
+                  >
+                    {absenceDeleting
+                      ? "Abwesenheit wird gelöscht..."
+                      : "Abwesenheit löschen"}
+                  </button>
+                </div>
+              </>
+            )}
           </>
         )}
       </div>

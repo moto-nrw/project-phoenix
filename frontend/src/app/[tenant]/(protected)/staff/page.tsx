@@ -95,6 +95,7 @@ function StaffPageContent() {
     "Krank",
     "Urlaub",
     "Fortbildung",
+    "Freizeitausgleich",
     "Abwesend",
   ]);
 
@@ -103,6 +104,7 @@ function StaffPageContent() {
     "Krank",
     "Urlaub",
     "Fortbildung",
+    "Freizeitausgleich",
     "Abwesend",
   ]);
 
@@ -114,7 +116,7 @@ function StaffPageContent() {
       return location === "Zuhause" || location === "Abwesend";
     if (filter === "anwesend") return location === "Anwesend";
     if (filter === "homeoffice") return location === "Homeoffice";
-    // "abwesend" - all absence types (Krank, Urlaub, Fortbildung)
+    // "abwesend" - all absence types.
     if (filter === "abwesend") return absenceLocations.has(location);
     if (filter === "im_raum") {
       // Staff actively supervising in a room

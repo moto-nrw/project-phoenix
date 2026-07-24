@@ -195,6 +195,7 @@ const absenceLabels: Record<string, string> = {
   sick: "Krank",
   vacation: "Urlaub",
   training: "Fortbildung",
+  comp_time: "Freizeitausgleich",
   other: "Abwesend", // Shows red, same as "not clocked in"
 };
 
@@ -884,8 +885,16 @@ class StaffAbsenceService {
       body: JSON.stringify(body),
     });
     if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new Error(text || "Krankmeldung fehlgeschlagen");
+      const error = await readStaffAPIError(
+        response,
+        "Krankmeldung fehlgeschlagen",
+      );
+      if (error.code === "comp_time_exceeds_balance") {
+        throw new Error(
+          "Der Freizeitausgleich übersteigt die vor dem Startdatum verfügbaren Plus-Stunden.",
+        );
+      }
+      throw new Error(error.message);
     }
     const json = (await response.json()) as { data: StaffAbsenceRow };
     return json.data;
@@ -915,12 +924,15 @@ class StaffAbsenceService {
 import { parseISODate, toISODate } from "./date-helpers";
 import {
   MAX_TARGET_RANGE_DAYS,
+  mapBalanceAdjustmentResponse,
   mapDailyTargetsResponse,
   mapMonthSummaryResponse,
   mapWorkSessionEditResponse,
+  type BackendBalanceAdjustment,
   type BackendDailyTarget,
   type BackendMonthSummary,
   type BackendWorkSessionEdit,
+  type BalanceAdjustment,
   type MonthSummary,
   type WorkSessionEdit,
 } from "./time-tracking-helpers";
@@ -1133,6 +1145,169 @@ class StaffSessionService {
   }
 }
 
+interface StaffAPIError {
+  readonly code?: string;
+  readonly message: string;
+}
+
+async function readStaffAPIError(
+  response: Response,
+  fallback: string,
+): Promise<StaffAPIError> {
+  const text = await response.text().catch(() => "");
+  if (!text) return { message: fallback };
+
+  try {
+    const payload = JSON.parse(text) as {
+      code?: unknown;
+      error?: unknown;
+      message?: unknown;
+    };
+    return {
+      code: typeof payload.code === "string" ? payload.code : undefined,
+      message:
+        typeof payload.error === "string"
+          ? payload.error
+          : typeof payload.message === "string"
+            ? payload.message
+            : fallback,
+    };
+  } catch {
+    return { message: text };
+  }
+}
+
+// Stundenkonto lifecycle (#1420): payout / comp-time transactions and the
+// school-year reset. Admin-only (time_tracking:manage, enforced backend-side).
+class StaffBalanceAdjustmentService {
+  async list(
+    staffId: string,
+    from: string,
+    to: string,
+  ): Promise<BalanceAdjustment[]> {
+    const params = new URLSearchParams({ from, to });
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/adjustments?${params}`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch adjustments: ${response.statusText}`);
+    }
+    const json = (await response.json()) as {
+      data: BackendBalanceAdjustment[] | null;
+    };
+    return (json.data ?? []).map(mapBalanceAdjustmentResponse);
+  }
+
+  // minutesDelta is signed and negative — payout and comp-time grants only
+  // ever reduce the Stundenkonto.
+  async create(
+    staffId: string,
+    payload: {
+      type: "payout" | "comp_time";
+      minutesDelta: number;
+      effectiveDate: string;
+      note: string;
+    },
+  ): Promise<BalanceAdjustment> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/adjustments`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: payload.type,
+          minutes_delta: payload.minutesDelta,
+          effective_date: payload.effectiveDate,
+          note: payload.note,
+        }),
+      },
+    );
+    if (!response.ok) {
+      const error = await readStaffAPIError(response, "Buchung fehlgeschlagen");
+      if (error.code === "dependent_balance_reset") {
+        throw new Error(
+          "Die Buchung liegt vor einem vorhandenen Reset und würde dessen Saldo verfälschen.",
+        );
+      }
+      if (error.code === "balance_adjustment_exceeds_balance") {
+        throw new Error(
+          "Die Buchung übersteigt die zum gewählten Datum verfügbaren Plus-Stunden.",
+        );
+      }
+      throw new Error(error.message);
+    }
+    const json = (await response.json()) as { data: BackendBalanceAdjustment };
+    return mapBalanceAdjustmentResponse(json.data);
+  }
+
+  async delete(staffId: string, adjustmentId: string): Promise<void> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/adjustments/${adjustmentId}`,
+      { method: "DELETE" },
+    );
+    if (!response.ok) {
+      const error = await readStaffAPIError(response, "Löschen fehlgeschlagen");
+      if (error.code === "dependent_balance_reset") {
+        throw new Error(
+          "Die Buchung liegt vor einem vorhandenen Reset und kann deshalb nicht gelöscht werden.",
+        );
+      }
+      if (error.code === "balance_adjustment_exceeds_balance") {
+        throw new Error(
+          "Die Buchung kann nicht gelöscht werden, weil spätere Abzüge vom dadurch entstehenden Guthaben abhängen.",
+        );
+      }
+      throw new Error(error.message);
+    }
+  }
+
+  // The backend computes the closing balance as of effectiveDate under a
+  // per-staff lock and writes the inverting transaction; a repeated reset
+  // for the same date returns 409.
+  async reset(
+    staffId: string,
+    payload: {
+      effectiveDate: string;
+      carryoverMinutes: number;
+      note: string;
+    },
+  ): Promise<BalanceAdjustment> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/reset`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          effective_date: payload.effectiveDate,
+          carryover_minutes: payload.carryoverMinutes,
+          note: payload.note,
+        }),
+      },
+    );
+    if (!response.ok) {
+      const error = await readStaffAPIError(response, "Reset fehlgeschlagen");
+      if (error.code === "balance_already_reset") {
+        throw new Error(
+          "Das Stundenkonto wurde für dieses Datum bereits zurückgesetzt.",
+        );
+      }
+      if (error.code === "dependent_balance_reset") {
+        throw new Error(
+          "Der Reset liegt vor einem späteren Reset und würde dessen Saldo verfälschen.",
+        );
+      }
+      if (error.code === "balance_adjustment_exceeds_balance") {
+        throw new Error(
+          "Der Reset kann nicht durchgeführt werden, weil spätere Buchungen oder Freizeitausgleichstage vom aktuellen Guthaben abhängen.",
+        );
+      }
+      throw new Error(error.message);
+    }
+    const json = (await response.json()) as { data: BackendBalanceAdjustment };
+    return mapBalanceAdjustmentResponse(json.data);
+  }
+}
+
 export const staffService = new StaffService();
 export const staffScheduleService = new StaffScheduleService();
 export const workTimeModelService = new WorkTimeModelService();
@@ -1141,3 +1316,5 @@ export const staffAbsenceService = new StaffAbsenceService();
 export const staffSessionEditsService = new StaffSessionEditsService();
 export const staffSessionService = new StaffSessionService();
 export const staffMonthSummaryService = new StaffMonthSummaryService();
+export const staffBalanceAdjustmentService =
+  new StaffBalanceAdjustmentService();

@@ -24,8 +24,10 @@ describe("manifest", () => {
   it("returns normal install icons for the main app host", async () => {
     await expect(manifest()).resolves.toMatchObject({
       icons: [
-        { src: "/favicons/normal/icon-192.png" },
-        { src: "/favicons/normal/icon-512.png" },
+        { src: "/favicons/normal/icon-192.png", purpose: "any" },
+        { src: "/favicons/normal/icon-512.png", purpose: "any" },
+        { src: "/favicons/normal/icon-maskable-192.png", purpose: "maskable" },
+        { src: "/favicons/normal/icon-maskable-512.png", purpose: "maskable" },
       ],
     });
   });
@@ -37,8 +39,16 @@ describe("manifest", () => {
 
     await expect(manifest()).resolves.toMatchObject({
       icons: [
-        { src: "/favicons/operator-staging/icon-192.png" },
-        { src: "/favicons/operator-staging/icon-512.png" },
+        { src: "/favicons/operator-staging/icon-192.png", purpose: "any" },
+        { src: "/favicons/operator-staging/icon-512.png", purpose: "any" },
+        {
+          src: "/favicons/operator-staging/icon-maskable-192.png",
+          purpose: "maskable",
+        },
+        {
+          src: "/favicons/operator-staging/icon-maskable-512.png",
+          purpose: "maskable",
+        },
       ],
     });
   });

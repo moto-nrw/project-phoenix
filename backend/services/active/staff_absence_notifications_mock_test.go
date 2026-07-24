@@ -82,6 +82,14 @@ func TestAbsenceEmailHelpers_CoverLabelsRangesAndLoggers(t *testing.T) {
 	assert.Same(t, customLogger, svc.emailLogger())
 }
 
+func TestAbsenceEmailHelpers_CompTimeLabel(t *testing.T) {
+	assert.Equal(
+		t,
+		"Freizeitausgleich",
+		absenceTypeLabelGerman(activeModels.AbsenceTypeCompTime),
+	)
+}
+
 func TestAbsenceEmailsEnabled_RequiresDependenciesAndHandlesSettingFailure(t *testing.T) {
 	ctx := context.Background()
 	svc := &staffAbsenceService{}

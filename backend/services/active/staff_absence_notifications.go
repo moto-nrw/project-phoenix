@@ -85,6 +85,8 @@ func absenceTypeLabelGerman(absenceType string) string {
 		return "Urlaub"
 	case activeModels.AbsenceTypeTraining:
 		return "Fortbildung"
+	case activeModels.AbsenceTypeCompTime:
+		return "Freizeitausgleich"
 	default:
 		return "Sonstige Abwesenheit"
 	}

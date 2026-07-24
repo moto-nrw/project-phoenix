@@ -249,10 +249,6 @@ export function AdminSessionEditModal({
             {error}
           </p>
         )}
-        <p className="rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
-          Diese Änderung wird im Audit-Log mit deinem Namen und der Begründung
-          festgehalten.
-        </p>
       </div>
     </Modal>
   );

@@ -35,6 +35,12 @@ func NewWorkSessionRepository(db *bun.DB) active.WorkSessionRepository {
 	}
 }
 
+// LockStaffBalanceWrites serializes session and break mutations with balance
+// adjustments and effective absence changes for the same staff member.
+func (r *WorkSessionRepository) LockStaffBalanceWrites(ctx context.Context, staffID int64) error {
+	return lockStaffBalanceWrites(ctx, r.db, staffID)
+}
+
 // GetByStaffAndDate returns the work session for a staff member on a given date
 func (r *WorkSessionRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*active.WorkSession, error) {
 	session := new(active.WorkSession)

@@ -19,6 +19,8 @@ function makeSummary(overrides: Partial<MonthSummary> = {}): MonthSummary {
     sickDays: 1,
     vacationDays: 0.5,
     plannedShiftMinutes: 180,
+    adjustmentMinutes: 0,
+    adjustments: [],
     balanceMinutes: -960,
     closingBalanceMinutes: -1050,
     ...overrides,

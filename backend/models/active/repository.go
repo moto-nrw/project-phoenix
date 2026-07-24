@@ -290,6 +290,9 @@ type GroupMappingRepository interface {
 type WorkSessionRepository interface {
 	base.Repository[*WorkSession]
 
+	// LockStaffBalanceWrites serializes all work-session and break mutations
+	// with absence and adjustment mutations for the same staff member.
+	LockStaffBalanceWrites(ctx context.Context, staffID int64) error
 	// GetByStaffAndDate returns the work session for a staff member on a given date
 	GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*WorkSession, error)
 
@@ -340,7 +343,8 @@ type StaffAbsenceRepository interface {
 	base.Repository[*StaffAbsence]
 
 	// LockStaffAbsenceWrites serializes absence lifecycle writes for one staff
-	// member inside the ambient tenant transaction. Callers must acquire it
+	// member inside the ambient tenant transaction. It also takes the shared
+	// balance lock before the absence-specific lock. Callers must acquire it
 	// before any overlap read-check-write sequence.
 	LockStaffAbsenceWrites(ctx context.Context, staffID int64) error
 
@@ -351,7 +355,8 @@ type StaffAbsenceRepository interface {
 	GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*StaffAbsence, error)
 
 	// GetTodayAbsenceMap returns a map of staff IDs to their absence type for today
-	// Priority order when multiple absences exist: sick > training > vacation > other
+	// Priority order when multiple absences exist:
+	// sick > training > vacation > comp_time > other.
 	GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error)
 
 	// ListByStatuses returns all absences whose status is in the given set,
@@ -372,6 +377,21 @@ type StaffAbsenceRepository interface {
 
 type StaffAbsenceAuditRepository interface {
 	Create(ctx context.Context, audit *StaffAbsenceAudit) error
+}
+
+// StaffBalanceAdjustmentRepository defines operations for Stundenkonto
+// correction transactions (#1420).
+type StaffBalanceAdjustmentRepository interface {
+	base.Repository[*StaffBalanceAdjustment]
+
+	// LockStaffBalanceWrites serializes balance-adjustment writes for one
+	// staff member inside the ambient tenant transaction. Every adjustment
+	// mutation acquires it before its first read or write.
+	LockStaffBalanceWrites(ctx context.Context, staffID int64) error
+
+	// GetByStaffAndDateRange returns adjustments whose effective_date lies in
+	// [from, to], ordered by effective_date.
+	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffBalanceAdjustment, error)
 }
 
 // StaffVacationQuotaRepository defines operations for managing per-staff yearly entitlement

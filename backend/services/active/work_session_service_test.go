@@ -25,6 +25,7 @@ import (
 // ============================================================================
 
 type wsMockWorkSessionRepository struct {
+	lockBalanceWritesFunc   func(ctx context.Context, staffID int64) error
 	createFunc              func(ctx context.Context, entity *activeModels.WorkSession) error
 	findByIDFunc            func(ctx context.Context, id any) (*activeModels.WorkSession, error)
 	updateFunc              func(ctx context.Context, entity *activeModels.WorkSession) error
@@ -39,6 +40,13 @@ type wsMockWorkSessionRepository struct {
 	getTodayPresenceMapFunc func(ctx context.Context) (map[int64]string, error)
 	closeSessionFunc        func(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error)
 	updateBreakMinutesFunc  func(ctx context.Context, id int64, breakMinutes int) error
+}
+
+func (m *wsMockWorkSessionRepository) LockStaffBalanceWrites(ctx context.Context, staffID int64) error {
+	if m.lockBalanceWritesFunc != nil {
+		return m.lockBalanceWritesFunc(ctx, staffID)
+	}
+	return nil
 }
 
 func (m *wsMockWorkSessionRepository) Create(ctx context.Context, entity *activeModels.WorkSession) error {
@@ -628,6 +636,36 @@ func wsCreateTestService() (*workSessionService, *wsMockWorkSessionRepository, *
 // ============================================================================
 // CheckIn Tests
 // ============================================================================
+
+func TestWorkSessionService_CheckInLocksBalanceBeforeLookupAndWrite(t *testing.T) {
+	service, sessionRepo, _, _, _ := wsCreateTestService()
+	events := []string{}
+	staffID := int64(71)
+	sessionRepo.lockBalanceWritesFunc = func(_ context.Context, gotStaffID int64) error {
+		assert.Equal(t, staffID, gotStaffID)
+		events = append(events, "lock")
+		return nil
+	}
+	sessionRepo.getByStaffAndDateFunc = func(context.Context, int64, timezone.Date) (*activeModels.WorkSession, error) {
+		events = append(events, "lookup")
+		return nil, sql.ErrNoRows
+	}
+	sessionRepo.createFunc = func(context.Context, *activeModels.WorkSession) error {
+		events = append(events, "create")
+		return nil
+	}
+
+	_, err := service.CheckIn(
+		context.Background(),
+		staffID,
+		activeModels.WorkSessionStatusPresent,
+		activeModels.WorkSessionSourceApp,
+		"",
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"lock", "lookup", "create"}, events)
+}
 
 func TestWSCheckIn_Success(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
@@ -1432,6 +1470,10 @@ func TestWSAutoEndExpiredBreaks_UsesPlannedEndAndRecalculatesBreakMinutes(t *tes
 			},
 		}, nil
 	}
+	sessionRepo.findByIDFunc = func(_ context.Context, id any) (*activeModels.WorkSession, error) {
+		assert.Equal(t, sessionID, id)
+		return &activeModels.WorkSession{StaffID: 100}, nil
+	}
 	breakRepo.endBreakFunc = func(_ context.Context, id int64, endedAt time.Time, durationMinutes int) error {
 		assert.Equal(t, breakID, id)
 		assert.True(t, plannedEnd.Equal(endedAt))
@@ -1452,6 +1494,20 @@ func TestWSAutoEndExpiredBreaks_UsesPlannedEndAndRecalculatesBreakMinutes(t *tes
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
+}
+
+func TestWSLockStaffBalanceWritesOrdered_SortsAndDeduplicates(t *testing.T) {
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	var locked []int64
+	sessionRepo.lockBalanceWritesFunc = func(_ context.Context, staffID int64) error {
+		locked = append(locked, staffID)
+		return nil
+	}
+
+	err := svc.lockStaffBalanceWritesOrdered(context.Background(), []int64{30, 10, 30, 20, 10})
+
+	require.NoError(t, err)
+	assert.Equal(t, []int64{10, 20, 30}, locked)
 }
 
 // ============================================================================

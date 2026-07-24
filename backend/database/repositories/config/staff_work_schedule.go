@@ -119,6 +119,9 @@ func (r *StaffWorkScheduleRepository) HasScheduleHistory(ctx context.Context, st
 // ReplaceSchedule atomically replaces all current schedule entries for a staff member.
 // It sets valid_until on existing entries and inserts the new ones.
 func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*config.StaffWorkSchedule, anchor timezone.Date) error {
+	if err := repoBase.AcquireStaffBalanceLock(ctx, r.db, staffID); err != nil {
+		return err
+	}
 	db := repoBase.GetDB(ctx, r.db)
 	tenantID := tenant.FromContext(ctx)
 	now := time.Now()

@@ -92,6 +92,12 @@ func classifyAbsenceError(err error) render.Renderer {
 	msg := err.Error()
 
 	switch {
+	case errors.Is(err, activeSvc.ErrManagerControlledAbsence):
+		return common.ErrorForbiddenWithCode(err, "manager_controlled_absence")
+
+	case errors.Is(err, activeSvc.ErrCompTimeExceedsBalance):
+		return common.ErrorConflictWithCode(err, "comp_time_exceeds_balance")
+
 	case msg == "absence not found":
 		return common.ErrorNotFound(err)
 
