@@ -77,6 +77,13 @@ func newTestService(db *bun.DB) slotlists.Service {
 
 type stubSlotListSettings map[string]string
 
+func (stubSlotListSettings) ResolveBool(_ context.Context, key string) (bool, error) {
+	if key == configModels.KeyTimetableEnabled {
+		return true, nil
+	}
+	return false, fmt.Errorf("unexpected boolean setting %q", key)
+}
+
 func (s stubSlotListSettings) ResolveString(_ context.Context, key string) (string, error) {
 	if key == configModels.KeyStudentDataScope {
 		return configModels.StudentDataScopeAllStaff, nil
@@ -108,7 +115,25 @@ func (s stubSlotListSettings) HasTenantOverride(_ context.Context, key string) (
 
 func (stubSlotListSettings) LockSlotListCutoffPairShared(context.Context) error { return nil }
 
+type disabledTimetableSlotListSettings struct {
+	stubSlotListSettings
+}
+
+func (disabledTimetableSlotListSettings) ResolveBool(_ context.Context, key string) (bool, error) {
+	if key == configModels.KeyTimetableEnabled {
+		return false, nil
+	}
+	return false, fmt.Errorf("unexpected boolean setting %q", key)
+}
+
 type failingSlotListSettings struct{}
+
+func (failingSlotListSettings) ResolveBool(_ context.Context, key string) (bool, error) {
+	if key == configModels.KeyTimetableEnabled {
+		return true, nil
+	}
+	return false, errors.New("settings unavailable")
+}
 
 func (failingSlotListSettings) ResolveString(context.Context, string) (string, error) {
 	return "", errors.New("settings unavailable")
@@ -121,6 +146,13 @@ func (failingSlotListSettings) HasTenantOverride(context.Context, string) (bool,
 func (failingSlotListSettings) LockSlotListCutoffPairShared(context.Context) error { return nil }
 
 type groupSupervisorOnlySlotListSettings struct{}
+
+func (groupSupervisorOnlySlotListSettings) ResolveBool(_ context.Context, key string) (bool, error) {
+	if key == configModels.KeyTimetableEnabled {
+		return true, nil
+	}
+	return false, fmt.Errorf("unexpected boolean setting %q", key)
+}
 
 func (groupSupervisorOnlySlotListSettings) ResolveString(_ context.Context, key string) (string, error) {
 	if key == configModels.KeyStudentDataScope {
@@ -143,6 +175,28 @@ func (groupSupervisorOnlySlotListSettings) HasTenantOverride(_ context.Context, 
 
 func (groupSupervisorOnlySlotListSettings) LockSlotListCutoffPairShared(context.Context) error {
 	return nil
+}
+
+func TestSlotListEntryPointsRejectDisabledTimetable(t *testing.T) {
+	svc := slotlists.NewService(slotlists.Dependencies{
+		Settings: disabledTimetableSlotListSettings{
+			stubSlotListSettings: stubSlotListSettings{},
+		},
+	})
+	params := slotlists.Params{
+		Date:   listDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourcePlanned,
+	}
+
+	_, err := svc.BuildList(context.Background(), params)
+	assert.ErrorIs(t, err, slotlists.ErrTimetableDisabled)
+
+	_, err = svc.ListOptions(context.Background(), listDate)
+	assert.ErrorIs(t, err, slotlists.ErrTimetableDisabled)
+
+	_, err = svc.RenderList(context.Background(), params, listexport.FormatPDF)
+	assert.ErrorIs(t, err, slotlists.ErrTimetableDisabled)
 }
 
 type slotListUserContext struct {
@@ -171,6 +225,7 @@ func newTestServiceWithSettings(db *bun.DB, settings stubSlotListSettings) slotl
 }
 
 func newTestServiceWithSettingsReader(db *bun.DB, settings interface {
+	ResolveBool(context.Context, string) (bool, error)
 	ResolveString(context.Context, string) (string, error)
 	HasTenantOverride(context.Context, string) (bool, error)
 	LockSlotListCutoffPairShared(context.Context) error
@@ -182,6 +237,7 @@ func newTestServiceWithCustomRoomRepo(db *bun.DB, roomRepo interface {
 	FindByID(context.Context, any) (*facilitiesModels.Room, error)
 }, settings interface {
 	HasTenantOverride(context.Context, string) (bool, error)
+	ResolveBool(context.Context, string) (bool, error)
 	ResolveString(context.Context, string) (string, error)
 	LockSlotListCutoffPairShared(context.Context) error
 }) slotlists.Service {
@@ -192,6 +248,7 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 	FindByID(context.Context, any) (*facilitiesModels.Room, error)
 }, settings interface {
 	HasTenantOverride(context.Context, string) (bool, error)
+	ResolveBool(context.Context, string) (bool, error)
 	ResolveString(context.Context, string) (string, error)
 	LockSlotListCutoffPairShared(context.Context) error
 }, userCtx slotListUserContext) slotlists.Service {
@@ -527,19 +584,16 @@ func TestBuildList_VisitOutsideNominalWindowCountsPresent(t *testing.T) {
 	assert.Equal(t, "Fehlt", absentRow.StatusLabel)
 }
 
-// TestBuildList_CancelledFromActiveRetainsAttendance proves that a slot
-// cancelled AFTER it ran keeps the visits recorded during its brief run as
-// present rows, while its now-void plan produces no "Fehlt". InstanceService.Cancel
-// on an already-active instance ends the active group but deliberately preserves
-// ActiveGroupID and its historical visits, so dropping the slot wholesale would
-// erase documented attendance from Ist and Abgleich (#1565 review).
-func TestBuildList_CancelledFromActiveRetainsAttendance(t *testing.T) {
+// TestBuildList_CancelledInstanceExcluded proves the public contract that slot
+// lists contain only non-cancelled occurrences. Cancellation wins even when the
+// old occurrence still carries its active-group bridge/visits and when a stale
+// client submits the cancelled ID directly.
+func TestBuildList_CancelledInstanceExcluded(t *testing.T) {
 	f := buildMensaFixture(t)
 	ctx := testpkg.TenantContext(1)
 
-	// Flip the instance to cancelled while preserving its ActiveGroupID and
-	// visits — exactly the state Cancel leaves behind for a slot that was active
-	// when it was called off.
+	// Preserve ActiveGroupID and visits exactly as InstanceService.Cancel does for
+	// an occurrence that was already active when called off.
 	_, err := f.db.NewUpdate().
 		Model((*scheduleModels.ActivityInstance)(nil)).
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
@@ -549,45 +603,48 @@ func TestBuildList_CancelledFromActiveRetainsAttendance(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	result, err := f.svc.BuildList(ctx, slotlists.Params{
-		Date:   listDate,
-		Target: slotlists.TargetSlots,
-		Source: slotlists.SourceReconciliation,
-	})
+	options, err := f.svc.ListOptions(ctx, listDate)
 	require.NoError(t, err)
+	assert.Empty(t, options.Slots, "cancelled occurrences must not remain selectable")
 
-	// planned + walkIn each had a slot-overlapping visit → retained as present
-	// evidence. The void plan is dropped, so both read as unplanned presence.
-	plannedRow := rowByStudent(result.Rows, f.plannedID)
-	require.NotNil(t, plannedRow, "a child present during the run before cancellation stays on the list")
-	assert.True(t, plannedRow.Present)
-	assert.False(t, plannedRow.Planned, "the void plan is dropped; presence is unplanned evidence")
-	assert.True(t, plannedRow.Unplanned)
-
-	walkInRow := rowByStudent(result.Rows, f.walkInID)
-	require.NotNil(t, walkInRow, "a walk-in present during the run stays on the list")
-	assert.True(t, walkInRow.Present)
-
-	// missing had no visit → the void plan must NOT print it as "Fehlt".
-	assert.Nil(t, rowByStudent(result.Rows, f.missingID),
-		"a planned no-show on a cancelled slot must not print as Fehlt")
-
-	assert.Equal(t, 2, result.Counters.Present)
-	assert.Equal(t, 0, result.Counters.Missing, "a cancelled slot produces no missing rows")
-	assert.Equal(t, 0, result.Counters.Planned, "a cancelled slot's void plan yields no planned rows")
+	tests := []struct {
+		name   string
+		params slotlists.Params
+	}{
+		{
+			name: "omitted instance_ids",
+			params: slotlists.Params{
+				Date:   listDate,
+				Target: slotlists.TargetSlots,
+				Source: slotlists.SourceReconciliation,
+			},
+		},
+		{
+			name: "direct cancelled instance_id",
+			params: slotlists.Params{
+				Date:           listDate,
+				Target:         slotlists.TargetSlots,
+				Source:         slotlists.SourceReconciliation,
+				InstanceIDs:    []int64{f.instanceID},
+				InstanceIDsSet: true,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, buildErr := f.svc.BuildList(ctx, tt.params)
+			require.NoError(t, buildErr)
+			assert.Empty(t, result.Slots)
+			assert.Empty(t, result.Rows)
+			assert.Equal(t, slotlists.Counters{}, result.Counters)
+		})
+	}
 }
 
-// TestBuildList_CancelledManualAbsenceSuppressesStaleVisit proves that a manual
-// attendance correction outranks stale visit evidence even when the slot is
-// afterwards CANCELLED. An erroneous scan created a visit, staff corrected the
-// roster row to absent (ManualStatusAt set), and the occurrence was then called
-// off — which keeps its ActiveGroupID and the historical visit. The void-plan
-// retention pass must honour the human correction: the child must NOT resurface
-// as "Anwesend" via the visit sweep and must not inflate the present counter.
-// Without the manual-correction case in retainVoidPlanRows this fails: the
-// retained visit is re-added as unplanned presence, contradicting the correction
-// (#1565 review pass 12 / P1).
-func TestBuildList_CancelledManualAbsenceSuppressesStaleVisit(t *testing.T) {
+// TestBuildList_CancelledManualAttendanceExcluded guards the same cancellation
+// boundary for an occurrence with conflicting historical visit/manual roster
+// evidence: no evidence from a cancelled slot may leak into the list.
+func TestBuildList_CancelledManualAttendanceExcluded(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
@@ -652,16 +709,9 @@ func TestBuildList_CancelledManualAbsenceSuppressesStaleVisit(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// A cancelled slot's void plan prints no "Fehlt", and the manual absence must
-	// suppress the retained visit — so the child either drops off the list
-	// entirely or, if present, is never reported present. Assert both robustly.
-	correctedRow := rowByStudent(result.Rows, corrected.ID)
-	if correctedRow != nil {
-		assert.False(t, correctedRow.Present,
-			"manual absence must suppress the stale scan visit on a cancelled slot")
-	}
-	assert.Equal(t, 0, result.Counters.Present,
-		"the suppressed visit must not inflate the present counter")
+	assert.Empty(t, result.Slots)
+	assert.Empty(t, result.Rows)
+	assert.Equal(t, slotlists.Counters{}, result.Counters)
 }
 
 func TestBuildList_ListKindRestrictsSlots(t *testing.T) {

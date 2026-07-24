@@ -60,6 +60,12 @@ var ErrReconciliationFutureDate = errors.New("Ein Abgleich ist nur für heute un
 // re-check before exporting again (#1565 review pass 2).
 var ErrListDrifted = errors.New("Die Liste hat sich seit der Vorschau geändert. Bitte erneut prüfen und exportieren.") //nolint:staticcheck // ST1005: user-facing German message
 
+// ErrTimetableDisabled is returned before any list data is read when the
+// tenant has disabled timetable.enabled. The slot-list HTTP handlers map this
+// to 403, making the feature flag authoritative even for callers who have the
+// schedule/user permissions but cannot read the settings schema themselves.
+var ErrTimetableDisabled = errors.New("timetable feature is disabled")
+
 // Service builds slot lists for preview (JSON) and export (PDF/XLSX).
 type Service interface {
 	BuildList(ctx context.Context, params Params) (*Result, error)
@@ -138,6 +144,7 @@ type arrivalTimeReader interface {
 
 type settingsReader interface {
 	HasTenantOverride(ctx context.Context, key string) (bool, error)
+	ResolveBool(ctx context.Context, key string) (bool, error)
 	ResolveString(ctx context.Context, key string) (string, error)
 	// LockSlotListCutoffPairShared acquires the SHARED advisory lock guarding the
 	// Ganztag pickup-cutoff pair so pickupBuckets observes both cutoffs from one
@@ -239,6 +246,17 @@ func (s *service) currentTime() time.Time { return s.now() }
 // todayDate returns the current calendar day in Berlin, derived from the
 // service clock so the date guards move with an injected test clock.
 func (s *service) todayDate() timezone.Date { return timezone.DateFromTime(s.now()) }
+
+func (s *service) requireTimetableEnabled(ctx context.Context) error {
+	enabled, err := s.settings.ResolveBool(ctx, configModel.KeyTimetableEnabled)
+	if err != nil {
+		return fmt.Errorf("resolve timetable feature flag: %w", err)
+	}
+	if !enabled {
+		return ErrTimetableDisabled
+	}
+	return nil
+}
 
 type pickupBucketConfig struct {
 	ShortCutoff string
@@ -447,6 +465,9 @@ func (s *service) provenance(params Params, listLabel string) string {
 }
 
 func (s *service) BuildList(ctx context.Context, params Params) (*Result, error) {
+	if err := s.requireTimetableEnabled(ctx); err != nil {
+		return nil, err
+	}
 	if s.instanceRepo == nil || s.instanceStudentRepo == nil || s.visitRepo == nil ||
 		s.attendanceRepo == nil || s.statusDayRepo == nil || s.careDayService == nil ||
 		s.pickupScheduleRepo == nil || s.studentRepo == nil ||
@@ -624,6 +645,9 @@ func groupIDSignatureField(id *int64) string {
 }
 
 func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*OptionsResult, error) {
+	if err := s.requireTimetableEnabled(ctx); err != nil {
+		return nil, err
+	}
 	// One pass over the day's instances instead of re-running the full list
 	// builder once per list kind: on a normal school day the old shape issued
 	// hundreds of per-slot roster/visit queries inside the tenant transaction
@@ -640,6 +664,13 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 	// pass 4). The room lookup is cached per build, matching collectSlotEntries.
 	roomCache := map[int64]string{}
 	for _, inst := range instances {
+		// Cancelled occurrences are not list candidates. Filter them before room
+		// resolution and before publishing Slots so omitted instance_ids means
+		// "all non-cancelled slots" and a stale/direct cancelled selection cannot
+		// be offered back to the client.
+		if inst.Status == scheduleModel.InstanceStatusCancelled {
+			continue
+		}
 		roomName, err := s.lookupRoomName(ctx, inst.RoomID, roomCache)
 		if err != nil {
 			return nil, err
@@ -656,7 +687,7 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 			ListKind:   listKind,
 			RoomName:   roomName,
 		})
-		if inst.Status == scheduleModel.InstanceStatusCancelled || inst.ListKind == nil {
+		if inst.ListKind == nil {
 			continue
 		}
 		kind := ListKind(*inst.ListKind)
@@ -1117,11 +1148,9 @@ type mergedEntry struct {
 // (Plan) and their bridged active-group visits (Ist). Every visit reachable
 // through the occurrence's 1:1 active-group bridge counts as present, including
 // historical checked-out visits and sessions run outside the planned window, so
-// past lists and late/early starts keep their attendance. A cancelled slot
-// that never started produces no rows (selectable context only), but one that
-// was cancelled *after* running keeps the visits recorded during its brief run
-// as present rows — its void plan is dropped so no planned no-show prints as
-// "Fehlt".
+// past lists and late/early starts keep their attendance. Cancelled occurrences
+// are excluded before this merge, regardless of whether they still carry an
+// active-group bridge or historical visits.
 func (s *service) collectSlotEntries(ctx context.Context, params Params, result *Result) ([]mergedEntry, error) {
 	contexts, deferredInstances, err := s.collectSlotContexts(ctx, params, result)
 	if err != nil {
@@ -1147,10 +1176,9 @@ type slotContext struct {
 }
 
 // collectSlotContexts runs the first pass over the date's instances: it publishes
-// every matching slot as selectable context on result.Slots, returns the
-// instances whose rosters the merge will actually read (selected, plus cancelled
-// / not-yet-started occurrences that may still hold documented presence), and the
-// set of deferred (not-yet-started reconciliation) occurrences.
+// every matching non-cancelled slot as selectable context on result.Slots,
+// returns the selected instances whose rosters the merge will actually read,
+// and the set of deferred (not-yet-started reconciliation) occurrences.
 func (s *service) collectSlotContexts(ctx context.Context, params Params, result *Result) ([]slotContext, map[int64]struct{}, error) {
 	instances, err := s.instanceRepo.FindByTenantAndDate(ctx, params.Date)
 	if err != nil {
@@ -1176,6 +1204,12 @@ func (s *service) collectSlotContexts(ctx context.Context, params Params, result
 	// void plan so no not-yet-arrived child prints as "Fehlt" (#1565 review pass 2).
 	var deferredInstances map[int64]struct{}
 	for _, inst := range instances {
+		// Enforce the non-cancelled contract before list-kind matching, option
+		// publication and selection. This also neutralizes a caller passing a
+		// cancelled instance ID directly.
+		if inst.Status == scheduleModel.InstanceStatusCancelled {
+			continue
+		}
 		if !instanceMatchesListKind(inst, params.ListKind) {
 			continue
 		}
@@ -1222,18 +1256,6 @@ func (s *service) buildSlotContext(ctx context.Context, inst *scheduleModel.Acti
 		ListKind:   listKind,
 		RoomName:   roomName,
 	})
-	cancelled := inst.Status == scheduleModel.InstanceStatusCancelled
-	// A cancelled or not-yet-started occurrence carries a void plan, but it may
-	// still hold documented attendance: InstanceService.Cancel keeps the visits
-	// recorded during a brief run, and a timetable PATCH can mark a child
-	// present (status=present) with no active group at all — before the slot
-	// starts, or on a cancelled slot that never ran. Both cases are resolved in
-	// the merge (it suppresses the void plan yet retains the present rows), so
-	// route these occurrences into `process` instead of dropping them here, which
-	// would erase that attendance from Ist and Abgleich (#1565 review pass 1 P2 /
-	// pass 2 P1). They stay selectable context in result.Slots (appended above)
-	// regardless.
-	//
 	// A reconciliation reaching an occurrence before its scheduled start, with
 	// no active group yet, has no live presence to merge against, so every
 	// planned child would collapse to Present=false and render as "Fehlt" — a
@@ -1243,12 +1265,9 @@ func (s *service) buildSlotContext(ctx context.Context, inst *scheduleModel.Acti
 	// count a slot that produced no rows. Gate strictly on occurrences that have
 	// NOT actually started: a slot Start()ed manually before its nominal time
 	// already carries an ActiveGroupID and real visits, so it stays on the
-	// normal path. Cancelled occurrences are handled by their own void-plan
-	// branch, not deferred here. This only ever fires for reconciliation on
-	// today — a future date is refused outright in BuildList; Plan/Ist are
-	// unaffected.
-	deferred := !cancelled &&
-		params.Source == SourceReconciliation && inst.ActiveGroupID == nil
+	// normal path. This only ever fires for reconciliation on today — a future
+	// date is refused outright in BuildList; Plan/Ist are unaffected.
+	deferred := params.Source == SourceReconciliation && inst.ActiveGroupID == nil
 	if deferred {
 		if start, _ := instanceTimeRange(inst); !s.currentTime().Before(start) {
 			deferred = false
@@ -1356,14 +1375,10 @@ func (s *service) mergeSlotInstance(
 ) []mergedEntry {
 	inst := p.inst
 	planned := rosterByInstance[inst.ID]
-	cancelled := inst.Status == scheduleModel.InstanceStatusCancelled
 	_, deferred := deferredInstances[inst.ID]
-	// A void plan: the occurrence was called off (cancelled), or a
-	// reconciliation reached it before its scheduled start with no active group
-	// yet (deferred). In neither case is a roster row a genuine expectation, so
-	// none may print as "Fehlt". The retention pass below keeps only the
-	// manually-present rows before the switch runs.
-	voidPlan := cancelled || deferred
+	// A reconciliation that reaches an occurrence before its scheduled start
+	// has no genuine expectation yet, so its roster may not print as "Fehlt".
+	// Cancelled occurrences never reach this method.
 	// Presence was bulk-loaded above; a slot with no active group (never
 	// started) simply has no entry and yields a nil map (safe to index).
 	var presentSet map[int64]bool
@@ -1375,8 +1390,8 @@ func (s *service) mergeSlotInstance(
 	entries := []mergedEntry{}
 	seenPlanned := make(map[int64]struct{}, len(planned))
 	retainedRows := false
-	if voidPlan {
-		retained, any := s.retainVoidPlanRows(p, planned, careDay, deferred, seenPlanned)
+	if deferred {
+		retained, any := s.retainDeferredRows(p, planned, careDay, seenPlanned)
 		entries = append(entries, retained...)
 		retainedRows = any
 		planned = nil
@@ -1387,7 +1402,7 @@ func (s *service) mergeSlotInstance(
 	if anyPresent {
 		retainedRows = true
 	}
-	recordVoidPlanAccounting(result, inst.ID, cancelled, deferred, retainedRows)
+	recordDeferredAccounting(result, inst.ID, deferred, retainedRows)
 	return entries
 }
 
@@ -1455,23 +1470,12 @@ func appendUnseenPresent(p slotContext, presentSet map[int64]bool, seenPlanned m
 	return entries, anyPresent
 }
 
-// recordVoidPlanAccounting records the export "Enthalten" accounting for a
-// void-plan slot. A cancelled slot that retained any present child — from a
-// manual roster mark or a visit — counts as a contained Termin so the header does
-// not undercount; a deferred (not-yet-started) slot that retained no rows at all
-// is recorded so the summary does not count a slot the merge produced nothing
-// for. A deferred slot that DID retain a row — a present child or a "Abgemeldet"
-// registered absence — is deliberately left unrecorded: it contributed rows and
-// must count normally. cancelled and deferred are mutually exclusive (the first
-// pass never defers a cancelled slot) (#1565 review).
-func recordVoidPlanAccounting(result *Result, instanceID int64, cancelled, deferred, retainedRows bool) {
-	switch {
-	case cancelled && retainedRows:
-		if result.retainedCancelledSlots == nil {
-			result.retainedCancelledSlots = map[int64]struct{}{}
-		}
-		result.retainedCancelledSlots[instanceID] = struct{}{}
-	case deferred && !retainedRows:
+// recordDeferredAccounting records a not-yet-started reconciliation slot that
+// produced no rows, so the export "Enthalten" summary does not count content
+// absent from the document. A deferred slot that retained a present or
+// registered-absence row contributed content and therefore counts normally.
+func recordDeferredAccounting(result *Result, instanceID int64, deferred, retainedRows bool) {
+	if deferred && !retainedRows {
 		if result.deferredSlots == nil {
 			result.deferredSlots = map[int64]struct{}{}
 		}
@@ -1479,14 +1483,13 @@ func recordVoidPlanAccounting(result *Result, instanceID int64, cancelled, defer
 	}
 }
 
-// retainVoidPlanRows keeps the roster rows that must survive a void plan
-// (cancelled or deferred slot): documented presence always, and — on a deferred
-// (not-yet-started) slot only — a registered all-day sign-off rendered
-// "Abgemeldet". It records every retained student in seenPlanned and reports
-// whether any row was kept (for the export "Enthalten" accounting).
+// retainDeferredRows keeps the roster rows that must survive a not-yet-started
+// reconciliation slot: documented presence and registered all-day sign-offs.
+// It records every retained student in seenPlanned and reports whether any row
+// was kept for the export "Enthalten" accounting.
 //
 // A void plan is never a source of "Fehlt": the caller nils `planned` after this
-// so no roster row reaches the switch. Three kinds of row still carry real
+// so no roster row reaches the switch. Two kinds of row still carry real
 // information that must survive that suppression:
 //
 //   - Present evidence. A timetable PATCH records status=present on the roster row
@@ -1502,29 +1505,18 @@ func recordVoidPlanAccounting(result *Result, instanceID int64, cancelled, defer
 //     mirroring the pickup-cohort reconciliation, which defers only the unexplained
 //     would-be-"Fehlt" child and keeps registered absences — so it shows in the
 //     Abgleich and the excused counter before the slot's scheduled start (#1565
-//     review pass 1 P2). A cancelled slot is deliberately excluded: the whole
-//     occurrence was called off, so a per-slot sign-off is moot and only present
-//     evidence is retained.
-//
-//   - A manual NON-present correction (ManualStatusAt set, status absent/expected)
-//     on a CANCELLED slot. The slot retained its ActiveGroupID and the erroneous
-//     scan's visit, so the child is still in presentSet; the human correction must
-//     win over that stale visit, exactly as classifyPlannedRows enforces on a live
-//     slot. Such a row emits nothing (a void plan prints no "Fehlt") but is marked
-//     seen so the presence sweep does not resurrect the visit and report the child
-//     "Anwesend" against the correction (#1565 review pass 12 / P1).
-func (s *service) retainVoidPlanRows(
+//     review pass 1 P2).
+func (s *service) retainDeferredRows(
 	p slotContext,
 	planned []*scheduleModel.InstanceStudent,
 	careDay map[int64]scheduleSvc.CareDayStatus,
-	deferred bool,
 	seenPlanned map[int64]struct{},
 ) ([]mergedEntry, bool) {
 	entries := []mergedEntry{}
 	retained := false
 	for _, row := range planned {
-		switch {
-		case row.Status == scheduleModel.AttendanceStatusPresent:
+		switch row.Status {
+		case scheduleModel.AttendanceStatusPresent:
 			seenPlanned[row.StudentID] = struct{}{}
 			retained = true
 			entries = append(entries, mergedEntry{
@@ -1534,7 +1526,7 @@ func (s *service) retainVoidPlanRows(
 				RoomName:   p.roomName,
 				Present:    true,
 			})
-		case deferred:
+		default:
 			substatus, ok := voidPlanRegisteredAbsence(row, careDay[row.StudentID])
 			if !ok {
 				continue
@@ -1552,23 +1544,6 @@ func (s *service) retainVoidPlanRows(
 				PlannedStatus:    scheduleModel.AttendanceStatusAbsent,
 				PlannedSubstatus: &substatusCopy,
 			})
-		case row.ManualStatusAt != nil:
-			// A manual correction to a NON-present status (absent or expected; the
-			// present case above already caught a manual present) is a human
-			// decision that outranks stale visit evidence, exactly as
-			// classifyPlannedRows treats it on a live slot. This case is reached
-			// only for a CANCELLED slot (the `case deferred` above fully handles
-			// deferred rows, routing registered sign-offs — which ApplyStatusDay
-			// stamps WITHOUT ManualStatusAt — to "Abgemeldet" and continuing past
-			// everything else). A slot cancelled after it ran keeps its
-			// ActiveGroupID and the erroneous scan's visit, so the child is still in
-			// presentSet; without accounting for the row here appendUnseenPresent
-			// would resurrect that visit and report the child "Anwesend" against the
-			// explicit correction. Mark the student seen so the presence sweep skips
-			// them, and emit nothing — a void plan is never a source of
-			// "Fehlt"/"Abgemeldet", so a manual non-present correction simply drops
-			// the child from the called-off slot (#1565 review pass 12 / P1).
-			seenPlanned[row.StudentID] = struct{}{}
 		}
 	}
 	return entries, retained
@@ -2529,24 +2504,18 @@ func includedSummary(params Params, result *Result) string {
 // list_kind) the count is restricted to the selected slots — so a filtered
 // export reports its real subset instead of claiming the whole cohort (#1565
 // review). result.Slots is always the full set of matching slots, so the
-// selection has to be re-applied here. A cancelled slot is dropped unless it ran
-// briefly before being called off and retained present rows (retainedCancelledSlots);
-// deferred slots (a not-yet-started reconciliation occurrence excluded from the
-// merge in collectSlotEntries) are dropped in both branches: they yield no export
-// rows, so counting them would let the header claim Termine/Angebote the export
-// does not contain (#1565).
+// selection has to be re-applied here. Cancelled slots are excluded upstream and
+// ignored defensively here; deferred slots (a not-yet-started reconciliation
+// occurrence excluded from the merge in collectSlotEntries) are dropped in both
+// branches when they yield no export rows, so the header cannot claim content the
+// export does not contain (#1565).
 func summarySlotCount(params Params, result *Result) int {
 	all := !params.InstanceIDsSet && len(params.InstanceIDs) == 0
 	selected := int64Set(params.InstanceIDs)
 	count := 0
 	for _, slot := range result.Slots {
 		if slot.Status == string(scheduleModel.InstanceStatusCancelled) {
-			// A cancelled slot contributes no rows unless it ran briefly before
-			// being called off and retained present children — only then does it
-			// count as a contained Termin (see collectSlotEntries).
-			if _, retained := result.retainedCancelledSlots[slot.InstanceID]; !retained {
-				continue
-			}
+			continue
 		}
 		if _, deferred := result.deferredSlots[slot.InstanceID]; deferred {
 			continue

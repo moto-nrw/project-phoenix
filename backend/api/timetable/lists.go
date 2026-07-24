@@ -142,6 +142,10 @@ func (rs *Resource) listSlotListOptions(w http.ResponseWriter, r *http.Request) 
 	}
 	result, err := rs.SlotListsService.ListOptions(r.Context(), date)
 	if err != nil {
+		if errors.Is(err, slotlists.ErrTimetableDisabled) {
+			common.RenderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("build slot list options failed", err))
 		return
 	}
@@ -167,6 +171,10 @@ func (rs *Resource) previewSlotList(w http.ResponseWriter, r *http.Request) {
 
 	result, err := rs.SlotListsService.BuildList(r.Context(), params)
 	if err != nil {
+		if errors.Is(err, slotlists.ErrTimetableDisabled) {
+			common.RenderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
+			return
+		}
 		if errors.Is(err, slotlists.ErrPickupCohortPastDate) ||
 			errors.Is(err, slotlists.ErrReconciliationFutureDate) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -206,6 +214,10 @@ func (rs *Resource) exportSlotList(w http.ResponseWriter, r *http.Request) {
 
 	file, err := rs.SlotListsService.RenderList(r.Context(), params, format)
 	if err != nil {
+		if errors.Is(err, slotlists.ErrTimetableDisabled) {
+			common.RenderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
+			return
+		}
 		if errors.Is(err, slotlists.ErrPickupCohortPastDate) ||
 			errors.Is(err, slotlists.ErrReconciliationFutureDate) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))

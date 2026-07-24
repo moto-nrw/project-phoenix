@@ -114,23 +114,21 @@ func TestEligibleOn_HistoricalDateBeforeEnrollment(t *testing.T) {
 	}
 }
 
-// TestSummarySlotCount_CancelledSlots covers the #1565-review fix that a slot
-// cancelled AFTER it ran (and so retaining present rows) counts as a contained
-// Termin, while a cancelled slot that never ran is still skipped. Deferred slots
-// are excluded regardless. The active slot is the baseline that always counts.
+// TestSummarySlotCount_CancelledSlotsIgnored is a defensive backstop for the
+// upstream cancellation filter: even a manually assembled Result containing a
+// cancelled slot must not count it in the exported "Enthalten" summary.
 func TestSummarySlotCount_CancelledSlots(t *testing.T) {
 	result := &Result{
 		Slots: []Slot{
 			{InstanceID: 1, Status: scheduleModel.InstanceStatusActive},    // baseline → counts
-			{InstanceID: 2, Status: scheduleModel.InstanceStatusCancelled}, // never ran → skipped
-			{InstanceID: 3, Status: scheduleModel.InstanceStatusCancelled}, // ran, retained rows → counts
+			{InstanceID: 2, Status: scheduleModel.InstanceStatusCancelled}, // always skipped
+			{InstanceID: 3, Status: scheduleModel.InstanceStatusCancelled}, // always skipped
 			{InstanceID: 4, Status: scheduleModel.InstanceStatusActive},    // deferred → skipped
 		},
-		retainedCancelledSlots: map[int64]struct{}{3: {}},
-		deferredSlots:          map[int64]struct{}{4: {}},
+		deferredSlots: map[int64]struct{}{4: {}},
 	}
 
-	if got := summarySlotCount(Params{Target: TargetSlots}, result); got != 2 {
-		t.Fatalf("summarySlotCount = %d, want 2 (active baseline + ran-then-cancelled)", got)
+	if got := summarySlotCount(Params{Target: TargetSlots}, result); got != 1 {
+		t.Fatalf("summarySlotCount = %d, want 1 active non-deferred slot", got)
 	}
 }

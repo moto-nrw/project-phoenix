@@ -223,3 +223,55 @@ func TestExportSlotListForwardsExpectedSignature(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "abc123", mock.lastParams.ExpectedSignature)
 }
+
+func TestSlotListHandlersMapDisabledTimetableToForbidden(t *testing.T) {
+	tests := []struct {
+		name    string
+		path    string
+		handler func(*Resource) http.HandlerFunc
+		service *mockSlotListsService
+		body    map[string]any
+	}{
+		{
+			name:    "options",
+			path:    "/options",
+			handler: func(rs *Resource) http.HandlerFunc { return rs.listSlotListOptions },
+			service: &mockSlotListsService{optionsErr: slotlists.ErrTimetableDisabled},
+			body:    map[string]any{"date": "2030-09-04"},
+		},
+		{
+			name:    "preview",
+			path:    "/preview",
+			handler: func(rs *Resource) http.HandlerFunc { return rs.previewSlotList },
+			service: &mockSlotListsService{buildErr: slotlists.ErrTimetableDisabled},
+			body: map[string]any{
+				"date":   "2030-09-04",
+				"target": "slots",
+				"source": "planned",
+			},
+		},
+		{
+			name:    "export",
+			path:    "/export",
+			handler: func(rs *Resource) http.HandlerFunc { return rs.exportSlotList },
+			service: &mockSlotListsService{renderErr: slotlists.ErrTimetableDisabled},
+			body: map[string]any{
+				"date":   "2030-09-04",
+				"target": "slots",
+				"source": "planned",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rs := NewResource(Dependencies{SlotListsService: tt.service})
+			router := slotListTestRouter(tt.handler(rs), tt.path)
+
+			w := slotListPost(t, router, tt.path, tt.body)
+
+			assert.Equal(t, http.StatusForbidden, w.Code)
+			assert.Contains(t, w.Body.String(), "feature_disabled")
+		})
+	}
+}
