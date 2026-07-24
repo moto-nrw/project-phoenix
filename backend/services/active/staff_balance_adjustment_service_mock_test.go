@@ -146,7 +146,7 @@ func TestStaffBalanceAdjustmentService_LocksEveryMutation(t *testing.T) {
 		)
 
 		require.NoError(t, err)
-		assert.Equal(t, []string{"lock", "list", "as-of", "create"}, events)
+		assert.Equal(t, []string{"lock", "list", "as-of", "capacity", "create"}, events)
 		assert.Equal(t, -120, adjustment.MinutesDelta)
 	})
 }
@@ -302,6 +302,38 @@ func TestStaffBalanceAdjustmentService_UsesTimelineReductionCapacity(t *testing.
 	require.ErrorIs(t, err, ErrAdjustmentExceedsBalance)
 	assert.Equal(t, effectiveDate, monthService.effective)
 	assert.Equal(t, []string{"lock", "list", "capacity"}, events)
+}
+
+func TestStaffBalanceAdjustmentService_RejectsResetThatInvalidatesFutureReduction(t *testing.T) {
+	const (
+		staffID   = int64(41)
+		decidedBy = int64(42)
+	)
+	effectiveDate := timezone.NewDate(2026, time.July, 7)
+	capacity := 119
+	events := []string{}
+	repo := &recordingBalanceAdjustmentRepo{events: &events}
+	monthService := &recordingBalanceMonthService{
+		events:   &events,
+		balance:  120,
+		capacity: &capacity,
+	}
+	service := newRecordingBalanceAdjustmentService(&events, repo, monthService)
+
+	_, err := service.ResetBalance(
+		context.Background(),
+		staffID,
+		decidedBy,
+		effectiveDate,
+		0,
+		"Schuljahreswechsel",
+	)
+
+	require.ErrorIs(t, err, ErrAdjustmentExceedsBalance)
+	assert.Contains(t, err.Error(), "reset reduction of 120 minutes exceeds available capacity of 119 minutes")
+	assert.Equal(t, effectiveDate, monthService.effective)
+	assert.Equal(t, []string{"lock", "list", "as-of", "capacity"}, events)
+	assert.Nil(t, repo.adjustment)
 }
 
 func TestStaffBalanceAdjustmentService_RejectsOutOfRangeAmounts(t *testing.T) {

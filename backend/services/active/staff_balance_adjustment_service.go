@@ -317,6 +317,22 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 	if delta < minPostgresInteger || delta > maxPostgresInteger {
 		return nil, fmt.Errorf("%w: calculated reset delta is outside the supported range", ErrAdjustmentInvalid)
 	}
+	if delta < 0 {
+		reductionCapacity, err := s.monthService.GetBalanceReductionCapacity(ctx, staffID, effectiveDate)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compute reduction capacity for balance reset: %w", err)
+		}
+		requestedMinutes := int(-delta)
+		if requestedMinutes > reductionCapacity {
+			return nil, fmt.Errorf(
+				"%w: reset reduction of %d minutes exceeds available capacity of %d minutes from %s onward",
+				ErrAdjustmentExceedsBalance,
+				requestedMinutes,
+				reductionCapacity,
+				effectiveDate.String(),
+			)
+		}
+	}
 
 	adjustment := &activeModels.StaffBalanceAdjustment{
 		StaffID:       staffID,
