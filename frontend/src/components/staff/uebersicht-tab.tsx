@@ -41,6 +41,7 @@ import {
   endOfWeek,
   getDeltaStatus,
   indexAbsenceCreditByDay,
+  isHalfAbsenceBoundary,
   resolveAccountStartDate,
   startOfWeek,
   toDateKey,
@@ -718,8 +719,19 @@ function countAbsenceDays(
     if (clippedStart > clippedEnd) continue;
     const startDate = new Date(`${clippedStart}T00:00:00`);
     const endDate = new Date(`${clippedEnd}T00:00:00`);
-    const days =
+    let days =
       Math.floor((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
+    if (a.absence_type === "comp_time") {
+      if (isHalfAbsenceBoundary(a, clippedStart, startKey, endKey)) {
+        days -= 0.5;
+      }
+      if (
+        clippedEnd !== clippedStart &&
+        isHalfAbsenceBoundary(a, clippedEnd, startKey, endKey)
+      ) {
+        days -= 0.5;
+      }
+    }
     const bucket =
       a.absence_type === "sick"
         ? "sick"
