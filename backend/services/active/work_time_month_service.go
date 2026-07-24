@@ -77,10 +77,9 @@ type WorkTimeMonthService interface {
 	// later debit or comp-time commitment.
 	GetBalanceReductionCapacity(ctx context.Context, staffID int64, effectiveDate timezone.Date) (int, error)
 	// GetCompTimeDeductionMinutes returns how much a comp_time absence over
-	// [start, end] can reduce the Stundenkonto without recorded work: the sum
-	// of the contractual daily targets in the range. Half-day comp_time also
-	// credits nothing, so validation must reserve the full target until the
-	// worked half is recorded (#1420).
+	// [start, end] can reduce the Stundenkonto. Full days reserve the daily
+	// targets; half days reserve each target minus recorded net work, because
+	// comp_time itself credits nothing (#1420).
 	GetCompTimeDeductionMinutes(ctx context.Context, staffID int64, start, end timezone.Date, halfDay bool) (int, error)
 	GetDailyTargets(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyTarget, error)
 	// SetHolidayReader injects the public-holiday resolver (#1418 3a) —
@@ -1070,10 +1069,26 @@ func (s *workTimeMonthService) addDailyActualMinutes(
 	from, to timezone.Date,
 	deltas map[timezone.Date]int,
 ) error {
+	actualByDate, err := s.getDailyActualMinutes(ctx, staffID, from, to)
+	if err != nil {
+		return err
+	}
+	for date, minutes := range actualByDate {
+		deltas[date] += minutes
+	}
+	return nil
+}
+
+func (s *workTimeMonthService) getDailyActualMinutes(
+	ctx context.Context,
+	staffID int64,
+	from, to timezone.Date,
+) (map[timezone.Date]int, error) {
 	sessions, err := s.sessionRepo.GetHistoryByStaffID(ctx, staffID, from, to)
 	if err != nil {
-		return fmt.Errorf("failed to load work sessions for daily reduction validation: %w", err)
+		return nil, fmt.Errorf("failed to load work sessions for daily balance calculation: %w", err)
 	}
+	actualByDate := make(map[timezone.Date]int)
 	now := time.Now()
 	for _, session := range sessions {
 		if session.Date.Before(from) || session.Date.After(to) {
@@ -1082,11 +1097,11 @@ func (s *workTimeMonthService) addDailyActualMinutes(
 		minutes := workedMinutesUpTo(session, now)
 		running, err := s.runningBreakMinutes(ctx, session, now)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		deltas[session.Date] += max(0, minutes-running)
+		actualByDate[session.Date] += max(0, minutes-running)
 	}
-	return nil
+	return actualByDate, nil
 }
 
 func (s *workTimeMonthService) addDailyAbsenceCredits(
@@ -1165,10 +1180,10 @@ func (s *workTimeMonthService) getRemainingCompTimeCommitment(
 }
 
 // GetCompTimeDeductionMinutes sums the daily targets a comp_time absence can
-// remove from the Stundenkonto when no work is recorded. A half-day absence
-// also credits nothing, so its safe reservation is the full daily target; the
-// worked half reduces the eventual balance effect once its session exists.
-func (s *workTimeMonthService) GetCompTimeDeductionMinutes(ctx context.Context, staffID int64, start, end timezone.Date, _ bool) (int, error) {
+// remove from the Stundenkonto. A half-day absence credits nothing, so it
+// reserves the full target until work is recorded; recorded net work reduces
+// that reservation by the same amount it contributes to the Monatskarte.
+func (s *workTimeMonthService) GetCompTimeDeductionMinutes(ctx context.Context, staffID int64, start, end timezone.Date, halfDay bool) (int, error) {
 	if start.IsZero() || end.IsZero() || end.Before(start) {
 		return 0, errors.New("start and end must form a valid range")
 	}
@@ -1176,13 +1191,24 @@ func (s *workTimeMonthService) GetCompTimeDeductionMinutes(ctx context.Context, 
 	if err != nil {
 		return 0, err
 	}
+	actualByDate := map[timezone.Date]int(nil)
+	if halfDay {
+		actualByDate, err = s.getDailyActualMinutes(ctx, staffID, start, end)
+		if err != nil {
+			return 0, err
+		}
+	}
 	total := 0
 	for d := start; !d.After(end); d = d.AddDays(1) {
 		target := resolver.targetFor(d)
 		if target <= 0 {
 			continue
 		}
-		total += target
+		deduction := target
+		if halfDay {
+			deduction = max(0, target-actualByDate[d])
+		}
+		total += deduction
 	}
 	return total, nil
 }

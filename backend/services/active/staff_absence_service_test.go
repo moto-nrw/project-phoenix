@@ -2689,6 +2689,55 @@ func TestAbsCreateAbsenceFor_AllowsCompTimeWithinBalance(t *testing.T) {
 	assert.Equal(t, int64(90), result.ID)
 }
 
+func TestAbsCreateAbsenceFor_AllowsWorkedHalfCoveredByAccruedBalance(t *testing.T) {
+	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
+	// The current closing balance is zero after four accrued hours pay for the
+	// four unworked target hours. The half-day deduction is already reflected
+	// in that closing balance and must not be charged a second time.
+	svc.monthService = &absMonthServiceMock{capacity: 0, deduction: 240}
+	absRepo.createFunc = func(_ context.Context, absence *activeModels.StaffAbsence) error {
+		absence.ID = 91
+		return nil
+	}
+
+	today := timezone.TodayDate()
+	result, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   today.String(),
+		DateEnd:     today.String(),
+		HalfDay:     true,
+		Note:        "Halber Freizeitausgleich",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(91), result.ID)
+}
+
+func TestAbsCreateAbsenceFor_RejectsWorkedHalfWithExistingDeficit(t *testing.T) {
+	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
+	svc.monthService = &absMonthServiceMock{capacity: -1, deduction: 240}
+	createCalled := false
+	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+		createCalled = true
+		return nil
+	}
+
+	today := timezone.TodayDate()
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   today.String(),
+		DateEnd:     today.String(),
+		HalfDay:     true,
+		Note:        "Halber Freizeitausgleich",
+	})
+
+	require.ErrorIs(t, err, ErrCompTimeExceedsBalance)
+	assert.False(t, createCalled)
+}
+
 // The timeline capacity includes same-day and later ledger reductions. The
 // shared staff lock serializes both writes, so the second debit must see the
 // first and reject their combined overdraft.

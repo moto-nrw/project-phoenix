@@ -244,6 +244,35 @@ func TestWTMAdjustments_HalfDayCompTimeReservesFullNoWorkExposure(t *testing.T) 
 	assert.Equal(t, 560, capacity)
 }
 
+func TestWTMAdjustments_HalfDayCompTimeUsesRecordedWork(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-01"
+	monday := timezone.NewDate(2026, time.July, 13)
+	f.sessions.sessions = []*activeModels.WorkSession{
+		wtmSession(timezone.NewDate(2026, time.July, 6), 9, 480, 0),
+		wtmSession(monday, 9, 240, 0),
+	}
+	f.svc.SetAdjustmentReader(&wtmMockAdjustmentReader{adjustments: []*activeModels.StaffBalanceAdjustment{
+		wtmAdjustment(1, activeModels.BalanceAdjustmentTypeReset, 240, timezone.NewDate(2026, time.July, 1)),
+	}})
+
+	halfDayDeduction, err := f.svc.GetCompTimeDeductionMinutes(
+		context.Background(), wtmStaffID, monday, monday, true,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 240, halfDayDeduction)
+
+	fullDayDeduction, err := f.svc.GetCompTimeDeductionMinutes(
+		context.Background(), wtmStaffID, monday, monday, false,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 480, fullDayDeduction)
+
+	capacity, err := f.svc.GetBalanceReductionCapacity(context.Background(), wtmStaffID, monday)
+	require.NoError(t, err)
+	assert.Zero(t, capacity, "the closing balance already contains the 240-minute shortfall")
+}
+
 func TestWTMAdjustments_BackdatedReductionProtectsMinimumDailyClosing(t *testing.T) {
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-01"

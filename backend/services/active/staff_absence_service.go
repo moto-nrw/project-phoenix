@@ -480,6 +480,12 @@ func (s *staffAbsenceService) validateCompTimeBalance(
 	if err != nil {
 		return fmt.Errorf("failed to compute reduction capacity for comp_time absence: %w", err)
 	}
+	if halfDay && !start.After(timezone.TodayDate()) {
+		// Today's and historical closing balances already include the missing
+		// target minutes that this half-day absence names. Add that realized
+		// deduction back before comparing it, or the guard charges it twice.
+		reductionCapacity += additionalDeduction
+	}
 	if additionalDeduction > reductionCapacity {
 		return fmt.Errorf(
 			"%w: comp_time absence adds %d minutes but only %d minutes remain available from %s onward",
