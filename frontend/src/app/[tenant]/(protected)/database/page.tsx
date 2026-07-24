@@ -58,6 +58,7 @@ interface DatabasePermissions {
   canViewDevices: boolean;
   canViewPermissions: boolean;
   canViewTimetables: boolean;
+  canViewGradeTransitions: boolean;
 }
 
 interface DatabaseCounts {
@@ -82,6 +83,7 @@ const EMPTY_DATABASE_PERMISSIONS: DatabasePermissions = {
   canViewDevices: false,
   canViewPermissions: false,
   canViewTimetables: false,
+  canViewGradeTransitions: false,
 };
 
 const EMPTY_DATABASE_COUNTS: DatabaseCounts = {
@@ -175,6 +177,18 @@ const baseDataSections: DataSection[] = [
     href: "/database/permissions",
     icon: "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1 1 21 9z",
     iconColor: LOCATION_COLORS.HOME,
+  },
+  {
+    id: "gradeTransitions",
+    title: "Jahrgangswechsel",
+    description:
+      "Kinder zum Schuljahreswechsel in die nächste Klasse versetzen",
+    href: "/database/grade-transitions",
+    icon: "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6",
+    iconColor: LOCATION_COLORS.GROUP_ROOM,
+    permissionKey: "canViewGradeTransitions",
+    badge: "Schuljahr",
+    cta: "Öffnen",
   },
   {
     id: "exports",

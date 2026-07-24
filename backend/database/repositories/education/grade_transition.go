@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -430,6 +431,7 @@ func (r *GradeTransitionRepository) GetDistinctClasses(ctx context.Context) ([]s
 		TableExpr(`users.students AS student`).
 		ColumnExpr(`DISTINCT student.school_class`).
 		Where(`student.school_class IS NOT NULL AND student.school_class != ''`).
+		Where(`student.status <> ?`, string(users.StudentStatusAlumnus)).
 		Order(`student.school_class ASC`)
 
 	query = base.WithTenantFilter(ctx, query, "student")
@@ -450,7 +452,8 @@ func (r *GradeTransitionRepository) GetDistinctClasses(ctx context.Context) ([]s
 func (r *GradeTransitionRepository) GetStudentCountByClass(ctx context.Context, className string) (int, error) {
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`users.students AS student`).
-		Where(`student.school_class = ?`, className)
+		Where(`student.school_class = ?`, className).
+		Where(`student.status <> ?`, string(users.StudentStatusAlumnus))
 
 	query = base.WithTenantFilter(ctx, query, "student")
 
@@ -485,6 +488,7 @@ func (r *GradeTransitionRepository) GetStudentsByClasses(ctx context.Context, cl
 		TableExpr(`users.students AS s`).
 		Join(`INNER JOIN users.persons AS p ON p.id = s.person_id`).
 		Where(`s.school_class IN (?)`, bun.List(classes)).
+		Where(`s.status <> ?`, string(users.StudentStatusAlumnus)).
 		Order(`s.school_class ASC, p.last_name ASC, p.first_name ASC`)
 
 	query = base.WithTenantFilter(ctx, query, "s")
@@ -512,9 +516,10 @@ func (r *GradeTransitionRepository) UpdateStudentClasses(ctx context.Context, tr
 		FROM education.grade_transition_mappings m
 		WHERE m.transition_id = ?
 		  AND m.to_class IS NOT NULL
-		  AND s.school_class = m.from_class`
+		  AND s.school_class = m.from_class
+		  AND s.status <> ?`
 
-	args := []interface{}{transitionID}
+	args := []interface{}{transitionID, string(users.StudentStatusAlumnus)}
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		rawSQL += `
@@ -542,24 +547,68 @@ func (r *GradeTransitionRepository) UpdateStudentClasses(ctx context.Context, tr
 	return affected, nil
 }
 
-// DeleteStudentsByClasses deletes students in the given classes (for graduates)
-func (r *GradeTransitionRepository) DeleteStudentsByClasses(ctx context.Context, classes []string) (int64, error) {
+// GraduateStudentsByClasses soft-deletes graduating students: their rows are
+// kept but status flips to "alumnus", which removes them from every
+// staff-facing read path (see the alumnus filters in the student repository).
+// A transition revert restores them via ReactivateStudentsByIDs.
+func (r *GradeTransitionRepository) GraduateStudentsByClasses(ctx context.Context, classes []string) (int64, error) {
 	if len(classes) == 0 {
 		return 0, nil
 	}
 
-	delQuery := base.GetDB(ctx, r.db).NewDelete().
+	updQuery := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*struct{})(nil)).
 		ModelTableExpr(`users.students AS "student"`).
-		Where(`"student".school_class IN (?)`, bun.List(classes))
+		Set("status = ?", string(users.StudentStatusAlumnus)).
+		Set("updated_at = NOW()").
+		Where(`"student".school_class IN (?)`, bun.List(classes)).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
 
-	delQuery = base.WithTenantFilter(ctx, delQuery, "student")
+	updQuery = base.WithTenantFilter(ctx, updQuery, "student")
 
-	result, err := delQuery.Exec(ctx)
+	result, err := updQuery.Exec(ctx)
 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
-			Op:  "delete students by classes",
+			Op:  "graduate students by classes",
+			Err: err,
+		}
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "get rows affected",
+			Err: err,
+		}
+	}
+
+	return affected, nil
+}
+
+// ReactivateStudentsByIDs restores graduated (alumnus) students back to
+// active. Used by the transition revert; only rows still in alumnus status
+// are touched so a manually changed status is never clobbered.
+func (r *GradeTransitionRepository) ReactivateStudentsByIDs(ctx context.Context, studentIDs []int64) (int64, error) {
+	if len(studentIDs) == 0 {
+		return 0, nil
+	}
+
+	updQuery := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*struct{})(nil)).
+		ModelTableExpr(`users.students AS "student"`).
+		Set("status = ?", string(users.StudentStatusActive)).
+		Set("updated_at = NOW()").
+		Where(`"student".id IN (?)`, bun.List(studentIDs)).
+		Where(`"student".status = ?`, string(users.StudentStatusAlumnus))
+
+	updQuery = base.WithTenantFilter(ctx, updQuery, "student")
+
+	result, err := updQuery.Exec(ctx)
+
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "reactivate students by ids",
 			Err: err,
 		}
 	}

@@ -3,6 +3,7 @@ package education_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -657,6 +659,69 @@ func TestGradeTransitionService_SuggestMappings(t *testing.T) {
 		assert.True(t, found, "Expected suggestion for class 4b")
 	})
 
+	t.Run("prefixed class names suggest increment with prefix kept", func(t *testing.T) {
+		// "Klasse 1a" style names are common in German schools — the grade
+		// number inside must be incremented while the prefix is preserved.
+		student := testpkg.CreateTestStudent(t, db, "Prefixed", "Student", "Klasse 1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		suggestions, err := service.SuggestMappings(ctx)
+		require.NoError(t, err)
+
+		found := false
+		for _, s := range suggestions {
+			if s.FromClass == "Klasse 1a" {
+				found = true
+				require.NotNil(t, s.ToClass)
+				assert.Equal(t, "Klasse 2a", *s.ToClass)
+				assert.False(t, s.IsGraduating)
+				break
+			}
+		}
+		assert.True(t, found, "Expected suggestion for class Klasse 1a")
+	})
+
+	t.Run("prefixed grade 4 suggests graduation", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "PrefixedGrad", "Student", "Klasse 4b")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		suggestions, err := service.SuggestMappings(ctx)
+		require.NoError(t, err)
+
+		found := false
+		for _, s := range suggestions {
+			if s.FromClass == "Klasse 4b" {
+				found = true
+				assert.Nil(t, s.ToClass)
+				assert.True(t, s.IsGraduating)
+				break
+			}
+		}
+		assert.True(t, found, "Expected graduation suggestion for Klasse 4b")
+	})
+
+	t.Run("digit-only class names suggest increment", func(t *testing.T) {
+		// Some schools name classes just "1", "2", ... — those must be
+		// promoted numerically, not suggested as graduation.
+		student := testpkg.CreateTestStudent(t, db, "DigitOnly", "Student", "2")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		suggestions, err := service.SuggestMappings(ctx)
+		require.NoError(t, err)
+
+		found := false
+		for _, s := range suggestions {
+			if s.FromClass == "2" {
+				found = true
+				require.NotNil(t, s.ToClass)
+				assert.Equal(t, "3", *s.ToClass)
+				assert.False(t, s.IsGraduating)
+				break
+			}
+		}
+		assert.True(t, found, "Expected suggestion for class 2")
+	})
+
 	t.Run("non-standard class names suggest graduation", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "NonStd", "Student", "special")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -979,9 +1044,9 @@ func TestGradeTransitionService_Apply_GraduateStudents(t *testing.T) {
 		suffix := uuid.Must(uuid.NewV4()).String()[:8]
 		graduateClass := fmt.Sprintf("4grad-%s", suffix)
 
-		// Create student to be graduated (deleted)
+		// Create student to be graduated (soft-deactivated as alumnus)
 		student := testpkg.CreateTestStudent(t, db, "Graduate", "Student", graduateClass)
-		// No defer cleanup - student will be deleted
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Create transition with graduate mapping
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
@@ -993,25 +1058,95 @@ func TestGradeTransitionService_Apply_GraduateStudents(t *testing.T) {
 		assert.Equal(t, 1, result.StudentsGraduated)
 		assert.NotEmpty(t, result.Warnings)
 
-		// Verify warning mentions permanent deletion
+		// Verify warning mentions the alumnus soft-deactivation, not deletion
 		foundWarning := false
 		for _, w := range result.Warnings {
-			if assert.Contains(t, w, "permanently deleted") {
+			if strings.Contains(w, "marked as alumni") {
 				foundWarning = true
 				break
 			}
 		}
-		assert.True(t, foundWarning)
+		assert.True(t, foundWarning, "expected a 'marked as alumni' warning, got %v", result.Warnings)
 
-		// Verify student was deleted
-		var count int
-		count, err = db.NewSelect().
+		// Verify student was NOT deleted — row kept with status alumnus
+		var status string
+		err = db.NewSelect().
 			TableExpr(`users.students`).
+			Column("status").
 			Where("id = ?", student.ID).
-			Count(ctx)
+			Scan(ctx, &status)
 		require.NoError(t, err)
-		assert.Equal(t, 0, count)
+		assert.Equal(t, string(users.StudentStatusAlumnus), status)
 	})
+}
+
+// TestGradeTransitionService_Apply_CascadingGraduation guards the ordering
+// bug where a promotion moves students INTO a class that is graduated in the
+// same transition. E.g. "3a -> 4a" (promote) together with "4a -> graduate":
+// the 3a children must NOT be graduated just because they land in 4a. Only the
+// original 4a members graduate; the promoted-in 3a children stay active.
+func TestGradeTransitionService_Apply_CascadingGraduation(t *testing.T) {
+	service, db, cleanup := setupGradeTransitionServiceTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-cascade@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	lower := fmt.Sprintf("3c-%s", suffix) // promoted into `upper`
+	upper := fmt.Sprintf("4c-%s", suffix) // graduated
+
+	promoted := testpkg.CreateTestStudent(t, db, "Promoted", "Kid", lower)
+	graduating := testpkg.CreateTestStudent(t, db, "Graduating", "Kid", upper)
+	defer testpkg.CleanupActivityFixtures(t, db, promoted.ID, graduating.ID)
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, lower, &upper) // promote 3c -> 4c
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, upper, nil)    // graduate 4c
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	result, err := service.Apply(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.StudentsPromoted, "only the 3c child is promoted")
+	assert.Equal(t, 1, result.StudentsGraduated, "only the original 4c child graduates")
+
+	readStudent := func(id int64) (string, string) {
+		var class, status string
+		err := db.NewSelect().
+			TableExpr(`users.students`).
+			ColumnExpr("school_class").
+			ColumnExpr("status").
+			Where("id = ?", id).
+			Scan(ctx, &class, &status)
+		require.NoError(t, err)
+		return class, status
+	}
+
+	// The promoted child now sits in 4c but must remain active.
+	pClass, pStatus := readStudent(promoted.ID)
+	assert.Equal(t, upper, pClass)
+	assert.Equal(t, string(users.StudentStatusActive), pStatus,
+		"promoted child must not be graduated by landing in the graduated class")
+
+	// The original 4c child is the alumnus.
+	gClass, gStatus := readStudent(graduating.ID)
+	assert.Equal(t, upper, gClass)
+	assert.Equal(t, string(users.StudentStatusAlumnus), gStatus)
+
+	// Revert restores both cleanly.
+	_, err = service.Revert(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	pClass, pStatus = readStudent(promoted.ID)
+	assert.Equal(t, lower, pClass, "promoted child returns to 3c")
+	assert.Equal(t, string(users.StudentStatusActive), pStatus)
+
+	gClass, gStatus = readStudent(graduating.ID)
+	assert.Equal(t, upper, gClass)
+	assert.Equal(t, string(users.StudentStatusActive), gStatus, "graduated child reactivated")
 }
 
 func TestGradeTransitionService_Revert_WithGraduatedStudents(t *testing.T) {
@@ -1024,14 +1159,14 @@ func TestGradeTransitionService_Revert_WithGraduatedStudents(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "transition-revert-grad@test.local")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
-	t.Run("revert with graduated students shows warning", func(t *testing.T) {
+	t.Run("revert restores graduated students to active", func(t *testing.T) {
 		// Create unique class names
 		suffix := uuid.Must(uuid.NewV4()).String()[:8]
 		graduateClass := fmt.Sprintf("4revert-%s", suffix)
 
-		// Create student to be graduated
-		testpkg.CreateTestStudent(t, db, "GradRevert", "Student", graduateClass)
-		// No defer cleanup - student will be deleted
+		// Create student to be graduated (soft-deactivated, restorable)
+		student := testpkg.CreateTestStudent(t, db, "GradRevert", "Student", graduateClass)
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Create and apply transition with graduate
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
@@ -1041,21 +1176,26 @@ func TestGradeTransitionService_Revert_WithGraduatedStudents(t *testing.T) {
 		_, err := service.Apply(ctx, transition.ID, account.ID)
 		require.NoError(t, err)
 
-		// Revert - should show warning about unrecoverable graduates
+		// Revert - graduates are restored to active (soft delete is reversible)
 		result, err := service.Revert(ctx, transition.ID, account.ID)
 		require.NoError(t, err)
 		assert.Equal(t, education.TransitionStatusReverted, result.Status)
-		assert.NotEmpty(t, result.Warnings)
+		assert.Equal(t, 1, result.StudentsGraduated, "revert should count restored graduates")
 
-		// Verify warning mentions cannot restore
-		foundWarning := false
+		// No unrecoverable-graduates warning anymore
 		for _, w := range result.Warnings {
-			if assert.Contains(t, w, "cannot be restored") {
-				foundWarning = true
-				break
-			}
+			assert.NotContains(t, w, "cannot be restored")
 		}
-		assert.True(t, foundWarning)
+
+		// Verify student status is back to active
+		var status string
+		err = db.NewSelect().
+			TableExpr(`users.students`).
+			Column("status").
+			Where("id = ?", student.ID).
+			Scan(ctx, &status)
+		require.NoError(t, err)
+		assert.Equal(t, string(users.StudentStatusActive), status)
 	})
 }
 
@@ -1133,4 +1273,110 @@ func TestGradeTransitionService_Update_ClearMappings(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, updated.Mappings)
 	})
+}
+
+// TestGradeTransitionService_AlumniExcluded verifies that students already
+// marked as alumnus (graduated in a previous transition) are invisible to
+// preview counts, suggestions, and a subsequent apply — otherwise every next
+// school year would re-count last year's leavers.
+func TestGradeTransitionService_AlumniExcluded(t *testing.T) {
+	service, db, cleanup := setupGradeTransitionServiceTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-alumni-excl@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	class := fmt.Sprintf("3alum-%s", suffix)
+
+	active := testpkg.CreateTestStudent(t, db, "Active", "Kid", class)
+	alumnus := testpkg.CreateTestStudent(t, db, "Former", "Kid", class)
+	defer testpkg.CleanupActivityFixtures(t, db, active.ID, alumnus.ID)
+
+	// Mark one student as alumnus directly (as a previous transition would)
+	_, err := db.NewUpdate().
+		TableExpr(`users.students`).
+		Set("status = ?", string(users.StudentStatusAlumnus)).
+		Where("id = ?", alumnus.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	t.Run("preview counts exclude alumni", func(t *testing.T) {
+		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class, nil)
+		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+		preview, err := service.Preview(ctx, transition.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, preview.ToGraduate, "alumnus must not be counted")
+		assert.Equal(t, 1, preview.TotalStudents)
+	})
+
+	t.Run("suggestions exclude alumni from counts", func(t *testing.T) {
+		suggestions, err := service.SuggestMappings(ctx)
+		require.NoError(t, err)
+		for _, s := range suggestions {
+			if s.FromClass == class {
+				assert.Equal(t, 1, s.StudentCount, "alumnus must not be counted in suggestion")
+			}
+		}
+	})
+
+	t.Run("apply graduates only non-alumni", func(t *testing.T) {
+		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class, nil)
+		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+		result, err := service.Apply(ctx, transition.ID, account.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, result.StudentsGraduated, "only the active student graduates")
+	})
+}
+
+// TestGradeTransitionService_PromotionSkipsAlumni verifies the bulk promotion
+// UPDATE does not drag alumni into the next class.
+func TestGradeTransitionService_PromotionSkipsAlumni(t *testing.T) {
+	service, db, cleanup := setupGradeTransitionServiceTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-alumni-promo@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	fromClass := fmt.Sprintf("2promo-%s", suffix)
+	toClass := fmt.Sprintf("3promo-%s", suffix)
+
+	alumnus := testpkg.CreateTestStudent(t, db, "FormerPromo", "Kid", fromClass)
+	defer testpkg.CleanupActivityFixtures(t, db, alumnus.ID)
+
+	_, err := db.NewUpdate().
+		TableExpr(`users.students`).
+		Set("status = ?", string(users.StudentStatusAlumnus)).
+		Where("id = ?", alumnus.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, &toClass)
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	result, err := service.Apply(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.StudentsPromoted)
+
+	// Alumnus keeps the old class name
+	var currentClass string
+	err = db.NewSelect().
+		TableExpr(`users.students`).
+		Column("school_class").
+		Where("id = ?", alumnus.ID).
+		Scan(ctx, &currentClass)
+	require.NoError(t, err)
+	assert.Equal(t, fromClass, currentClass)
 }

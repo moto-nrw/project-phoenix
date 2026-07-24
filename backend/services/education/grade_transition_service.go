@@ -392,7 +392,7 @@ func (s *GradeTransitionService) addPreviewWarnings(preview *TransitionPreview) 
 	}
 	if preview.ToGraduate > 0 {
 		preview.Warnings = append(preview.Warnings,
-			fmt.Sprintf("%d students will be permanently deleted (graduates)",
+			fmt.Sprintf("%d students will be marked as alumni and hidden from the app (graduates)",
 				preview.ToGraduate))
 	}
 }
@@ -449,11 +449,18 @@ func (s *GradeTransitionService) executeApply(
 		return err
 	}
 
-	if err := s.applyPromotions(ctx, transition.ID, promoteClasses, result); err != nil {
+	// Graduate BEFORE promoting. Promotions can move students into a class
+	// that is graduated in the same transition (e.g. "3a -> 4a" alongside
+	// "4a -> graduate"). Graduating first captures only the original members
+	// of each graduate class; the promotion that follows carries the
+	// promoted-in students past it, since graduated rows are alumnus and the
+	// promotion query skips them. Reversing this order graduated the freshly
+	// promoted children by mistake (#405 review).
+	if err := s.applyGraduations(ctx, graduateClasses, result); err != nil {
 		return err
 	}
 
-	if err := s.applyGraduations(ctx, graduateClasses, result); err != nil {
+	if err := s.applyPromotions(ctx, transition.ID, promoteClasses, result); err != nil {
 		return err
 	}
 
@@ -554,7 +561,8 @@ func (s *GradeTransitionService) applyPromotions(
 	return nil
 }
 
-// applyGraduations deletes graduating students.
+// applyGraduations soft-deletes graduating students by marking them alumnus.
+// Rows survive so a revert can restore them.
 func (s *GradeTransitionService) applyGraduations(
 	ctx context.Context,
 	graduateClasses []string,
@@ -564,17 +572,11 @@ func (s *GradeTransitionService) applyGraduations(
 		return nil
 	}
 
-	for _, className := range graduateClasses {
-		count, err := s.transitionRepo.GetStudentCountByClass(ctx, className)
-		if err != nil {
-			return fmt.Errorf("failed to count graduating students in class %s: %w", className, err)
-		}
-		result.StudentsGraduated += count
+	graduated, err := s.transitionRepo.GraduateStudentsByClasses(ctx, graduateClasses)
+	if err != nil {
+		return fmt.Errorf("failed to graduate students: %w", err)
 	}
-
-	if _, err := s.transitionRepo.DeleteStudentsByClasses(ctx, graduateClasses); err != nil {
-		return fmt.Errorf("failed to delete graduating students: %w", err)
-	}
+	result.StudentsGraduated = int(graduated)
 	return nil
 }
 
@@ -602,7 +604,7 @@ func finalizeApplyResult(result *TransitionResult) {
 
 	if result.StudentsGraduated > 0 {
 		result.Warnings = append(result.Warnings,
-			fmt.Sprintf("%d students were permanently deleted (graduates)",
+			fmt.Sprintf("%d students were marked as alumni and hidden from the app (graduates)",
 				result.StudentsGraduated))
 	}
 }
@@ -657,28 +659,26 @@ func (s *GradeTransitionService) executeRevert(
 	history []*education.GradeTransitionHistory,
 	result *TransitionResult,
 ) error {
-	graduatedCount, err := s.revertPromotedStudents(ctx, history, result)
+	graduatedIDs, err := s.revertPromotedStudents(ctx, history, result)
 	if err != nil {
 		return err
 	}
 
-	if graduatedCount > 0 {
-		result.Warnings = append(result.Warnings,
-			fmt.Sprintf("%d graduated students cannot be restored (were permanently deleted)",
-				graduatedCount))
+	if err := s.revertGraduatedStudents(ctx, graduatedIDs, result); err != nil {
+		return err
 	}
 
 	return s.markTransitionReverted(ctx, transition, accountID)
 }
 
 // revertPromotedStudents reverts promoted students to their original classes.
-// Returns the count of graduated students that cannot be restored and any error.
+// Returns the IDs of graduated students so they can be reactivated, and any error.
 func (s *GradeTransitionService) revertPromotedStudents(
 	ctx context.Context,
 	history []*education.GradeTransitionHistory,
 	result *TransitionResult,
-) (int, error) {
-	graduatedCount := 0
+) ([]int64, error) {
+	graduatedIDs := make([]int64, 0)
 	missingStudentCount := 0
 
 	for _, h := range history {
@@ -687,7 +687,7 @@ func (s *GradeTransitionService) revertPromotedStudents(
 			reverted, err := s.revertStudentClass(ctx, h)
 			if err != nil {
 				// Real database error - propagate to trigger transaction rollback
-				return graduatedCount, fmt.Errorf("failed to revert student %d: %w", h.StudentID, err)
+				return nil, fmt.Errorf("failed to revert student %d: %w", h.StudentID, err)
 			}
 			if reverted {
 				result.StudentsPromoted++
@@ -696,7 +696,7 @@ func (s *GradeTransitionService) revertPromotedStudents(
 				missingStudentCount++
 			}
 		case h.WasGraduated():
-			graduatedCount++
+			graduatedIDs = append(graduatedIDs, h.StudentID)
 		}
 	}
 
@@ -706,7 +706,34 @@ func (s *GradeTransitionService) revertPromotedStudents(
 				missingStudentCount))
 	}
 
-	return graduatedCount, nil
+	return graduatedIDs, nil
+}
+
+// revertGraduatedStudents restores graduated (alumnus) students back to
+// active. Graduation is a soft delete, so the revert is complete — only
+// students whose rows were deleted or manually changed since cannot be
+// restored and are reported as a warning.
+func (s *GradeTransitionService) revertGraduatedStudents(
+	ctx context.Context,
+	graduatedIDs []int64,
+	result *TransitionResult,
+) error {
+	if len(graduatedIDs) == 0 {
+		return nil
+	}
+
+	restored, err := s.transitionRepo.ReactivateStudentsByIDs(ctx, graduatedIDs)
+	if err != nil {
+		return fmt.Errorf("failed to reactivate graduated students: %w", err)
+	}
+	result.StudentsGraduated = int(restored)
+
+	if notRestored := len(graduatedIDs) - int(restored); notRestored > 0 {
+		result.Warnings = append(result.Warnings,
+			fmt.Sprintf("%d graduated students could not be restored (deleted or status changed since graduation)",
+				notRestored))
+	}
+	return nil
 }
 
 // revertStudentClass updates a student back to their original class.
@@ -763,8 +790,10 @@ func (s *GradeTransitionService) SuggestMappings(ctx context.Context) ([]*Sugges
 
 	suggestions := make([]*SuggestedMapping, 0)
 
-	// Pattern: grade number followed by letter(s), e.g., "1a", "2b", "10c"
-	classPattern := regexp.MustCompile(`^(\d+)([a-zA-Z]+)$`)
+	// Pattern: optional prefix, grade number, optional letter(s) — matches
+	// "1a", "10c", digit-only "1", and prefixed names like "Klasse 1a".
+	// The prefix is preserved when incrementing.
+	classPattern := regexp.MustCompile(`^(.*?)(\d+)([a-zA-Z]*)$`)
 
 	for _, className := range classes {
 		count, err := s.transitionRepo.GetStudentCountByClass(ctx, className)
@@ -786,14 +815,15 @@ func (s *GradeTransitionService) SuggestMappings(ctx context.Context) ([]*Sugges
 
 		// Parse grade number
 		gradeNum := 0
-		if _, err := fmt.Sscanf(matches[1], "%d", &gradeNum); err != nil {
+		if _, err := fmt.Sscanf(matches[2], "%d", &gradeNum); err != nil {
 			continue // Skip if parsing fails
 		}
-		letterPart := matches[2]
+		prefix := matches[1]
+		letterPart := matches[3]
 
-		// Increment grade number
+		// Increment grade number, keeping prefix and letters
 		nextGrade := gradeNum + 1
-		nextClass := fmt.Sprintf("%d%s", nextGrade, letterPart)
+		nextClass := fmt.Sprintf("%s%d%s", prefix, nextGrade, letterPart)
 
 		// Check if this is likely the highest grade (e.g., 4a for elementary)
 		// For simplicity, assume grades 4+ might be graduating

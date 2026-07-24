@@ -15,14 +15,16 @@ import (
 // Set on creation by the parent-enrollment flow; transitions are driven by
 // the activate-students scheduler tick (pending→active when enrolled_from
 // arrives, active→inactive when enrolled_until passes). The "alumnus" value
-// is reserved for future graduation/leaver flows — no scheduler logic
-// transitions to it as of PR 2.
+// is set by the grade-transition graduation flow (soft delete): the row is
+// kept so a transition revert can restore the student, but alumni are
+// filtered out of all staff-facing read paths and kiosk check-in.
 type StudentStatus string
 
 const (
 	StudentStatusPending  StudentStatus = "pending"
 	StudentStatusActive   StudentStatus = "active"
 	StudentStatusInactive StudentStatus = "inactive"
+	StudentStatusAlumnus  StudentStatus = "alumnus"
 )
 
 // MaxDepartureCompanionNoteLen caps the free-text "mit wem" companion note for

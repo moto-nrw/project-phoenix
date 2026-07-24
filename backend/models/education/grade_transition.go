@@ -132,7 +132,8 @@ type GradeTransitionRepository interface {
 	GetStudentCountByClass(ctx context.Context, className string) (int, error)
 	GetStudentsByClasses(ctx context.Context, classes []string) ([]*StudentClassInfo, error)
 	UpdateStudentClasses(ctx context.Context, transitionID int64) (int64, error)
-	DeleteStudentsByClasses(ctx context.Context, classes []string) (int64, error)
+	GraduateStudentsByClasses(ctx context.Context, classes []string) (int64, error)
+	ReactivateStudentsByIDs(ctx context.Context, studentIDs []int64) (int64, error)
 }
 
 // StudentClassInfo contains basic student information for class transitions

@@ -283,6 +283,7 @@ const DATABASE_SUB_PAGES = [
   { href: "/database/roles", label: "Rollen" },
   { href: "/database/devices", label: "Geräte" },
   { href: "/database/permissions", label: "Berechtigungen" },
+  { href: "/database/grade-transitions", label: "Jahrgangswechsel" },
   { href: "/database/exports", label: "Exporte" },
 ];
 

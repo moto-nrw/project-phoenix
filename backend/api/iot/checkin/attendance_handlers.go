@@ -131,7 +131,9 @@ func (rs *AttendanceResource) findStudentByRFID(w http.ResponseWriter, r *http.R
 	}
 
 	student, err := rs.UsersService.GetStudentByPersonID(r.Context(), person.ID)
-	if err != nil || student == nil {
+	if err != nil || student == nil || student.Status == users.StudentStatusAlumnus {
+		// Alumni (graduated, soft-deleted) must not check in — same wire error
+		// as an unknown student so PyrePortal needs no new mapping.
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgPersonNotStudent)))
 		return nil, nil, false
 	}
@@ -182,7 +184,7 @@ func (rs *AttendanceResource) handleDailyCheckout(w http.ResponseWriter, r *http
 
 	// Get student from person
 	student, err := rs.UsersService.GetStudentByPersonID(r.Context(), person.ID)
-	if err != nil || student == nil {
+	if err != nil || student == nil || student.Status == users.StudentStatusAlumnus {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgPersonNotStudent)))
 		return
 	}
@@ -273,7 +275,7 @@ func (rs *AttendanceResource) lookupStudent(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgPersonNotStudent)))
 		return nil
 	}
-	if student == nil {
+	if student == nil || student.Status == users.StudentStatusAlumnus {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgPersonNotStudent)))
 		return nil
 	}

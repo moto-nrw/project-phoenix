@@ -169,13 +169,15 @@ func (r *StudentRepository) FindReadScopeByIDs(ctx context.Context, ids []int64)
 	return result, nil
 }
 
-// FindByGroupID retrieves students by their group ID
+// FindByGroupID retrieves students by their group ID. Alumni (graduated,
+// soft-deleted) are excluded — their rows only exist for transition reverts.
 func (r *StudentRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*users.Student, error) {
 	var students []*users.Student
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("group_id = ?", groupID)
+		Where("group_id = ?", groupID).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
 
 	query = base.WithTenantFilter(ctx, query, "student")
 
@@ -205,7 +207,8 @@ func (r *StudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("group_id IN (?)", bun.List(groupIDs))
+		Where("group_id IN (?)", bun.List(groupIDs)).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
 
 	query = base.WithTenantFilter(ctx, query, "student")
 
@@ -258,6 +261,7 @@ func (r *StudentRepository) ListSchoolClasses(ctx context.Context) ([]string, er
 		TableExpr(`users.students AS "student"`).
 		ColumnExpr(`DISTINCT TRIM("student".school_class)`).
 		Where(`TRIM("student".school_class) != ''`).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus)).
 		OrderExpr(`TRIM("student".school_class) ASC`)
 
 	query = base.WithTenantFilter(ctx, query, "student")
@@ -1083,6 +1087,7 @@ func (r *StudentRepository) CountByGroupIDs(ctx context.Context, groupIDs []int6
 		ColumnExpr(`"student".group_id`).
 		ColumnExpr("COUNT(*) AS count").
 		Where(`"student".group_id IN (?)`, bun.List(groupIDs)).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus)).
 		GroupExpr(`"student".group_id`)
 
 	query = base.WithTenantFilter(ctx, query, "student")

@@ -8,10 +8,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func TestGradeTransitionRepository_Create(t *testing.T) {
@@ -578,14 +578,25 @@ func TestGradeTransitionRepository_UpdateStudentClasses(t *testing.T) {
 	})
 }
 
-func TestGradeTransitionRepository_DeleteStudentsByClasses(t *testing.T) {
+func TestGradeTransitionRepository_GraduateStudentsByClasses(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	repo := education.NewGradeTransitionRepository(db)
 	ctx := testpkg.TenantContext(1)
 
-	t.Run("deletes students in specified classes", func(t *testing.T) {
+	studentStatus := func(id int64) string {
+		var status string
+		err := db.NewSelect().
+			TableExpr(`users.students`).
+			Column("status").
+			Where("id = ?", id).
+			Scan(ctx, &status)
+		require.NoError(t, err)
+		return status
+	}
+
+	t.Run("marks students in specified classes as alumnus", func(t *testing.T) {
 		// Create unique class names for test isolation
 		suffix := uuid.Must(uuid.NewV4()).String()[:8]
 		graduateClass := fmt.Sprintf("grad-%s", suffix)
@@ -593,68 +604,115 @@ func TestGradeTransitionRepository_DeleteStudentsByClasses(t *testing.T) {
 		// Create students in graduate class
 		student1 := testpkg.CreateTestStudent(t, db, "Grad1", "Test1", graduateClass)
 		student2 := testpkg.CreateTestStudent(t, db, "Grad2", "Test2", graduateClass)
-		// No defer cleanup needed - we're testing delete
+		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
 
-		// Execute delete
-		affected, err := repo.DeleteStudentsByClasses(ctx, []string{graduateClass})
+		// Execute graduation (soft delete)
+		affected, err := repo.GraduateStudentsByClasses(ctx, []string{graduateClass})
 		require.NoError(t, err)
 		assert.Equal(t, int64(2), affected)
 
-		// Verify students were deleted
-		var count int
-		count, err = db.NewSelect().
-			TableExpr(`users.students`).
-			Where("id IN (?)", bun.List([]int64{student1.ID, student2.ID})).
-			Count(ctx)
-		require.NoError(t, err)
-		assert.Equal(t, 0, count)
+		// Verify students still exist but are alumni
+		assert.Equal(t, string(users.StudentStatusAlumnus), studentStatus(student1.ID))
+		assert.Equal(t, string(users.StudentStatusAlumnus), studentStatus(student2.ID))
 	})
 
 	t.Run("returns zero for empty class list", func(t *testing.T) {
-		affected, err := repo.DeleteStudentsByClasses(ctx, []string{})
+		affected, err := repo.GraduateStudentsByClasses(ctx, []string{})
 		require.NoError(t, err)
 		assert.Equal(t, int64(0), affected)
 	})
 
 	t.Run("returns zero for non-existent classes", func(t *testing.T) {
-		affected, err := repo.DeleteStudentsByClasses(ctx, []string{"non-existent-class-xyz"})
+		affected, err := repo.GraduateStudentsByClasses(ctx, []string{"non-existent-class-xyz"})
 		require.NoError(t, err)
 		assert.Equal(t, int64(0), affected)
 	})
 
-	t.Run("deletes only from specified classes", func(t *testing.T) {
+	t.Run("graduates only from specified classes", func(t *testing.T) {
 		// Create unique class names
 		suffix := uuid.Must(uuid.NewV4()).String()[:8]
-		deleteClass := fmt.Sprintf("del-%s", suffix)
+		gradClass := fmt.Sprintf("del-%s", suffix)
 		keepClass := fmt.Sprintf("keep-%s", suffix)
 
 		// Create students
-		studentToDelete := testpkg.CreateTestStudent(t, db, "Delete", "Test", deleteClass)
+		studentToGraduate := testpkg.CreateTestStudent(t, db, "Graduate", "Test", gradClass)
 		studentToKeep := testpkg.CreateTestStudent(t, db, "Keep", "Test", keepClass)
-		defer testpkg.CleanupActivityFixtures(t, db, studentToKeep.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, studentToGraduate.ID, studentToKeep.ID)
 
-		// Delete only from deleteClass
-		affected, err := repo.DeleteStudentsByClasses(ctx, []string{deleteClass})
+		// Graduate only gradClass
+		affected, err := repo.GraduateStudentsByClasses(ctx, []string{gradClass})
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), affected)
 
-		// Verify correct student was deleted
-		var countDeleted int
-		countDeleted, err = db.NewSelect().
-			TableExpr(`users.students`).
-			Where("id = ?", studentToDelete.ID).
-			Count(ctx)
-		require.NoError(t, err)
-		assert.Equal(t, 0, countDeleted)
+		assert.Equal(t, string(users.StudentStatusAlumnus), studentStatus(studentToGraduate.ID))
+		assert.Equal(t, string(users.StudentStatusActive), studentStatus(studentToKeep.ID))
+	})
 
-		// Verify other student was kept
-		var countKept int
-		countKept, err = db.NewSelect().
-			TableExpr(`users.students`).
-			Where("id = ?", studentToKeep.ID).
-			Count(ctx)
+	t.Run("already-alumnus students are not re-graduated", func(t *testing.T) {
+		suffix := uuid.Must(uuid.NewV4()).String()[:8]
+		gradClass := fmt.Sprintf("regrad-%s", suffix)
+
+		student := testpkg.CreateTestStudent(t, db, "Regrad", "Test", gradClass)
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		affected, err := repo.GraduateStudentsByClasses(ctx, []string{gradClass})
 		require.NoError(t, err)
-		assert.Equal(t, 1, countKept)
+		assert.Equal(t, int64(1), affected)
+
+		// Second run must not count the alumnus again
+		affected, err = repo.GraduateStudentsByClasses(ctx, []string{gradClass})
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), affected)
+	})
+}
+
+func TestGradeTransitionRepository_ReactivateStudentsByIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := education.NewGradeTransitionRepository(db)
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("restores alumni back to active", func(t *testing.T) {
+		suffix := uuid.Must(uuid.NewV4()).String()[:8]
+		gradClass := fmt.Sprintf("react-%s", suffix)
+
+		student := testpkg.CreateTestStudent(t, db, "React", "Test", gradClass)
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		_, err := repo.GraduateStudentsByClasses(ctx, []string{gradClass})
+		require.NoError(t, err)
+
+		affected, err := repo.ReactivateStudentsByIDs(ctx, []int64{student.ID})
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), affected)
+
+		var status string
+		err = db.NewSelect().
+			TableExpr(`users.students`).
+			Column("status").
+			Where("id = ?", student.ID).
+			Scan(ctx, &status)
+		require.NoError(t, err)
+		assert.Equal(t, string(users.StudentStatusActive), status)
+	})
+
+	t.Run("does not touch non-alumnus students", func(t *testing.T) {
+		suffix := uuid.Must(uuid.NewV4()).String()[:8]
+		keepClass := fmt.Sprintf("noreact-%s", suffix)
+
+		student := testpkg.CreateTestStudent(t, db, "NoReact", "Test", keepClass)
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		affected, err := repo.ReactivateStudentsByIDs(ctx, []int64{student.ID})
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), affected)
+	})
+
+	t.Run("returns zero for empty id list", func(t *testing.T) {
+		affected, err := repo.ReactivateStudentsByIDs(ctx, []int64{})
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), affected)
 	})
 }
 
