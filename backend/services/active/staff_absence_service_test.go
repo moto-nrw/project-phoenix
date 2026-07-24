@@ -1616,6 +1616,81 @@ func TestAbsCreateAbsenceFor_RejectsMultiDayHalfDayCompTime(t *testing.T) {
 	assert.Empty(t, syncer.markCalls)
 }
 
+// A comp_time absence dated before the account start would show up in the
+// history without ever reducing the Stundenkonto: balance aggregation begins
+// at the anchor. The create must reject it, mirroring the balance-adjustment
+// guard (#1420).
+func TestAbsCreateAbsenceFor_RejectsCompTimeBeforeAccountStart(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	svc.settings = &wtmMockSettings{accountStart: "2026-08-01"}
+	createCalled := false
+	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+		createCalled = true
+		return nil
+	}
+
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   "2026-07-31",
+		DateEnd:     "2026-07-31",
+		Note:        "Freizeitausgleich",
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid comp_time absence")
+	assert.Contains(t, err.Error(), "before the account start")
+	assert.False(t, createCalled)
+	assert.Empty(t, syncer.markCalls)
+}
+
+func TestAbsCreateAbsenceFor_AllowsCompTimeOnAccountStart(t *testing.T) {
+	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc.settings = &wtmMockSettings{accountStart: "2026-08-01"}
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return nil, nil
+	}
+	absRepo.createFunc = func(_ context.Context, absence *activeModels.StaffAbsence) error {
+		absence.ID = 88
+		return nil
+	}
+
+	result, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeCompTime,
+		DateStart:   "2026-08-01",
+		DateEnd:     "2026-08-01",
+		Note:        "Freizeitausgleich",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(88), result.ID)
+}
+
+// Non-comp_time absences may legitimately predate the account start (a sick
+// day from before the Stundenkonto existed is still a fact worth recording).
+func TestAbsCreateAbsenceFor_AllowsSickBeforeAccountStart(t *testing.T) {
+	svc, absRepo, _ := absSetupServiceWithSyncer()
+	svc.settings = &wtmMockSettings{accountStart: "2026-08-01"}
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return nil, nil
+	}
+	absRepo.createFunc = func(_ context.Context, absence *activeModels.StaffAbsence) error {
+		absence.ID = 89
+		return nil
+	}
+
+	result, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   "2026-07-31",
+		DateEnd:     "2026-07-31",
+		HalfDay:     true,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(89), result.ID)
+}
+
 func TestAbsUpdateAbsence_RejectsMultiDayHalfDaySickReport(t *testing.T) {
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	existing := &activeModels.StaffAbsence{

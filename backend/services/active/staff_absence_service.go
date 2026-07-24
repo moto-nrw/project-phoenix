@@ -139,6 +139,7 @@ type staffAbsenceService struct {
 	workSessionRepo activeModels.WorkSessionRepository
 	quotaRepo       activeModels.StaffVacationQuotaRepository
 	auditRepo       activeModels.StaffAbsenceAuditRepository
+	settings        monthSettingsResolver
 	shiftPlanSyncer ShiftPlanSyncer
 	// emailDeps is nil unless SetAbsenceEmailDeps wired it (factory only);
 	// nil means no absence emails are sent (#1419 4d).
@@ -166,12 +167,14 @@ func NewStaffAbsenceService(
 	workSessionRepo activeModels.WorkSessionRepository,
 	quotaRepo activeModels.StaffVacationQuotaRepository,
 	auditRepo activeModels.StaffAbsenceAuditRepository,
+	settings monthSettingsResolver,
 ) StaffAbsenceService {
 	return &staffAbsenceService{
 		absenceRepo:     absenceRepo,
 		workSessionRepo: workSessionRepo,
 		quotaRepo:       quotaRepo,
 		auditRepo:       auditRepo,
+		settings:        settings,
 	}
 }
 
@@ -209,6 +212,9 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 		return nil, err
 	}
 	if err := validateSickAbsenceRange(req.AbsenceType, dateStart, dateEnd); err != nil {
+		return nil, err
+	}
+	if err := s.rejectPreAccountCompTime(ctx, req.AbsenceType, dateStart); err != nil {
 		return nil, err
 	}
 	if err := s.lockStaffAbsenceWrites(ctx, subjectStaffID); err != nil {
@@ -364,6 +370,24 @@ func validateSingleDayHalfDayAbsence(absenceType string, halfDay bool, start, en
 		return fmt.Errorf("invalid sick absence: half-day reports must cover exactly one date")
 	case activeModels.AbsenceTypeCompTime:
 		return fmt.Errorf("invalid comp_time absence: half-day reports must cover exactly one date")
+	}
+	return nil
+}
+
+// rejectPreAccountCompTime fails a comp_time absence dated before the account
+// start: balance aggregation begins at the anchor, so such an absence would
+// appear in the history without ever reducing the Stundenkonto (mirrors
+// rejectPreAccountDate on balance adjustments, #1420).
+func (s *staffAbsenceService) rejectPreAccountCompTime(ctx context.Context, absenceType string, dateStart timezone.Date) error {
+	if absenceType != activeModels.AbsenceTypeCompTime {
+		return nil
+	}
+	anchor, err := resolveAccountAnchor(ctx, s.settings, slog.Default(), monthOf(timezone.TodayDate()))
+	if err != nil {
+		return fmt.Errorf("failed to resolve account start for comp_time absence: %w", err)
+	}
+	if dateStart.Before(anchor) {
+		return fmt.Errorf("invalid comp_time absence: date_start %s lies before the account start %s", dateStart.String(), anchor.String())
 	}
 	return nil
 }
