@@ -49,10 +49,6 @@ func (m *wsMockWorkSessionRepository) LockStaffBalanceWrites(ctx context.Context
 	return nil
 }
 
-func (m *wsMockWorkSessionRepository) LockStaffBalanceWritesForSession(context.Context, int64) error {
-	return nil
-}
-
 func (m *wsMockWorkSessionRepository) Create(ctx context.Context, entity *activeModels.WorkSession) error {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, entity)

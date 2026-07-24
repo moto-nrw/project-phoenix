@@ -190,10 +190,6 @@ func (m *absWorkSessionRepoMock) LockStaffBalanceWrites(context.Context, int64) 
 	return nil
 }
 
-func (m *absWorkSessionRepoMock) LockStaffBalanceWritesForSession(context.Context, int64) error {
-	return nil
-}
-
 func (m *absWorkSessionRepoMock) Create(ctx context.Context, entity *activeModels.WorkSession) error {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, entity)

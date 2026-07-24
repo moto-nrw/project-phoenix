@@ -288,11 +288,6 @@ type WorkSessionRepository interface {
 	// LockStaffBalanceWrites serializes all work-session and break mutations
 	// with absence and adjustment mutations for the same staff member.
 	LockStaffBalanceWrites(ctx context.Context, staffID int64) error
-	// LockStaffBalanceWritesForSession resolves a session's owner and takes
-	// the same balance lock. Scheduler paths that start from a break only
-	// know the session ID.
-	LockStaffBalanceWritesForSession(ctx context.Context, sessionID int64) error
-
 	// GetByStaffAndDate returns the work session for a staff member on a given date
 	GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*WorkSession, error)
 
