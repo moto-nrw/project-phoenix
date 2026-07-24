@@ -182,10 +182,16 @@ func (rs *Resource) resolveSchoolID(ctx context.Context, slug string) (int64, er
 // mapping — applying to a new school is the point of the picker; the
 // phase's audience config (enforced in RequestService.Submit via
 // GuardianSubmitEligible) decides whether unlinked parents qualify.
-// What IS blocked here: an account whose guardian relationships at the
-// school all lack parent_portal.enrollment.submit — an explicitly
-// revoked permission must not be bypassable via the parent portal
-// (see .claude/rules/guardian-parent-permissions.md).
+// Guardian parent-portal permissions are relationship-scoped (per child),
+// so this handler does NOT apply an account-wide denial: the absence of
+// parent_portal.enrollment.submit on one existing relationship (e.g. a
+// pickup-only link) must not block a new-child application to an open or
+// new_students phase. The real per-child gate lives in the service: an
+// existing_students re-enrollment that matches a specific student is
+// authorized against THAT student's own relationship (ErrChildEnrollment
+// NotPermitted). The school-wide submit fact is forwarded only as the
+// GuardianSubmitEligible audience flag for linked_parents phases (see
+// .claude/rules/guardian-parent-permissions.md).
 func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Request) {
 	if rs.RequestService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent submit not configured")))
@@ -234,12 +240,11 @@ func decodeParentEnrollmentBody(r *http.Request) (*enrollmentAPI.SubmitEnrollmen
 	return wireReq, nil
 }
 
-// parentSubmitOutcome captures the four mutually-distinguished results of the
+// parentSubmitOutcome captures the mutually-distinguished results of the
 // admin-tx submit closure so the post-tx mapping can pick the right response.
 type parentSubmitOutcome struct {
 	result     *enrollmentService.SubmitResult
 	submitErr  error
-	forbidden  bool
 	resolveErr error
 }
 
@@ -261,18 +266,17 @@ func (rs *Resource) runParentEnrollmentSubmit(r *http.Request, accountID int64, 
 			return errors.New("tenant not found")
 		}
 
-		// Guardian facts for (account, school): a parent whose guardian
-		// relationships at this school all lack the submit permission is
-		// blocked outright — an admin revoked it deliberately. Accounts
-		// with no guardian rows here (new school) pass; the phase's
-		// audience config decides their eligibility in Submit (#1663).
+		// Guardian facts for (account, school). We resolve ONLY the school-wide
+		// submit fact here and forward it as the GuardianSubmitEligible audience
+		// flag (linked_parents phases require it). We deliberately do NOT apply an
+		// account-wide denial: guardian parent-portal permissions are per-child,
+		// so a missing submit permission on one relationship (e.g. pickup-only)
+		// must not block a new-child application the phase accepts anonymously
+		// (#1663). Re-enrollment of a SPECIFIC existing child is authorized
+		// per-student inside Submit (ErrChildEnrollmentNotPermitted).
 		status, stErr := rs.ParentService.GetEnrollmentSubmitStatus(adminCtx, accountID, school.ID)
 		if stErr != nil {
 			return fmt.Errorf("resolve enrollment submit status: %w", stErr)
-		}
-		if status.HasGuardianLink && !status.HasSubmitPermission {
-			out.forbidden = true
-			return nil
 		}
 
 		out.result, out.submitErr = rs.submitEnrollmentForTenant(adminCtx, school.ID, accountID, status.HasSubmitPermission, wireReq, getClientIP(r))
@@ -300,17 +304,15 @@ func (rs *Resource) submitEnrollmentForTenant(adminCtx context.Context, schoolID
 }
 
 // respondParentEnrollment maps the submit outcome to the HTTP response.
-// Priority: submit → forbidden → resolve → success. submitErr is checked first
-// because a submit failure now rolls the admin-tx back, so WithAdminTx also
-// surfaces that same error as resolveErr; the dedicated submitErr field lets us
-// map it to its real status (e.g. 400 ambiguous) instead of the resolve 404.
+// Priority: submit → resolve → success. submitErr is checked first because a
+// submit failure now rolls the admin-tx back, so WithAdminTx also surfaces that
+// same error as resolveErr; the dedicated submitErr field lets us map it to its
+// real status (e.g. 400 ambiguous, 403 not-permitted) instead of the resolve
+// 404. Per-child authorization failures (ErrChildEnrollmentNotPermitted) travel
+// through submitErr and MapSubmitError renders them as 403.
 func (rs *Resource) respondParentEnrollment(w http.ResponseWriter, r *http.Request, out parentSubmitOutcome) {
 	if out.submitErr != nil {
 		enrollmentAPI.MapSubmitError(w, r, out.submitErr)
-		return
-	}
-	if out.forbidden {
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("enrollment submission is not permitted for this account at this school")))
 		return
 	}
 	if out.resolveErr != nil {

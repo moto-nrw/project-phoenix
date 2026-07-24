@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -337,4 +338,95 @@ func TestValidatePhaseEligibility_NewStudentsLookupErrorPropagates(t *testing.T)
 	})
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, ErrChildAlreadyEnrolled)
+}
+
+// --- assertGuardianMayReEnrollStudent (per-child re-enrollment gate, #1663) ---
+
+// stubGuardianAuthorizer records its call and returns a fixed verdict/error.
+type stubGuardianAuthorizer struct {
+	granted    bool
+	err        error
+	called     bool
+	gotAccount int64
+	gotStudent int64
+	gotTenant  int64
+	gotPerm    string
+}
+
+func (s *stubGuardianAuthorizer) AccountHasStudentPermission(_ context.Context, accountID, studentID, tenantID int64, permission string) (bool, error) {
+	s.called = true
+	s.gotAccount, s.gotStudent, s.gotTenant, s.gotPerm = accountID, studentID, tenantID, permission
+	return s.granted, s.err
+}
+
+// A guardian holding parent_portal.enrollment.submit on the MATCHED student may
+// re-enroll it; the probe is called with the exact (account, student, tenant).
+func TestAssertGuardianMayReEnrollStudent_GrantedPasses(t *testing.T) {
+	auth := &stubGuardianAuthorizer{granted: true}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
+
+	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
+		int64PtrEligibility(4711), int64PtrEligibility(555), int64(9001), 0)
+	require.NoError(t, err)
+	require.True(t, auth.called)
+	assert.Equal(t, int64(4711), auth.gotAccount)
+	assert.Equal(t, int64(555), auth.gotStudent)
+	assert.Equal(t, int64(9001), auth.gotTenant)
+	assert.Equal(t, authorize.GuardianPermissionEnrollmentSubmit, auth.gotPerm)
+}
+
+// A guardian WITHOUT the submit permission on the matched student is rejected —
+// the core P1 fix: authority over child A must not renew child B.
+func TestAssertGuardianMayReEnrollStudent_NotGrantedRejected(t *testing.T) {
+	auth := &stubGuardianAuthorizer{granted: false}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
+
+	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
+		int64PtrEligibility(4711), int64PtrEligibility(555), int64(9001), 3)
+	require.ErrorIs(t, err, ErrChildEnrollmentNotPermitted)
+	assert.NotErrorIs(t, err, ErrInvalidSubmission, "not-permitted is a 403, not a 400")
+}
+
+// No matched student (fresh create) skips the probe entirely.
+func TestAssertGuardianMayReEnrollStudent_NoMatchSkips(t *testing.T) {
+	auth := &stubGuardianAuthorizer{granted: false}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
+
+	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
+		int64PtrEligibility(4711), nil, int64(9001), 0)
+	require.NoError(t, err)
+	assert.False(t, auth.called, "no matched student → no per-child probe")
+}
+
+// An anonymous public submission (no guardian account) skips the probe: the
+// name+birthday audience gate is the only best-effort check there, unchanged.
+func TestAssertGuardianMayReEnrollStudent_AnonymousSkips(t *testing.T) {
+	auth := &stubGuardianAuthorizer{granted: false}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
+
+	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
+		nil, int64PtrEligibility(555), int64(9001), 0)
+	require.NoError(t, err)
+	assert.False(t, auth.called, "no guardian account → no per-child probe")
+}
+
+// Fail closed: a guardian submission that resolved an existing student with no
+// authorizer wired is a misconfiguration, never a silent bypass.
+func TestAssertGuardianMayReEnrollStudent_NilAuthorizerFailsClosed(t *testing.T) {
+	svc := &requestService{}
+
+	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
+		int64PtrEligibility(4711), int64PtrEligibility(555), int64(9001), 1)
+	require.ErrorIs(t, err, ErrChildEnrollmentNotPermitted)
+}
+
+// A repository error propagates and is NOT mistaken for a denial.
+func TestAssertGuardianMayReEnrollStudent_ProbeErrorPropagates(t *testing.T) {
+	auth := &stubGuardianAuthorizer{err: errors.New("boom")}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{GuardianAuthorizer: auth}}
+
+	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
+		int64PtrEligibility(4711), int64PtrEligibility(555), int64(9001), 0)
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrChildEnrollmentNotPermitted)
 }

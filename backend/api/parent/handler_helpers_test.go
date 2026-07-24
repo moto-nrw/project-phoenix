@@ -107,11 +107,15 @@ func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermis
 	assert.Equal(t, "parent-late-token", requestSvc.got.LateInviteToken)
 }
 
-// TestSubmitParentEnrollment_BlocksRevokedGuardianPermission covers the
-// #1663 permission gate: an account with a guardian link at the school
-// whose links all lack parent_portal.enrollment.submit gets 403 and the
-// submission never reaches the RequestService.
-func TestSubmitParentEnrollment_BlocksRevokedGuardianPermission(t *testing.T) {
+// TestSubmitParentEnrollment_NoSubmitPermissionStillReachesServiceForNewChild
+// covers the #1663 per-child authorization model: guardian parent-portal
+// permissions are relationship-scoped, so an account whose EXISTING relationship
+// (e.g. pickup-only) lacks parent_portal.enrollment.submit must NOT be denied
+// account-wide. A new-child application still reaches the RequestService — the
+// phase's audience config, and the per-student re-enrollment gate inside Submit,
+// decide eligibility. The school-wide submit fact travels only as
+// GuardianSubmitEligible (false here), which gates linked_parents phases.
+func TestSubmitParentEnrollment_NoSubmitPermissionStillReachesServiceForNewChild(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
@@ -150,8 +154,10 @@ func TestSubmitParentEnrollment_BlocksRevokedGuardianPermission(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	require.Equal(t, http.StatusForbidden, w.Code)
-	assert.False(t, requestSvc.called, "revoked submit permission must never reach RequestService")
+	require.Equal(t, http.StatusCreated, w.Code)
+	require.True(t, requestSvc.called, "a new-child application must not be blocked by a missing per-child submit permission")
+	assert.False(t, requestSvc.got.GuardianSubmitEligible,
+		"no school-wide submit permission must forward GuardianSubmitEligible=false for the linked_parents audience gate")
 }
 
 // TestSubmitParentEnrollment_StampsSubmitEligibility covers the #1663

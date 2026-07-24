@@ -534,6 +534,67 @@ func TestStudentGuardianRepository_FindByStudentAndGuardianForUpdate(t *testing.
 	})
 }
 
+// TestStudentGuardianRepository_AccountHasStudentPermission covers the #1663
+// per-child re-enrollment authorization probe: parent-portal permissions are
+// relationship-scoped, so holding parent_portal.enrollment.submit on one child
+// must NOT grant it on another child of the same guardian, and an inactive /
+// missing account_tenants mapping or a wrong tenant must report no permission.
+func TestStudentGuardianRepository_AccountHasStudentPermission(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentGuardian
+	ctx := testpkg.TenantContext(1)
+
+	// Primary guardian (all parent-portal permissions) → chain.StudentID, with an
+	// ACTIVE account_tenants mapping. This is the authorized child.
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	// A SECOND child of the SAME guardian, linked WITHOUT enrollment.submit (empty
+	// permissions) — the exact P1 scenario: authority over child A must not extend
+	// to child B.
+	otherChild := testpkg.CreateTestStudent(t, db, "Mara", "Schneider", "2b")
+	otherLink := createTestStudentGuardian(t, db, otherChild.ID, chain.GuardianProfileID, "parent", false)
+	defer func() {
+		cleanupStudentGuardians(t, db, otherLink.ID)
+		testpkg.CleanupActivityFixtures(t, db, otherChild.ID)
+	}()
+
+	perm := authorize.GuardianPermissionEnrollmentSubmit
+
+	t.Run("granted on the guardian's own child", func(t *testing.T) {
+		granted, err := repo.AccountHasStudentPermission(ctx, chain.AccountID, chain.StudentID, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.True(t, granted)
+	})
+
+	t.Run("denied on a different child lacking the permission", func(t *testing.T) {
+		granted, err := repo.AccountHasStudentPermission(ctx, chain.AccountID, otherChild.ID, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.False(t, granted, "submit permission on one child must not extend to another")
+	})
+
+	t.Run("denied for an unrelated account", func(t *testing.T) {
+		granted, err := repo.AccountHasStudentPermission(ctx, chain.AccountID+9_000_000, chain.StudentID, chain.TenantID, perm)
+		require.NoError(t, err)
+		assert.False(t, granted)
+	})
+
+	t.Run("denied under a different tenant", func(t *testing.T) {
+		granted, err := repo.AccountHasStudentPermission(ctx, chain.AccountID, chain.StudentID, chain.TenantID+1, perm)
+		require.NoError(t, err)
+		assert.False(t, granted, "tenant filter must isolate the check")
+	})
+
+	t.Run("rejects non-positive arguments", func(t *testing.T) {
+		_, err := repo.AccountHasStudentPermission(ctx, 0, chain.StudentID, chain.TenantID, perm)
+		require.Error(t, err)
+		_, err = repo.AccountHasStudentPermission(ctx, chain.AccountID, chain.StudentID, chain.TenantID, "  ")
+		require.Error(t, err)
+	})
+}
+
 // isLockTimeoutError reports whether PostgreSQL refused a lock request because
 // the transaction-local lock_timeout elapsed (SQLSTATE 55P03). Used by the
 // FOR UPDATE serialization test to detect a held lock deterministically instead

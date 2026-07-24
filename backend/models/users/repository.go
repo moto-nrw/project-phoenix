@@ -337,6 +337,17 @@ type StudentGuardianRepository interface {
 	// FindByGuardianProfileID retrieves relationships by guardian profile ID
 	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*StudentGuardian, error)
 
+	// AccountHasStudentPermission reports whether the guardian account holds the
+	// named parent_portal.* permission on its relationship to the given student
+	// at the tenant, backed by an ACTIVE auth.account_tenants mapping. It is the
+	// per-child authorization probe for parent-portal actions that resolve a
+	// concrete student only deep inside a service — e.g. existing_students
+	// re-enrollment (#1663), where a school-wide submit flag is too coarse to
+	// prove authority over one specific child. tenant_id is passed explicitly so
+	// the check is correct even under an admin transaction (RLS bypassed). A
+	// deactivated guardian's lingering relationship rows report false.
+	AccountHasStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error)
+
 	// FindByStudentAndGuardianForUpdate returns the relationship row joining the
 	// student and guardian profile, locked FOR UPDATE for the current
 	// transaction, or ErrStudentGuardianNotFound when none exists. The row lock

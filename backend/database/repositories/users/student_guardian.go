@@ -200,6 +200,49 @@ func (r *StudentGuardianRepository) ListLinkedChildrenForGuardians(ctx context.C
 	return rows, nil
 }
 
+// AccountHasStudentPermission reports whether the guardian account holds the
+// named parent_portal.* permission on its relationship to the given student at
+// the tenant, backed by an ACTIVE auth.account_tenants mapping. It is the
+// per-child authorization probe for parent-portal actions that resolve a
+// concrete student only deep inside a service — e.g. existing_students
+// re-enrollment (#1663), where the school-wide submit flag cannot prove
+// authority over one specific child.
+//
+// tenant_id is filtered explicitly (not via RLS/TenantWhere): the parent submit
+// path runs under an admin transaction where RLS is bypassed, so there is no
+// ambient tenant predicate. The active-mapping conjunction mirrors the parent
+// picker's GuardianSubmitStatus query so a deactivated guardian's lingering
+// students_guardians rows never report authority.
+func (r *StudentGuardianRepository) AccountHasStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error) {
+	if accountID <= 0 || studentID <= 0 || tenantID <= 0 {
+		return false, fmt.Errorf("student guardian: account_id, student_id and tenant_id must be positive")
+	}
+	if strings.TrimSpace(permission) == "" {
+		return false, fmt.Errorf("student guardian: permission must not be empty")
+	}
+	const query = `
+		SELECT EXISTS (
+			SELECT 1
+			FROM users.students_guardians AS sg
+			JOIN users.guardian_profiles AS gp
+				ON gp.id = sg.guardian_profile_id
+				AND gp.tenant_id = sg.tenant_id
+			JOIN auth.account_tenants AS act
+				ON act.tenant_id  = gp.tenant_id
+				AND act.account_id = gp.account_id
+				AND act.status     = 'active'
+			WHERE sg.tenant_id  = ?
+				AND sg.student_id = ?
+				AND gp.account_id = ?
+				AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
+		)`
+	var granted bool
+	if err := base.GetDB(ctx, r.db).NewRaw(query, tenantID, studentID, accountID, permission).Scan(ctx, &granted); err != nil {
+		return false, fmt.Errorf("student guardian: account permission for student: %w", err)
+	}
+	return granted, nil
+}
+
 // FindByStudentAndGuardianForUpdate returns the relationship row joining the
 // student and guardian profile, locked FOR UPDATE for the current transaction,
 // or users.ErrStudentGuardianNotFound when none exists. The FOR UPDATE row lock

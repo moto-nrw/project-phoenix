@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -106,6 +107,15 @@ var (
 	// duplicate on top of the colliding records. The school must resolve the
 	// duplicate students first (#1663).
 	ErrChildEnrollmentAmbiguous = fmt.Errorf("%w: child matches multiple enrolled students at this school", ErrInvalidSubmission)
+	// ErrChildEnrollmentNotPermitted rejects an existing_students re-enrollment
+	// submitted from the parents portal when the authenticated guardian account
+	// does NOT hold parent_portal.enrollment.submit on the SPECIFIC already
+	// enrolled student the child matched (#1663). Guardian parent-portal
+	// permissions are relationship-scoped: a parent authorized to re-enroll one
+	// child must not be able to renew a DIFFERENT child at the same school just
+	// because the school-wide GuardianSubmitEligible audience flag is set. It is
+	// an authorization failure (mapped to 403), NOT an ErrInvalidSubmission.
+	ErrChildEnrollmentNotPermitted = errors.New("guardian is not permitted to re-enroll this child")
 	// ErrPhaseAudienceRestricted is the public form-load gate for
 	// audience-restricted phases (#1663): a linked_parents phase cannot be
 	// bootstrapped anonymously, so the unauthenticated public path rejects
@@ -466,6 +476,15 @@ type RequestSettingsResolver interface {
 	ResolveInt(ctx context.Context, key string) (int, error)
 }
 
+// GuardianStudentAuthorizer is the narrow slice of the student-guardian
+// repository the submit path needs: a per-child parent-portal permission probe.
+// It backs the existing_students re-enrollment authorization gate (#1663) — the
+// only place Submit resolves a concrete existing student a guardian account
+// could renew.
+type GuardianStudentAuthorizer interface {
+	AccountHasStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error)
+}
+
 // RequestServiceConfig is the dep-injection bundle.
 type RequestServiceConfig struct {
 	RequestRepo              enrollmentModels.RequestRepository
@@ -482,10 +501,19 @@ type RequestServiceConfig struct {
 	// school is rejected. Nil-safe — without the repo the check is
 	// skipped (relevant for narrow test setups only; the factory always
 	// wires it).
-	StudentRepo    users.StudentRepository
-	RateLimitRepo  enrollmentModels.SubmissionRateLimitRepository
-	OutboxEnqueuer platformModels.OutboxEnqueuer
-	Settings       RequestSettingsResolver
+	StudentRepo users.StudentRepository
+	// GuardianAuthorizer verifies per-child parent-portal permissions for the
+	// authenticated parent submit path. It gates existing_students re-enrollment
+	// (#1663): a guardian account may renew the SPECIFIC matched student only when
+	// its own relationship grants parent_portal.enrollment.submit — the
+	// school-wide GuardianSubmitEligible flag admits the parent to the phase but
+	// cannot prove authority over one child. The submit path fails closed when the
+	// authorizer is nil and a guardian submission resolves an existing student, so
+	// only anonymous-only test setups leave it unset (the factory always wires it).
+	GuardianAuthorizer GuardianStudentAuthorizer
+	RateLimitRepo      enrollmentModels.SubmissionRateLimitRepository
+	OutboxEnqueuer     platformModels.OutboxEnqueuer
+	Settings           RequestSettingsResolver
 	// ManualDecider approves the freshly submitted request in the manual
 	// admin-enrollment flow. Narrow slice of DecisionService so the request
 	// service does not depend on the whole decision surface.
@@ -840,6 +868,9 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			}
 			matchedStudentID, err := s.resolveMatchedStudentID(txCtx, req.TenantID, phase, i, child)
 			if err != nil {
+				return err
+			}
+			if err := s.assertGuardianMayReEnrollStudent(txCtx, req.GuardianAccountID, matchedStudentID, req.TenantID, i); err != nil {
 				return err
 			}
 			row.MatchedStudentID = matchedStudentID
@@ -2182,6 +2213,9 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				if err != nil {
 					return err
 				}
+				if err := s.assertGuardianMayReEnrollStudent(txCtx, req.GuardianAccountID, matchedStudentID, req.TenantID, i); err != nil {
+					return err
+				}
 				row.MatchedStudentID = matchedStudentID
 			}
 			if err := s.RequestChildRepo.Create(txCtx, row); err != nil {
@@ -3392,6 +3426,37 @@ func (s *requestService) resolveMatchedStudentID(ctx context.Context, tenantID i
 		return nil, fmt.Errorf("%w: child %d", ErrChildEnrollmentAmbiguous, childIndex)
 	}
 	return nil, nil
+}
+
+// assertGuardianMayReEnrollStudent enforces the per-child authorization gate for
+// existing_students re-enrollment (#1663). resolveMatchedStudentID may pin a
+// concrete already-enrolled student that approval would RENEW (and attach the
+// guardian account to); when that submission comes from an authenticated parent,
+// the parent must actually hold parent_portal.enrollment.submit on THAT student's
+// own relationship — not merely on some other child at the same school. Without
+// this, the coarse school-wide GuardianSubmitEligible flag would let a parent
+// permitted for child A renew (and bind themselves to) child B.
+//
+// No-ops when there is no match (nil studentID → fresh create) or no guardian
+// account (nil → anonymous public submission, gated only by the best-effort
+// name+birthday audience rules, exactly like the paper form). Fails closed: a
+// guardian submission that resolved an existing student with no authorizer wired
+// is a misconfiguration, not a bypass.
+func (s *requestService) assertGuardianMayReEnrollStudent(ctx context.Context, guardianAccountID, matchedStudentID *int64, tenantID int64, childIndex int) error {
+	if matchedStudentID == nil || guardianAccountID == nil {
+		return nil
+	}
+	if s.GuardianAuthorizer == nil {
+		return fmt.Errorf("%w: child %d", ErrChildEnrollmentNotPermitted, childIndex)
+	}
+	granted, err := s.GuardianAuthorizer.AccountHasStudentPermission(ctx, *guardianAccountID, *matchedStudentID, tenantID, authorize.GuardianPermissionEnrollmentSubmit)
+	if err != nil {
+		return fmt.Errorf("submit: verify guardian re-enrollment permission for child %d: %w", childIndex, err)
+	}
+	if !granted {
+		return fmt.Errorf("%w: child %d", ErrChildEnrollmentNotPermitted, childIndex)
+	}
+	return nil
 }
 
 // hasRolloverGeneratedChild reports whether any of the persisted children was

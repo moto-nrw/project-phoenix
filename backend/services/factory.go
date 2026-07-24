@@ -1311,6 +1311,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PhaseRepo:                repos.Phase,
 		SchoolRepo:               repos.School,
 		StudentRepo:              repos.Student,
+		GuardianAuthorizer:       repos.StudentGuardian,
 		RateLimitRepo:            repos.SubmissionRateLimit,
 		OutboxEnqueuer:           emailOutboxService,
 		Settings:                 settingsService,

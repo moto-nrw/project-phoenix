@@ -283,6 +283,7 @@ const (
 	ErrCodeEnrollmentChildAlreadyEnrolled = "enrollment.child_already_enrolled"
 	ErrCodeEnrollmentChildNotEnrolled     = "enrollment.child_not_enrolled"
 	ErrCodeEnrollmentChildAmbiguous       = "enrollment.child_ambiguous"
+	ErrCodeEnrollmentChildNotPermitted    = "enrollment.child_not_permitted"
 )
 
 // MapSubmitError translates service-layer sentinel errors into HTTP
@@ -306,6 +307,11 @@ func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentChildNotEnrolled))
 	case errors.Is(err, enrollmentService.ErrChildEnrollmentAmbiguous):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentChildAmbiguous))
+	// Per-child re-enrollment authorization failure (#1663): a guardian account
+	// lacking parent_portal.enrollment.submit on the matched student. It does NOT
+	// wrap ErrInvalidSubmission — it is a 403, not a 400.
+	case errors.Is(err, enrollmentService.ErrChildEnrollmentNotPermitted):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, ErrCodeEnrollmentChildNotPermitted))
 	case errors.Is(err, enrollmentService.ErrCareOfferingUnavailable):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingUnavailable))
 	case errors.Is(err, enrollmentService.ErrCareOfferingMissing):
