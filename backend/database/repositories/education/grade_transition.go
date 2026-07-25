@@ -586,8 +586,59 @@ func (r *GradeTransitionRepository) GetStudentsByClasses(ctx context.Context, cl
 	return students, nil
 }
 
+// PromoteStudentsByIDs moves exactly the given students from fromClass to
+// toClass. Apply passes the same FOR UPDATE-locked IDs it recorded in history,
+// so the promoted and recorded sets are identical: a student created or moved
+// into a promoted class after the cohort was locked is not swept along without a
+// history row (which a revert would then be unable to undo), and no history row
+// describes a promotion that never happened (#405 review).
+//
+// The from-class equality guard and the alumnus exclusion are defensive — the
+// caller holds a row lock on every id — and keep the statement idempotent.
+func (r *GradeTransitionRepository) PromoteStudentsByIDs(
+	ctx context.Context, studentIDs []int64, fromClass, toClass string,
+) (int64, error) {
+	if len(studentIDs) == 0 {
+		return 0, nil
+	}
+
+	updQuery := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*users.Student)(nil)).
+		ModelTableExpr(`users.students AS "student"`).
+		Set("school_class = ?", toClass).
+		Set("updated_at = NOW()").
+		Where(`"student".id IN (?)`, bun.List(studentIDs)).
+		Where(`"student".school_class = ?`, fromClass).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
+
+	updQuery = base.WithTenantFilter(ctx, updQuery, "student")
+
+	result, err := updQuery.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "promote students by ids",
+			Err: err,
+		}
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "get rows affected",
+			Err: err,
+		}
+	}
+
+	return affected, nil
+}
+
 // UpdateStudentClasses updates student classes based on transition mappings
-// This is a join-based UPDATE for efficiency
+// This is a join-based UPDATE for efficiency.
+//
+// NOT used by Apply anymore: re-evaluating class membership at write time races
+// the history snapshot in both directions, so promotions go through
+// PromoteStudentsByIDs on the locked cohort instead (#405 review). Kept for the
+// same reason as GraduateStudentsByClasses — a bulk, mapping-driven fallback.
 func (r *GradeTransitionRepository) UpdateStudentClasses(ctx context.Context, transitionID int64) (int64, error) {
 	// Build tenant-aware bulk UPDATE using JOIN on mappings
 	rawSQL := `

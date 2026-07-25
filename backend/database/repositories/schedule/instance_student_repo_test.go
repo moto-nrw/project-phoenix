@@ -1481,17 +1481,25 @@ func TestInstanceStudentRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 	})
 }
 
-// TestInstanceStudentRepository_DeletePlannedByStudentIDsAfter pins the
-// graduation-reconciliation predicate (#405 review): every still-PLANNED future
-// row of a graduated student goes, including the ones a future status day
-// already rewrote to 'absent', while anything recording an actual event and
-// anything not in the future survives.
-func TestInstanceStudentRepository_DeletePlannedByStudentIDsAfter(t *testing.T) {
+// TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom pins the
+// graduation-reconciliation predicate (#405 review): every still-PLANNED row of
+// a graduated student from `from` onwards goes — today's included, because
+// slot-list reads decide visibility from the enrollment interval and not from
+// alumnus status, so a leftover row keeps the departed child in the current
+// day's Plan/Abgleich lists — including the ones a status day already rewrote to
+// 'absent'. Anything recording an actual event and anything before `from`
+// survives, and every removed row is archived for the revert to replay.
+func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	account := testpkg.CreateTestAccount(t, db, "roster-archive@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	today := timezone.TodayDate()
 	future := today.AddDays(7)
@@ -1515,13 +1523,13 @@ func TestInstanceStudentRepository_DeletePlannedByStudentIDsAfter(t *testing.T) 
 	statusDay := testpkg.CreateTestStudentStatusDay(t, db, graduate.ID, future, "sick")
 	defer testpkg.CleanupStudentStatusDays(t, db, statusDay.ID)
 
-	// Deleted: future + planned.
+	// Deleted: dated from today onwards and still planned.
 	futureExpected := testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, graduate.ID,
 		scheduleModels.AttendanceStatusExpected)
-	// Kept: not in the future.
-	pastExpected := testpkg.CreateTestInstanceStudent(t, db, pastInst.ID, graduate.ID,
-		scheduleModels.AttendanceStatusExpected)
 	todayExpected := testpkg.CreateTestInstanceStudent(t, db, todayInst.ID, graduate.ID,
+		scheduleModels.AttendanceStatusExpected)
+	// Kept: before `from`.
+	pastExpected := testpkg.CreateTestInstanceStudent(t, db, pastInst.ID, graduate.ID,
 		scheduleModels.AttendanceStatusExpected)
 	// Kept: another child's future row must be untouched.
 	stayerExpected := testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, stayer.ID,
@@ -1529,9 +1537,22 @@ func TestInstanceStudentRepository_DeletePlannedByStudentIDsAfter(t *testing.T) 
 	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students",
 		futureExpected.ID, pastExpected.ID, todayExpected.ID, stayerExpected.ID)
 
-	removed, err := repo.DeletePlannedByStudentIDsAfter(ctx, []int64{graduate.ID}, today)
+	archived := func(instanceID, studentID int64) int {
+		n, cErr := db.NewSelect().
+			TableExpr(`schedule.grade_transition_roster_removals`).
+			Where("transition_id = ?", transition.ID).
+			Where("instance_id = ?", instanceID).
+			Where("student_id = ?", studentID).
+			Count(ctx)
+		require.NoError(t, cErr)
+		return n
+	}
+
+	removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today)
 	require.NoError(t, err)
-	assert.Equal(t, 1, removed, "only the graduate's future planned row is removed")
+	assert.Equal(t, 2, removed, "the graduate's planned rows from today onwards are removed")
+	assert.Equal(t, 1, archived(futureInst.ID, graduate.ID), "every removed row is archived for the revert")
+	assert.Equal(t, 1, archived(todayInst.ID, graduate.ID))
 
 	assertRowGone := func(t *testing.T, instanceID, studentID int64) {
 		t.Helper()
@@ -1547,9 +1568,40 @@ func TestInstanceStudentRepository_DeletePlannedByStudentIDsAfter(t *testing.T) 
 	}
 
 	assertRowGone(t, futureInst.ID, graduate.ID)
+	assertRowGone(t, todayInst.ID, graduate.ID)
 	assertRowKept(t, pastInst.ID, graduate.ID)
-	assertRowKept(t, todayInst.ID, graduate.ID)
 	assertRowKept(t, futureInst.ID, stayer.ID)
+
+	t.Run("restores exactly the archived rows", func(t *testing.T) {
+		restored, err := repo.RestoreArchivedByTransition(ctx, transition.ID, []int64{graduate.ID})
+		require.NoError(t, err)
+		assert.Equal(t, 2, restored, "both archived rows come back")
+		assertRowKept(t, futureInst.ID, graduate.ID)
+		assertRowKept(t, todayInst.ID, graduate.ID)
+		assert.Equal(t, 0, archived(futureInst.ID, graduate.ID), "the archive entry is consumed")
+
+		// Re-archive so the remaining subtests keep their original starting
+		// state (the graduate has no planned row from today onwards).
+		_, err = repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today)
+		require.NoError(t, err)
+		assertRowGone(t, futureInst.ID, graduate.ID)
+	})
+
+	t.Run("keeps today's row that records an actual presence", func(t *testing.T) {
+		row := &scheduleModels.InstanceStudent{
+			InstanceID: todayInst.ID,
+			StudentID:  graduate.ID,
+			Status:     scheduleModels.AttendanceStatusPresent,
+		}
+		row.SetTenantID(1)
+		require.NoError(t, repo.Create(ctx, row))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today)
+		require.NoError(t, err)
+		assert.Equal(t, 0, removed)
+		assertRowKept(t, todayInst.ID, graduate.ID)
+	})
 
 	t.Run("removes a future absence a status day owns", func(t *testing.T) {
 		absent := scheduleModels.AttendanceStatusAbsent
@@ -1560,7 +1612,7 @@ func TestInstanceStudentRepository_DeletePlannedByStudentIDsAfter(t *testing.T) 
 		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID,
 			scheduleModels.AttendanceFieldPatch{Substatus: &sick}))
 
-		removed, err := repo.DeletePlannedByStudentIDsAfter(ctx, []int64{graduate.ID}, today)
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today)
 		require.NoError(t, err)
 		assert.Equal(t, 1, removed)
 		assertRowGone(t, futureInst.ID, graduate.ID)
@@ -1576,7 +1628,7 @@ func TestInstanceStudentRepository_DeletePlannedByStudentIDsAfter(t *testing.T) 
 		require.NoError(t, repo.Create(ctx, row))
 		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
 
-		removed, err := repo.DeletePlannedByStudentIDsAfter(ctx, []int64{graduate.ID}, today)
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today)
 		require.NoError(t, err)
 		assert.Equal(t, 0, removed)
 		assertRowKept(t, futureInst.ID, graduate.ID)
@@ -1594,14 +1646,14 @@ func TestInstanceStudentRepository_DeletePlannedByStudentIDsAfter(t *testing.T) 
 		require.NoError(t, repo.Create(ctx, row))
 		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
 
-		removed, err := repo.DeletePlannedByStudentIDsAfter(ctx, []int64{graduate.ID}, today)
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today)
 		require.NoError(t, err)
 		assert.Equal(t, 0, removed)
 		assertRowKept(t, futureInst.ID, graduate.ID)
 	})
 
 	t.Run("empty student set is a no-op", func(t *testing.T) {
-		removed, err := repo.DeletePlannedByStudentIDsAfter(ctx, nil, today)
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, nil, today)
 		require.NoError(t, err)
 		assert.Equal(t, 0, removed)
 	})
@@ -1611,8 +1663,8 @@ func TestInstanceStudentRepository_DeletePlannedByStudentIDsAfter(t *testing.T) 
 			scheduleModels.AttendanceStatusExpected)
 		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
 
-		removed, err := repo.DeletePlannedByStudentIDsAfter(
-			testpkg.TenantContext(999), []int64{graduate.ID}, today)
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(
+			testpkg.TenantContext(999), transition.ID, []int64{graduate.ID}, today)
 		require.NoError(t, err)
 		assert.Equal(t, 0, removed)
 		assertRowKept(t, futureInst.ID, graduate.ID)

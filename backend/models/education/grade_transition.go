@@ -147,7 +147,17 @@ type GradeTransitionRepository interface {
 	GetDistinctClasses(ctx context.Context) ([]string, error)
 	GetStudentCountByClass(ctx context.Context, className string) (int, error)
 	GetStudentsByClasses(ctx context.Context, classes []string) ([]*StudentClassInfo, error)
+	// UpdateStudentClasses promotes every student currently sitting in a mapped
+	// from-class. Apply does NOT use it: a class-wide update re-evaluates
+	// membership at write time and therefore promotes students the history
+	// snapshot never captured (unrevertable) while missing students it did
+	// capture. Use PromoteStudentsByIDs for transition writes (#405 review).
 	UpdateStudentClasses(ctx context.Context, transitionID int64) (int64, error)
+	// PromoteStudentsByIDs moves exactly the given students from fromClass to
+	// toClass, guarded on them still being in fromClass and not alumni. Apply
+	// promotes the same FOR UPDATE-locked rows it recorded in history, so every
+	// promotion is revertable and every history row describes a real one.
+	PromoteStudentsByIDs(ctx context.Context, studentIDs []int64, fromClass, toClass string) (int64, error)
 	// RevertStudentClass moves a promoted student back to fromClass, but ONLY
 	// while their current class still equals toClass (the class this transition
 	// assigned). A student manually moved to another class since — or promoted

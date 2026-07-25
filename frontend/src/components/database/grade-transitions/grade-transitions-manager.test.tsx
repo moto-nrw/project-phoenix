@@ -13,13 +13,14 @@ import type {
 
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
+const toastWarning = vi.fn();
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({
     success: toastSuccess,
     error: toastError,
     info: vi.fn(),
-    warning: vi.fn(),
+    warning: toastWarning,
   }),
 }));
 
@@ -234,6 +235,40 @@ describe("GradeTransitionsManager", () => {
       expect(api.revertGradeTransition).toHaveBeenCalledWith("8");
     });
     expect(toastSuccess).toHaveBeenCalled();
+  });
+
+  // A revert is only ever partial when children were deleted, moved, or had
+  // their status changed after the apply. The backend says so in result.warnings
+  // and the admin must be told, not shown an unconditional success (#405 review).
+  it("reports a partial revert instead of claiming full success", async () => {
+    api.listGradeTransitions.mockResolvedValue([appliedTransition]);
+    api.revertGradeTransition.mockResolvedValue({
+      transitionId: "8",
+      status: "reverted",
+      studentsPromoted: 18,
+      studentsGraduated: 9,
+      canRevert: false,
+      warnings: [
+        "2 promoted students could not be reverted (deleted or class changed since promotion)",
+        "1 graduated students could not be restored (deleted or status changed since graduation)",
+      ],
+    });
+    render(<GradeTransitionsManager />);
+
+    await screen.findByText("2026-2027");
+    fireEvent.click(screen.getByRole("button", { name: /Zurücksetzen/i }));
+    await screen.findByText(/wirklich zurücksetzen/i);
+    fireEvent.click(screen.getByRole("button", { name: /Ja, zurücksetzen/i }));
+
+    await waitFor(() => {
+      expect(api.revertGradeTransition).toHaveBeenCalledWith("8");
+    });
+    expect(toastSuccess).not.toHaveBeenCalled();
+    expect(toastWarning).toHaveBeenCalledTimes(1);
+    const message = toastWarning.mock.calls[0]?.[0] as string;
+    expect(message).toContain("teilweise");
+    expect(message).toContain("2 versetzte Kinder konnten nicht");
+    expect(message).toContain("1 Abgänge konnten nicht");
   });
 
   it("deletes a draft after confirmation", async () => {

@@ -112,8 +112,15 @@ const errFmtTransitionNotFound = "transition not found: %w"
 // Implemented by services/schedule.RosterReconciler; optional so unit tests that
 // do not exercise timetable reconciliation can leave it nil (#405 review).
 type RosterReconciler interface {
-	RemoveStudentsFromFutureRosters(ctx context.Context, studentIDs []int64) error
-	RestoreStudentsToFutureRosters(ctx context.Context, studentIDs []int64) error
+	// RemoveStudentsFromFutureRosters drops the graduated students from
+	// already-materialized rosters, archiving every removed row under
+	// transitionID so the revert can replay exactly those rows.
+	RemoveStudentsFromFutureRosters(ctx context.Context, transitionID int64, studentIDs []int64) error
+	// RestoreStudentsToFutureRosters replays the archived rows and additionally
+	// fills instances materialized after materializedAfter (the apply timestamp)
+	// from enrollments — those are the instances the materializer skipped while
+	// the children were alumni.
+	RestoreStudentsToFutureRosters(ctx context.Context, transitionID int64, studentIDs []int64, materializedAfter time.Time) error
 }
 
 // GradeTransitionService manages grade transitions: CRUD, preview/apply,
@@ -521,13 +528,13 @@ func (s *GradeTransitionService) executeApply(
 ) error {
 	promoteClasses, graduateClasses := categorizeMappings(transition.Mappings)
 
-	// Resolve the definitive graduating cohort ONCE and hold a FOR UPDATE lock on
-	// every row. The check-in guard, the history snapshot, and the final status
-	// flip all operate on exactly this locked set, so the rows checked, recorded,
-	// and mutated are identical — a student inserted or moved into a graduating
-	// class after this point is never silently graduated without those guards
-	// (#405 review).
-	graduates, err := s.lockGraduatingStudents(ctx, graduateClasses)
+	// Resolve BOTH definitive cohorts ONCE and hold a FOR UPDATE lock on every
+	// row. The check-in guard, the history snapshot, and the class/status writes
+	// all operate on exactly these locked sets, so the rows checked, recorded,
+	// and mutated are identical — a student inserted into or moved between
+	// classes after this point is never silently transitioned without those
+	// guards, and never promoted without a history row to revert (#405 review).
+	promotions, graduates, err := s.lockTransitionCohorts(ctx, promoteClasses, graduateClasses)
 	if err != nil {
 		return err
 	}
@@ -540,92 +547,156 @@ func (s *GradeTransitionService) executeApply(
 		return err
 	}
 
-	if err := s.recordTransitionHistory(ctx, transition.ID, transition.Mappings, promoteClasses, graduates); err != nil {
+	if err := s.recordTransitionHistory(ctx, transition.ID, transition.Mappings, promotions, graduates); err != nil {
 		return err
 	}
 
 	// Graduate BEFORE promoting. Promotions can move students into a class
 	// that is graduated in the same transition (e.g. "3a -> 4a" alongside
-	// "4a -> graduate"). Graduating first captures only the original members
-	// of each graduate class; the promotion that follows carries the
-	// promoted-in students past it, since graduated rows are alumnus and the
-	// promotion query skips them. Reversing this order graduated the freshly
-	// promoted children by mistake (#405 review).
+	// "4a -> graduate"). Both cohorts were resolved from the same locked
+	// snapshot, so a promoted-in child is not part of the graduate set; keeping
+	// the original order also means the graduation writes never see a row the
+	// promotion has already moved (#405 review).
 	if err := s.applyGraduations(ctx, graduates, result); err != nil {
 		return err
 	}
 
-	if err := s.applyPromotions(ctx, transition.ID, promoteClasses, result); err != nil {
+	if err := s.applyPromotions(ctx, transition.Mappings, promotions, result); err != nil {
 		return err
 	}
 
-	// Drop the departed children from already-materialized upcoming rosters so
-	// they stop counting on future timetables and staffing ratios (#405 review).
-	if err := s.reconcileGraduatedRosters(ctx, graduates); err != nil {
+	// Drop the departed children from already-materialized rosters so they stop
+	// counting on today's and future timetables and staffing ratios, archiving
+	// each removed row so the revert can replay it (#405 review).
+	if err := s.reconcileGraduatedRosters(ctx, transition.ID, graduates); err != nil {
 		return err
 	}
 
 	return s.markTransitionApplied(ctx, transition, accountID)
 }
 
-// lockGraduatingStudents fetches the students in the graduating classes and
-// takes a FOR UPDATE lock on each surviving row in ascending id order (the
-// deadlock-safe order every other student-row locker uses). The returned slice
-// is the exact set the rest of the apply checks, records, and graduates; a row
-// that vanished before it could be locked is dropped. With no student repository
-// wired (pure unit tests) the fetched set is returned unlocked (#405 review).
-func (s *GradeTransitionService) lockGraduatingStudents(
+// lockTransitionCohorts resolves the promoting and graduating cohorts, takes a
+// FOR UPDATE lock on each surviving row in ONE ascending-id pass (the
+// deadlock-safe order every other student-row locker uses), and re-validates
+// every row UNDER its lock.
+//
+// Re-validation is the point: between the snapshot query and the lock, a
+// concurrent class edit or lifecycle change can commit. The locked row is
+// therefore the authority for both the class that decides which cohort the child
+// belongs to and the status recorded as from_status — a child moved out of every
+// mapped class in that window is dropped from the transition entirely, and one
+// already turned alumnus is skipped. Without this, apply could graduate a child
+// who had just been moved out of the graduating class and record an obsolete
+// from_status for a later revert to restore (#405 review).
+//
+// With no student repository wired (pure unit tests) the snapshot is used
+// unlocked.
+func (s *GradeTransitionService) lockTransitionCohorts(
 	ctx context.Context,
-	graduateClasses []string,
-) ([]*education.StudentClassInfo, error) {
-	if len(graduateClasses) == 0 {
-		return nil, nil
+	promoteClasses, graduateClasses []string,
+) (promotions, graduates []*education.StudentClassInfo, err error) {
+	classes := make([]string, 0, len(promoteClasses)+len(graduateClasses))
+	classes = append(classes, promoteClasses...)
+	classes = append(classes, graduateClasses...)
+	if len(classes) == 0 {
+		return nil, nil, nil
 	}
 
-	students, err := s.transitionRepo.GetStudentsByClasses(ctx, graduateClasses)
+	students, err := s.transitionRepo.GetStudentsByClasses(ctx, classes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get graduating students: %w", err)
+		return nil, nil, fmt.Errorf("failed to get transition students: %w", err)
 	}
 	if len(students) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	sort.Slice(students, func(i, j int) bool { return students[i].StudentID < students[j].StudentID })
 
-	if s.studentRepo == nil {
-		return students, nil
-	}
+	graduateSet := classSet(graduateClasses)
+	promoteSet := classSet(promoteClasses)
 
 	// The kiosk/web check-in write path also takes a FOR UPDATE lock on the
 	// student row (services/active.ensureStudentCheckinAllowed), so the two
 	// transactions serialize on the shared row instead of racing: either a
-	// concurrent check-in commits first and we observe its open record below (and
-	// refuse), or we win the lock and the check-in re-reads the alumnus status
-	// afterwards (and refuses).
-	locked := make([]*education.StudentClassInfo, 0, len(students))
+	// concurrent check-in commits first and we observe its open record in the
+	// check-in guard (and refuse), or we win the lock and the check-in re-reads
+	// the alumnus status afterwards (and refuses).
 	for _, student := range students {
-		if _, err := s.studentRepo.FindByIDForUpdate(ctx, student.StudentID); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				continue // row vanished before we could lock it — nothing to graduate
-			}
-			return nil, fmt.Errorf("failed to lock graduating student %d: %w", student.StudentID, err)
+		current, err := s.lockAndRefreshStudent(ctx, student)
+		if err != nil {
+			return nil, nil, err
 		}
-		locked = append(locked, student)
+		if current == nil {
+			continue // row vanished, or is already an alumnus — nothing to do
+		}
+
+		switch {
+		case graduateSet[current.SchoolClass]:
+			graduates = append(graduates, current)
+		case promoteSet[current.SchoolClass]:
+			promotions = append(promotions, current)
+		default:
+			// Moved out of every mapped class since the snapshot — this
+			// transition has no claim on the child anymore.
+		}
 	}
 
-	return locked, nil
+	return promotions, graduates, nil
+}
+
+// lockAndRefreshStudent locks one student row and returns the cohort entry built
+// from the LOCKED row's class and status. Returns (nil, nil) when the row
+// vanished before it could be locked or is already an alumnus.
+func (s *GradeTransitionService) lockAndRefreshStudent(
+	ctx context.Context,
+	snapshot *education.StudentClassInfo,
+) (*education.StudentClassInfo, error) {
+	if s.studentRepo == nil {
+		return snapshot, nil
+	}
+
+	locked, err := s.studentRepo.FindByIDForUpdate(ctx, snapshot.StudentID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to lock transition student %d: %w", snapshot.StudentID, err)
+	}
+	if locked.Status == users.StudentStatusAlumnus {
+		return nil, nil
+	}
+
+	// person_name stays from the snapshot: it is an audit-trail label, and the
+	// locked row carries no person join.
+	return &education.StudentClassInfo{
+		StudentID:   snapshot.StudentID,
+		PersonID:    locked.PersonID,
+		PersonName:  snapshot.PersonName,
+		SchoolClass: locked.SchoolClass,
+		Status:      string(locked.Status),
+	}, nil
+}
+
+// classSet builds a lookup set of class names.
+func classSet(classes []string) map[string]bool {
+	set := make(map[string]bool, len(classes))
+	for _, c := range classes {
+		set[c] = true
+	}
+	return set
 }
 
 // reconcileGraduatedRosters removes the graduated students from already-
-// materialized future timetable rosters. No-op when no reconciler is wired.
+// materialized rosters. No-op when no reconciler is wired.
 func (s *GradeTransitionService) reconcileGraduatedRosters(
 	ctx context.Context,
+	transitionID int64,
 	graduates []*education.StudentClassInfo,
 ) error {
 	if s.rosterReconciler == nil || len(graduates) == 0 {
 		return nil
 	}
-	if err := s.rosterReconciler.RemoveStudentsFromFutureRosters(ctx, studentIDsOf(graduates)); err != nil {
+	if err := s.rosterReconciler.RemoveStudentsFromFutureRosters(ctx, transitionID, studentIDsOf(graduates)); err != nil {
 		return fmt.Errorf("failed to reconcile graduated rosters: %w", err)
 	}
 	return nil
@@ -699,22 +770,18 @@ func categorizeMappings(mappings []*education.GradeTransitionMapping) (promote, 
 }
 
 // recordTransitionHistory creates history records for all affected students.
-// Promoted students are read from their (promote) classes here; graduating
-// students are the already FOR UPDATE-locked set threaded in from the caller, so
-// the rows recorded in history are exactly the rows that get graduated (#405
+// Both cohorts are the already FOR UPDATE-locked, re-validated sets threaded in
+// from the caller, so the rows recorded in history are exactly the rows that get
+// promoted and graduated — no student is transitioned without a history row to
+// revert, and no history row describes a student the writes never touched (#405
 // review).
 func (s *GradeTransitionService) recordTransitionHistory(
 	ctx context.Context,
 	transitionID int64,
 	mappings []*education.GradeTransitionMapping,
-	promoteClasses []string,
+	promoted []*education.StudentClassInfo,
 	graduates []*education.StudentClassInfo,
 ) error {
-	promoted, err := s.transitionRepo.GetStudentsByClasses(ctx, promoteClasses)
-	if err != nil {
-		return fmt.Errorf("failed to get students: %w", err)
-	}
-
 	// A student belongs to exactly one class, which is either a promote class or
 	// a graduate class, so the two sets are disjoint — no dedup needed.
 	students := make([]*education.StudentClassInfo, 0, len(promoted)+len(graduates))
@@ -777,20 +844,58 @@ func buildHistoryRecords(
 	return records
 }
 
-// applyPromotions updates student classes for promotions.
+// applyPromotions moves exactly the FOR UPDATE-locked, history-recorded
+// promotion cohort into its mapped class — never a class-wide update.
+//
+// A class-wide UPDATE re-evaluates membership at write time, so a child created
+// or moved into a promoted class between the history snapshot and the write was
+// promoted with no history row and could never be reverted, while the inverse
+// race recorded history for a child the update no longer matched. Updating the
+// locked ID set makes the recorded and mutated rows identical (#405 review).
+//
+// One guarded UPDATE per from-class keeps the mapping explicit and lets the
+// repository re-assert the from-class in the WHERE.
 func (s *GradeTransitionService) applyPromotions(
 	ctx context.Context,
-	transitionID int64,
-	promoteClasses []string,
+	mappings []*education.GradeTransitionMapping,
+	promotions []*education.StudentClassInfo,
 	result *TransitionResult,
 ) error {
-	if len(promoteClasses) == 0 {
+	if len(promotions) == 0 {
 		return nil
 	}
-	promoted, err := s.transitionRepo.UpdateStudentClasses(ctx, transitionID)
-	if err != nil {
-		return fmt.Errorf("failed to promote students: %w", err)
+
+	classMapping := buildClassMapping(mappings)
+
+	byFromClass := make(map[string][]int64)
+	for _, student := range promotions {
+		toClass := classMapping[student.SchoolClass]
+		if toClass == nil || *toClass == "" {
+			// Defensive: a promotion cohort member always has a destination.
+			continue
+		}
+		byFromClass[student.SchoolClass] = append(byFromClass[student.SchoolClass], student.StudentID)
 	}
+
+	// Deterministic statement order so concurrent applies of different
+	// transitions cannot interleave their class updates in opposite orders.
+	fromClasses := make([]string, 0, len(byFromClass))
+	for fromClass := range byFromClass {
+		fromClasses = append(fromClasses, fromClass)
+	}
+	sort.Strings(fromClasses)
+
+	var promoted int64
+	for _, fromClass := range fromClasses {
+		n, err := s.transitionRepo.PromoteStudentsByIDs(
+			ctx, byFromClass[fromClass], fromClass, *classMapping[fromClass],
+		)
+		if err != nil {
+			return fmt.Errorf("failed to promote students: %w", err)
+		}
+		promoted += n
+	}
+
 	result.StudentsPromoted = int(promoted)
 	return nil
 }
@@ -926,20 +1031,22 @@ func (s *GradeTransitionService) executeRevert(
 		return err
 	}
 
-	// Re-add the restored children to already-materialized upcoming rosters they
-	// were dropped from (on apply) or never added to (materialized while alumni)
-	// (#405 review).
-	if err := s.reconcileRestoredRosters(ctx, graduated); err != nil {
+	// Re-add the restored children to already-materialized rosters they were
+	// dropped from (on apply, replayed verbatim from the archive) or never added
+	// to (materialized while alumni) (#405 review).
+	if err := s.reconcileRestoredRosters(ctx, transition, graduated); err != nil {
 		return err
 	}
 
 	return s.markTransitionReverted(ctx, transition, accountID)
 }
 
-// reconcileRestoredRosters re-adds the reactivated students to future timetable
-// rosters their enrollment still covers. No-op when no reconciler is wired.
+// reconcileRestoredRosters re-adds the reactivated students to the rosters this
+// transition took them off, and fills the instances materialized after the apply
+// from enrollments. No-op when no reconciler is wired.
 func (s *GradeTransitionService) reconcileRestoredRosters(
 	ctx context.Context,
+	transition *education.GradeTransition,
 	graduated []*education.GradeTransitionHistory,
 ) error {
 	if s.rosterReconciler == nil || len(graduated) == 0 {
@@ -949,7 +1056,19 @@ func (s *GradeTransitionService) reconcileRestoredRosters(
 	for _, h := range graduated {
 		ids = append(ids, h.StudentID)
 	}
-	if err := s.rosterReconciler.RestoreStudentsToFutureRosters(ctx, ids); err != nil {
+
+	// Everything materialized after the apply is what the materializer built
+	// while these children were alumni — only those instances may be filled from
+	// enrollments; older ones are owned by the archive replay. A transition
+	// without an applied_at (impossible for an applied row, but the column is
+	// nullable) falls back to "now", which fills nothing rather than risking a
+	// reconstruction over hand-edited rosters.
+	materializedAfter := time.Now()
+	if transition.AppliedAt != nil {
+		materializedAfter = *transition.AppliedAt
+	}
+
+	if err := s.rosterReconciler.RestoreStudentsToFutureRosters(ctx, transition.ID, ids, materializedAfter); err != nil {
 		return fmt.Errorf("failed to reconcile restored rosters: %w", err)
 	}
 	return nil

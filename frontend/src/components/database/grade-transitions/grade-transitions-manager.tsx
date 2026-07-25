@@ -108,6 +108,25 @@ function pickLatestRevertable(
   return latest;
 }
 
+// A revert can only be partial: a promoted child deleted or moved to another
+// class since the transition is left alone, and so is a graduate whose status
+// changed after the apply. The backend reports each skipped group as a warning —
+// swallowing them tells the admin every child was restored when some were not.
+//
+// The warnings arrive in English (they double as server log text), so the two
+// shapes the revert can produce are translated here and anything else is shown
+// verbatim rather than dropped.
+function describeRevertWarning(warning: string): string {
+  const count = /^(\d+)/.exec(warning)?.[1] ?? "";
+  if (warning.includes("could not be reverted")) {
+    return `${count} versetzte Kinder konnten nicht zurückversetzt werden (seither gelöscht oder in eine andere Klasse verschoben).`.trim();
+  }
+  if (warning.includes("could not be restored")) {
+    return `${count} Abgänge konnten nicht wiederhergestellt werden (seither gelöscht oder Status geändert).`.trim();
+  }
+  return warning;
+}
+
 export function GradeTransitionsManager({
   permissions = FULL_ACCESS,
 }: {
@@ -165,9 +184,17 @@ export function GradeTransitionsManager({
     setBusy(true);
     try {
       const result = await revertGradeTransition(revertTarget.id);
-      toast.success(
-        `Jahrgangswechsel zurückgesetzt: ${result.studentsPromoted} Kinder zurückversetzt, ${result.studentsGraduated} Abgänge wiederhergestellt.`,
-      );
+      const summary = `${result.studentsPromoted} Kinder zurückversetzt, ${result.studentsGraduated} Abgänge wiederhergestellt`;
+      if (result.warnings.length > 0) {
+        toast.warning(
+          `Jahrgangswechsel nur teilweise zurückgesetzt: ${summary}. ${result.warnings
+            .map(describeRevertWarning)
+            .join(" ")}`,
+          { duration: 12000 },
+        );
+      } else {
+        toast.success(`Jahrgangswechsel zurückgesetzt: ${summary}.`);
+      }
       setRevertTarget(null);
       void refresh();
     } catch (error) {

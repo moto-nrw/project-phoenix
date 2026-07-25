@@ -760,8 +760,10 @@ func (r *InstanceStudentRepository) DeleteByInstanceID(ctx context.Context, inst
 	return nil
 }
 
-// DeletePlannedByStudentIDsAfter removes the given students' still-planned
-// attendance rows on non-cancelled instances dated strictly after `after`.
+// ArchivePlannedByStudentIDsFrom removes the given students' still-planned
+// attendance rows on non-cancelled instances dated on or after `from`, and
+// snapshots every removed row into schedule.grade_transition_roster_removals
+// under `transitionID` so the transition's revert can put them back verbatim.
 //
 // "Planned" is deliberately wider than status = 'expected': a future status day
 // (planned sickness, excusal, class trip) rewrites the row to 'absent' with a
@@ -769,39 +771,142 @@ func (r *InstanceStudentRepository) DeleteByInstanceID(ctx context.Context, inst
 // and counted in slot-list Plan/Abgleich reads and future exports, which load
 // every instance row regardless of status. So the predicate excludes only rows
 // that record something that actually HAPPENED — an observed presence or a
-// stamped check-in/checkout — which a future-dated instance cannot legitimately
-// carry but which must never be destroyed if corrupt data does (#405 review).
+// stamped check-in/checkout (#405 review).
 //
-// Cross-table predicate (join on activity_instances for date/status), so it is
-// expressed as one DELETE ... USING statement in the repository rather than the
-// generic builder. Tenant-scoped; a nil/empty student set is a no-op.
-func (r *InstanceStudentRepository) DeletePlannedByStudentIDsAfter(ctx context.Context, studentIDs []int64, after timezone.Date) (int, error) {
+// The date bound is INCLUSIVE of `from` (today, for a graduation): slot-list
+// eligibleOn decides visibility from the enrollment interval, not from alumnus
+// status, so a still-planned row on a later block of the current day would keep
+// a departed child in today's Plan/Abgleich lists and staffing counts. Rows that
+// already recorded an event today are excluded by the predicate above and stay
+// as the historical record (#405 review).
+//
+// Cross-table predicate (join on activity_instances for date/status) plus the
+// archive write, so it is expressed as one data-modifying CTE in the repository
+// rather than the generic builder. Tenant-scoped; a nil/empty student set is a
+// no-op.
+func (r *InstanceStudentRepository) ArchivePlannedByStudentIDsFrom(
+	ctx context.Context, transitionID int64, studentIDs []int64, from timezone.Date,
+) (int, error) {
 	if len(studentIDs) == 0 {
 		return 0, nil
 	}
 
 	const rawSQL = `
-		DELETE FROM schedule.instance_students AS s
-		USING schedule.activity_instances AS ai
-		WHERE s.instance_id = ai.id
-		  AND s.student_id IN (?)
-		  AND s.status <> ?
-		  AND s.checked_in_at IS NULL
-		  AND s.checked_out_at IS NULL
-		  AND ai.date > ?
-		  AND ai.status <> ?
-		  AND s.tenant_id = ?`
+		WITH removed AS (
+			DELETE FROM schedule.instance_students AS s
+			USING schedule.activity_instances AS ai
+			WHERE s.instance_id = ai.id
+			  AND s.student_id IN (?)
+			  AND s.status <> ?
+			  AND s.checked_in_at IS NULL
+			  AND s.checked_out_at IS NULL
+			  AND ai.date >= ?
+			  AND ai.status <> ?
+			  AND s.tenant_id = ?
+			RETURNING s.*
+		)
+		INSERT INTO schedule.grade_transition_roster_removals (
+			tenant_id, transition_id, instance_id, student_id, room_id, status,
+			substatus, note, is_unplanned, not_scheduled, manual_status_at,
+			student_status_day_id
+		)
+		SELECT removed.tenant_id, ?, removed.instance_id, removed.student_id,
+		       removed.room_id, removed.status, removed.substatus, removed.note,
+		       removed.is_unplanned, removed.not_scheduled, removed.manual_status_at,
+		       removed.student_status_day_id
+		FROM removed
+		ON CONFLICT (transition_id, instance_id, student_id) DO UPDATE SET
+			room_id               = EXCLUDED.room_id,
+			status                = EXCLUDED.status,
+			substatus             = EXCLUDED.substatus,
+			note                  = EXCLUDED.note,
+			is_unplanned          = EXCLUDED.is_unplanned,
+			not_scheduled         = EXCLUDED.not_scheduled,
+			manual_status_at      = EXCLUDED.manual_status_at,
+			student_status_day_id = EXCLUDED.student_status_day_id,
+			created_at            = NOW()`
 
 	result, err := base.GetDB(ctx, r.db).ExecContext(ctx, rawSQL,
 		bun.List(studentIDs),
 		schedule.AttendanceStatusPresent,
-		after,
+		from,
 		schedule.InstanceStatusCancelled,
+		tenant.FromContext(ctx),
+		transitionID,
+	)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "archive planned by student ids from",
+			Err: err,
+		}
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "get rows affected",
+			Err: err,
+		}
+	}
+	return int(affected), nil
+}
+
+// RestoreArchivedByTransition replays the rows ArchivePlannedByStudentIDsFrom
+// removed for `transitionID` and consumes the archive entries, so the revert is
+// the exact inverse of the apply: an occurrence a supervisor had customized by
+// hand comes back exactly as it was, and a row the apply did NOT remove is never
+// invented (reconstructing rosters from enrollments does both wrong — #405
+// review).
+//
+// room_id and student_status_day_id are re-validated against their current rows
+// instead of being trusted: a room or status day deleted during the alumnus
+// window restores as NULL rather than failing the whole revert on a foreign key.
+// ON CONFLICT DO NOTHING covers a row that already exists again (a re-run, or a
+// manual re-add during the alumnus window) — the existing row wins.
+//
+// (The archiving direction upserts instead, so a repeated archive of the same
+// pair refreshes the snapshot rather than silently keeping a stale one.)
+func (r *InstanceStudentRepository) RestoreArchivedByTransition(
+	ctx context.Context, transitionID int64, studentIDs []int64,
+) (int, error) {
+	if len(studentIDs) == 0 {
+		return 0, nil
+	}
+
+	const rawSQL = `
+		WITH restored AS (
+			DELETE FROM schedule.grade_transition_roster_removals AS rm
+			WHERE rm.transition_id = ?
+			  AND rm.student_id IN (?)
+			  AND rm.tenant_id = ?
+			RETURNING rm.*
+		)
+		INSERT INTO schedule.instance_students (
+			tenant_id, instance_id, student_id, room_id, status, substatus, note,
+			is_unplanned, not_scheduled, manual_status_at, student_status_day_id,
+			created_at, updated_at
+		)
+		SELECT restored.tenant_id, restored.instance_id, restored.student_id,
+		       room.id, restored.status, restored.substatus, restored.note,
+		       restored.is_unplanned, restored.not_scheduled, restored.manual_status_at,
+		       status_day.id, NOW(), NOW()
+		FROM restored
+		LEFT JOIN facilities.rooms AS room
+		       ON room.id = restored.room_id
+		      AND room.tenant_id = restored.tenant_id
+		LEFT JOIN active.student_status_days AS status_day
+		       ON status_day.id = restored.student_status_day_id
+		      AND status_day.tenant_id = restored.tenant_id
+		ON CONFLICT (instance_id, student_id) DO NOTHING`
+
+	result, err := base.GetDB(ctx, r.db).ExecContext(ctx, rawSQL,
+		transitionID,
+		bun.List(studentIDs),
 		tenant.FromContext(ctx),
 	)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
-			Op:  "delete planned by student ids after",
+			Op:  "restore archived rows by transition",
 			Err: err,
 		}
 	}

@@ -21,6 +21,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // TestGradeTransitionService_Apply_ReconcilesFutureRosters covers the P1 fix:
@@ -30,7 +31,7 @@ import (
 // touched.
 func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	reconciler := scheduleSvc.NewRosterReconciler(
 		scheduleRepo.NewActivityInstanceRepository(db),
@@ -131,4 +132,197 @@ func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
 	require.NoError(t, db.NewSelect().TableExpr(`schedule.instance_students`).Column("status").
 		Where("instance_id = ?", futureInstance.ID).Where("student_id = ?", student.ID).Scan(ctx, &restoredStatus))
 	assert.Equal(t, scheduleModel.AttendanceStatusExpected, restoredStatus)
+}
+
+// TestGradeTransitionService_Revert_PreservesPerOccurrenceRosterEdits covers the
+// P1 fix: apply/revert must be exact inverses of each other on the roster.
+// Reconstructing future rosters from enrollments is not an inverse — it
+// resurrects a child a supervisor deliberately removed from one occurrence, and
+// it can never recreate a child hand-added to one occurrence with no enrollment
+// behind them. The apply therefore archives every row it deletes and the revert
+// replays exactly those.
+func TestGradeTransitionService_Revert_PreservesPerOccurrenceRosterEdits(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := newRosterReconcilingTransitionService(t, db)
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-roster-edits@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	gradClass := fmt.Sprintf("4edits-%s", suffix)
+
+	enrolledGroup := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("AG-enrolled-%s", suffix))
+	guestGroup := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("AG-guest-%s", suffix))
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Room-%s", suffix))
+	student := testpkg.CreateTestStudent(t, db, "Edited", "Roster", gradClass)
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, enrolledGroup.ID, guestGroup.ID, room.ID)
+
+	today := timezone.TodayDate()
+
+	// Two occurrences of the group the child is enrolled in, and one occurrence
+	// of a group they are NOT enrolled in.
+	keptInstance := testpkg.CreateTestActivityInstance(t, db, today.AddDays(7), room.ID,
+		testpkg.ActivityInstanceOpts{ActivityGroupID: &enrolledGroup.ID})
+	excusedInstance := testpkg.CreateTestActivityInstance(t, db, today.AddDays(14), room.ID,
+		testpkg.ActivityInstanceOpts{ActivityGroupID: &enrolledGroup.ID})
+	guestInstance := testpkg.CreateTestActivityInstance(t, db, today.AddDays(10), room.ID,
+		testpkg.ActivityInstanceOpts{ActivityGroupID: &guestGroup.ID})
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances",
+		keptInstance.ID, excusedInstance.ID, guestInstance.ID)
+
+	// The roster as a supervisor left it: on the first occurrence, hand-removed
+	// from the second (no row despite the enrollment), and hand-added as a guest
+	// to an occurrence of a group they have no enrollment for.
+	keptRow := testpkg.CreateTestInstanceStudent(t, db, keptInstance.ID, student.ID,
+		scheduleModel.AttendanceStatusExpected)
+	guestRow := testpkg.CreateTestInstanceStudent(t, db, guestInstance.ID, student.ID,
+		scheduleModel.AttendanceStatusExpected)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", keptRow.ID, guestRow.ID)
+
+	enrollment := &activitiesModel.StudentEnrollment{
+		StudentID:       student.ID,
+		ActivityGroupID: enrolledGroup.ID,
+		ValidFrom:       today.AddDays(-30),
+	}
+	enrollment.SetTenantID(1)
+	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
+	require.NoError(t, err)
+	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
+
+	countRow := func(instanceID int64) int {
+		n, cErr := db.NewSelect().
+			TableExpr(`schedule.instance_students`).
+			Where("instance_id = ?", instanceID).
+			Where("student_id = ?", student.ID).
+			Count(ctx)
+		require.NoError(t, cErr)
+		return n
+	}
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	_, err = service.Apply(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	assert.Equal(t, 0, countRow(keptInstance.ID))
+	assert.Equal(t, 0, countRow(guestInstance.ID), "the hand-added guest row is dropped like any other planned row")
+	assert.Equal(t, 0, countRow(excusedInstance.ID))
+
+	_, err = service.Revert(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, countRow(keptInstance.ID), "the row the apply removed comes back")
+	assert.Equal(t, 1, countRow(guestInstance.ID),
+		"a hand-added row with no enrollment behind it must come back too")
+	assert.Equal(t, 0, countRow(excusedInstance.ID),
+		"an occurrence the child was deliberately taken off must NOT be resurrected from the enrollment")
+}
+
+// TestGradeTransitionService_Apply_RemovesTodaysPlannedRows covers the P2 fix:
+// a transition applied during the school day must also clear the graduate's
+// still-planned rows on the day's remaining blocks. Slot-list reads decide
+// visibility from the enrollment interval, not from alumnus status, so a
+// leftover row keeps the departed child in today's Plan/Abgleich lists and
+// staffing counts. Rows that already recorded an event stay as history.
+func TestGradeTransitionService_Apply_RemovesTodaysPlannedRows(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := newRosterReconcilingTransitionService(t, db)
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-roster-today@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	gradClass := fmt.Sprintf("4today-%s", suffix)
+
+	activityGroup := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("AG-%s", suffix))
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Room-%s", suffix))
+	student := testpkg.CreateTestStudent(t, db, "Today", "Child", gradClass)
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, activityGroup.ID, room.ID)
+
+	today := timezone.TodayDate()
+
+	// Two blocks of the same group on the same day (distinct time windows — the
+	// template-unique index forbids two identical ones).
+	plannedToday := testpkg.CreateTestActivityInstance(t, db, today, room.ID,
+		testpkg.ActivityInstanceOpts{
+			ActivityGroupID: &activityGroup.ID,
+			StartHHMM:       "14:00",
+			EndHHMM:         "15:00",
+		})
+	observedToday := testpkg.CreateTestActivityInstance(t, db, today, room.ID,
+		testpkg.ActivityInstanceOpts{
+			ActivityGroupID: &activityGroup.ID,
+			StartHHMM:       "15:15",
+			EndHHMM:         "16:15",
+		})
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances",
+		plannedToday.ID, observedToday.ID)
+
+	plannedRow := testpkg.CreateTestInstanceStudent(t, db, plannedToday.ID, student.ID,
+		scheduleModel.AttendanceStatusExpected)
+	observedRow := testpkg.CreateTestInstanceStudent(t, db, observedToday.ID, student.ID,
+		scheduleModel.AttendanceStatusPresent)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", plannedRow.ID, observedRow.ID)
+
+	countRow := func(instanceID int64) int {
+		n, cErr := db.NewSelect().
+			TableExpr(`schedule.instance_students`).
+			Where("instance_id = ?", instanceID).
+			Where("student_id = ?", student.ID).
+			Count(ctx)
+		require.NoError(t, cErr)
+		return n
+	}
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	_, err := service.Apply(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	assert.Equal(t, 0, countRow(plannedToday.ID),
+		"a still-planned block later today must not keep showing the departed child")
+	assert.Equal(t, 1, countRow(observedToday.ID),
+		"a row recording an actual presence today is history and must survive")
+
+	_, err = service.Revert(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, countRow(plannedToday.ID), "the revert puts today's planned row back")
+	assert.Equal(t, 1, countRow(observedToday.ID))
+}
+
+// newRosterReconcilingTransitionService wires the grade transition service with
+// a real RosterReconciler (the production wiring in services.Factory).
+func newRosterReconcilingTransitionService(t *testing.T, db *bun.DB) *educationService.GradeTransitionService {
+	t.Helper()
+
+	reconciler := scheduleSvc.NewRosterReconciler(
+		scheduleRepo.NewActivityInstanceRepository(db),
+		scheduleRepo.NewInstanceStudentRepository(db),
+		activitiesRepo.NewStudentEnrollmentRepository(db),
+		nil,
+	)
+	return educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
+		TransitionRepo:   educationRepo.NewGradeTransitionRepository(db),
+		StudentRepo:      usersRepo.NewStudentRepository(db),
+		PersonRepo:       usersRepo.NewPersonRepository(db),
+		VisitRepo:        activeRepo.NewVisitRepository(db),
+		AttendanceRepo:   activeRepo.NewAttendanceRepository(db),
+		RosterReconciler: reconciler,
+		DB:               db,
+	})
 }

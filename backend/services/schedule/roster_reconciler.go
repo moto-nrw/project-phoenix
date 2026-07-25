@@ -4,14 +4,15 @@ import (
 	"cmp"
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
-// RosterReconciler adjusts already-materialized FUTURE timetable rosters when a
-// grade transition changes a student's lifecycle status.
+// RosterReconciler adjusts already-materialized timetable rosters when a grade
+// transition changes a student's lifecycle status.
 //
 // The materializer is insert-only: it never mutates existing instance_students
 // rows, and it copies enrollments for a new instance based on the student's
@@ -22,6 +23,18 @@ import (
 // materializer skipped them, and it will never revisit an existing instance).
 // This service closes both gaps inside the same transaction as the apply/revert
 // (#405 review).
+//
+// The two directions are deliberately asymmetric in HOW they work:
+//
+//   - Apply archives every row it deletes, so the revert can replay exactly
+//     those rows. Reconstructing a roster from enrollments is NOT the inverse of
+//     the deletion — a child a supervisor had removed from one occurrence by
+//     hand would come back, and a child hand-added to one occurrence without a
+//     matching enrollment could never be recreated (#405 review).
+//   - Only instances materialized DURING the alumnus window (created after the
+//     transition was applied) are filled from enrollments, because those are
+//     precisely the instances the materializer skipped the child on and for
+//     which no archive entry can exist.
 type RosterReconciler struct {
 	instanceRepo        schedule.ActivityInstanceRepository
 	instanceStudentRepo schedule.InstanceStudentRepository
@@ -50,71 +63,120 @@ func (s *RosterReconciler) getLogger() *slog.Logger {
 }
 
 // RemoveStudentsFromFutureRosters deletes still-planned attendance rows for the
-// given (now graduated) students on non-cancelled instances dated strictly after
-// today. Past and today's rows are kept as a historical record.
+// given (now graduated) students on non-cancelled instances dated today or
+// later, archiving every removed row under transitionID.
 //
-// "Still planned" covers more than status 'expected': a future status day
-// (planned sickness, excusal, class trip) has already rewritten such a row to
-// 'absent', and slot-list Plan/Abgleich reads load every instance row regardless
-// of status — eligibleOn filters on the enrollment interval, not on alumnus — so
-// a row left behind keeps the departed child visible and counted in future
-// exports. Only rows recording an actual event (observed presence or a stamped
-// check-in/checkout) survive (#405 review).
-func (s *RosterReconciler) RemoveStudentsFromFutureRosters(ctx context.Context, studentIDs []int64) error {
+// "Still planned" covers more than status 'expected': a status day (planned
+// sickness, excusal, class trip) has already rewritten such a row to 'absent',
+// and slot-list Plan/Abgleich reads load every instance row regardless of
+// status — eligibleOn filters on the enrollment interval, not on alumnus — so a
+// row left behind keeps the departed child visible and counted in today's and
+// future exports. Only rows recording an actual event (observed presence or a
+// stamped check-in/checkout) survive, today's included (#405 review).
+func (s *RosterReconciler) RemoveStudentsFromFutureRosters(ctx context.Context, transitionID int64, studentIDs []int64) error {
 	if len(studentIDs) == 0 {
 		return nil
 	}
-	after := timezone.TodayDate()
-	removed, err := s.instanceStudentRepo.DeletePlannedByStudentIDsAfter(ctx, studentIDs, after)
+	// Inclusive of today: a graduation applied mid-day must also clear the
+	// child's still-planned rows on the day's remaining blocks, which today's
+	// slot-list reads would otherwise keep showing.
+	from := timezone.TodayDate()
+	removed, err := s.instanceStudentRepo.ArchivePlannedByStudentIDsFrom(ctx, transitionID, studentIDs, from)
 	if err != nil {
 		return &ScheduleError{Op: "reconcile roster: remove graduated students", Err: err}
 	}
-	s.getLogger().Info("reconciled future rosters after graduation",
+	s.getLogger().Info("reconciled rosters after graduation",
+		slog.Int64("transition_id", transitionID),
 		slog.Int("students", len(studentIDs)),
 		slog.Int("rows_removed", removed),
 	)
 	return nil
 }
 
-// RestoreStudentsToFutureRosters re-adds the given (now reactivated) students to
-// future planned template-backed instances their enrollment still covers but
-// which were materialized while they were alumni. Existing rows are never
-// duplicated (the UNIQUE (instance_id, student_id) constraint and the in-memory
-// dedup both guard it), and only enrollment-valid (instance, student) pairs are
-// inserted — reusing the same validity predicate the materializer applies.
+// RestoreStudentsToFutureRosters undoes the apply's roster reconciliation for
+// the given (now reactivated) students:
 //
-// Restored rows go in as 'expected' and are then handed to
-// ApplyActiveStatusDaysForInstance, exactly as the materializer does after
-// copying enrollments: a child whose future date already carries an active
-// sickness / excusal / class-trip status day must come back as absent for that
-// date, not as expected (#405 review).
-func (s *RosterReconciler) RestoreStudentsToFutureRosters(ctx context.Context, studentIDs []int64) error {
+//  1. Every row the apply archived is replayed verbatim — same status,
+//     substatus, note, room, unplanned / non-booking / manual-status markers and
+//     owning status day. This preserves per-occurrence edits in both directions:
+//     a child deliberately removed from one occurrence before the transition is
+//     NOT resurrected (there is no archive entry for a row that never existed),
+//     and a child hand-added to one occurrence without an enrollment comes back.
+//
+//  2. Instances materialized DURING the alumnus window (created after
+//     materializedAfter) get the enrollment-valid rows the materializer skipped
+//     while the child was an alumnus, reusing the same validity predicate the
+//     materializer applies. Those rows go in as 'expected' and are then handed
+//     to ApplyActiveStatusDaysForInstance exactly as the materializer does after
+//     copying enrollments, so a child whose date already carries an active
+//     sickness / excusal / class-trip status day comes back as absent for that
+//     date rather than expected (#405 review).
+//
+// Instances that already existed when the transition was applied are NEVER
+// reconstructed from enrollments — step 1 owns them.
+func (s *RosterReconciler) RestoreStudentsToFutureRosters(
+	ctx context.Context, transitionID int64, studentIDs []int64, materializedAfter time.Time,
+) error {
 	if len(studentIDs) == 0 {
 		return nil
 	}
+
+	replayed, err := s.instanceStudentRepo.RestoreArchivedByTransition(ctx, transitionID, studentIDs)
+	if err != nil {
+		return &ScheduleError{Op: "reconcile roster: replay archived rows", Err: err}
+	}
+
+	restored, statusApplied, err := s.fillInstancesMaterializedDuringAlumnusWindow(ctx, studentIDs, materializedAfter)
+	if err != nil {
+		return err
+	}
+
+	s.getLogger().Info("reconciled rosters after revert",
+		slog.Int64("transition_id", transitionID),
+		slog.Int("students", len(studentIDs)),
+		slog.Int("rows_replayed", replayed),
+		slog.Int("rows_restored", restored),
+		slog.Int("status_days_applied", statusApplied),
+	)
+	return nil
+}
+
+// fillInstancesMaterializedDuringAlumnusWindow adds enrollment-valid rows for
+// the future planned template-backed instances created after materializedAfter,
+// i.e. the instances the materializer built while the students were alumni and
+// therefore skipped. Existing rows are never duplicated (the
+// UNIQUE (instance_id, student_id) constraint and the in-memory dedup both guard
+// it). Returns the rows created and the status-day rows subsequently stamped.
+func (s *RosterReconciler) fillInstancesMaterializedDuringAlumnusWindow(
+	ctx context.Context, studentIDs []int64, materializedAfter time.Time,
+) (int, int, error) {
 	after := timezone.TodayDate()
 
-	instances, err := s.instanceRepo.FindFuturePlannedTemplateBacked(ctx, after)
+	all, err := s.instanceRepo.FindFuturePlannedTemplateBacked(ctx, after)
 	if err != nil {
-		return &ScheduleError{Op: "reconcile roster: load future instances", Err: err}
-	}
-	if len(instances) == 0 {
-		return nil
+		return 0, 0, &ScheduleError{Op: "reconcile roster: load future instances", Err: err}
 	}
 
 	byGroup := make(map[int64][]*schedule.ActivityInstance)
-	instanceIDs := make([]int64, 0, len(instances))
-	for _, inst := range instances {
+	instanceIDs := make([]int64, 0, len(all))
+	for _, inst := range all {
 		if inst.ActivityGroupID == nil {
 			continue // defensive: the query already excludes NULL group IDs
+		}
+		if !inst.CreatedAt.After(materializedAfter) {
+			// Existed before the transition was applied — the archive owns it.
+			continue
 		}
 		byGroup[*inst.ActivityGroupID] = append(byGroup[*inst.ActivityGroupID], inst)
 		instanceIDs = append(instanceIDs, inst.ID)
 	}
+	if len(instanceIDs) == 0 {
+		return 0, 0, nil
+	}
 
 	existingRows, err := s.instanceStudentRepo.FindByInstanceIDs(ctx, instanceIDs)
 	if err != nil {
-		return &ScheduleError{Op: "reconcile roster: load existing rows", Err: err}
+		return 0, 0, &ScheduleError{Op: "reconcile roster: load existing rows", Err: err}
 	}
 	existing := make(map[instanceStudentPair]struct{}, len(existingRows))
 	for _, row := range existingRows {
@@ -128,7 +190,7 @@ func (s *RosterReconciler) RestoreStudentsToFutureRosters(ctx context.Context, s
 	for _, sid := range studentIDs {
 		enrollments, err := s.enrollmentRepo.FindByStudentID(ctx, sid)
 		if err != nil {
-			return &ScheduleError{Op: "reconcile roster: load enrollments", Err: err}
+			return 0, 0, &ScheduleError{Op: "reconcile roster: load enrollments", Err: err}
 		}
 		for _, e := range enrollments {
 			for _, inst := range byGroup[e.ActivityGroupID] {
@@ -149,7 +211,7 @@ func (s *RosterReconciler) RestoreStudentsToFutureRosters(ctx context.Context, s
 					Status:     schedule.AttendanceStatusExpected,
 				}
 				if err := s.instanceStudentRepo.Create(ctx, row); err != nil {
-					return &ScheduleError{Op: "reconcile roster: restore student", Err: err}
+					return 0, 0, &ScheduleError{Op: "reconcile roster: restore student", Err: err}
 				}
 				existing[key] = struct{}{}
 				touched[inst.ID] = inst.Date
@@ -169,17 +231,12 @@ func (s *RosterReconciler) RestoreStudentsToFutureRosters(ctx context.Context, s
 	for instanceID, date := range touched {
 		n, err := s.instanceStudentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, date)
 		if err != nil {
-			return &ScheduleError{Op: "reconcile roster: apply student status days", Err: err}
+			return 0, 0, &ScheduleError{Op: "reconcile roster: apply student status days", Err: err}
 		}
 		statusApplied += n
 	}
 
-	s.getLogger().Info("reconciled future rosters after revert",
-		slog.Int("students", len(studentIDs)),
-		slog.Int("rows_restored", restored),
-		slog.Int("status_days_applied", statusApplied),
-	)
-	return nil
+	return restored, statusApplied, nil
 }
 
 // instanceStudentPair keys the existing-row set so a (instance, student) is

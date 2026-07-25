@@ -19,17 +19,27 @@ import (
 )
 
 // letterOnlySuffix returns a short digit-free token so a class name never
-// accidentally matches the grade-number pattern (which any hex digit would).
+// accidentally matches the grade-number pattern (which any digit would).
+//
+// Hex digits are FOLDED onto letters rather than dropped: dropping them makes
+// the token's length depend on how many letters the random UUID happened to
+// contain, which can leave fewer characters than the slice below needs. Folding
+// keeps the token digit-free, always at least 32 characters long, and as unique
+// as the UUID it came from.
 func letterOnlySuffix(t *testing.T) string {
 	t.Helper()
 	raw := uuid.Must(uuid.NewV4()).String()
 	letters := strings.Map(func(r rune) rune {
-		if r >= 'a' && r <= 'z' {
+		switch {
+		case r >= 'a' && r <= 'z':
 			return r
+		case r >= '0' && r <= '9':
+			return 'q' + (r - '0') // 0-9 -> q-z
+		default:
+			return -1 // the UUID's hyphens
 		}
-		return -1
 	}, raw)
-	require.GreaterOrEqual(t, len(letters), 4)
+	require.GreaterOrEqual(t, len(letters), 6)
 	return letters[:6]
 }
 
@@ -198,7 +208,7 @@ func TestGradeTransitionService_Revert_PreservesLaterClassEdit(t *testing.T) {
 // no longer check out. The apply must be refused until they are checked out.
 func TestGradeTransitionService_Apply_RejectsCheckedInGraduate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
 		TransitionRepo: educationRepo.NewGradeTransitionRepository(db),
@@ -252,9 +262,13 @@ func TestGradeTransitionService_SuggestMappings_MarksAmbiguous(t *testing.T) {
 	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
 	defer cancel()
 
+	// Both names are built from digit-free tokens so their shape is deterministic:
+	// the ambiguous one carries no digit at all, and the numeric one is exactly
+	// "<grade><letters>", which the production pattern always matches. A random
+	// hex suffix would sometimes contain no digit after the hyphen and make the
+	// "numeric" class ambiguous too.
 	ambiguousClass := "sonder" + letterOnlySuffix(t)
-	numericSuffix := uuid.Must(uuid.NewV4()).String()[:8]
-	numericClass := fmt.Sprintf("2num-%s", numericSuffix)
+	numericClass := "2num" + letterOnlySuffix(t)
 
 	ambiguousStudent := testpkg.CreateTestStudent(t, db, "Odd", "Class", ambiguousClass)
 	numericStudent := testpkg.CreateTestStudent(t, db, "Normal", "Class", numericClass)

@@ -215,20 +215,34 @@ type InstanceStudentRepository interface {
 	// DeleteByInstanceID removes all attendance rows for an instance.
 	DeleteByInstanceID(ctx context.Context, instanceID int64) error
 
-	// DeletePlannedByStudentIDsAfter removes still-planned attendance rows for
-	// the given students on non-cancelled instances dated strictly after
-	// `after`. Past and in-progress-day rows are kept as a historical record,
-	// and so is any row that records an actual event — an observed presence or a
-	// stamped check-in/checkout. Rows a future status day rewrote to 'absent'
-	// (planned sickness, excusal, class trip) ARE removed: every timetable and
-	// slot-list reader loads instance rows irrespective of status, so leaving
-	// them behind keeps a departed child visible and counted (#405 review).
+	// ArchivePlannedByStudentIDsFrom removes still-planned attendance rows for
+	// the given students on non-cancelled instances dated on or after `from`,
+	// snapshotting each removed row under `transitionID` so the transition's
+	// revert can replay it verbatim.
+	//
+	// Past rows are kept as a historical record, and so is any row that records
+	// an actual event — an observed presence or a stamped check-in/checkout.
+	// Rows a status day rewrote to 'absent' (planned sickness, excusal, class
+	// trip) ARE removed: every timetable and slot-list reader loads instance
+	// rows irrespective of status, so leaving them behind keeps a departed child
+	// visible and counted (#405 review). The bound is inclusive so a graduation
+	// applied during the school day also clears the child's still-planned rows
+	// on later blocks of that same day.
 	//
 	// Used when a grade transition graduates a cohort after the scheduler has
 	// already materialized upcoming instances, so departed children stop
-	// counting on future timetables and staffing ratios. Tenant-scoped; returns
-	// the rows removed.
-	DeletePlannedByStudentIDsAfter(ctx context.Context, studentIDs []int64, after timezone.Date) (int, error)
+	// counting on current and future timetables and staffing ratios.
+	// Tenant-scoped; returns the rows removed.
+	ArchivePlannedByStudentIDsFrom(ctx context.Context, transitionID int64, studentIDs []int64, from timezone.Date) (int, error)
+
+	// RestoreArchivedByTransition replays the rows
+	// ArchivePlannedByStudentIDsFrom removed for `transitionID` (restricted to
+	// the given students) and consumes the archive entries. This is what makes a
+	// revert the exact inverse of the apply instead of a reconstruction from
+	// enrollments, which would resurrect occurrences a supervisor had removed by
+	// hand and could never recreate hand-added rows with no enrollment behind
+	// them (#405 review). Tenant-scoped; returns the rows restored.
+	RestoreArchivedByTransition(ctx context.Context, transitionID int64, studentIDs []int64) (int, error)
 
 	// UpdateAttendanceFromCheckin opens observed presence for an expected row,
 	// a broad-status absence, or a checked-out present row. It stamps the first
