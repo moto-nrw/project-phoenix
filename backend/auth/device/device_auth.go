@@ -220,10 +220,10 @@ type SchoolLookup interface {
 	GetSchoolByID(ctx context.Context, id int64) (*platform.School, error)
 }
 
-// StaffLookup is the narrow staff read used to resolve the optional
+// StaffByIDGetter is the narrow staff read used to resolve the optional
 // X-Staff-ID header into an authenticated staff context (issue #1439).
 // Satisfied by services/users.PersonService.
-type StaffLookup interface {
+type StaffByIDGetter interface {
 	GetStaffByID(ctx context.Context, id int64) (*users.Staff, error)
 }
 
@@ -235,7 +235,7 @@ type StaffLookup interface {
 // API key + OGS PIN already validated. Invalid or cross-tenant values are
 // logged and ignored — handlers that require staff identity (binary-mode
 // checkin) reject the request themselves.
-func resolveStaffContext(ctx context.Context, staffLookup StaffLookup, dev *iot.Device, header string) *users.Staff {
+func resolveStaffContext(ctx context.Context, staffLookup StaffByIDGetter, dev *iot.Device, header string) *users.Staff {
 	if header == "" || staffLookup == nil {
 		return nil
 	}
@@ -264,95 +264,109 @@ func resolveStaffContext(ctx context.Context, staffLookup StaffLookup, dev *iot.
 	return staff
 }
 
+func renderDeviceAuthError(w http.ResponseWriter, r *http.Request, errResp render.Renderer) {
+	if err := render.Render(w, r, errResp); err != nil {
+		slog.Error("failed to render device auth error", slog.String("error", err.Error()))
+	}
+}
+
+func resolveDevicePIN(ctx context.Context, tenantID int64, pinResolver PINResolver) string {
+	if pinResolver != nil && tenantID > 0 {
+		if pin := pinResolver(ctx, tenantID); pin != "" {
+			return pin
+		}
+	}
+
+	slog.Warn("settings service returned no PIN, falling back to OGS_DEVICE_PIN env var",
+		slog.Int64("tenant_id", tenantID),
+	)
+	return os.Getenv("OGS_DEVICE_PIN")
+}
+
+func validateDevicePIN(r *http.Request, device *iot.Device, pinResolver PINResolver) render.Renderer {
+	staffPIN := r.Header.Get("X-Staff-PIN")
+	if staffPIN == "" {
+		slog.Warn("device authentication failed: missing X-Staff-PIN header")
+		return ErrDeviceUnauthorized(ErrMissingPIN)
+	}
+
+	ogsPIN := resolveDevicePIN(r.Context(), device.TenantID, pinResolver)
+	if ogsPIN == "" {
+		slog.Error("OGS_DEVICE_PIN not configured")
+		return ErrDeviceUnauthorized(ErrInvalidPIN)
+	}
+
+	if !SecureCompareStrings(staffPIN, ogsPIN) {
+		slog.Warn("device authentication failed: invalid PIN")
+		return ErrDeviceUnauthorized(ErrInvalidPIN)
+	}
+
+	return nil
+}
+
+func authenticatedDeviceContext(
+	r *http.Request,
+	device *iot.Device,
+	staffLookup StaffByIDGetter,
+) context.Context {
+	ctx := context.WithValue(r.Context(), CtxDevice, device)
+	ctx = context.WithValue(ctx, CtxIsIoTDevice, true)
+
+	// Device-auth routes don't use jwt.TenantMiddleware.
+	if device.TenantID > 0 {
+		ctx = tenant.WithTenantID(ctx, device.TenantID)
+	}
+
+	if staff := resolveStaffContext(ctx, staffLookup, device, r.Header.Get("X-Staff-ID")); staff != nil {
+		ctx = context.WithValue(ctx, CtxStaff, staff)
+	}
+	return ctx
+}
+
+func serveAuthenticatedDeviceRequest(
+	w http.ResponseWriter,
+	r *http.Request,
+	next http.Handler,
+	iotService iotSvc.Service,
+	schools SchoolLookup,
+	staffLookup StaffByIDGetter,
+	pinResolver PINResolver,
+) {
+	device, errResp := extractAndValidateAPIKey(r, iotService)
+	if errResp != nil {
+		renderDeviceAuthError(w, r, errResp)
+		return
+	}
+
+	// Devices use long-lived API keys, so deleted schools must be blocked
+	// immediately rather than waiting for token expiry.
+	if errResp := rejectDeletedSchool(r.Context(), schools, device); errResp != nil {
+		renderDeviceAuthError(w, r, errResp)
+		return
+	}
+
+	if errResp := validateDevicePIN(r, device, pinResolver); errResp != nil {
+		renderDeviceAuthError(w, r, errResp)
+		return
+	}
+
+	ctx := authenticatedDeviceContext(r, device, staffLookup)
+	slog.Debug("device authentication successful",
+		slog.String("device_id", device.DeviceID),
+	)
+	updateDeviceLastSeen(r, iotService, device)
+	next.ServeHTTP(w, r.WithContext(ctx))
+}
+
 // DeviceAuthenticator is a middleware that validates device API keys and the global OGS PIN.
 // It requires both Authorization: Bearer <api_key> and X-Staff-PIN: <pin> headers.
 // The middleware sets device context for downstream handlers.
 // Rejects requests for devices belonging to soft-deleted schools.
 // pinResolver is optional — if nil, falls back to OGS_DEVICE_PIN env var.
-func DeviceAuthenticator(iotService iotSvc.Service, schools SchoolLookup, staffLookup StaffLookup, pinResolver PINResolver) func(http.Handler) http.Handler {
+func DeviceAuthenticator(iotService iotSvc.Service, schools SchoolLookup, staffLookup StaffByIDGetter, pinResolver PINResolver) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Validate API key and get device
-			device, errResp := extractAndValidateAPIKey(r, iotService)
-			if errResp != nil {
-				if err := render.Render(w, r, errResp); err != nil {
-					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
-				}
-				return
-			}
-
-			// Reject requests for devices belonging to soft-deleted schools.
-			// Devices use long-lived API keys (not 15-min JWTs), so deleted schools
-			// must be blocked immediately rather than waiting for token expiry.
-			if errResp := rejectDeletedSchool(r.Context(), schools, device); errResp != nil {
-				if err := render.Render(w, r, errResp); err != nil {
-					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
-				}
-				return
-			}
-
-			// Extract staff PIN from X-Staff-PIN header
-			staffPIN := r.Header.Get("X-Staff-PIN")
-			if staffPIN == "" {
-				slog.Warn("device authentication failed: missing X-Staff-PIN header")
-				if err := render.Render(w, r, ErrDeviceUnauthorized(ErrMissingPIN)); err != nil {
-					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
-				}
-				return
-			}
-
-			// Resolve OGS PIN: settings service (per-tenant) → env var fallback
-			var ogsPin string
-			if pinResolver != nil && device.TenantID > 0 {
-				ogsPin = pinResolver(r.Context(), device.TenantID)
-			}
-			if ogsPin == "" {
-				slog.Warn("settings service returned no PIN, falling back to OGS_DEVICE_PIN env var",
-					slog.Int64("tenant_id", device.TenantID),
-				)
-				ogsPin = os.Getenv("OGS_DEVICE_PIN")
-			}
-			if ogsPin == "" {
-				slog.Error("OGS_DEVICE_PIN not configured")
-				if err := render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN)); err != nil {
-					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
-				}
-				return
-			}
-
-			// Validate PIN using constant-time comparison
-			if !SecureCompareStrings(staffPIN, ogsPin) {
-				slog.Warn("device authentication failed: invalid PIN")
-				if err := render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN)); err != nil {
-					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
-				}
-				return
-			}
-
-			// Authentication successful - set device context
-			ctx := context.WithValue(r.Context(), CtxDevice, device)
-			ctx = context.WithValue(ctx, CtxIsIoTDevice, true)
-
-			// Inject tenant context from the authenticated device so
-			// tenant.FromContext(ctx) works in downstream services (e.g., CreateVisit).
-			// Device-auth routes don't use jwt.TenantMiddleware.
-			if device.TenantID > 0 {
-				ctx = tenant.WithTenantID(ctx, device.TenantID)
-			}
-
-			// Resolve the optional X-Staff-ID header into staff context so
-			// downstream handlers can attribute kiosk actions to the acting
-			// staff member (issue #1439).
-			if staff := resolveStaffContext(ctx, staffLookup, device, r.Header.Get("X-Staff-ID")); staff != nil {
-				ctx = context.WithValue(ctx, CtxStaff, staff)
-			}
-
-			slog.Debug("device authentication successful",
-				slog.String("device_id", device.DeviceID),
-			)
-			updateDeviceLastSeen(r, iotService, device)
-
-			next.ServeHTTP(w, r.WithContext(ctx))
+			serveAuthenticatedDeviceRequest(w, r, next, iotService, schools, staffLookup, pinResolver)
 		})
 	}
 }
