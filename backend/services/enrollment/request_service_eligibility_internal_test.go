@@ -105,6 +105,35 @@ func TestResolveMatchedStudentID_NonExistingAudienceSkips(t *testing.T) {
 	assert.Nil(t, id)
 }
 
+// The enrolled-student gate ran before the write tx and proved the child is
+// enrolled; an unpinned match afterwards means the scheduler flipped that
+// student's status underneath the submission. Approving it would create a
+// duplicate Person/Student, so the submission must be rejected instead (#1663).
+func TestAssertExistingStudentMatchResolved_RejectsRacedZeroMatch(t *testing.T) {
+	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
+
+	err := assertExistingStudentMatchResolved(phase, nil, true, 1)
+	require.ErrorIs(t, err, ErrChildNotEnrolled)
+	require.ErrorIs(t, err, ErrInvalidSubmission, "must keep the 400 category")
+}
+
+// Admin-manual / late-invite submissions skip the enrolled gate on purpose and
+// may create a fresh record, so an unpinned match stays legal for them.
+func TestAssertExistingStudentMatchResolved_TrustedPathKeepsFreshCreate(t *testing.T) {
+	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
+
+	require.NoError(t, assertExistingStudentMatchResolved(phase, nil, false, 0))
+}
+
+// A pinned match, and any non-existing_students audience, are unaffected.
+func TestAssertExistingStudentMatchResolved_PinnedAndOtherAudiencesPass(t *testing.T) {
+	existing := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
+	require.NoError(t, assertExistingStudentMatchResolved(existing, int64PtrEligibility(42), true, 0))
+
+	open := eligibilityTestPhase(enrollmentModels.PhaseAudienceOpen)
+	require.NoError(t, assertExistingStudentMatchResolved(open, nil, true, 0))
+}
+
 func eligibilityTestPhase(audience string, eligibleClasses ...string) *enrollmentModels.Phase {
 	return &enrollmentModels.Phase{
 		Audience:              audience,

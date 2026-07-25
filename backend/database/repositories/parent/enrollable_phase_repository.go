@@ -39,23 +39,28 @@ func NewEnrollablePhaseRepository(db *bun.DB) parentModels.EnrollablePhaseReposi
 // already_linked flag), so existing families keep seeing their own
 // school's re-enrollment phases.
 //
-// Eligibility (#1663): a phase with audience=linked_parents is listed
-// only when the account holds a guardian relationship at the school —
-// backed by an ACTIVE auth.account_tenants mapping — that grants
-// parent_portal.enrollment.submit. The active-mapping conjunction stops
-// a former guardian, whose historical guardian rows linger after the
-// mapping was deactivated, from still submitting linked_parents phases.
-// Independently, an existing_students phase is dropped for an account
-// that HAS guardian relationships but NONE grants that permission (via an
-// active mapping) — an explicitly revoked or lapsed submit permission must
-// not re-enroll an existing child through the picker. That account-wide
-// denial is deliberately scoped to existing_students (and linked_parents,
-// above): a pickup-only relationship on one child must NOT hide open /
-// new_students phases the same account can bootstrap a genuinely new child
-// into and submit via a direct URL — the authenticated submit path applies
-// no such account-wide denial (per-child authorization happens inside
-// Submit), so the picker must not either. Genuinely new-school applicants
-// (no guardian rows at all) still see open phases.
+// Eligibility (#1663): a phase whose audience is linked_parents OR
+// existing_students is listed only when the account holds a guardian
+// relationship at the school — backed by an ACTIVE auth.account_tenants
+// mapping — that grants parent_portal.enrollment.submit. The active-mapping
+// conjunction stops a former guardian, whose historical guardian rows linger
+// after the mapping was deactivated, from still submitting those phases.
+//
+// existing_students needs the SAME permission requirement as linked_parents,
+// including for an account with no guardian relationship at that school at
+// all: such an account can never complete one of those phases. A child it
+// does not already have fails the enrolled-student gate (ErrChildNotEnrolled),
+// and a child it does have pins a matched student the account holds no
+// per-student submit permission on (ErrChildEnrollmentNotPermitted). Listing
+// it would only advertise a guaranteed dead end.
+//
+// The denial stays deliberately scoped to those two audiences: a pickup-only
+// relationship on one child must NOT hide open / new_students phases the same
+// account can bootstrap a genuinely new child into and submit via a direct URL
+// — the authenticated submit path applies no such account-wide denial
+// (per-child authorization happens inside Submit), so the picker must not
+// either. Genuinely new-school applicants (no guardian rows at all) still see
+// open phases.
 //
 // Cross-tenant query — must run inside tenant.WithAdminTx.
 func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountID int64) ([]*parentModels.EnrollablePhase, error) {
@@ -83,8 +88,9 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 	// list entirely. The registry default for enrollment.enabled is
 	// false, so "no override" must be treated as disabled.
 	//
-	// The LATERAL guard resolves the account's guardian facts once per
-	// phase row; both WHERE clauses below consume it (see doc comment).
+	// The LATERAL guard resolves the account's submit permission once per
+	// phase row; the audience WHERE clause below consumes it (see doc
+	// comment).
 	const query = `
 		SELECT
 			sch.id        AS school_id,
@@ -118,15 +124,6 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 					JOIN users.students_guardians AS sg
 						ON sg.guardian_profile_id = gp.id
 						AND sg.tenant_id = gp.tenant_id
-					WHERE gp.tenant_id = ph.tenant_id
-						AND gp.account_id = ?
-				) AS has_guardian_link,
-				EXISTS (
-					SELECT 1
-					FROM users.guardian_profiles AS gp
-					JOIN users.students_guardians AS sg
-						ON sg.guardian_profile_id = gp.id
-						AND sg.tenant_id = gp.tenant_id
 					JOIN auth.account_tenants AS act
 						ON act.tenant_id  = gp.tenant_id
 						AND act.account_id = gp.account_id
@@ -142,16 +139,13 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 		  AND (sch.hidden = FALSE OR at.account_id IS NOT NULL)
 		  AND (ph.enrollment_open_at IS NULL OR ph.enrollment_open_at <= NOW())
 		  AND (ph.enrollment_close_at IS NULL OR ph.enrollment_close_at >= NOW())
-		  AND (ph.audience <> 'linked_parents' OR guard.has_submit_permission)
-		  AND (ph.audience <> 'existing_students'
-		       OR NOT guard.has_guardian_link
+		  AND (ph.audience NOT IN ('linked_parents', 'existing_students')
 		       OR guard.has_submit_permission)
 		ORDER BY already_linked DESC, sch.name, ph.service_start_date
 	`
 
 	var rows []row
 	if err := base.GetDB(ctx, r.db).NewRaw(query,
-		accountID,
 		accountID,
 		accountID,
 		authorize.GuardianPermissionEnrollmentSubmit,

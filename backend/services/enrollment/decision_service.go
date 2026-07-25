@@ -1429,10 +1429,11 @@ func (s *decisionService) attachApprovalToExistingStudent(
 	// Update school_class / enrollment window. Already-active children
 	// stay active even for a future phase, so current attendance
 	// workflows are not interrupted. Inactive/pending children follow the
-	// approval-time activation plan.
+	// approval-time activation plan. The window itself follows the phase
+	// KIND (see renewedEnrollmentWindow): only a school-year renewal may
+	// replace the master enrollment window.
 	existing.SchoolClass = s.resolveRolloverSchoolClass(child, existing.SchoolClass)
-	enrolledFrom := phase.ServiceStartDate
-	enrolledUntil := phase.ServiceEndDate
+	enrolledFrom, enrolledUntil := renewedEnrollmentWindow(phase, existing.EnrolledFrom, existing.EnrolledUntil)
 	existing.EnrolledFrom = &enrolledFrom
 	existing.EnrolledUntil = &enrolledUntil
 	if existing.Status != users.StudentStatusActive {
@@ -1507,6 +1508,40 @@ func (s *decisionService) attachApprovalToExistingStudent(
 	return nil, nil
 }
 
+// renewedEnrollmentWindow decides the enrollment window an approval writes
+// onto an ALREADY EXISTING student, from the phase kind (#1663):
+//
+//   - school_year: the phase IS the child's new master enrollment window
+//     (annual rollover / re-enrollment), so it replaces the old one wholesale.
+//   - holiday / custom: the phase describes a limited-time care period, NOT
+//     the child's school membership. Overwriting the master window with it
+//     would cut an annually enrolled child's enrollment short — a holiday
+//     phase ending in October would satisfy FindActiveDueForDeactivation and
+//     the scheduler would mark a perfectly active child inactive. So the
+//     existing window is preserved and only WIDENED where the phase's service
+//     period reaches beyond it (an inactive child re-enrolled for a holiday
+//     block still needs a window that covers that block).
+//
+// A missing bound (nil) is treated as "not set" and takes the phase's date, so
+// a legacy student without a window still ends up with one.
+func renewedEnrollmentWindow(
+	phase *enrollmentModels.Phase,
+	currentFrom, currentUntil *timezone.Date,
+) (timezone.Date, timezone.Date) {
+	from := phase.ServiceStartDate
+	until := phase.ServiceEndDate
+	if phase.Kind == enrollmentModels.PhaseKindSchoolYear {
+		return from, until
+	}
+	if currentFrom != nil && currentFrom.Before(from) {
+		from = *currentFrom
+	}
+	if currentUntil != nil && currentUntil.After(until) {
+		until = *currentUntil
+	}
+	return from, until
+}
+
 // resolveGuardianProfile finds an existing tenant-scoped guardian by
 // email or creates a new one. Phone numbers from the submission are
 // NOT migrated into guardian_phone_numbers in slice 2 - that's a
@@ -1549,6 +1584,23 @@ func (s *decisionService) resolveGuardianProfile(
 			if authAccountID > 0 && existing.AccountID != nil && *existing.AccountID != authAccountID {
 				return nil, false, fmt.Errorf("%w: guardian_profile_id %d", ErrGuardianAccountMismatch, existing.ID)
 			}
+			// An UNLINKED profile (account_id IS NULL) is worse, not better: the
+			// by-id attach in applyApproval would bind that whole profile — and
+			// every child already hanging off it — to the caller's JWT account.
+			// guardian_email stays parent-editable, so a logged-in parent could
+			// otherwise type a stranger's address at a school where they have no
+			// profile yet and claim that family's record. Only the caller's OWN
+			// address makes the profile claimable; anything else fails closed
+			// exactly like the already-linked mismatch above (#1663).
+			if authAccountID > 0 && existing.AccountID == nil {
+				owns, ownErr := s.submitterOwnsEmail(ctx, authAccountID, email)
+				if ownErr != nil {
+					return nil, false, ownErr
+				}
+				if !owns {
+					return nil, false, fmt.Errorf("%w: guardian_profile_id %d", ErrGuardianAccountMismatch, existing.ID)
+				}
+			}
 			if err := s.applyStandaloneGuardianNameCorrection(ctx, existing, request); err != nil {
 				return nil, false, err
 			}
@@ -1579,6 +1631,38 @@ func (s *decisionService) resolveGuardianProfile(
 		return nil, false, fmt.Errorf("decision: create guardian profile: %w", err)
 	}
 	return profile, true, nil
+}
+
+// submitterOwnsEmail reports whether the submitted guardian email is the
+// authenticated submitter's OWN account address. It is the ownership proof
+// resolveGuardianProfile requires before letting an authenticated approval
+// claim an unlinked guardian profile.
+//
+// Two configurations answer true without a comparison, both deliberately:
+//
+//   - AccountRepo unwired: attachExistingAccountByID short-circuits on the
+//     same nil check, so no account linkage can happen at all — there is
+//     nothing to protect and the legacy accept stands.
+//   - account deleted between submission and decision: the by-id attach
+//     already falls back to the email-owner lookup, which can only bind the
+//     profile to whoever owns THAT address, never to the caller.
+func (s *decisionService) submitterOwnsEmail(ctx context.Context, accountID int64, email string) (bool, error) {
+	if s.AccountRepo == nil {
+		return true, nil
+	}
+	account, err := s.AccountRepo.FindByID(ctx, accountID)
+	if err != nil {
+		return false, fmt.Errorf("decision: load submitting account %d: %w", accountID, err)
+	}
+	if account == nil {
+		if s.Logger != nil {
+			s.Logger.Warn("decision: submitting account no longer resolvable, skipping email ownership check",
+				slog.Int64("guardian_account_id", accountID),
+			)
+		}
+		return true, nil
+	}
+	return strings.EqualFold(strings.TrimSpace(account.Email), email), nil
 }
 
 func (s *decisionService) applyStandaloneGuardianNameCorrection(ctx context.Context, profile *users.GuardianProfile, request *enrollmentModels.Request) error {

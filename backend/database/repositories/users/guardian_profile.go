@@ -522,6 +522,7 @@ func (r *GuardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 		FirstName        string `bun:"first_name"`
 		LastName         string `bun:"last_name"`
 		SchoolClass      string `bun:"school_class"`
+		Status           string `bun:"status"`
 		EnrollmentSubmit bool   `bun:"enrollment_submit"`
 	}
 	var rows []childRow
@@ -531,6 +532,9 @@ func (r *GuardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 		ColumnExpr(`"p".first_name`).
 		ColumnExpr(`"p".last_name`).
 		ColumnExpr(`"s".school_class`).
+		// Lifecycle status travels with the summary so the reuse picker can
+		// drop a child the enrolled-student gate would reject anyway (#1663).
+		ColumnExpr(`"s".status`).
 		// Per-relationship enrollment-submit permission, so the form can offer
 		// reuse only for children this guardian may actually re-enroll (#1663).
 		ColumnExpr(`COALESCE(("sg".permissions ->> ?)::boolean, false) AS enrollment_submit`, authorize.GuardianPermissionEnrollmentSubmit).
@@ -550,6 +554,7 @@ func (r *GuardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 			FirstName:        row.FirstName,
 			LastName:         row.LastName,
 			SchoolClass:      row.SchoolClass,
+			Status:           row.Status,
 			EnrollmentSubmit: row.EnrollmentSubmit,
 		})
 	}

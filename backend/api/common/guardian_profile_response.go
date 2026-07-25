@@ -40,6 +40,11 @@ type GuardianProfileChild struct {
 	// only for children where this is true, so a permission-revoked child is
 	// never presented as reusable (would 403 at submit) (#1663).
 	EnrollmentSubmit bool `json:"enrollment_submit"`
+	// Status is the child's lifecycle status ("active" | "pending" |
+	// "inactive"). Only active/pending students count as enrolled, so the
+	// reuse picker drops the rest instead of offering a candidate the
+	// existing_students submit gate would reject (#1663).
+	Status string `json:"status"`
 }
 
 // BuildGuardianProfileResponse merges claims-derived defaults with the
@@ -76,6 +81,7 @@ func BuildGuardianProfileResponse(claims jwt.AppClaims, loaded *usersModels.Guar
 			FirstName:        child.FirstName,
 			LastName:         child.LastName,
 			SchoolClass:      child.SchoolClass,
+			Status:           child.Status,
 			EnrollmentSubmit: child.EnrollmentSubmit,
 		}
 		if grade := ParseLeadingGradeLevel(child.SchoolClass); grade > 0 {

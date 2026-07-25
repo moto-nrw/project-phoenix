@@ -327,6 +327,9 @@ function profile(): MeProfileResponse {
         last_name: "Muster",
         school_class: "2a",
         grade_level: 2,
+        // The backend always emits the lifecycle status alongside the
+        // permission flag; the reuse picker requires both (#1663).
+        status: "active",
         enrollment_submit: true,
       },
     ],
@@ -1208,6 +1211,35 @@ describe("EnrollmentForm", () => {
         captchaConfig: null,
         legalTexts: legalTexts(),
         profile: noSubmit,
+        audience: "existing_students",
+      },
+    });
+    await waitForLoaded();
+
+    expect(screen.queryByText("Bestehende Kinder")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Übernehmen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides a linked child that is no longer enrolled (inactive)", async () => {
+    // The profile lists every non-alumnus child, but the existing_students
+    // gate only accepts active/pending students (#1663): an inactive child
+    // offered as reusable would be adopted into the form and only then
+    // rejected as "nicht eingeschrieben" by the backend.
+    const inactive = profile();
+    inactive.children = inactive.children.map((c) => ({
+      ...c,
+      status: "inactive",
+    }));
+    renderForm({
+      prefetchedData: {
+        schema: schema(),
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts(),
+        profile: inactive,
         audience: "existing_students",
       },
     });

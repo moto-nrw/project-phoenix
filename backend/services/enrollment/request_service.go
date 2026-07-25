@@ -881,6 +881,11 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			if err != nil {
 				return err
 			}
+			// !AllowClosedPhase == validatePhaseEligibility ran above, so a
+			// vanished match here is a race, not a fresh create (#1663).
+			if err := assertExistingStudentMatchResolved(phase, matchedStudentID, !req.AllowClosedPhase, i); err != nil {
+				return err
+			}
 			if err := s.assertGuardianMayReEnrollStudent(txCtx, req.GuardianAccountID, matchedStudentID, req.TenantID, i); err != nil {
 				return err
 			}
@@ -2055,7 +2060,8 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		// trusted-source bypass — the identity of a rollover edit is already
 		// pinned by validateRolloverEditIdentity, so no arbitrary child can be
 		// slipped in behind this exemption (#1663).
-		if !isTrustedEnrollmentSource(req.SubmissionSource) && !hasRolloverGeneratedChild(children) {
+		eligibilityEnforced := !isTrustedEnrollmentSource(req.SubmissionSource) && !hasRolloverGeneratedChild(children)
+		if eligibilityEnforced {
 			if err := s.validatePhaseChildEligibility(txCtx, phase, editReq); err != nil {
 				return err
 			}
@@ -2258,6 +2264,14 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 					if resolved != nil {
 						matchedStudentID = resolved
 					}
+				}
+				// Same race guard as Submit: when the eligibility gate ran a few
+				// statements earlier it proved this child is enrolled, so an
+				// unpinned existing_students child means the student changed
+				// status underneath the edit — reject instead of letting approval
+				// duplicate it (#1663).
+				if err := assertExistingStudentMatchResolved(phase, matchedStudentID, eligibilityEnforced, i); err != nil {
+					return err
 				}
 				if err := s.assertGuardianMayReEnrollStudent(txCtx, req.GuardianAccountID, matchedStudentID, req.TenantID, i); err != nil {
 					return err
@@ -3475,6 +3489,36 @@ func (s *requestService) resolveMatchedStudentID(ctx context.Context, tenantID i
 		return nil, fmt.Errorf("%w: child %d", ErrChildEnrollmentAmbiguous, childIndex)
 	}
 	return nil, nil
+}
+
+// assertExistingStudentMatchResolved closes the gap between the pre-write
+// enrolled-student gate and the pinned match (#1663). On an existing_students
+// phase, validatePhaseChildEligibility already proved every child matches an
+// enrolled student; resolveMatchedStudentID then deliberately collapses a zero
+// match to "no pin" because the TRUSTED paths (admin manual / late invite) skip
+// that gate and may legitimately create a fresh record.
+//
+// For an ORDINARY submission the two reads must agree. When they don't — the
+// activation/deactivation scheduler flipped the student out of active/pending
+// between them — storing the request with matched_student_id = NULL would make
+// approval create a duplicate Person + Student for a child the school already
+// has, the exact outcome this audience exists to prevent. Reject instead: the
+// submission is no longer valid for this phase.
+//
+// eligibilityEnforced mirrors whichever gate the caller ran, so a trusted path
+// keeps its override untouched.
+func assertExistingStudentMatchResolved(
+	phase *enrollmentModels.Phase,
+	matchedStudentID *int64,
+	eligibilityEnforced bool,
+	childIndex int,
+) error {
+	if !eligibilityEnforced ||
+		matchedStudentID != nil ||
+		phase.Audience != enrollmentModels.PhaseAudienceExistingStudents {
+		return nil
+	}
+	return fmt.Errorf("%w: child %d", ErrChildNotEnrolled, childIndex)
 }
 
 // assertGuardianMayReEnrollStudent enforces the per-child authorization gate for

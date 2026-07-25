@@ -396,6 +396,15 @@ export interface MeProfileChild {
    * false when absent).
    */
   enrollment_submit?: boolean;
+  /**
+   * Lifecycle status of the linked student (`active` | `pending` |
+   * `inactive`). Only active/pending children count as enrolled, so the reuse
+   * picker offers no other status — an inactive child would be adopted into
+   * the form and then rejected by the existing_students submit gate (#1663).
+   * Optional for backward compatibility with older payloads (an absent status
+   * is not proof of enrollment, so it is treated as not reusable).
+   */
+  status?: string;
 }
 
 export interface MeProfileResponse {

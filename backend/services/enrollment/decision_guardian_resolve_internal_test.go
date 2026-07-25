@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -106,6 +107,85 @@ func TestResolveGuardianProfile_PrefersAuthenticatedAccountProfile(t *testing.T)
 	assert.Equal(t, own.ID, got.ID)
 	assert.False(t, wasNew)
 	assert.Zero(t, repo.created)
+}
+
+// stubAccountRepo answers the single FindByID lookup the email-ownership check
+// makes; the embedded interface panics on anything else.
+type stubAccountRepo struct {
+	authModels.AccountRepository
+	byID map[int64]*authModels.Account
+}
+
+func (s *stubAccountRepo) FindByID(_ context.Context, id interface{}) (*authModels.Account, error) {
+	if v, ok := id.(int64); ok {
+		return s.byID[v], nil
+	}
+	return nil, nil
+}
+
+// #1663: an UNLINKED profile is claimable only by the account that owns its
+// email. A logged-in parent typing a stranger's address at a school where they
+// have no profile yet must not have that family's profile (and every child on
+// it) attached to their account by the by-id attach in applyApproval.
+func TestResolveGuardianProfile_RejectsForeignUnclaimedEmailProfile(t *testing.T) {
+	const callerAccount = int64(10)
+	foreign := &usersModels.GuardianProfile{FirstName: "Vera", LastName: "Opfer"} // AccountID nil
+	foreign.ID = 77
+	repo := &stubGuardianProfileRepo{
+		byAccount: map[int64]*usersModels.GuardianProfile{},
+		byEmail:   map[string]*usersModels.GuardianProfile{"victim@example.test": foreign},
+	}
+	accounts := &stubAccountRepo{byID: map[int64]*authModels.Account{
+		callerAccount: {Email: "caller@example.test"},
+	}}
+	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{
+		GuardianProfileRepo: repo,
+		AccountRepo:         accounts,
+	}}
+
+	req := &enrollmentModels.Request{
+		GuardianAccountID: int64Ptr(callerAccount),
+		GuardianEmail:     "victim@example.test",
+		GuardianFirstName: "Anna",
+		GuardianLastName:  "Antragsteller",
+	}
+
+	got, wasNew, err := svc.resolveGuardianProfile(context.Background(), req)
+	require.ErrorIs(t, err, ErrGuardianAccountMismatch)
+	assert.Nil(t, got)
+	assert.False(t, wasNew)
+	assert.Zero(t, repo.created, "must not create a profile on a rejected claim")
+}
+
+// The same shape with the caller's OWN address is the legitimate claim: an
+// admin-created profile for this parent at a new school.
+func TestResolveGuardianProfile_AllowsOwnUnclaimedEmailProfile(t *testing.T) {
+	const callerAccount = int64(10)
+	own := &usersModels.GuardianProfile{FirstName: "Anna", LastName: "Antragsteller"} // AccountID nil
+	own.ID = 7
+	repo := &stubGuardianProfileRepo{
+		byAccount: map[int64]*usersModels.GuardianProfile{},
+		byEmail:   map[string]*usersModels.GuardianProfile{"anna@example.test": own},
+	}
+	accounts := &stubAccountRepo{byID: map[int64]*authModels.Account{
+		callerAccount: {Email: "Anna@Example.test"}, // case-insensitive match
+	}}
+	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{
+		GuardianProfileRepo: repo,
+		AccountRepo:         accounts,
+	}}
+
+	req := &enrollmentModels.Request{
+		GuardianAccountID: int64Ptr(callerAccount),
+		GuardianEmail:     "anna@example.test",
+		GuardianFirstName: "Anna",
+		GuardianLastName:  "Antragsteller",
+	}
+
+	got, _, err := svc.resolveGuardianProfile(context.Background(), req)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, own.ID, got.ID)
 }
 
 // An unclaimed profile carrying the email (no account yet) is NOT a mismatch:

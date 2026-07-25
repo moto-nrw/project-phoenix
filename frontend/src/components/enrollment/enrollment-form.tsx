@@ -66,6 +66,12 @@ const GUARDIAN_PHONE_PATTERN = /^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$/;
 // value the form accepts can never be rejected later at approval.
 const GUARDIAN_EMAIL_PATTERN = /^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$/;
 
+// Student lifecycle statuses the backend counts as "enrolled"
+// (users.StudentStatusActive / StudentStatusPending — see
+// ExistsEnrolledByNameAndBirthday). The existing_students audience accepts
+// nothing else, so the reuse picker must not offer anything else either.
+const ENROLLED_CHILD_STATUSES = new Set(["active", "pending"]);
+
 interface ChildDraft {
   // Stable, client-only identity for React list keys. Never sent to the
   // backend (payload mapping picks fields explicitly). Without it the
@@ -378,12 +384,21 @@ export function EnrollmentForm({
   const [usedExistingChildIDs, setUsedExistingChildIDs] = useState<Set<string>>(
     new Set(),
   );
-  // Children the parent may actually re-enroll: portal visibility alone does
-  // not grant it. The picker offers only children whose relationship grants
-  // parent_portal.enrollment.submit, so a permission-revoked child is never
-  // presented as reusable and cannot 403 after the form is filled (#1663).
+  // Children the parent may actually re-enroll. Two independent facts are
+  // required, because portal visibility grants neither (#1663):
+  //   - the relationship grants parent_portal.enrollment.submit, so a
+  //     permission-revoked child never 403s after the form is filled;
+  //   - the child is still enrolled (active/pending). The profile lists every
+  //     non-alumnus child, but the existing_students gate only accepts
+  //     active/pending, so an inactive child would be adopted here and then
+  //     rejected as "nicht eingeschrieben" at submit.
   const reusableChildren = useMemo(
-    () => (profile?.children ?? []).filter((c) => c.enrollment_submit === true),
+    () =>
+      (profile?.children ?? []).filter(
+        (c) =>
+          c.enrollment_submit === true &&
+          ENROLLED_CHILD_STATUSES.has(c.status ?? ""),
+      ),
     [profile],
   );
 

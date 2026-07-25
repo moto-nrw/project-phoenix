@@ -147,6 +147,52 @@ func TestEnrollablePhaseRepository_ListEnrollable_RevokedSubmitPermissionScopedT
 		"a guardian whose links all lack enrollment.submit must not see existing_students re-enrollment phases")
 }
 
+func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsHiddenWithoutGuardianLink(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	var tenantID int64 = 1
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	enableEnrollmentForTenant(t, db, tenantID)
+
+	// Fresh account: no tenant mapping, no guardian rows anywhere. Such an
+	// account can never complete an existing_students phase — a child it does
+	// not have fails the enrolled gate, and a child it does have fails the
+	// per-student submit permission — so the picker must not advertise it
+	// (#1663).
+	account := testpkg.CreateTestAccount(t, db, "eligibility-existing-unlinked")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
+	})
+
+	openName := fmt.Sprintf("eligibility-exunlinked-open-%d", time.Now().UnixNano())
+	existingName := fmt.Sprintf("eligibility-exunlinked-existing-%d", time.Now().UnixNano())
+	defer wipePhasesForTenant(db, tenantID, "eligibility-exunlinked")
+	insertEnrollablePhaseWithAudience(t, db, tenantID, openName, enrollmentModels.PhaseAudienceOpen)
+	insertEnrollablePhaseWithAudience(t, db, tenantID, existingName, enrollmentModels.PhaseAudienceExistingStudents)
+
+	names := phaseNamesOf(listEnrollableAsAdmin(t, db, account.ID))
+	assert.Contains(t, names, openName,
+		"a genuinely new applicant must still see open phases")
+	assert.NotContains(t, names, existingName,
+		"existing_students must stay hidden for an account with no submit permission at the school")
+}
+
+func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsVisibleWithSubmitPermission(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
+	enableEnrollmentForTenant(t, db, chain.TenantID)
+
+	existingName := fmt.Sprintf("eligibility-exvisible-%d", time.Now().UnixNano())
+	defer wipePhasesForTenant(db, chain.TenantID, "eligibility-exvisible")
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, existingName, enrollmentModels.PhaseAudienceExistingStudents)
+
+	names := phaseNamesOf(listEnrollableAsAdmin(t, db, chain.AccountID))
+	assert.Contains(t, names, existingName,
+		"a guardian holding enrollment.submit must see the re-enrollment phase")
+}
+
 func TestEnrollablePhaseRepository_ListEnrollable_DeactivatedMappingHidesLinkedPhase(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
