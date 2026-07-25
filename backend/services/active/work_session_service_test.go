@@ -3193,6 +3193,39 @@ func TestWSUpdateSession_TimeChangeNotesGate(t *testing.T) {
 // ApplyCustomScheduleRows anchor persistence (#1842)
 // ============================================================================
 
+func TestWSUpdateScheduleBroadcastsTimeTrackingChangeAfterCommit(t *testing.T) {
+	svc, _, _, _, _ := wsCreateTestService()
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	svc.SetBroadcaster(broadcaster)
+	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{}
+	svc.staffRepo = &testpkg.StaffRepoMock{
+		UpdateFn: func(_ context.Context, _ *userModels.Staff) error { return nil },
+	}
+	ctx, commit := tenant.WithAfterCommitHooksForTest(
+		tenant.WithTenantID(context.Background(), 42),
+	)
+
+	err := svc.UpdateSchedule(ctx, &userModels.Staff{Model: base.Model{ID: 100}}, ScheduleUpdateInput{
+		Mode:           "custom",
+		RotationLength: 1,
+		Entries: []ScheduleEntry{{
+			WeekIndex:     0,
+			DayOfWeek:     configModels.DayMonday,
+			TargetMinutes: 480,
+		}},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, broadcaster.Events())
+
+	commit()
+
+	events := broadcaster.EventsOfType(realtime.EventStaffTimeTrackingChanged)
+	require.Len(t, events, 1)
+	calls := broadcaster.CallsByMethod("tenant")
+	require.Len(t, calls, 1)
+	assert.Equal(t, int64(42), calls[0].TenantID)
+}
+
 // A staff member saving a multi-week custom schedule with no anchor anywhere
 // must still get one stamped onto the rows. Left NULL, the rows fall back to
 // the staff-level anchor at read time — and a later template assignment writes

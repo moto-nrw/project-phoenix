@@ -83,14 +83,23 @@ describe("staffOverviewService", () => {
     );
   });
 
-  it("omits year/month unless both are given", async () => {
+  it.each([{ year: 2026 }, { month: 7 }])(
+    "rejects a partial year/month query: %o",
+    async (query) => {
+      await expect(staffOverviewService.getTimeAccounts(query)).rejects.toThrow(
+        "Jahr und Monat müssen gemeinsam angegeben werden",
+      );
+      expect(sessionFetch).not.toHaveBeenCalled();
+    },
+  );
+
+  it("omits year/month when neither is given", async () => {
     sessionFetch.mockResolvedValue(
       jsonResponse({ year: 2026, month: 7, rows: [] }),
     );
 
-    await staffOverviewService.getTimeAccounts({ year: 2026 });
+    await staffOverviewService.getTimeAccounts();
 
-    // A bare year would be rejected by the backend; the client must not send it.
     expect(sessionFetch).toHaveBeenCalledWith(
       "/api/staff/time-tracking/overview",
     );

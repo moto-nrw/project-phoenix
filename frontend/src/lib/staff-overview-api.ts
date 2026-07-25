@@ -168,8 +168,14 @@ export const staffOverviewService = {
   async getTimeAccounts(
     query: TimeAccountQuery = {},
   ): Promise<TimeAccountOverview> {
+    const hasYear = query.year !== undefined;
+    const hasMonth = query.month !== undefined;
+    if (hasYear !== hasMonth) {
+      throw new Error("Jahr und Monat müssen gemeinsam angegeben werden");
+    }
+
     const params = new URLSearchParams();
-    if (query.year !== undefined && query.month !== undefined) {
+    if (hasYear && hasMonth) {
       params.set("year", String(query.year));
       params.set("month", String(query.month));
     }

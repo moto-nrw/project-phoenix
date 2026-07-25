@@ -1612,6 +1612,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:      logger.With("service", "reminders"),
 	})
 
+	workTimeModelService := config.NewWorkTimeModelService(repos.WorkTimeModel)
+	workTimeModelService.SetBroadcaster(realtimeHub)
+
 	factory := &Factory{
 		Auth:                     authService,
 		MFA:                      mfaService,
@@ -1691,7 +1694,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         announcementService,
 		Schools:              platform.NewSchoolService(repos.School),
-		WorkTimeModels:       config.NewWorkTimeModelService(repos.WorkTimeModel),
+		WorkTimeModels:       workTimeModelService,
 		Students:             studentService,
 		MasterDataReview:     users.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, logger.With("service", "master-data-review"), realtimeHub),
 		CareRequests:         careRequestService,

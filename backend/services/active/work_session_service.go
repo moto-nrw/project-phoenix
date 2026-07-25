@@ -2547,17 +2547,23 @@ func (s *workSessionService) UpdateSchedule(ctx context.Context, staff *userMode
 		}
 	}
 
+	var err error
 	switch mode {
 	case "template":
 		if in.ModelID == nil || *in.ModelID == 0 {
 			return scheduleValidationErrorf("model_id is required for mode=template")
 		}
-		return s.AssignScheduleTemplate(ctx, staff, *in.ModelID)
+		err = s.AssignScheduleTemplate(ctx, staff, *in.ModelID)
 	case "custom":
-		return s.applyCustomSchedule(ctx, staff, in)
+		err = s.applyCustomSchedule(ctx, staff, in)
 	default:
 		return scheduleValidationErrorf("invalid mode %q", mode)
 	}
+	if err != nil {
+		return err
+	}
+	s.broadcastTimeTrackingChanged(ctx)
+	return nil
 }
 
 func (s *workSessionService) applyCustomSchedule(ctx context.Context, staff *userModels.Staff, in ScheduleUpdateInput) error {
