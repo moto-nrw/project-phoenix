@@ -1340,8 +1340,18 @@ func (s *decisionService) attachGuardianAccountIfPresent(
 	guardian *users.GuardianProfile,
 	profileWasNew bool,
 ) error {
-	if guardian == nil || guardian.AccountID != nil {
+	if guardian == nil {
 		return nil
+	}
+	// A profile that already carries an account_id needs no attach — but the
+	// link alone does NOT prove the account can reach this school. account_id
+	// survives an offboarding that flipped auth.account_tenants to inactive,
+	// and pendingGuardianInvite deliberately sends nothing for a linked
+	// profile, so no other step would repair the mapping: the child would be
+	// approved and stay invisible to the parent. Approving is the
+	// administrative act that grants access, so re-assert it here.
+	if guardian.AccountID != nil {
+		return s.ensureGuardianTenantAccess(ctx, *guardian.AccountID, "ensure linked guardian access")
 	}
 	var (
 		linked bool
@@ -1661,11 +1671,19 @@ func (s *decisionService) resolveGuardianProfile(
 	// and their possibly-changed email no longer decides the linkage.
 	if authAccountID > 0 {
 		own, err := s.GuardianProfileRepo.FindByAccountID(ctx, authAccountID)
-		if err == nil && own != nil {
+		switch {
+		case err == nil && own != nil:
 			return own, false, nil
+		case err != nil && !errors.Is(err, users.ErrGuardianProfileNotFound):
+			// A database/driver failure must NOT degrade into the email path:
+			// that would silently hand the linkage decision to the
+			// parent-editable email field (or create a duplicate profile) on a
+			// transient outage. Fail the approval so it can be retried.
+			return nil, false, fmt.Errorf("decision: resolve guardian profile by account: %w", err)
 		}
-		// not-found flows through: a first-time applicant at this school has no
-		// profile yet and is handled by the email/create paths below.
+		// Only the explicit not-found sentinel flows through: a first-time
+		// applicant at this school has no profile yet and is handled by the
+		// email/create paths below.
 	}
 
 	if email != "" {
@@ -2651,28 +2669,8 @@ func (s *decisionService) attachAccountToGuardian(
 	account *authModels.Account,
 	errPrefix string,
 ) (bool, error) {
-	tenantID := tenant.FromContext(ctx)
-	if tenantID == 0 {
-		return false, fmt.Errorf("%s: tenant not in context", errPrefix)
-	}
-
-	// 1. account_tenants mapping. Create is idempotent (ON CONFLICT
-	// DO NOTHING on (account_id, tenant_id)).
-	now := time.Now()
-	mapping := &authModels.AccountTenant{
-		AccountID:   account.ID,
-		TenantID:    tenantID,
-		Status:      authModels.AccountTenantStatusActive,
-		ActivatedAt: &now,
-	}
-	if err := s.AccountTenantRepo.Create(ctx, mapping); err != nil {
-		return false, fmt.Errorf("%s: account_tenants: %w", errPrefix, err)
-	}
-
-	// 2. Guardian role for this tenant. AccountRoleRepo.Create has no
-	// ON CONFLICT, so check first via FindByAccountAndRole (which
-	// honours tenant scope from context) and only create when missing.
-	if err := s.ensureGuardianRoleForTenant(ctx, account.ID); err != nil {
+	// 1 + 2. Active account_tenants mapping and guardian role for this tenant.
+	if err := s.ensureGuardianTenantAccess(ctx, account.ID, errPrefix); err != nil {
 		return false, err
 	}
 
@@ -2722,6 +2720,44 @@ func (s *decisionService) attachExistingAccountByID(
 	}
 
 	return s.attachAccountToGuardian(ctx, guardian, account, "attach by id")
+}
+
+// ensureGuardianTenantAccess makes an account's guardian membership in the
+// CURRENT tenant usable: the auth.account_tenants mapping is created OR
+// REACTIVATED, and the guardian base role is assigned for this tenant.
+//
+// EnsureActive (not Create) is deliberate: Create is an ON CONFLICT DO NOTHING
+// insert, so an existing row left inactive by a previous offboarding would
+// survive an approval untouched — mapping present, status 'inactive', parent
+// locked out of the school they were just approved for.
+//
+// errPrefix keeps the caller's historical error wording ("attach" /
+// "attach by id" / the already-linked path).
+func (s *decisionService) ensureGuardianTenantAccess(ctx context.Context, accountID int64, errPrefix string) error {
+	if s.AccountTenantRepo == nil || s.AccountRoleRepo == nil || s.RoleRepo == nil {
+		// Auth repos not wired — the invitation flow stays responsible, same
+		// short-circuit the attach paths use.
+		return nil
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID == 0 {
+		return fmt.Errorf("%s: tenant not in context", errPrefix)
+	}
+
+	now := time.Now()
+	mapping := &authModels.AccountTenant{
+		AccountID:   accountID,
+		TenantID:    tenantID,
+		Status:      authModels.AccountTenantStatusActive,
+		ActivatedAt: &now,
+	}
+	if err := s.AccountTenantRepo.EnsureActive(ctx, mapping); err != nil {
+		return fmt.Errorf("%s: account_tenants: %w", errPrefix, err)
+	}
+
+	// Guardian role for this tenant. AccountRoleRepo.Create has no ON CONFLICT,
+	// so ensureGuardianRoleForTenant checks first and only creates when missing.
+	return s.ensureGuardianRoleForTenant(ctx, accountID)
 }
 
 // ensureGuardianRoleForTenant assigns the guardian base role for the

@@ -156,9 +156,13 @@ func (rs *Resource) listMyChildren(w http.ResponseWriter, r *http.Request) {
 // EnrollablePhaseResponse is the wire shape for /me/enrollable-schools.
 // Mirrors models/parent.EnrollablePhase but stringifies int64 ids.
 type EnrollablePhaseResponse struct {
-	SchoolID          string        `json:"school_id"`
-	SchoolName        string        `json:"school_name"`
-	SchoolSlug        string        `json:"school_slug"`
+	SchoolID   string `json:"school_id"`
+	SchoolName string `json:"school_name"`
+	SchoolSlug string `json:"school_slug"`
+	// SchoolSubdomain is the identifier the picker must put in enrollment
+	// links: both /auth/tenant/resolve and /api/parent/enrollments/{tenantSlug}/*
+	// resolve tenants by subdomain (#1663).
+	SchoolSubdomain   string        `json:"school_subdomain"`
 	PhaseID           string        `json:"phase_id"`
 	PhaseName         string        `json:"phase_name"`
 	PhaseKind         string        `json:"phase_kind"`
@@ -193,6 +197,7 @@ func (rs *Resource) listEnrollableSchools(w http.ResponseWriter, r *http.Request
 			SchoolID:          strconv.FormatInt(p.SchoolID, 10),
 			SchoolName:        p.SchoolName,
 			SchoolSlug:        p.SchoolSlug,
+			SchoolSubdomain:   p.SchoolSubdomain,
 			PhaseID:           strconv.FormatInt(p.PhaseID, 10),
 			PhaseName:         p.PhaseName,
 			PhaseKind:         p.PhaseKind,

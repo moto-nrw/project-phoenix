@@ -30,7 +30,10 @@ function phase(overrides: Partial<EnrollablePhase> = {}): EnrollablePhase {
   return {
     school_id: "1",
     school_name: "OGS Nord",
+    // Slug and subdomain differ on purpose: links must use the subdomain, the
+    // identifier resolveTenant() and the parent enrollment endpoints accept.
     school_slug: "nord",
+    school_subdomain: "ogs-nord",
     phase_id: "10",
     phase_name: "Schuljahr 2026/27",
     phase_kind: "school_year",
@@ -62,6 +65,7 @@ describe("ParentEnrollPicker", () => {
         school_id: "2",
         school_name: "OGS Süd",
         school_slug: "sued",
+        school_subdomain: "ogs-sued",
         phase_id: "20",
         phase_name: "Sonderphase",
         phase_kind: "custom",
@@ -88,13 +92,14 @@ describe("ParentEnrollPicker", () => {
       screen.getByRole("heading", { name: "OGS Süd" }),
     ).toBeInTheDocument();
 
-    // Phase links point at /parents/enroll/{slug}/{phaseId}
+    // Phase links point at /parents/enroll/{subdomain}/{phaseId} — the slug
+    // would not resolve for a school whose slug differs from its subdomain.
     expect(
       screen.getByRole("link", { name: "Anmeldung öffnen: Schuljahr 2026/27" }),
-    ).toHaveAttribute("href", "/parents/enroll/nord/10");
+    ).toHaveAttribute("href", "/parents/enroll/ogs-nord/10");
     expect(
       screen.getByRole("link", { name: "Anmeldung öffnen: Sonderphase" }),
-    ).toHaveAttribute("href", "/parents/enroll/sued/20");
+    ).toHaveAttribute("href", "/parents/enroll/ogs-sued/20");
 
     // Kind labels
     expect(screen.getByText("Schuljahr")).toBeInTheDocument();

@@ -152,13 +152,19 @@ func (rs *Resource) getEnrollmentBootstrap(w http.ResponseWriter, r *http.Reques
 	common.Respond(w, r, http.StatusOK, resp, "Parent enrollment form bootstrap retrieved")
 }
 
-// resolveSchoolID wraps SchoolRepo.FindBySlug in WithAdminTx so the
-// cross-tenant lookup is allowed. Returns an error when the slug
-// doesn't resolve or the school is soft-deleted.
+// resolveSchoolID resolves the {tenantSlug} path segment to a school id inside
+// WithAdminTx so the cross-tenant lookup is allowed. Returns an error when the
+// identifier doesn't resolve or the school is soft-deleted.
+//
+// The lookup is by SUBDOMAIN, not slug (#1663): the parents portal reaches this
+// route through links built from platform.schools.subdomain, which is the same
+// identifier /auth/tenant/resolve accepts (the enroll page resolves tenant
+// metadata through it in the same render). platform.schools.slug is only unique
+// per organization, so it is not usable as a global routing key at all.
 func (rs *Resource) resolveSchoolID(ctx context.Context, slug string) (int64, error) {
 	var out int64
 	err := tenant.WithAdminTx(ctx, rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		school, findErr := rs.SchoolService.GetSchoolBySlug(adminCtx, slug)
+		school, findErr := rs.SchoolService.GetSchoolBySubdomain(adminCtx, slug)
 		if findErr != nil || school == nil || school.IsDeleted() {
 			return errors.New("tenant not found")
 		}
@@ -261,7 +267,9 @@ type parentSubmitOutcome struct {
 func (rs *Resource) runParentEnrollmentSubmit(r *http.Request, accountID int64, slug string, wireReq *enrollmentAPI.SubmitEnrollmentRequest) parentSubmitOutcome {
 	var out parentSubmitOutcome
 	out.resolveErr = tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		school, err := rs.SchoolService.GetSchoolBySlug(adminCtx, slug)
+		// By subdomain, matching resolveSchoolID and /auth/tenant/resolve —
+		// see resolveSchoolID for why slug is not a routing key (#1663).
+		school, err := rs.SchoolService.GetSchoolBySubdomain(adminCtx, slug)
 		if err != nil || school == nil || school.IsDeleted() {
 			return errors.New("tenant not found")
 		}

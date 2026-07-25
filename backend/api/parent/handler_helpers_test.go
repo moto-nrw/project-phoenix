@@ -40,7 +40,9 @@ type parentSubmitSchoolStub struct {
 	school *platformModels.School
 }
 
-func (s *parentSubmitSchoolStub) GetSchoolBySlug(context.Context, string) (*platformModels.School, error) {
+// The parent enrollment routes resolve {tenantSlug} by subdomain — the same
+// identifier /auth/tenant/resolve accepts (#1663).
+func (s *parentSubmitSchoolStub) GetSchoolBySubdomain(context.Context, string) (*platformModels.School, error) {
 	return s.school, nil
 }
 
@@ -63,7 +65,7 @@ func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermis
 	t.Cleanup(func() { _ = db.Close() })
 
 	var tenantID int64 = 1
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule"}
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule"}
 	school.ID = tenantID
 	requestSvc := &parentSubmitRequestStub{}
 	rs := &Resource{
@@ -119,7 +121,7 @@ func TestSubmitParentEnrollment_NoSubmitPermissionStillReachesServiceForNewChild
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule"}
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule"}
 	school.ID = 1
 	requestSvc := &parentSubmitRequestStub{}
 	rs := &Resource{
@@ -168,7 +170,7 @@ func TestSubmitParentEnrollment_StampsSubmitEligibility(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule"}
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule"}
 	school.ID = 1
 	requestSvc := &parentSubmitRequestStub{}
 	rs := &Resource{

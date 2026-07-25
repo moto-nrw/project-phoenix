@@ -76,6 +76,11 @@ export interface EnrollablePhase {
   readonly school_id: string;
   readonly school_name: string;
   readonly school_slug: string;
+  // The school's tenant routing identifier. Enrollment links MUST be built from
+  // this, not from school_slug: /auth/tenant/resolve and the parent enrollment
+  // endpoints both resolve tenants by subdomain, and slug is only unique per
+  // organization (#1663).
+  readonly school_subdomain: string;
   readonly phase_id: string;
   readonly phase_name: string;
   readonly phase_kind: "school_year" | "holiday" | "custom";

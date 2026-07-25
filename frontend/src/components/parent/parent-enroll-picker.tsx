@@ -16,7 +16,6 @@ const logger = createLogger({ component: "ParentEnrollPicker" });
 interface SchoolGroup {
   readonly schoolId: string;
   readonly schoolName: string;
-  readonly schoolSlug: string;
   readonly alreadyLinked: boolean;
   readonly phases: EnrollablePhase[];
 }
@@ -37,7 +36,6 @@ function groupBySchool(phases: readonly EnrollablePhase[]): SchoolGroup[] {
     groups.set(phase.school_id, {
       schoolId: phase.school_id,
       schoolName: phase.school_name,
-      schoolSlug: phase.school_slug,
       alreadyLinked: phase.already_linked,
       phases: [phase],
     });
@@ -198,9 +196,16 @@ function PhaseRow({
           ? t("audienceLinkedParents")
           : null;
 
+  // The link carries school_subdomain, never school_slug: the target page
+  // resolves tenant metadata via resolveTenant() and loads the form through the
+  // parent enrollment endpoints, and both look the school up by subdomain. A
+  // school whose slug differs from its subdomain would get an unusable link
+  // (#1663).
   return (
     <Link
-      href={`/parents/enroll/${phase.school_slug}/${phase.phase_id}`}
+      href={`/parents/enroll/${encodeURIComponent(
+        phase.school_subdomain,
+      )}/${encodeURIComponent(phase.phase_id)}`}
       aria-label={`${t("openPhase")}: ${phase.phase_name}`}
       className="group flex items-center gap-4 p-4 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:px-6"
     >

@@ -83,6 +83,7 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 		SchoolID          int64         `bun:"school_id"`
 		SchoolName        string        `bun:"school_name"`
 		SchoolSlug        string        `bun:"school_slug"`
+		SchoolSubdomain   string        `bun:"school_subdomain"`
 		PhaseID           int64         `bun:"phase_id"`
 		PhaseName         string        `bun:"phase_name"`
 		PhaseKind         string        `bun:"phase_kind"`
@@ -107,6 +108,7 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 			sch.id        AS school_id,
 			sch.name      AS school_name,
 			sch.slug      AS school_slug,
+			sch.subdomain AS school_subdomain,
 			ph.id         AS phase_id,
 			ph.name       AS phase_name,
 			ph.kind       AS phase_kind,
@@ -193,6 +195,7 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 			SchoolID:          rr.SchoolID,
 			SchoolName:        rr.SchoolName,
 			SchoolSlug:        rr.SchoolSlug,
+			SchoolSubdomain:   rr.SchoolSubdomain,
 			PhaseID:           rr.PhaseID,
 			PhaseName:         rr.PhaseName,
 			PhaseKind:         rr.PhaseKind,

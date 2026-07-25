@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // stubGuardianProfileRepo implements only the GuardianProfileRepository methods
@@ -20,11 +22,18 @@ type stubGuardianProfileRepo struct {
 	usersModels.GuardianProfileRepository
 	byAccount map[int64]*usersModels.GuardianProfile
 	byEmail   map[string]*usersModels.GuardianProfile
-	created   int
-	updated   int
+	// byAccountErr simulates an operational (non-not-found) failure of the
+	// by-account lookup.
+	byAccountErr error
+	emailLookups int
+	created      int
+	updated      int
 }
 
 func (s *stubGuardianProfileRepo) FindByAccountID(_ context.Context, accountID int64) (*usersModels.GuardianProfile, error) {
+	if s.byAccountErr != nil {
+		return nil, s.byAccountErr
+	}
 	if p, ok := s.byAccount[accountID]; ok {
 		return p, nil
 	}
@@ -32,6 +41,7 @@ func (s *stubGuardianProfileRepo) FindByAccountID(_ context.Context, accountID i
 }
 
 func (s *stubGuardianProfileRepo) FindByEmail(_ context.Context, email string) (*usersModels.GuardianProfile, error) {
+	s.emailLookups++
 	if p, ok := s.byEmail[strings.ToLower(strings.TrimSpace(email))]; ok {
 		return p, nil
 	}
@@ -188,6 +198,37 @@ func TestResolveGuardianProfile_AllowsOwnUnclaimedEmailProfile(t *testing.T) {
 	assert.Equal(t, own.ID, got.ID)
 }
 
+// A database failure on the by-account lookup must NOT degrade into the email
+// path: doing so hands the linkage decision to the parent-editable email field
+// (or creates a duplicate profile) on a transient outage. Only the explicit
+// not-found sentinel may fall through.
+func TestResolveGuardianProfile_PropagatesAccountLookupFailure(t *testing.T) {
+	const callerAccount = int64(10)
+	other := &usersModels.GuardianProfile{FirstName: "Vera", LastName: "Opfer"}
+	other.ID = 99
+	repo := &stubGuardianProfileRepo{
+		byAccount:    map[int64]*usersModels.GuardianProfile{},
+		byEmail:      map[string]*usersModels.GuardianProfile{"anna@example.test": other},
+		byAccountErr: errors.New("connection reset by peer"),
+	}
+	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{GuardianProfileRepo: repo}}
+
+	req := &enrollmentModels.Request{
+		GuardianAccountID: int64Ptr(callerAccount),
+		GuardianEmail:     "anna@example.test",
+		GuardianFirstName: "Anna",
+		GuardianLastName:  "Antragsteller",
+	}
+
+	got, wasNew, err := svc.resolveGuardianProfile(context.Background(), req)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "connection reset by peer")
+	assert.Nil(t, got)
+	assert.False(t, wasNew)
+	assert.Zero(t, repo.emailLookups, "a lookup failure must not fall through to the email path")
+	assert.Zero(t, repo.created, "a lookup failure must not create a duplicate profile")
+}
+
 // An unclaimed profile carrying the email (no account yet) is NOT a mismatch:
 // approval's by-id attach later links it to the caller.
 func TestResolveGuardianProfile_AllowsUnclaimedEmailProfile(t *testing.T) {
@@ -211,4 +252,84 @@ func TestResolveGuardianProfile_AllowsUnclaimedEmailProfile(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, unclaimed.ID, got.ID)
+}
+
+// --- attachGuardianAccountIfPresent: already-linked profiles ----------------
+
+// stubAccountTenantRepo records the mapping writes the attach path performs.
+type stubAccountTenantRepo struct {
+	authModels.AccountTenantRepository
+	ensured []*authModels.AccountTenant
+	created []*authModels.AccountTenant
+}
+
+func (s *stubAccountTenantRepo) EnsureActive(_ context.Context, m *authModels.AccountTenant) error {
+	s.ensured = append(s.ensured, m)
+	return nil
+}
+
+func (s *stubAccountTenantRepo) Create(_ context.Context, m *authModels.AccountTenant) error {
+	s.created = append(s.created, m)
+	return nil
+}
+
+// stubRoleRepo answers the guardian-role lookup ensureGuardianRoleForTenant makes.
+type stubRoleRepo struct {
+	authModels.RoleRepository
+	role *authModels.Role
+}
+
+func (s *stubRoleRepo) FindByName(_ context.Context, _ string) (*authModels.Role, error) {
+	return s.role, nil
+}
+
+// stubAccountRoleRepo reports the guardian role as already assigned so the
+// attach path needs no write.
+type stubAccountRoleRepo struct {
+	authModels.AccountRoleRepository
+	existing *authModels.AccountRole
+}
+
+func (s *stubAccountRoleRepo) FindByAccountAndRole(_ context.Context, _, _ int64) (*authModels.AccountRole, error) {
+	return s.existing, nil
+}
+
+// #1663 review: a guardian profile that already carries an account_id proves a
+// LINK, not portal ACCESS — account_id survives an offboarding that flipped
+// auth.account_tenants to inactive. Since pendingGuardianInvite sends nothing
+// for a linked profile, an early return here would approve the child and leave
+// the parent locked out. The approval must (re)assert the active mapping.
+func TestAttachGuardianAccountIfPresent_ReactivatesLinkedAccountTenant(t *testing.T) {
+	const (
+		accountID = int64(4242)
+		tenantID  = int64(77)
+	)
+	guardian := &usersModels.GuardianProfile{
+		FirstName:  "Anna",
+		LastName:   "Antragsteller",
+		AccountID:  int64Ptr(accountID),
+		HasAccount: true,
+	}
+	guardian.ID = 5
+
+	role := &authModels.Role{Name: "guardian"}
+	role.ID = 9
+	assignment := &authModels.AccountRole{AccountID: accountID, RoleID: role.ID}
+	mappings := &stubAccountTenantRepo{}
+	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{
+		AccountTenantRepo: mappings,
+		AccountRoleRepo:   &stubAccountRoleRepo{existing: assignment},
+		RoleRepo:          &stubRoleRepo{role: role},
+	}}
+
+	ctx := tenant.WithTenantID(context.Background(), tenantID)
+	require.NoError(t, svc.attachGuardianAccountIfPresent(ctx, &enrollmentModels.Request{}, guardian, false))
+
+	require.Len(t, mappings.ensured, 1,
+		"an already-linked guardian must still get an ACTIVE account_tenants mapping")
+	assert.Equal(t, accountID, mappings.ensured[0].AccountID)
+	assert.Equal(t, tenantID, mappings.ensured[0].TenantID)
+	assert.Equal(t, authModels.AccountTenantStatusActive, mappings.ensured[0].Status)
+	assert.Empty(t, mappings.created,
+		"Create is ON CONFLICT DO NOTHING and would leave an inactive row inactive")
 }

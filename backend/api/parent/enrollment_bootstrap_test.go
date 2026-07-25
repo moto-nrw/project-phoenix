@@ -57,7 +57,7 @@ func TestGetEnrollmentBootstrap_EligibleGuardianUsesEnrolleeGate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule"}
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule"}
 	school.ID = 1
 	requestSvc := &parentBootstrapRequestStub{}
 	rs := &Resource{
@@ -85,7 +85,7 @@ func TestGetEnrollmentBootstrap_IneligibleAccountUsesPublicGate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule"}
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule"}
 	school.ID = 1
 	requestSvc := &parentBootstrapRequestStub{}
 	rs := &Resource{
@@ -109,7 +109,7 @@ func TestGetEnrollmentBootstrap_RevokedPermissionUsesPublicGate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule"}
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule"}
 	school.ID = 1
 	requestSvc := &parentBootstrapRequestStub{}
 	rs := &Resource{

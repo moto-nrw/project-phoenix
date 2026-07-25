@@ -84,9 +84,14 @@ type ChildRepository interface {
 // child here). The frontend uses it to sort linked schools first and
 // label them differently from "new" schools.
 type EnrollablePhase struct {
-	SchoolID          int64         `json:"school_id"`
-	SchoolName        string        `json:"school_name"`
-	SchoolSlug        string        `json:"school_slug"`
+	SchoolID   int64  `json:"school_id"`
+	SchoolName string `json:"school_name"`
+	SchoolSlug string `json:"school_slug"`
+	// SchoolSubdomain is the school's tenant ROUTING identifier — the one
+	// /auth/tenant/resolve and the parent enrollment endpoints accept. Slug is
+	// only unique per organization and is not a routing key, so links must be
+	// built from this field (#1663).
+	SchoolSubdomain   string        `json:"school_subdomain"`
 	PhaseID           int64         `json:"phase_id"`
 	PhaseName         string        `json:"phase_name"`
 	PhaseKind         string        `json:"phase_kind"`
