@@ -52,6 +52,7 @@ type PersonServiceMock struct {
 	GetTeacherWithStaffAndPersonFn   func(ctx context.Context, id int64) (*userModels.Teacher, error)
 	ListTeachersWithStaffAndPersonFn func(ctx context.Context) ([]*userModels.Teacher, error)
 	GetStudentByIDFn                 func(ctx context.Context, id int64) (*userModels.Student, error)
+	GetStudentByIDForUpdateFn        func(ctx context.Context, id int64) (*userModels.Student, error)
 	GetStudentByPersonIDFn           func(ctx context.Context, personID int64) (*userModels.Student, error)
 	GetStudentsByIDsFn               func(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error)
 	GetStudentsByGroupIDFn           func(ctx context.Context, groupID int64) ([]*userModels.Student, error)
@@ -248,6 +249,20 @@ func (m *PersonServiceMock) ListTeachersWithStaffAndPerson(ctx context.Context) 
 }
 
 func (m *PersonServiceMock) GetStudentByID(ctx context.Context, id int64) (*userModels.Student, error) {
+	if m.GetStudentByIDFn != nil {
+		return m.GetStudentByIDFn(ctx, id)
+	}
+	return nil, nil
+}
+
+// GetStudentByIDForUpdate falls back to GetStudentByIDFn when no dedicated stub
+// is set: the locked read differs from the plain one only in the row lock, which
+// a mock has nothing to emulate, so a test that stubs the lookup once covers
+// both call sites.
+func (m *PersonServiceMock) GetStudentByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
+	if m.GetStudentByIDForUpdateFn != nil {
+		return m.GetStudentByIDForUpdateFn(ctx, id)
+	}
 	if m.GetStudentByIDFn != nil {
 		return m.GetStudentByIDFn(ctx, id)
 	}

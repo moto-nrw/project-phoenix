@@ -467,6 +467,14 @@ func (s *personService) GetStudentByID(ctx context.Context, id int64) (*userMode
 	return s.StudentRepo.FindByID(ctx, id)
 }
 
+// GetStudentByIDForUpdate retrieves a student by ID under a row lock held until
+// the caller's transaction ends. Callers that validate the status before writing
+// a row that references the student need it: an unlocked read can be obsolete
+// the moment a grade transition commits.
+func (s *personService) GetStudentByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
+	return s.StudentRepo.FindByIDForUpdate(ctx, id)
+}
+
 // GetStudentByPersonID retrieves the student record belonging to a person.
 func (s *personService) GetStudentByPersonID(ctx context.Context, personID int64) (*userModels.Student, error) {
 	return s.StudentRepo.FindByPersonID(ctx, personID)

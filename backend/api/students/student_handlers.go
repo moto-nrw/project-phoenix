@@ -1438,6 +1438,11 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, nil, "Student deleted successfully")
 }
 
+// In-tx sentinel: the child graduated between parseAndGetStudent's alumnus gate
+// and the locked re-read below. Mapped to the same 404 that gate returns, so the
+// racy path and the ordinary one answer identically.
+var errStudentGraduatedUnderLock = errors.New("student graduated between snapshot and lock")
+
 // deleteStudentTx performs the locked student delete inside the caller's
 // tenant transaction.
 //
@@ -1477,6 +1482,19 @@ func (rs *Resource) deleteStudentTx(ctx context.Context, tenantID int64, student
 	if err != nil {
 		return err
 	}
+
+	// The pre-transaction alumnus gate (parseAndGetStudent) ran on a snapshot. A
+	// grade transition that commits between that read and this lock turns the
+	// subject into a soft-deleted graduate, and a delete that proceeds anyway
+	// HARD-deletes the very row graduation preserved: the student and person rows
+	// are gone, so a transition revert can never bring that child back and their
+	// history is lost for good. Under the row lock the two serialize — either we
+	// hold the row and the transition waits for a child that no longer exists, or
+	// it committed first and we see the alumnus status and refuse (#405 review).
+	if fresh.IsAlumnus() {
+		return errStudentGraduatedUnderLock
+	}
+
 	var photoToRemove string
 	if fresh.PhotoPath != nil {
 		photoToRemove = *fresh.PhotoPath
@@ -1512,6 +1530,11 @@ func (rs *Resource) deleteStudentTx(ctx context.Context, tenantID int64, student
 // so nothing this transaction touched is committed.
 func deleteStudentTxErrorRenderer(err error) render.Renderer {
 	switch {
+	// The child graduated while this request was in flight. Answered with the
+	// same 404 the shared alumnus gate returns, so a delete never depends on
+	// which of the two transactions won the race.
+	case errors.Is(err, errStudentGraduatedUnderLock):
+		return common.ErrorNotFound(errors.New("student not found"))
 	// A linked child would be stranded (accompanied plan, no note, no other
 	// link). The German sentinel text tells the user which precondition to
 	// fix first.

@@ -304,6 +304,33 @@ func (s *Service) lockStudentStatuses(ctx context.Context, studentIDs []int64) (
 	return statuses, nil
 }
 
+// isAlumnus reports whether a student has graduated. It backs the read-side
+// alumnus gates, so it takes NO row lock: a read decides nothing a later write
+// depends on, and locking every enrollment read would put staff traffic in the
+// queue of a running grade transition for no gain. A missing row is not an
+// alumnus — the caller's own lookups decide what "unknown student" means.
+//
+// A nil student repository is an error rather than a silent "not graduated":
+// the repository is wired in services.NewFactory, so a nil one means the caller
+// built the service without the dependency this decision needs, and answering
+// "no" would hand out exactly the rows the gate exists to hide.
+func (s *Service) isAlumnus(ctx context.Context, studentID int64) (bool, error) {
+	if studentID <= 0 {
+		return false, nil
+	}
+	if s.studentRepo == nil {
+		return false, errStudentRepoMissing
+	}
+	student, err := s.studentRepo.FindByID(ctx, studentID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return student.IsAlumnus(), nil
+}
+
 // ascendingUniqueIDs normalizes a set of student ids for locking: duplicates
 // removed, non-positive ids dropped, ascending order. The order is what keeps
 // two enrollment writes over an overlapping roster from deadlocking against
@@ -385,8 +412,23 @@ func (s *Service) GetEnrolledStudents(ctx context.Context, groupID int64) ([]*us
 	return students, nil
 }
 
-// GetStudentEnrollments retrieves all groups a student is enrolled in
+// GetStudentEnrollments retrieves all groups a student is enrolled in.
+//
+// A graduated (alumnus) student has no enrollments as far as this read is
+// concerned. Their rows deliberately survive the grade transition so a revert
+// and future materialization can still reason about them, but GetEnrolledStudents
+// already hides them from the roster side; without the same gate here the
+// staff-facing GET /api/activities/student/{id} handed the identical hidden
+// assignments straight back when queried with the graduate's ID (#405 review).
 func (s *Service) GetStudentEnrollments(ctx context.Context, studentID int64) ([]*activities.Group, error) {
+	alumnus, err := s.isAlumnus(ctx, studentID)
+	if err != nil {
+		return nil, &ActivityError{Op: "get student enrollments", Err: err}
+	}
+	if alumnus {
+		return []*activities.Group{}, nil
+	}
+
 	// Get all enrollments for this student
 	enrollments, err := s.enrollmentRepo.FindByStudentID(ctx, studentID)
 	if err != nil {

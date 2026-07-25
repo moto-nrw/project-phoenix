@@ -111,6 +111,13 @@ type PersonService interface {
 	// GetStudentByID retrieves a student by ID.
 	GetStudentByID(ctx context.Context, id int64) (*userModels.Student, error)
 
+	// GetStudentByIDForUpdate retrieves a student by ID under a SELECT … FOR
+	// UPDATE row lock held for the caller's transaction, so a status the caller
+	// validates cannot be changed by a concurrent grade transition before the
+	// caller's own write commits. Errors are returned verbatim like the other
+	// entity lookups (sql.ErrNoRows stays unwrappable).
+	GetStudentByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error)
+
 	// GetStudentByPersonID retrieves the student record belonging to a person.
 	GetStudentByPersonID(ctx context.Context, personID int64) (*userModels.Student, error)
 
