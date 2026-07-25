@@ -1180,28 +1180,8 @@ func (s *decisionService) applyApproval(
 	// otherwise miss the attach step and trigger an invitation that
 	// overwrites their existing password. The by-ID path is also
 	// strictly cheaper - no platform-wide email index hit.
-	if guardian.AccountID == nil {
-		var (
-			linked bool
-			err    error
-		)
-		switch {
-		case request.GuardianAccountID != nil && *request.GuardianAccountID > 0:
-			linked, err = s.attachExistingAccountByID(ctx, guardian, *request.GuardianAccountID)
-		case guardian.Email != nil && strings.TrimSpace(*guardian.Email) != "":
-			linked, err = s.attachExistingAccountIfPresent(ctx, guardian)
-		}
-		if err != nil {
-			return nil, fmt.Errorf("decision: attach existing account: %w", err)
-		}
-		if linked {
-			s.Logger.Info("decision: linked approval to existing global account",
-				slog.Int64("guardian_profile_id", guardian.ID),
-				slog.Int64("tenant_id", tenant.FromContext(ctx)),
-				slog.Bool("profile_was_new", profileWasNew),
-				slog.Bool("via_request_account_id", request.GuardianAccountID != nil),
-			)
-		}
+	if err := s.attachGuardianAccountIfPresent(ctx, request, guardian, profileWasNew); err != nil {
+		return nil, err
 	}
 
 	// 2. Person row for the child. DateOfBirth is required so a copy
@@ -1335,17 +1315,81 @@ func (s *decisionService) applyApproval(
 	// the guardian already has a portal account (per the design Q
 	// answer: "when they already have an account we do not need to
 	// create a new one").
-	if !guardian.HasAccount && guardian.Email != nil && strings.TrimSpace(*guardian.Email) != "" {
-		s.Logger.Debug("decision: scheduling guardian invitation",
-			slog.Int64("guardian_profile_id", guardian.ID),
-			slog.Bool("profile_was_new", profileWasNew),
-		)
-		return &PendingGuardianInvite{
-			GuardianProfileID: guardian.ID,
-			CreatedBy:         reviewedBy,
-		}, nil
+	return s.pendingGuardianInvite(guardian, reviewedBy, profileWasNew), nil
+}
+
+// attachGuardianAccountIfPresent runs the cross-tenant account check for a
+// resolved guardian profile: if the email (or the submitting parent's
+// JWT-derived account id) already has a global auth.accounts row, attach the
+// new tenant + this profile to it directly. This bypasses the invitation flow
+// entirely — the invitation accept path overwrites the password hash, which is
+// the wrong UX when the parent already has a working password from another
+// school.
+//
+// The by-ID lookup wins when the request carries guardian_account_id (parent
+// submitted while logged in): a parent who edits their email in the form would
+// otherwise miss the attach step and trigger an invitation that overwrites
+// their existing password. It is also strictly cheaper — no platform-wide
+// email index hit.
+//
+// Shared by the fresh-create approval and the existing-student re-enrollment
+// approval; profileWasNew is logging context only.
+func (s *decisionService) attachGuardianAccountIfPresent(
+	ctx context.Context,
+	request *enrollmentModels.Request,
+	guardian *users.GuardianProfile,
+	profileWasNew bool,
+) error {
+	if guardian == nil || guardian.AccountID != nil {
+		return nil
 	}
-	return nil, nil
+	var (
+		linked bool
+		err    error
+	)
+	switch {
+	case request.GuardianAccountID != nil && *request.GuardianAccountID > 0:
+		linked, err = s.attachExistingAccountByID(ctx, guardian, *request.GuardianAccountID)
+	case guardian.Email != nil && strings.TrimSpace(*guardian.Email) != "":
+		linked, err = s.attachExistingAccountIfPresent(ctx, guardian)
+	}
+	if err != nil {
+		return fmt.Errorf("decision: attach existing account: %w", err)
+	}
+	if linked {
+		s.Logger.Info("decision: linked approval to existing global account",
+			slog.Int64("guardian_profile_id", guardian.ID),
+			slog.Int64("tenant_id", tenant.FromContext(ctx)),
+			slog.Bool("profile_was_new", profileWasNew),
+			slog.Bool("via_request_account_id", request.GuardianAccountID != nil),
+		)
+	}
+	return nil
+}
+
+// pendingGuardianInvite reports the post-commit invitation an approval owes the
+// submitted primary guardian: none when they already hold a portal account (per
+// the design Q answer: "when they already have an account we do not need to
+// create a new one") or when there is no address to invite.
+func (s *decisionService) pendingGuardianInvite(
+	guardian *users.GuardianProfile,
+	reviewedBy int64,
+	profileWasNew bool,
+) *PendingGuardianInvite {
+	if guardian == nil || guardian.HasAccount {
+		return nil
+	}
+	if guardian.Email == nil || strings.TrimSpace(*guardian.Email) == "" {
+		return nil
+	}
+	s.Logger.Debug("decision: scheduling guardian invitation",
+		slog.Int64("guardian_profile_id", guardian.ID),
+		slog.Bool("profile_was_new", profileWasNew),
+	)
+	return &PendingGuardianInvite{
+		GuardianProfileID: guardian.ID,
+		CreatedBy:         reviewedBy,
+	}
 }
 
 // applyApprovalRollover is the abbreviated approval path for
@@ -1400,13 +1444,16 @@ func (s *decisionService) applyApprovalRollover(
 // It renews the student's class + enrollment window, materializes the phase's
 // care offerings, stamps the activation plan and back-links the request_child.
 //
-// PRIMARY guardian linkage and invitations are deliberately skipped: the
-// student already exists with its primary guardian relationship from the
-// original enrollment, so re-creating a primary StudentGuardian or issuing a
-// fresh invite would duplicate/clobber that setup. Co-guardians the parent
-// added on THIS submission are still materialized (linkAdditionalGuardians is
-// idempotent), because they are new contact/pickup data the same form
-// collected — dropping them would silently discard it (#1663).
+// syncTargetedFields separates the two callers: it is false for the annual
+// rollover (no fresh parent submission exists, so there is nothing to apply
+// beyond class + window + offerings) and true for an existing_students
+// re-enrollment, which IS a full parent form and therefore also reconciles the
+// submitted guardian — primary link, phone, portal invitation — exactly like
+// the fresh-create path. Assuming the matched student already carries the
+// submitted guardian is wrong for an anonymous submission, for an imported or
+// manually created child with no guardian link at all, and for the other parent
+// submitting this year's renewal; without the reconciliation the approval
+// silently discards the submitted guardian and their portal access (#1663).
 func (s *decisionService) attachApprovalToExistingStudent(
 	ctx context.Context,
 	request *enrollmentModels.Request,
@@ -1439,18 +1486,52 @@ func (s *decisionService) attachApprovalToExistingStudent(
 	if existing.Status != users.StudentStatusActive {
 		existing.Status = activationPlan.StudentStatus
 	}
+	// A full re-enrollment form re-states the guardian's contact data, so the
+	// student's denormalized guardian_email / guardian_phone follow the fresh
+	// submission instead of keeping last year's address (same rule the approved
+	// child sync applies). The rollover carries no submission and keeps them.
+	if syncTargetedFields {
+		if email := strings.TrimSpace(strings.ToLower(request.GuardianEmail)); email != "" {
+			existing.GuardianEmail = &email
+		}
+		existing.GuardianPhone = request.GuardianPhone
+	}
 	if err := s.StudentRepo.Update(ctx, existing); err != nil {
 		return nil, fmt.Errorf("decision: update existing student: %w", err)
+	}
+
+	// Reconcile the submitted primary guardian BEFORE the targeted-field
+	// dispatch, so the resolved profile is the one the dispatch enriches with
+	// the submitted phone number.
+	//
+	// pruneStalePrimary=false: a guardian already holding the primary link on
+	// the matched student comes from a different source than this submission
+	// (last year's approval, an import, the other parent), so they keep their
+	// link — and with it their pickup authority and parent-portal access — and
+	// are only demoted from primary by the DB trigger. See
+	// reconcilePrimaryGuardianLink (#1663).
+	var guardian *users.GuardianProfile
+	if syncTargetedFields {
+		resolved, err := s.reconcilePrimaryGuardianLink(ctx, request, studentID, false)
+		if err != nil {
+			return nil, err
+		}
+		guardian = resolved
+		// Same cross-tenant account check the fresh-create approval runs: a
+		// parent who already has a portal account (this school or another) gets
+		// the tenant + profile attached directly instead of an invitation that
+		// would overwrite their password.
+		if err := s.attachGuardianAccountIfPresent(ctx, request, guardian, false); err != nil {
+			return nil, err
+		}
 	}
 
 	// Dispatch every targeted form field the parent submitted onto the existing
 	// record (health/extra info, departure + arrival schedules, contact lists,
 	// consent-flag propagation). Without this the existing-student approval
 	// silently drops everything the form collected beyond class/window/care
-	// offerings. guardian is nil: the student keeps the primary guardian
-	// relationship from its original enrollment, matching this helper's
-	// deliberate primary-guardian skip. Rollover passes false because its
-	// request_child carries no fresh submission (#1663).
+	// offerings. Rollover passes false because its request_child carries no
+	// fresh submission (#1663).
 	//
 	// ReplaceSchedules: the matched student most likely already has arrival /
 	// pickup schedule rows from its original enrollment. A plain insert of the
@@ -1468,17 +1549,25 @@ func (s *decisionService) attachApprovalToExistingStudent(
 	// loss on a live student. Returning the error rolls the whole approval back
 	// through the surrounding tenant tx (see Decide), leaving the original
 	// schedule intact for a clean retry (#1663).
+	//
+	// ReplaceConsent: this form re-asks every configured consent, so a box the
+	// guardian left unchecked WITHDRAWS the consent the matched student still
+	// carries from an earlier enrollment. Without it an approval would leave
+	// photo or email-contact consent active against the guardian's explicit
+	// answer (#1663).
 	if syncTargetedFields {
-		if _, err := s.applyTargetedFields(ctx, request, child, existing, nil, reviewedBy, targetedFieldSyncOptions{ReplaceSchedules: true}); err != nil {
+		if _, err := s.applyTargetedFields(ctx, request, child, existing, guardian, reviewedBy, targetedFieldSyncOptions{
+			ReplaceSchedules: true,
+			ReplaceConsent:   true,
+		}); err != nil {
 			return nil, fmt.Errorf("decision: targeted-field dispatch on existing student: %w", err)
 		}
-		// Materialize any co-guardians the parent added on this full form. The
-		// student keeps its original primary guardian, but a newly submitted
-		// co-guardian needs a users.students_guardians link + phone or the
-		// AdditionalGuardians contact data is silently dropped. Idempotent, so
-		// re-approval is safe. Fatal like the fresh-create path — losing a
-		// pickup-authorized emergency contact is a data-integrity failure, not
-		// best-effort field noise (#1663).
+		// Materialize any co-guardians the parent added on this full form. A
+		// newly submitted co-guardian needs a users.students_guardians link +
+		// phone or the AdditionalGuardians contact data is silently dropped.
+		// Idempotent, so re-approval is safe. Fatal like the fresh-create path —
+		// losing a pickup-authorized emergency contact is a data-integrity
+		// failure, not best-effort field noise (#1663).
 		if err := s.linkAdditionalGuardians(ctx, request, studentID); err != nil {
 			return nil, fmt.Errorf("decision: link additional guardians on existing student: %w", err)
 		}
@@ -1505,7 +1594,13 @@ func (s *decisionService) attachApprovalToExistingStudent(
 		return nil, fmt.Errorf("decision: link existing student: %w", err)
 	}
 
-	return nil, nil
+	// Invite the submitted guardian when they have no portal account yet — the
+	// re-enrollment form is exactly the moment a school hands a family portal
+	// access, and the matched student's existing links say nothing about
+	// whether THIS submitter can reach it. nil on the rollover path (guardian
+	// stays nil there) and whenever the account attach above already linked
+	// them.
+	return s.pendingGuardianInvite(guardian, reviewedBy, false), nil
 }
 
 // renewedEnrollmentWindow decides the enrollment window an approval writes
@@ -1753,10 +1848,30 @@ func (s *decisionService) linkAdditionalGuardians(
 	return nil
 }
 
+// reconcilePrimaryGuardianLink resolves the request's primary guardian profile
+// and makes sure the student carries it as the primary students_guardians link,
+// creating the link when the student has none (imported / manually created
+// children, and children whose original enrollment predates the guardian link).
+//
+// pruneStalePrimary decides what happens to a DIFFERENT guardian who currently
+// holds the primary link:
+//
+//   - true (admin edit sync): the edit rewrites this request's guardian, so the
+//     link it produced earlier is repointed / removed — the old profile was the
+//     same submission's answer and is now wrong.
+//   - false (existing-student re-enrollment): the matched student may carry a
+//     primary guardian from an ENTIRELY different source — last year's approval,
+//     an import, the other parent. Deleting or repointing that row would strip a
+//     real guardian of their pickup authority and parent-portal access because
+//     the other parent happened to submit this year's renewal. The submitted
+//     guardian still becomes primary (the DB trigger
+//     enforce_single_primary_student_guardian demotes the previous holder to
+//     is_primary=false), but their link and permissions survive (#1663).
 func (s *decisionService) reconcilePrimaryGuardianLink(
 	ctx context.Context,
 	request *enrollmentModels.Request,
 	studentID int64,
+	pruneStalePrimary bool,
 ) (*users.GuardianProfile, error) {
 	guardian, _, err := s.resolveGuardianProfile(ctx, request)
 	if err != nil {
@@ -1795,7 +1910,7 @@ func (s *decisionService) reconcilePrimaryGuardianLink(
 		if err := s.StudentGuardianRepo.Update(ctx, currentLink); err != nil {
 			return nil, fmt.Errorf("decision: update current primary guardian link: %w", err)
 		}
-		if primaryLink != nil && primaryLink.ID != currentLink.ID {
+		if pruneStalePrimary && primaryLink != nil && primaryLink.ID != currentLink.ID {
 			if err := s.StudentGuardianRepo.Delete(ctx, primaryLink.ID); err != nil {
 				return nil, fmt.Errorf("decision: remove stale primary guardian link: %w", err)
 			}
@@ -1803,7 +1918,7 @@ func (s *decisionService) reconcilePrimaryGuardianLink(
 		return guardian, nil
 	}
 
-	if primaryLink != nil {
+	if pruneStalePrimary && primaryLink != nil {
 		primaryLink.GuardianProfileID = guardian.ID
 		primaryLink.RelationshipType = "guardian"
 		primaryLink.IsPrimary = true
@@ -2668,7 +2783,15 @@ type targetedFieldSyncOptions struct {
 	// approval, where the matched student already has schedule rows that would
 	// otherwise collide with the unique (tenant_id, student_id, weekday) key.
 	// Implied by Replace.
-	ReplaceSchedules       bool
+	ReplaceSchedules bool
+	// ReplaceConsent applies the submitted consent flags as the complete
+	// consent state instead of an additive OR: a flag the parent left
+	// unchecked CLEARS the matching timestamp on the student row. Used by the
+	// existing_students re-enrollment approval, where the submission is a full
+	// renewal of a student that already carries consent from a previous year —
+	// without it a guardian who withdraws photo or email-contact consent on the
+	// renewal form stays recorded as consenting (#1663). Implied by Replace.
+	ReplaceConsent         bool
 	PreviousSnapshot       map[string]any
 	KeepGuardianProfileIDs map[int64]bool
 }
@@ -2712,10 +2835,11 @@ func (s *decisionService) applyTargetedFields(
 		}
 	}
 
-	// Replace implies schedule replacement; ReplaceSchedules asks for schedule
-	// replacement alone (existing_students re-enrollment) without the full-form
-	// clearing the rest of Replace applies.
+	// Replace implies schedule and consent replacement; ReplaceSchedules /
+	// ReplaceConsent ask for one of them alone (existing_students
+	// re-enrollment) without the full-form clearing the rest of Replace applies.
 	replaceSchedules := options.Replace || options.ReplaceSchedules
+	replaceConsent := options.Replace || options.ReplaceConsent
 
 	pickupScheduleDeleted := false
 	arrivalScheduleDeleted := false
@@ -2898,30 +3022,41 @@ func (s *decisionService) applyTargetedFields(
 			student.EmailContactAcceptedAt = &now
 			studentDirty = true
 		}
-		if options.Replace {
-			if photo, _ := request.ConsentFlags[enrollmentModels.ConsentKeyPhoto].(bool); !photo {
+		// Withdrawal. A replacing submission answers the whole consent
+		// question, so a block the guardian left unchecked must CLEAR the
+		// matching timestamp instead of leaving last year's consent standing.
+		//
+		// Clearing keys on PRESENCE, not on falsiness: the form submits every
+		// configured legal block (an unchecked optional box arrives as an
+		// explicit false) and filterConsentFlags drops everything else, so an
+		// absent key means "this form never asked" — not "withdrawn". Wiping
+		// those would let a renewal phase that configures no photo block erase
+		// a photo consent the original enrollment recorded (#1663).
+		if replaceConsent {
+			if photo, ok := request.ConsentFlags[enrollmentModels.ConsentKeyPhoto].(bool); ok && !photo {
 				student.PhotoConsentGivenAt = nil
 				student.PhotoConsentGivenBy = nil
 				studentDirty = true
 			}
-			if agb, _ := request.ConsentFlags[enrollmentModels.ConsentKeyAGB].(bool); !agb {
+			if agb, ok := request.ConsentFlags[enrollmentModels.ConsentKeyAGB].(bool); ok && !agb {
 				student.AGBAcceptedAt = nil
 				studentDirty = true
 			}
-			if dp, _ := request.ConsentFlags[enrollmentModels.ConsentKeyDataProcessing].(bool); !dp {
+			if dp, ok := request.ConsentFlags[enrollmentModels.ConsentKeyDataProcessing].(bool); ok && !dp {
 				student.DataProcessingAcceptedAt = nil
 				studentDirty = true
 			}
-			if email, _ := request.ConsentFlags[enrollmentModels.ConsentKeyEmailContact].(bool); !email {
+			if email, ok := request.ConsentFlags[enrollmentModels.ConsentKeyEmailContact].(bool); ok && !email {
 				student.EmailContactAcceptedAt = nil
 				studentDirty = true
 			}
 		}
 	}
-	// guardian is nil on the existing-student re-enrollment path: that student
-	// already carries its guardian relationships (and their phone numbers) from
-	// the original enrollment, so there is no profile to enrich here — mirror
-	// the helper's deliberate guardian-linkage skip rather than nil-panic.
+	// guardian is nil on the annual rollover path: that request_child carries no
+	// fresh parent submission, so there is no newly submitted phone number and
+	// no profile to enrich — skip rather than nil-panic. Every path that DOES
+	// carry a submission (fresh create, existing-student re-enrollment, admin
+	// edit sync) passes the resolved primary guardian.
 	if request.GuardianPhone != nil && guardian != nil {
 		if err := s.createGuardianPhoneNumber(ctx, guardian.ID, *request.GuardianPhone); err != nil {
 			errs = append(errs, fmt.Sprintf("auto guardian_phone: %v", err))
