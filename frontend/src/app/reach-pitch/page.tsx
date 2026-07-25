@@ -154,10 +154,55 @@ const progressItems = [
     tone: "orange" as Tone,
   },
   {
-    value: "täglich",
-    title: "Zeit zurück",
-    body: "weniger Suchen, Nachfragen und Nachtragen im laufenden Betrieb.",
+    value: "60.000+",
+    title: "NFC-Check-ins",
+    body: "automatisch erfasst, ohne Listen, Nachfragen oder Nachtragen.",
     tone: "red" as Tone,
+  },
+];
+
+const teamMembers = [
+  {
+    initials: "FL",
+    imageSrc: "/pitch/reach/team/florian-luettgenau-v7.png",
+    name: "Florian Lüttgenau",
+    role: "CEO",
+    tone: "green" as Tone,
+  },
+  {
+    initials: "YW",
+    imageSrc: "/pitch/reach/team/yannick-wenger-v4.png",
+    name: "Yannick Wenger",
+    role: "CTO",
+    tone: "blue" as Tone,
+  },
+  {
+    initials: "CK",
+    imageSrc: "/pitch/reach/team/christian-kamann.webp",
+    name: "Christian Kamann",
+    role: "CPO",
+    tone: "orange" as Tone,
+  },
+  {
+    initials: "TH",
+    imageSrc: "/pitch/reach/team/tristan-heitger-v3.png",
+    name: "Tristan Heitger",
+    role: "Full Stack Development",
+    tone: "purple" as Tone,
+  },
+  {
+    initials: "CR",
+    imageSrc: "/pitch/reach/team/conrad-reintjes.webp",
+    name: "Conrad Reintjes",
+    role: "Full Stack Development",
+    tone: "red" as Tone,
+  },
+  {
+    initials: "JS",
+    imageSrc: "/pitch/reach/team/jule-soll-v2.webp",
+    name: "Jule Soll",
+    role: "Pädagogische Leitung",
+    tone: "green" as Tone,
   },
 ];
 
@@ -1014,7 +1059,51 @@ export default function ReachPitchPage() {
           </div>
         </Slide>
 
-        <Slide index={10} eyebrow="Ausblick">
+        <Slide index={10} eyebrow="Team">
+          <div className="flex min-h-0 flex-1 flex-col justify-center">
+            <Headline className="max-w-[11ch]">Das Team hinter moto.</Headline>
+            <Lead className="max-w-[42rem]">
+              Produkt, Technik und OGS-Praxis in einem Team, nah am Betrieb und
+              schnell in der Umsetzung.
+            </Lead>
+            <Surface className="mt-14 p-7">
+              <div className="grid grid-cols-6 gap-5">
+                {teamMembers.map((member) => {
+                  const tone = toneClass[member.tone];
+                  return (
+                    <div key={member.name} className="min-w-0 text-center">
+                      <div
+                        className={`mx-auto flex aspect-square w-full max-w-[7.6rem] items-center justify-center overflow-hidden rounded-full border ${tone.border} ${tone.bg} ${tone.text} text-[clamp(1.1rem,1.8vw,1.65rem)] font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]`}
+                      >
+                        {member.imageSrc ? (
+                          <Image
+                            src={member.imageSrc}
+                            alt={member.name}
+                            width={480}
+                            height={480}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          member.initials
+                        )}
+                      </div>
+                      <h2 className="mt-4 text-[clamp(0.82rem,1vw,0.95rem)] leading-tight font-semibold text-gray-950">
+                        {member.name}
+                      </h2>
+                      <p
+                        className={`mt-1 text-[clamp(0.58rem,0.74vw,0.68rem)] font-bold tracking-[0.08em] uppercase ${tone.text}`}
+                      >
+                        {member.role}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </Surface>
+          </div>
+        </Slide>
+
+        <Slide index={11} eyebrow="Ausblick">
           <div className="grid min-h-0 flex-1 grid-cols-[1fr_0.35fr] items-center gap-[5%]">
             <div>
               <Headline className="max-w-[17ch]">
