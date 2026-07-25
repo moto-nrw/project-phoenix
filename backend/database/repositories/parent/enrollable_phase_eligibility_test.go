@@ -193,6 +193,60 @@ func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsVisibleWithSub
 		"a guardian holding enrollment.submit must see the re-enrollment phase")
 }
 
+// setStudentStatus flips users.students.status, simulating a child who left
+// the OGS (or was never activated) while the guardian link survives.
+func setStudentStatus(t *testing.T, db *bun.DB, studentID int64, status string) {
+	t.Helper()
+	_, err := db.NewRaw(`UPDATE users.students SET status = ? WHERE id = ?`, status, studentID).
+		Exec(context.Background())
+	require.NoError(t, err)
+}
+
+// An account whose ONLY permission-granting relationship points at an inactive
+// child cannot complete an existing_students phase: the form filters that child
+// out and the submit path only accepts active/pending matches. Advertising the
+// phase would be a guaranteed dead end — while linked_parents stays visible,
+// because that audience exists to enroll a genuinely NEW sibling (#1663).
+func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsHiddenForInactiveOnlyChild(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
+	enableEnrollmentForTenant(t, db, chain.TenantID)
+	setStudentStatus(t, db, chain.StudentID, "inactive")
+
+	existingName := fmt.Sprintf("eligibility-exinactive-existing-%d", time.Now().UnixNano())
+	linkedName := fmt.Sprintf("eligibility-exinactive-linked-%d", time.Now().UnixNano())
+	defer wipePhasesForTenant(db, chain.TenantID, "eligibility-exinactive")
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, existingName, enrollmentModels.PhaseAudienceExistingStudents)
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, linkedName, enrollmentModels.PhaseAudienceLinkedParents)
+
+	names := phaseNamesOf(listEnrollableAsAdmin(t, db, chain.AccountID))
+	assert.NotContains(t, names, existingName,
+		"existing_students must stay hidden when no submit-permitted child is still enrolled")
+	assert.Contains(t, names, linkedName,
+		"linked_parents must stay visible — an inactive child still grants access to enroll a new sibling")
+}
+
+// The same account with a still-enrolled (pending) child DOES see the phase:
+// the enrolled probe must accept pending, matching the submit-path scope.
+func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsVisibleForPendingChild(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
+	enableEnrollmentForTenant(t, db, chain.TenantID)
+	setStudentStatus(t, db, chain.StudentID, "pending")
+
+	existingName := fmt.Sprintf("eligibility-expending-%d", time.Now().UnixNano())
+	defer wipePhasesForTenant(db, chain.TenantID, "eligibility-expending")
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, existingName, enrollmentModels.PhaseAudienceExistingStudents)
+
+	names := phaseNamesOf(listEnrollableAsAdmin(t, db, chain.AccountID))
+	assert.Contains(t, names, existingName,
+		"a pending child is already enrolled and must keep the re-enrollment phase visible")
+}
+
 func TestEnrollablePhaseRepository_ListEnrollable_DeactivatedMappingHidesLinkedPhase(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

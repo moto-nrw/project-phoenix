@@ -23,6 +23,7 @@ type stubMatchLockRequestRepo struct {
 	has           bool
 	hasErr        error
 	hasStudentIDs []int64
+	excludedIDs   []int64
 }
 
 func (s *stubMatchLockRequestRepo) AcquireExistingStudentMatchLock(_ context.Context, phaseID int64) error {
@@ -30,8 +31,9 @@ func (s *stubMatchLockRequestRepo) AcquireExistingStudentMatchLock(_ context.Con
 	return s.lockErr
 }
 
-func (s *stubMatchLockRequestRepo) HasActiveRequestForMatchedStudent(_ context.Context, _, studentID int64) (bool, error) {
+func (s *stubMatchLockRequestRepo) HasActiveRequestForMatchedStudent(_ context.Context, _, studentID, excludeRequestChildID int64) (bool, error) {
 	s.hasStudentIDs = append(s.hasStudentIDs, studentID)
+	s.excludedIDs = append(s.excludedIDs, excludeRequestChildID)
 	return s.has, s.hasErr
 }
 
@@ -41,7 +43,7 @@ func TestGuardMatchedStudentUnique_NilPinNoOps(t *testing.T) {
 	repo := &stubMatchLockRequestRepo{has: true}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{RequestRepo: repo}}
 
-	err := svc.guardMatchedStudentUnique(context.Background(), 42, nil, 0)
+	err := svc.guardMatchedStudentUnique(context.Background(), 42, nil, 0, 0)
 	require.NoError(t, err)
 	assert.Empty(t, repo.lockedPhases, "no lock for a nil pin")
 	assert.Empty(t, repo.hasStudentIDs, "no probe for a nil pin")
@@ -54,7 +56,7 @@ func TestGuardMatchedStudentUnique_CollisionRejected(t *testing.T) {
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{RequestRepo: repo}}
 
 	pin := int64(555)
-	err := svc.guardMatchedStudentUnique(context.Background(), 42, &pin, 1)
+	err := svc.guardMatchedStudentUnique(context.Background(), 42, &pin, 0, 1)
 	require.ErrorIs(t, err, ErrExistingStudentAlreadyRequested)
 	assert.Equal(t, []int64{42}, repo.lockedPhases, "guard must lock the phase before probing")
 	assert.Equal(t, []int64{555}, repo.hasStudentIDs)
@@ -67,7 +69,7 @@ func TestGuardMatchedStudentUnique_NoCollisionPasses(t *testing.T) {
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{RequestRepo: repo}}
 
 	pin := int64(777)
-	err := svc.guardMatchedStudentUnique(context.Background(), 9, &pin, 0)
+	err := svc.guardMatchedStudentUnique(context.Background(), 9, &pin, 0, 0)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{9}, repo.lockedPhases)
 }
@@ -78,7 +80,7 @@ func TestGuardMatchedStudentUnique_LockErrorPropagates(t *testing.T) {
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{RequestRepo: repo}}
 
 	pin := int64(1)
-	err := svc.guardMatchedStudentUnique(context.Background(), 3, &pin, 0)
+	err := svc.guardMatchedStudentUnique(context.Background(), 3, &pin, 0, 0)
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, ErrExistingStudentAlreadyRequested)
 	assert.Empty(t, repo.hasStudentIDs, "probe must not run when the lock failed")
@@ -91,7 +93,7 @@ func TestGuardMatchedStudentUnique_ProbeErrorPropagates(t *testing.T) {
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{RequestRepo: repo}}
 
 	pin := int64(1)
-	err := svc.guardMatchedStudentUnique(context.Background(), 3, &pin, 0)
+	err := svc.guardMatchedStudentUnique(context.Background(), 3, &pin, 0, 0)
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, ErrExistingStudentAlreadyRequested)
 }

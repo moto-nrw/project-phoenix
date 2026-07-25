@@ -54,6 +54,17 @@ func NewEnrollablePhaseRepository(db *bun.DB) parentModels.EnrollablePhaseReposi
 // per-student submit permission on (ErrChildEnrollmentNotPermitted). Listing
 // it would only advertise a guaranteed dead end.
 //
+// existing_students goes one step further and requires the permission-granting
+// relationship to point at a student that is still ACTIVE or PENDING (its
+// person not soft-deleted) — the same "enrolled" scope
+// ExistsEnrolledByNameAndBirthday / FindEnrolledStudentIDByNameAndBirthday use
+// on submit. An account whose only submit-permitted relationship is to an
+// inactive (or otherwise un-enrolled) child would otherwise see the phase, find
+// that child filtered out of the form, and hit ErrChildNotEnrolled on submit:
+// another guaranteed dead end. linked_parents keeps the looser probe on
+// purpose — it lets a parent enroll a genuinely NEW sibling, so an inactive
+// child still legitimately grants access there.
+//
 // The denial stays deliberately scoped to those two audiences: a pickup-only
 // relationship on one child must NOT hide open / new_students phases the same
 // account can bootstrap a genuinely new child into and submit via a direct URL
@@ -131,7 +142,28 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 					WHERE gp.tenant_id = ph.tenant_id
 						AND gp.account_id = ?
 						AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
-				) AS has_submit_permission
+				) AS has_submit_permission,
+				EXISTS (
+					SELECT 1
+					FROM users.guardian_profiles AS gp
+					JOIN users.students_guardians AS sg
+						ON sg.guardian_profile_id = gp.id
+						AND sg.tenant_id = gp.tenant_id
+					JOIN users.students AS st
+						ON st.id = sg.student_id
+						AND st.tenant_id = sg.tenant_id
+						AND st.status IN ('active', 'pending')
+					JOIN users.persons AS pe
+						ON pe.id = st.person_id
+						AND pe.deleted_at IS NULL
+					JOIN auth.account_tenants AS act
+						ON act.tenant_id  = gp.tenant_id
+						AND act.account_id = gp.account_id
+						AND act.status     = 'active'
+					WHERE gp.tenant_id = ph.tenant_id
+						AND gp.account_id = ?
+						AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
+				) AS has_enrolled_submit_permission
 		) AS guard
 		WHERE ph.is_active = TRUE
 		  AND sch.active   = TRUE
@@ -139,14 +171,16 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 		  AND (sch.hidden = FALSE OR at.account_id IS NOT NULL)
 		  AND (ph.enrollment_open_at IS NULL OR ph.enrollment_open_at <= NOW())
 		  AND (ph.enrollment_close_at IS NULL OR ph.enrollment_close_at >= NOW())
-		  AND (ph.audience NOT IN ('linked_parents', 'existing_students')
-		       OR guard.has_submit_permission)
+		  AND (ph.audience <> 'linked_parents' OR guard.has_submit_permission)
+		  AND (ph.audience <> 'existing_students' OR guard.has_enrolled_submit_permission)
 		ORDER BY already_linked DESC, sch.name, ph.service_start_date
 	`
 
 	var rows []row
 	if err := base.GetDB(ctx, r.db).NewRaw(query,
 		accountID,
+		accountID,
+		authorize.GuardianPermissionEnrollmentSubmit,
 		accountID,
 		authorize.GuardianPermissionEnrollmentSubmit,
 	).Scan(ctx, &rows); err != nil {

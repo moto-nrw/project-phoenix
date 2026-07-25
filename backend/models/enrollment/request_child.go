@@ -130,6 +130,10 @@ type RequestChildRepository interface {
 	UpdateStatus(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64) error
 	UpdateData(ctx context.Context, child *RequestChild) error
 	LinkCreatedStudent(ctx context.Context, requestChildID, studentID int64) error
+	// UpdateMatchedStudent re-points (or clears, on nil) the already-enrolled
+	// student an existing_students child is pinned to, for in-place edits of a
+	// persisted row.
+	UpdateMatchedStudent(ctx context.Context, requestChildID int64, studentID *int64) error
 	UpdateActivationPlan(ctx context.Context, requestChildID int64, mode string, activateOn *timezone.Date) error
 	DeleteByRequestID(ctx context.Context, requestID int64) error
 

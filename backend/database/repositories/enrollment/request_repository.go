@@ -329,17 +329,25 @@ func (r *RequestRepository) AcquireExistingStudentMatchLock(ctx context.Context,
 // non-withdrawn request_child in the phase is already pinned to the given
 // already-enrolled student. Callers hold AcquireExistingStudentMatchLock so the
 // check-then-insert stays race-free across guardians (#1663).
-func (r *RequestRepository) HasActiveRequestForMatchedStudent(ctx context.Context, phaseID, studentID int64) (bool, error) {
+//
+// excludeRequestChildID (0 = no exclusion) skips one persisted row. Submission
+// and replacement edits insert fresh rows and pass 0; the change-request path
+// re-checks a row that ALREADY exists and is already active, so it must exclude
+// itself or it would always find its own pin.
+func (r *RequestRepository) HasActiveRequestForMatchedStudent(ctx context.Context, phaseID, studentID, excludeRequestChildID int64) (bool, error) {
 	if phaseID <= 0 || studentID <= 0 {
 		return false, nil
 	}
-	exists, err := base.GetDB(ctx, r.db).NewSelect().
+	q := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`enrollment.request_children AS rc`).
 		Join(`JOIN enrollment.requests AS req ON req.id = rc.request_id`).
 		Where(`req.phase_id = ?`, phaseID).
 		Where(`rc.matched_student_id = ?`, studentID).
-		Where(`rc.status NOT IN (?, ?)`, enrollment.ChildStatusRejected, enrollment.ChildStatusWithdrawn).
-		Exists(ctx)
+		Where(`rc.status NOT IN (?, ?)`, enrollment.ChildStatusRejected, enrollment.ChildStatusWithdrawn)
+	if excludeRequestChildID > 0 {
+		q = q.Where(`rc.id <> ?`, excludeRequestChildID)
+	}
+	exists, err := q.Exists(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to check active request for matched student: %w", err)
 	}

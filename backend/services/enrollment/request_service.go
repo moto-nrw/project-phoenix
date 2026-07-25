@@ -889,7 +889,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			if err := s.assertGuardianMayReEnrollStudent(txCtx, req.GuardianAccountID, matchedStudentID, req.TenantID, i); err != nil {
 				return err
 			}
-			if err := s.guardMatchedStudentUnique(txCtx, phase.ID, matchedStudentID, i); err != nil {
+			if err := s.guardMatchedStudentUnique(txCtx, phase.ID, matchedStudentID, 0, i); err != nil {
 				return err
 			}
 			row.MatchedStudentID = matchedStudentID
@@ -2276,7 +2276,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				if err := s.assertGuardianMayReEnrollStudent(txCtx, req.GuardianAccountID, matchedStudentID, req.TenantID, i); err != nil {
 					return err
 				}
-				if err := s.guardMatchedStudentUnique(txCtx, phase.ID, matchedStudentID, i); err != nil {
+				if err := s.guardMatchedStudentUnique(txCtx, phase.ID, matchedStudentID, 0, i); err != nil {
 					return err
 				}
 				row.MatchedStudentID = matchedStudentID
@@ -3389,25 +3389,8 @@ func (s *requestService) validatePhaseEligibility(ctx context.Context, phase *en
 // preserved from the original submission (#1663). Callers must run
 // validateAndNormalizeSchoolClasses first so this sees the persisted class.
 func (s *requestService) validatePhaseChildEligibility(ctx context.Context, phase *enrollmentModels.Phase, req SubmitRequest) error {
-	eligible := make(map[string]struct{}, len(phase.EligibleSchoolClasses))
-	for _, c := range phase.EligibleSchoolClasses {
-		if t := strings.TrimSpace(c); t != "" {
-			eligible[t] = struct{}{}
-		}
-	}
-	if len(eligible) > 0 {
-		for i := range req.Children {
-			declared := ""
-			if req.Children[i].TargetSchoolClass != nil {
-				declared = strings.TrimSpace(*req.Children[i].TargetSchoolClass)
-			}
-			if declared == "" {
-				return fmt.Errorf("%w: child %d declares no school class", ErrChildClassNotEligible, i)
-			}
-			if _, ok := eligible[declared]; !ok {
-				return fmt.Errorf("%w: child %d class %q", ErrChildClassNotEligible, i, declared)
-			}
-		}
+	if err := validateChildClassEligibility(phase, req.Children); err != nil {
+		return err
 	}
 
 	// new_students and existing_students are the two child-scoped
@@ -3431,6 +3414,43 @@ func (s *requestService) validatePhaseChildEligibility(ctx context.Context, phas
 			if phase.Audience == enrollmentModels.PhaseAudienceExistingStudents && !exists {
 				return fmt.Errorf("%w: child %d", ErrChildNotEnrolled, i)
 			}
+		}
+	}
+	return nil
+}
+
+// validateChildClassEligibility enforces the phase's eligible_school_classes
+// restriction: when the list is non-empty, every child must declare one of the
+// listed classes. Pure — no repos — because it is the one child-eligibility
+// gate that stays valid at EVERY point of a request's life, so the
+// change-request path applies it too (#1663).
+//
+// The enrolled-status gates it used to sit next to deliberately stay out of the
+// change-request path: eligible_school_classes may be a proper subset of
+// available_school_classes, so without this an approved change request could
+// persist an available-but-ineligible class, while re-running the new_students
+// "must not already be enrolled" probe on a child whose approval JUST created
+// that student would reject every later change request on it.
+func validateChildClassEligibility(phase *enrollmentModels.Phase, children []SubmitChild) error {
+	eligible := make(map[string]struct{}, len(phase.EligibleSchoolClasses))
+	for _, c := range phase.EligibleSchoolClasses {
+		if t := strings.TrimSpace(c); t != "" {
+			eligible[t] = struct{}{}
+		}
+	}
+	if len(eligible) == 0 {
+		return nil
+	}
+	for i := range children {
+		declared := ""
+		if children[i].TargetSchoolClass != nil {
+			declared = strings.TrimSpace(*children[i].TargetSchoolClass)
+		}
+		if declared == "" {
+			return fmt.Errorf("%w: child %d declares no school class", ErrChildClassNotEligible, i)
+		}
+		if _, ok := eligible[declared]; !ok {
+			return fmt.Errorf("%w: child %d class %q", ErrChildClassNotEligible, i, declared)
 		}
 	}
 	return nil
@@ -3563,14 +3583,18 @@ func (s *requestService) assertGuardianMayReEnrollStudent(ctx context.Context, g
 // when there is no pin (nil → fresh create, nothing to collide on). Enforced
 // regardless of the block/warn/ignore duplicate policy — it protects a live
 // student record, not just parent convenience (#1663).
-func (s *requestService) guardMatchedStudentUnique(ctx context.Context, phaseID int64, matchedStudentID *int64, childIndex int) error {
+//
+// excludeRequestChildID (0 = none) is for callers re-checking an ALREADY
+// persisted, already-active row — the change-request path — which would
+// otherwise collide with its own pin. Insert paths pass 0.
+func (s *requestService) guardMatchedStudentUnique(ctx context.Context, phaseID int64, matchedStudentID *int64, excludeRequestChildID int64, childIndex int) error {
 	if matchedStudentID == nil {
 		return nil
 	}
 	if err := s.RequestRepo.AcquireExistingStudentMatchLock(ctx, phaseID); err != nil {
 		return fmt.Errorf("submit: acquire existing-student match lock: %w", err)
 	}
-	has, err := s.RequestRepo.HasActiveRequestForMatchedStudent(ctx, phaseID, *matchedStudentID)
+	has, err := s.RequestRepo.HasActiveRequestForMatchedStudent(ctx, phaseID, *matchedStudentID, excludeRequestChildID)
 	if err != nil {
 		return fmt.Errorf("submit: matched-student duplicate check for child %d: %w", childIndex, err)
 	}

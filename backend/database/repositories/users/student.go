@@ -269,7 +269,7 @@ func (r *StudentRepository) ExistsEnrolledByNameAndBirthday(ctx context.Context,
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
 		Where(`"student".tenant_id = ?`, tenantID).
-		Where(`"student".status IN (?)`, bun.In([]users.StudentStatus{users.StudentStatusActive, users.StudentStatusPending})).
+		Where(`"student".status IN (?)`, bun.List([]users.StudentStatus{users.StudentStatusActive, users.StudentStatusPending})).
 		Where(`LOWER(TRIM("person".first_name)) = LOWER(TRIM(?))`, firstName).
 		Where(`LOWER(TRIM("person".last_name)) = LOWER(TRIM(?))`, lastName).
 		Where(`"person".birthday = ?`, birthday).
@@ -302,7 +302,7 @@ func (r *StudentRepository) FindEnrolledStudentIDByNameAndBirthday(ctx context.C
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
 		ColumnExpr(`"student".id`).
 		Where(`"student".tenant_id = ?`, tenantID).
-		Where(`"student".status IN (?)`, bun.In([]users.StudentStatus{users.StudentStatusActive, users.StudentStatusPending})).
+		Where(`"student".status IN (?)`, bun.List([]users.StudentStatus{users.StudentStatusActive, users.StudentStatusPending})).
 		Where(`LOWER(TRIM("person".first_name)) = LOWER(TRIM(?))`, firstName).
 		Where(`LOWER(TRIM("person".last_name)) = LOWER(TRIM(?))`, lastName).
 		Where(`"person".birthday = ?`, birthday).

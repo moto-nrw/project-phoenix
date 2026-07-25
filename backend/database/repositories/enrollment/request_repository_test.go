@@ -607,7 +607,7 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_TrueForActivePin(t 
 	var has bool
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var hErr error
-		has, hErr = repo.HasActiveRequestForMatchedStudent(ctx, phaseID, studentID)
+		has, hErr = repo.HasActiveRequestForMatchedStudent(ctx, phaseID, studentID, 0)
 		return hErr
 	}))
 	assert.True(t, has, "an active request pinned to the student must be detected")
@@ -615,7 +615,7 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_TrueForActivePin(t 
 	// A different student id in the same phase is not a collision.
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var hErr error
-		has, hErr = repo.HasActiveRequestForMatchedStudent(ctx, phaseID, studentID+1)
+		has, hErr = repo.HasActiveRequestForMatchedStudent(ctx, phaseID, studentID+1, 0)
 		return hErr
 	}))
 	assert.False(t, has, "an unrelated student id must not be flagged")
@@ -640,7 +640,7 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_IgnoresTerminalAndO
 	var has bool
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var hErr error
-		has, hErr = repo.HasActiveRequestForMatchedStudent(ctx, phaseID, studentID)
+		has, hErr = repo.HasActiveRequestForMatchedStudent(ctx, phaseID, studentID, 0)
 		return hErr
 	}))
 	assert.False(t, has, "withdrawn + rejected pins must not block re-enrollment")
@@ -648,10 +648,55 @@ func TestRequestRepository_HasActiveRequestForMatchedStudent_IgnoresTerminalAndO
 	// A different phase never collides with this phase's pins.
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var hErr error
-		has, hErr = repo.HasActiveRequestForMatchedStudent(ctx, phaseID+99_999_999, studentID)
+		has, hErr = repo.HasActiveRequestForMatchedStudent(ctx, phaseID+99_999_999, studentID, 0)
 		return hErr
 	}))
 	assert.False(t, has, "a different phase must not be flagged")
+}
+
+// The change-request path re-checks a row that is ALREADY persisted and active,
+// so it must be able to exclude itself — otherwise it would always find its own
+// pin and refuse every approval. A DIFFERENT active row pinned to the same
+// student is still a collision (#1663).
+func TestRequestRepository_HasActiveRequestForMatchedStudent_ExcludesGivenChild(t *testing.T) {
+	db, repo, tenantID, phaseID := setupRequestRepoTest(t)
+	token := uniqueToken("matchExclude")
+	defer wipeRequests(db, tenantID, token)
+
+	studentID := createMatchTestStudent(t, db, tenantID)
+	own := makeRequest(phaseID, token, "anna@example.test")
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, own)
+	}))
+	insertRequestChildMatched(t, db, tenantID, own.ID, studentID, enrollmentModels.ChildStatusUnderReview)
+
+	var ownChildID int64
+	require.NoError(t, db.NewRaw(
+		`SELECT id FROM enrollment.request_children WHERE request_id = ?`, own.ID,
+	).Scan(context.Background(), &ownChildID))
+
+	var has bool
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var hErr error
+		has, hErr = repo.HasActiveRequestForMatchedStudent(ctx, phaseID, studentID, ownChildID)
+		return hErr
+	}))
+	assert.False(t, has, "a row must not collide with its own pin")
+
+	// A second guardian's active request pinned to the same student IS a
+	// collision, even with the first row excluded.
+	other := makeRequest(phaseID, token+"-other", "ben@example.test")
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, other)
+	}))
+	insertRequestChildMatched(t, db, tenantID, other.ID, studentID, enrollmentModels.ChildStatusSubmitted)
+
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var hErr error
+		has, hErr = repo.HasActiveRequestForMatchedStudent(ctx, phaseID, studentID, ownChildID)
+		return hErr
+	}))
+	assert.True(t, has, "another guardian's active pin must still collide")
 }
 
 func TestRequestRepository_AcquireExistingStudentMatchLock_RejectsBadPhase(t *testing.T) {
