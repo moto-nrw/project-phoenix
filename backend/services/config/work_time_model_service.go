@@ -7,7 +7,6 @@ import (
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // WorkTimeModelValidationError marks a caller-input validation failure so the
@@ -42,17 +41,7 @@ func (s *WorkTimeModelService) SetBroadcaster(broadcaster realtime.Broadcaster) 
 }
 
 func (s *WorkTimeModelService) broadcastTimeTrackingChanged(ctx context.Context) {
-	if s.broadcaster == nil {
-		return
-	}
-	tenantID := tenant.FromContext(ctx)
-	if tenantID == 0 {
-		return
-	}
-	tenant.RegisterAfterCommit(ctx, func() {
-		event := realtime.NewEvent(realtime.EventStaffTimeTrackingChanged, "", realtime.EventData{})
-		_ = s.broadcaster.BroadcastToTenant(tenantID, event)
-	})
+	realtime.QueueStaffTimeTrackingChanged(ctx, s.broadcaster, nil)
 }
 
 // ListModels retrieves all work time models with entries.
