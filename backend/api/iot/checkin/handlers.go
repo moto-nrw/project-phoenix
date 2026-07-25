@@ -463,17 +463,12 @@ func (rs *Resource) processBinaryModeCheckin(
 
 	// Binary-mode kiosks don't open activity sessions, so staff identity comes
 	// from the account-PIN verification performed by DeviceAuthenticator.
+	// Legacy clients only authenticate the device and shared OGS PIN; keep
+	// those scans device-attributed instead of trusting their caller-controlled
+	// X-Staff-ID value.
 	var staffID int64
 	if staffCtx := device.StaffFromCtx(ctx); staffCtx != nil {
 		staffID = staffCtx.ID
-	}
-	if staffID == 0 {
-		rs.getLogger().WarnContext(ctx, "binary mode checkin without staff context",
-			slog.Int64("student_id", student.ID),
-			slog.Int64("device_id", deviceCtx.ID),
-		)
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("staff PIN required for binary-mode attendance toggle")))
-		return
 	}
 
 	// skipAuthCheck=true: the device + staff-PIN layer already authorized
