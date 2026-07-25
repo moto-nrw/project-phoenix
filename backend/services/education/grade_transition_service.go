@@ -263,6 +263,25 @@ func (s *GradeTransitionService) buildMappings(transitionID int64, inputs []Mapp
 
 // Update updates a grade transition
 func (s *GradeTransitionService) Update(ctx context.Context, id int64, req UpdateTransitionRequest) (*education.GradeTransition, error) {
+	// Take the tenant transition gate BEFORE reading the row. An apply loads the
+	// mappings, validates the admin's confirmed fingerprint against them, and
+	// then mutates students, writes history and records the revert metadata from
+	// that same set — none of which locks the mapping rows. Without this gate a
+	// concurrent mapping replacement commits in that window, and the transition
+	// ends up marked applied carrying zuordnungen that the history rows and the
+	// classes students were actually moved to never came from, so a later revert
+	// replays a different transition than the one that ran (#405 review).
+	//
+	// Only the transition gate is taken here (an update touches no
+	// recurrence-derived state), so the acquisition order stays acyclic against
+	// apply/revert, which take the recurrence gate first — see
+	// lockRecurrenceThenTransitions. Whichever side loses the race sees the
+	// other's committed status: a draft edit behind an apply is refused by
+	// CanModify, an apply behind an edit re-reads the new mappings.
+	if err := s.transitionRepo.LockTenantTransitions(ctx); err != nil {
+		return nil, err
+	}
+
 	transition, err := s.transitionRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf(errFmtTransitionNotFound, err)
@@ -337,6 +356,13 @@ func (s *GradeTransitionService) replaceMappingsIfProvided(
 
 // Delete deletes a draft grade transition
 func (s *GradeTransitionService) Delete(ctx context.Context, id int64) error {
+	// Same gate as Update, for the same reason: deleting the draft cascades its
+	// mappings away, and an apply that already read them must not find the row
+	// gone underneath it (#405 review).
+	if err := s.transitionRepo.LockTenantTransitions(ctx); err != nil {
+		return err
+	}
+
 	transition, err := s.transitionRepo.FindByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf(errFmtTransitionNotFound, err)

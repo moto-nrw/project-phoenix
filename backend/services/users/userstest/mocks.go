@@ -37,6 +37,7 @@ type PersonServiceMock struct {
 	LinkToAccountFn                  func(ctx context.Context, personID int64, accountID int64) error
 	UnlinkFromAccountFn              func(ctx context.Context, personID int64) error
 	LinkToRFIDCardFn                 func(ctx context.Context, personID int64, tagID string) error
+	LinkStudentToRFIDCardFn          func(ctx context.Context, studentID int64, tagID string) error
 	UnlinkFromRFIDCardFn             func(ctx context.Context, personID int64) error
 	GetStaffByIDFn                   func(ctx context.Context, id int64) (*userModels.Staff, error)
 	GetStaffByPersonIDFn             func(ctx context.Context, personID int64) (*userModels.Staff, error)
@@ -144,6 +145,13 @@ func (m *PersonServiceMock) UnlinkFromAccount(ctx context.Context, personID int6
 func (m *PersonServiceMock) LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error {
 	if m.LinkToRFIDCardFn != nil {
 		return m.LinkToRFIDCardFn(ctx, personID, tagID)
+	}
+	return nil
+}
+
+func (m *PersonServiceMock) LinkStudentToRFIDCard(ctx context.Context, studentID int64, tagID string) error {
+	if m.LinkStudentToRFIDCardFn != nil {
+		return m.LinkStudentToRFIDCardFn(ctx, studentID, tagID)
 	}
 	return nil
 }

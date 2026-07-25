@@ -51,6 +51,13 @@ type PersonService interface {
 	// LinkToRFIDCard associates a person with an RFID card
 	LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error
 
+	// LinkStudentToRFIDCard assigns a bracelet to a student, re-reading the
+	// student row under a FOR UPDATE lock first so a graduation committing in
+	// the meantime is refused with ErrStudentGraduated instead of leaving a tag
+	// linked to an alumnus. Every student-facing tag assignment must go through
+	// this method rather than LinkToRFIDCard (#405).
+	LinkStudentToRFIDCard(ctx context.Context, studentID int64, tagID string) error
+
 	// UnlinkFromRFIDCard removes RFID card association from a person
 	UnlinkFromRFIDCard(ctx context.Context, personID int64) error
 

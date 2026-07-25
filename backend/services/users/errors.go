@@ -33,6 +33,12 @@ var (
 	// ErrStudentNotFound indicates a student could not be found in this tenant
 	ErrStudentNotFound = errors.New("student not found")
 
+	// ErrStudentGraduated indicates a write that only makes sense for an
+	// enrolled child targeted a graduated (alumnus) student. Graduation is a
+	// soft delete, so callers render it as the same 404 every other
+	// staff-facing student route returns for an alumnus (#405).
+	ErrStudentGraduated = errors.New("student has graduated")
+
 	// Companion ("läuft mit" / Laufgemeinschaft) validation errors. The messages
 	// are German because the child detail view surfaces them verbatim.
 

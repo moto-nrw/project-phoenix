@@ -679,6 +679,66 @@ func TestPersonService_LinkToRFIDCard(t *testing.T) {
 }
 
 // =============================================================================
+// LinkStudentToRFIDCard Tests
+// =============================================================================
+
+// TestPersonService_LinkStudentToRFIDCard covers the guard that survives the
+// handler's alumnus gate: the gate reads the student BEFORE the write, so a
+// graduation committing in between must still be caught here, under the student
+// row lock, instead of leaving a bracelet linked to a departed child (#405).
+func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("assigns the tag to an enrolled student", func(t *testing.T) {
+		// ARRANGE
+		student := testpkg.CreateTestStudent(t, db, "TagAssign", "Enrolled", "4a")
+		rfidCard := testpkg.CreateTestRFIDCard(t, db, "ENROLLEDTAG")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+		defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
+
+		// ACT
+		err := service.LinkStudentToRFIDCard(ctx, student.ID, rfidCard.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		holder, err := service.FindByTagID(ctx, rfidCard.ID)
+		require.NoError(t, err)
+		assert.Equal(t, student.PersonID, holder.ID)
+	})
+
+	t.Run("refuses a graduated student and leaves the tag free", func(t *testing.T) {
+		// ARRANGE
+		student := testpkg.CreateTestStudent(t, db, "TagAssign", "Graduated", "4b")
+		rfidCard := testpkg.CreateTestRFIDCard(t, db, "ALUMNUSTAG")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+		defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
+
+		_, err := db.NewUpdate().
+			TableExpr(`users.students`).
+			Set("status = ?", string(userModels.StudentStatusAlumnus)).
+			Where("id = ?", student.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		// ACT
+		err = service.LinkStudentToRFIDCard(ctx, student.ID, rfidCard.ID)
+
+		// ASSERT
+		require.ErrorIs(t, err, users.ErrStudentGraduated)
+		holders, err := db.NewSelect().
+			TableExpr(`users.persons`).
+			Where("tag_id = ?", rfidCard.ID).
+			Count(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 0, holders, "the bracelet must stay free after a refused assignment")
+	})
+}
+
+// =============================================================================
 // UnlinkFromRFIDCard Tests
 // =============================================================================
 
