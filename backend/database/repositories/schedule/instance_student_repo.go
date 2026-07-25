@@ -770,10 +770,20 @@ func (r *InstanceStudentRepository) DeleteByInstanceID(ctx context.Context, inst
 // student_status_day_id, and a graduated child left on such a row stays visible
 // and counted in slot-list Plan/Abgleich reads and future exports, which load
 // every instance row regardless of status. So the predicate excludes every row
-// that records something that actually HAPPENED — an observed presence, a
-// stamped check-in/checkout, or a status a supervisor finalized BY HAND
-// (manual_status_at) on an occurrence that has already started or become
-// history — plus every row on an instance that ran to completion (#405 review).
+// that records something that actually HAPPENED — a stamped check-in/checkout,
+// or an attendance marker a human put there ('present', or any status finalized
+// BY HAND via manual_status_at) on an occurrence that has already started or
+// become history — plus every row on an instance that ran to completion (#405
+// review).
+//
+// 'present' is NOT an unconditional exemption. The status alone does not prove
+// an observation: every real check-in either stamps checked_in_at (the visit
+// mirror, the unplanned-slot insert) or runs against an already-started
+// instance (markPlannedStudentPresent stamps manual_status_at while the block
+// is 'active'), and both are excluded by the clauses above. What a blanket
+// `status <> 'present'` additionally kept was a presence somebody pre-marked on
+// a block that has not started — a plan, treated below exactly like any other
+// hand-set status (#405 review).
 //
 // The exclusions are not cosmetic. The revert deliberately refuses to replay
 // archived rows into completed or past instances (that attendance is frozen
@@ -818,11 +828,10 @@ func (r *InstanceStudentRepository) ArchivePlannedByStudentIDsFrom(
 			USING schedule.activity_instances AS ai
 			WHERE s.instance_id = ai.id
 			  AND s.student_id IN (?)
-			  AND s.status <> ?
 			  AND s.checked_in_at IS NULL
 			  AND s.checked_out_at IS NULL
 			  AND (
-			        s.manual_status_at IS NULL
+			        (s.manual_status_at IS NULL AND s.status <> ?)
 			        OR (
 			              ai.status = ?
 			              AND (ai.date > ? OR (ai.date = ? AND ai.start_time > ?::time))

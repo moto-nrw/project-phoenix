@@ -25,6 +25,7 @@ var errorRules = []common.ErrorRule{
 	{Target: activities.ErrTimetableTemplateProtected, Render: common.ErrorConflict},
 	{Target: activities.ErrOnlySupervisorRequiresReplacement, Render: onlySupervisorConflict},
 	{Target: activities.ErrNotEnrolled, Render: common.ErrorNotFound},
+	{Target: activities.ErrStudentIsAlumnus, Render: common.ErrorInvalidRequest},
 	{Target: activities.ErrSystemActivityProtected, Render: common.ErrorForbidden},
 	{Target: activities.ErrGroupClosed, Render: common.ErrorForbidden},
 	{Target: activities.ErrInvalidAttendanceStatus, Render: common.ErrorInvalidRequest},

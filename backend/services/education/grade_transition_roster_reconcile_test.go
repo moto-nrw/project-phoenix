@@ -272,8 +272,12 @@ func TestGradeTransitionService_Apply_RemovesTodaysPlannedRows(t *testing.T) {
 
 	plannedRow := testpkg.CreateTestInstanceStudent(t, db, plannedToday.ID, student.ID,
 		scheduleModel.AttendanceStatusExpected)
+	// An observed presence carries the check-in stamp every real check-in path
+	// writes; a bare 'present' on a block that has not started is a plan (#405
+	// review).
+	checkedInAt := time.Now().Add(-15 * time.Minute)
 	observedRow := testpkg.CreateTestInstanceStudent(t, db, observedToday.ID, student.ID,
-		scheduleModel.AttendanceStatusPresent)
+		scheduleModel.AttendanceStatusPresent, testpkg.InstanceStudentOpts{CheckedInAt: &checkedInAt})
 	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", plannedRow.ID, observedRow.ID)
 
 	countRow := func(instanceID int64) int {
@@ -353,12 +357,18 @@ func TestGradeTransitionService_Revert_FillsTodaysInstanceMaterializedWhileAlumn
 
 	// The materializer runs while the child is an alumnus and builds a block for
 	// later today. It skips the alumnus, so the instance has no row for them —
-	// and no archive entry either.
+	// and no archive entry either. calendar_period_id is what identifies the row
+	// as materialized (and its roster as enrollment-derived).
+	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Period-%s", suffix),
+		today.AddDays(-60), today.AddDays(60))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
+
 	todayInstance := testpkg.CreateTestActivityInstance(t, db, today, room.ID,
 		testpkg.ActivityInstanceOpts{
-			ActivityGroupID: &activityGroup.ID,
-			StartHHMM:       "16:30",
-			EndHHMM:         "17:30",
+			ActivityGroupID:  &activityGroup.ID,
+			CalendarPeriodID: &period.ID,
+			StartHHMM:        "16:30",
+			EndHHMM:          "17:30",
 		})
 	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", todayInstance.ID)
 
@@ -413,11 +423,16 @@ func newRosterReconcilingTransitionService(t *testing.T, db *bun.DB) *educationS
 
 // TestGradeTransitionService_Apply_PreservesRecordedAttendance covers the P1
 // fix: the archive pass must not delete rows that record something a human
-// observed. A supervisor's hand-finalized absence (manual_status_at) and any row
-// on an instance that already ran to completion are attendance, not a plan —
-// and the revert deliberately refuses to replay rows into completed or past
-// instances while consuming their ledger entries, so anything deleted there is
-// gone for good.
+// observed. A row on an instance that already ran to completion is attendance,
+// not a plan — and the revert deliberately refuses to replay rows into completed
+// or past instances while consuming their ledger entries, so anything deleted
+// there is gone for good.
+//
+// Its counterpart is the second case: the same hand-set status on an occurrence
+// that has NOT started yet is still a plan and IS archived (the repo-level
+// TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom_ManualStatusRows
+// pins both sides with explicit clocks). manual_status_at alone is therefore
+// not the exemption — where the occurrence sits relative to now is.
 func TestGradeTransitionService_Apply_PreservesRecordedAttendance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -450,20 +465,23 @@ func TestGradeTransitionService_Apply_PreservesRecordedAttendance(t *testing.T) 
 			StartHHMM:       "08:00",
 			EndHHMM:         "09:00",
 		})
-	// A still-planned block later today carrying a hand-set status too: the
-	// decision is a record even though the occurrence has not run yet.
-	plannedToday := testpkg.CreateTestActivityInstance(t, db, today, room.ID,
+	// A block that has NOT started yet, carrying a hand-set status: nothing was
+	// observed there, so the decision is still a plan and gets archived. Dated
+	// tomorrow on purpose — an "later today" block makes the outcome depend on
+	// the wall clock the suite happens to run at, since the apply compares the
+	// occurrence's start time against now.
+	plannedTomorrow := testpkg.CreateTestActivityInstance(t, db, today.AddDays(1), room.ID,
 		testpkg.ActivityInstanceOpts{
 			ActivityGroupID: &activityGroup.ID,
 			StartHHMM:       "09:30",
 			EndHHMM:         "10:30",
 		})
 	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances",
-		completedToday.ID, plannedToday.ID)
+		completedToday.ID, plannedTomorrow.ID)
 
 	completedRow := testpkg.CreateTestInstanceStudent(t, db, completedToday.ID, student.ID,
 		scheduleModel.AttendanceStatusAbsent, testpkg.InstanceStudentOpts{ManualStatusAt: &manualAt})
-	manualPlannedRow := testpkg.CreateTestInstanceStudent(t, db, plannedToday.ID, student.ID,
+	manualPlannedRow := testpkg.CreateTestInstanceStudent(t, db, plannedTomorrow.ID, student.ID,
 		scheduleModel.AttendanceStatusAbsent, testpkg.InstanceStudentOpts{ManualStatusAt: &manualAt})
 	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students",
 		completedRow.ID, manualPlannedRow.ID)
@@ -487,8 +505,8 @@ func TestGradeTransitionService_Apply_PreservesRecordedAttendance(t *testing.T) 
 
 	assert.Equal(t, 1, countRow(completedToday.ID),
 		"attendance on a completed block is history the revert cannot restore — it must never be deleted")
-	assert.Equal(t, 1, countRow(plannedToday.ID),
-		"a status a supervisor finalized by hand is a record, not a plan")
+	assert.Equal(t, 0, countRow(plannedTomorrow.ID),
+		"a hand-set status on a block that has not started is still a plan and is archived")
 }
 
 // TestGradeTransitionService_Revert_FillsBackdatedInstance covers the P1 fix:
@@ -538,9 +556,14 @@ func TestGradeTransitionService_Revert_FillsBackdatedInstance(t *testing.T) {
 	require.NoError(t, err)
 
 	// The blocked materializer commits AFTER the apply, but with the created_at
-	// its transaction started with — an hour before the apply.
+	// its transaction started with — an hour before the apply. It stamps the
+	// calendar period, which is what marks the roster as enrollment-derived.
+	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Period-%s", suffix),
+		today.AddDays(-60), today.AddDays(60))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
+
 	lateInstance := testpkg.CreateTestActivityInstance(t, db, today.AddDays(3), room.ID,
-		testpkg.ActivityInstanceOpts{ActivityGroupID: &activityGroup.ID})
+		testpkg.ActivityInstanceOpts{ActivityGroupID: &activityGroup.ID, CalendarPeriodID: &period.ID})
 	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", lateInstance.ID)
 
 	_, err = db.NewUpdate().
@@ -575,4 +598,75 @@ func TestGradeTransitionService_Revert_FillsBackdatedInstance(t *testing.T) {
 		Where("student_id = ?", student.ID).
 		Scan(ctx, &createdID))
 	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", createdID)
+}
+
+// TestGradeTransitionService_Revert_SkipsHandPlannedInstance pins the boundary
+// of the enrollment fill (#405 review). A planner can create a single block by
+// hand and link a template to it for its metadata; the roster of that block is
+// the list of children the planner submitted, NOT a copy of the template's
+// enrollments. Filling it on revert would put a restored child on a roster
+// nobody assigned them to. Only rows the materializer produced — the ones
+// carrying a calendar_period_id — are enrollment-derived.
+func TestGradeTransitionService_Revert_SkipsHandPlannedInstance(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := newRosterReconcilingTransitionService(t, db)
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-roster-handplanned@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	gradClass := fmt.Sprintf("4hand-%s", suffix)
+
+	activityGroup := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("AG-%s", suffix))
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Room-%s", suffix))
+	student := testpkg.CreateTestStudent(t, db, "HandPlanned", "Child", gradClass)
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, activityGroup.ID, room.ID)
+
+	today := timezone.TodayDate()
+
+	enrollment := &activitiesModel.StudentEnrollment{
+		StudentID:       student.ID,
+		ActivityGroupID: activityGroup.ID,
+		ValidFrom:       today.AddDays(-30),
+	}
+	enrollment.SetTenantID(1)
+	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
+	require.NoError(t, err)
+	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	_, err = service.Apply(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	// Created after the apply (so it is inside the alumnus window) and linked to
+	// the template — but by hand: no calendar period, and a roster of exactly
+	// the children the planner picked (here: none).
+	handPlanned := testpkg.CreateTestActivityInstance(t, db, today.AddDays(3), room.ID,
+		testpkg.ActivityInstanceOpts{ActivityGroupID: &activityGroup.ID})
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", handPlanned.ID)
+
+	countRow := func(instanceID int64) int {
+		n, cErr := db.NewSelect().
+			TableExpr(`schedule.instance_students`).
+			Where("instance_id = ?", instanceID).
+			Where("student_id = ?", student.ID).
+			Count(ctx)
+		require.NoError(t, cErr)
+		return n
+	}
+	require.Equal(t, 0, countRow(handPlanned.ID))
+
+	_, err = service.Revert(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	assert.Equal(t, 0, countRow(handPlanned.ID),
+		"a hand-planned block's roster is not enrollment-derived and must not be refilled")
 }

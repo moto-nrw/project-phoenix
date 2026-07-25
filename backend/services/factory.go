@@ -520,6 +520,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentEnrollment,
 		repos.ActiveGroup,
 		repos.Staff,
+		repos.Student,
 	)
 	if err != nil {
 		return nil, err

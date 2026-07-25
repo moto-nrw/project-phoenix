@@ -70,10 +70,11 @@ func (s *RosterReconciler) getLogger() *slog.Logger {
 // and slot-list Plan/Abgleich reads load every instance row regardless of
 // status — eligibleOn filters on the enrollment interval, not on alumnus — so a
 // row left behind keeps the departed child visible and counted in today's and
-// future exports. The same holds for a status a supervisor set by hand on a
-// block that has not started yet: it is still a plan, and no reader filters
-// alumni. Only rows recording an actual event survive — observed presence, a
-// stamped check-in/checkout, or a hand-set status on an occurrence that has
+// future exports. The same holds for an attendance marker somebody set by hand
+// on a block that has not started yet — a hand-set status OR a pre-marked
+// 'present': nothing was observed, it is still a plan, and no reader filters
+// alumni. Only rows recording an actual event survive — a stamped
+// check-in/checkout, or a human-set status/presence on an occurrence that has
 // already started — today's included (#405 review).
 func (s *RosterReconciler) RemoveStudentsFromFutureRosters(ctx context.Context, transitionID int64, studentIDs []int64) error {
 	if len(studentIDs) == 0 {
@@ -189,9 +190,12 @@ func (s *RosterReconciler) RestoreStudentsToFutureRosters(
 }
 
 // fillInstancesMaterializedDuringAlumnusWindow adds enrollment-valid rows for
-// the planned template-backed instances dated on or after `from` whose id is
-// above baselineInstanceID, i.e. the instances the materializer built while the
-// students were alumni and therefore skipped. Existing rows are never duplicated
+// the planned, materializer-produced instances dated on or after `from` whose id
+// is above baselineInstanceID, i.e. the instances the materializer built while
+// the students were alumni and therefore skipped. Hand-created blocks are out of
+// scope even when they link a template — their roster was typed by a planner,
+// not derived from enrollments (the repository filters them out).
+// Existing rows are never duplicated
 // (the UNIQUE (instance_id, student_id) constraint and the in-memory dedup both
 // guard it). Returns the rows created and the status-day rows subsequently
 // stamped.

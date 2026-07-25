@@ -33,6 +33,11 @@ var (
 	// ErrNotEnrolled returned when a student is not enrolled in a group
 	ErrNotEnrolled = errors.New("student is not enrolled in this activity group")
 
+	// ErrStudentIsAlumnus returned when an enrollment write targets a graduated
+	// student. Their enrollments are hidden from every staff-facing read, so a
+	// new one could neither be seen nor removed (#405 review).
+	ErrStudentIsAlumnus = errors.New("student has graduated and cannot be enrolled")
+
 	// ErrInvalidAttendanceStatus returned for an invalid attendance status
 	ErrInvalidAttendanceStatus = errors.New("invalid attendance status")
 

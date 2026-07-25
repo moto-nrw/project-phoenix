@@ -1588,10 +1588,15 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 	})
 
 	t.Run("keeps today's row that records an actual presence", func(t *testing.T) {
+		// An observed presence carries the check-in stamp every real check-in
+		// path writes. The status alone is not the proof — see the
+		// pre-marked-presence subtest below (#405 review).
+		checkedInAt := time.Now()
 		row := &scheduleModels.InstanceStudent{
-			InstanceID: todayInst.ID,
-			StudentID:  graduate.ID,
-			Status:     scheduleModels.AttendanceStatusPresent,
+			InstanceID:  todayInst.ID,
+			StudentID:   graduate.ID,
+			Status:      scheduleModels.AttendanceStatusPresent,
+			CheckedInAt: &checkedInAt,
 		}
 		row.SetTenantID(1)
 		require.NoError(t, repo.Create(ctx, row))
@@ -1619,6 +1624,29 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 	})
 
 	t.Run("keeps a future row that records an actual presence", func(t *testing.T) {
+		checkedInAt := time.Now()
+		row := &scheduleModels.InstanceStudent{
+			InstanceID:  futureInst.ID,
+			StudentID:   graduate.ID,
+			Status:      scheduleModels.AttendanceStatusPresent,
+			CheckedInAt: &checkedInAt,
+		}
+		row.SetTenantID(1)
+		require.NoError(t, repo.Create(ctx, row))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
+		require.NoError(t, err)
+		assert.Equal(t, 0, removed)
+		assertRowKept(t, futureInst.ID, graduate.ID)
+	})
+
+	// The counterpart: 'present' WITHOUT any attendance stamp on a block that
+	// has not started is a pre-marked plan, not an observation. Keeping it left
+	// the graduate on that future roster — visible in timetable/slot-list reads
+	// and counted for staffing, since none of those readers filter alumni
+	// (#405 review).
+	t.Run("removes a future presence nobody observed yet", func(t *testing.T) {
 		row := &scheduleModels.InstanceStudent{
 			InstanceID: futureInst.ID,
 			StudentID:  graduate.ID,
@@ -1630,8 +1658,10 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 
 		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
 		require.NoError(t, err)
-		assert.Equal(t, 0, removed)
-		assertRowKept(t, futureInst.ID, graduate.ID)
+		assert.Equal(t, 1, removed)
+		assertRowGone(t, futureInst.ID, graduate.ID)
+		// Archived like any other plan, so the revert can replay it verbatim.
+		assert.Equal(t, 1, archived(futureInst.ID, graduate.ID))
 	})
 
 	t.Run("keeps a future row carrying a stamped check-in", func(t *testing.T) {

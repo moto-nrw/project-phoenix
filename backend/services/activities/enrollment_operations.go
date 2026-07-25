@@ -2,6 +2,7 @@ package activities
 
 import (
 	"context"
+	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -18,6 +19,10 @@ func (s *Service) EnrollStudent(ctx context.Context, groupID, studentID int64) e
 	// legacy endpoint cannot preserve.
 	_, err := s.findMutableActivityGroup(ctx, groupID)
 	if err != nil {
+		return &ActivityError{Op: "enroll student", Err: err}
+	}
+
+	if err := s.rejectAlumni(ctx, []int64{studentID}); err != nil {
 		return &ActivityError{Op: "enroll student", Err: err}
 	}
 
@@ -96,6 +101,14 @@ func (s *Service) UpdateGroupEnrollments(ctx context.Context, groupID int64, stu
 
 	currentStudentIDs, newStudentIDs := s.buildEnrollmentMaps(enrollments, studentIDs)
 
+	// Only the IDs this call would newly insert are validated. A graduated
+	// child's existing row is deliberately kept (see `preserved` below), so
+	// re-submitting a roster that still carries them must not fail — but a
+	// caller must not be able to ADD one either (#405 review).
+	if err := s.rejectAlumni(ctx, newEnrollmentStudentIDs(currentStudentIDs, studentIDs)); err != nil {
+		return &ActivityError{Op: "update group enrollments", Err: err}
+	}
+
 	// Alumni are invisible to GetEnrolledStudents, so the roster a caller reads
 	// via GET /api/activities/{id}/students never contains them and the PUT that
 	// replaces it never lists them either. Deleting "everything not submitted"
@@ -145,6 +158,56 @@ func hiddenAlumnusEnrollments(enrollments []*activities.StudentEnrollment) map[i
 		}
 	}
 	return hidden
+}
+
+// newEnrollmentStudentIDs returns the submitted IDs that are not enrolled yet,
+// i.e. exactly the rows addNewEnrollmentsInTx would insert.
+func newEnrollmentStudentIDs(currentStudentIDs map[int64]int64, studentIDs []int64) []int64 {
+	fresh := make([]int64, 0, len(studentIDs))
+	seen := make(map[int64]bool, len(studentIDs))
+	for _, studentID := range studentIDs {
+		if _, exists := currentStudentIDs[studentID]; exists || seen[studentID] {
+			continue
+		}
+		seen[studentID] = true
+		fresh = append(fresh, studentID)
+	}
+	return fresh
+}
+
+// rejectAlumni fails when any of the given students has graduated.
+//
+// A graduated child is soft-deleted for the whole staff-facing read side:
+// GetEnrolledStudents omits them, so an enrollment created for one is invisible
+// in the activity's roster and in its counts, and no edit of that roster can
+// remove it again — the PUT preserves exactly the rows it could not display.
+// Worse, the row is not inert: it is what materialization and a transition
+// revert reason about, so the hidden assignment can silently become an active
+// one later. Enrollment writes therefore refuse alumni up front instead of
+// creating a row nobody can see or delete (#405 review).
+func (s *Service) rejectAlumni(ctx context.Context, studentIDs []int64) error {
+	if len(studentIDs) == 0 {
+		return nil
+	}
+	if s.studentRepo == nil {
+		// Wired in services.NewFactory; a nil repo means the caller built the
+		// service without the dependency this check needs. Failing is the only
+		// safe answer — silently skipping would reopen the gap above.
+		return errors.New("student repository not configured")
+	}
+
+	students, err := s.studentRepo.FindByIDs(ctx, studentIDs)
+	if err != nil {
+		return err
+	}
+	for _, studentID := range studentIDs {
+		// Unknown IDs are left to the foreign key, which is where a
+		// non-existent student has always been rejected.
+		if student, ok := students[studentID]; ok && student.Status == users.StudentStatusAlumnus {
+			return ErrStudentIsAlumnus
+		}
+	}
+	return nil
 }
 
 // removeUnwantedEnrollmentsInTx removes students that are no longer enrolled,

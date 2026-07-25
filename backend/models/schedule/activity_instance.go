@@ -165,12 +165,18 @@ type ActivityInstanceRepository interface {
 	// given active.group, or nil if none.
 	FindByActiveGroupID(ctx context.Context, activeGroupID int64) (*ActivityInstance, error)
 
-	// FindPlannedTemplateBackedFrom returns every planned, template-backed
-	// (activity_group_id IS NOT NULL) instance dated on or after `from`,
-	// tenant-scoped and ordered by date then start time. Used to reconcile
-	// already-materialized rosters when a reverted grade transition restores
-	// students the insert-only materializer had skipped while they were alumni
-	// (#405 review).
+	// FindPlannedTemplateBackedFrom returns every planned instance dated on or
+	// after `from` that the MATERIALIZER produced (activity_group_id and
+	// calendar_period_id both set, is_spontaneous false), tenant-scoped and
+	// ordered by date then start time. Used to reconcile already-materialized
+	// rosters when a reverted grade transition restores students the
+	// insert-only materializer had skipped while they were alumni (#405
+	// review).
+	//
+	// Hand-created blocks are excluded even when they link a template for its
+	// metadata: their roster is the list of students the planner submitted, so
+	// refilling it from the template's enrollments would add children nobody
+	// assigned. Only the materializer stamps calendar_period_id (#405 review).
 	//
 	// The bound is INCLUSIVE of `from` (today, at revert time). An instance
 	// materialized after the apply but dated today has no archive row — the
