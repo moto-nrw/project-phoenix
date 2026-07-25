@@ -379,7 +379,15 @@ func (s *GradeTransitionService) List(ctx context.Context, options *base.QueryOp
 	return transitions, total, nil
 }
 
-// Preview returns what will happen when the transition is applied
+// Preview returns what will happen when the transition is applied.
+//
+// The displayed counts and the fingerprint that binds the admin's confirmation
+// MUST describe the same cohort, so both are derived from ONE query. Under READ
+// COMMITTED a second query sees a newer snapshot: counting per class and then
+// re-reading the cohort for the fingerprint could show "24 children graduate"
+// while fingerprinting the 25 that Apply then recomputes, accepts and graduates
+// — the confirmation would cover children the modal never displayed, which is
+// exactly what the fingerprint exists to prevent (#405 review).
 func (s *GradeTransitionService) Preview(ctx context.Context, id int64) (*TransitionPreview, error) {
 	transition, err := s.transitionRepo.FindByIDWithMappings(ctx, id)
 	if err != nil {
@@ -393,48 +401,47 @@ func (s *GradeTransitionService) Preview(ctx context.Context, id int64) (*Transi
 		Warnings:     make([]string, 0),
 	}
 
-	mappedClasses, err := s.buildMappingPreviews(ctx, preview, transition.Mappings)
+	cohort, err := s.transitionRepo.GetStudentsByClasses(ctx, mappedClassNames(transition.Mappings))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to resolve preview cohort: %w", err)
 	}
+
+	mappedClasses := s.buildMappingPreviews(preview, transition.Mappings, countByClass(cohort))
 
 	if err := s.findUnmappedClasses(ctx, preview, mappedClasses); err != nil {
 		return nil, err
 	}
 
-	fingerprint, err := s.cohortFingerprint(ctx, transition.Mappings, mappedClasses)
-	if err != nil {
-		return nil, err
-	}
-	preview.Fingerprint = fingerprint
+	preview.Fingerprint = fingerprintOf(transition.Mappings, cohort)
 
 	s.addPreviewWarnings(preview)
 
 	return preview, nil
 }
 
-// cohortFingerprint hashes what a preview promises: the mappings, plus every
-// affected child together with the class that decides their fate. Apply
-// recomputes it from the cohort it actually locked and refuses when the two
-// differ, so a mapping edit or a class change committed by another admin
-// between "here is what will happen" and "yes, do it" cannot silently graduate
-// or promote different children than the modal displayed (#405 review).
-func (s *GradeTransitionService) cohortFingerprint(
-	ctx context.Context,
-	mappings []*education.GradeTransitionMapping,
-	mappedClasses map[string]bool,
-) (string, error) {
-	classes := make([]string, 0, len(mappedClasses))
-	for class := range mappedClasses {
-		classes = append(classes, class)
+// mappedClassNames lists the distinct source classes a transition touches — the
+// classes whose children the preview counts and the fingerprint covers.
+func mappedClassNames(mappings []*education.GradeTransitionMapping) []string {
+	seen := make(map[string]bool, len(mappings))
+	classes := make([]string, 0, len(mappings))
+	for _, m := range mappings {
+		if seen[m.FromClass] {
+			continue
+		}
+		seen[m.FromClass] = true
+		classes = append(classes, m.FromClass)
 	}
+	return classes
+}
 
-	students, err := s.transitionRepo.GetStudentsByClasses(ctx, classes)
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve preview cohort: %w", err)
+// countByClass tallies a resolved cohort per school class, so the per-mapping
+// counts a preview displays come from the very rows it fingerprints.
+func countByClass(cohort []*education.StudentClassInfo) map[string]int {
+	counts := make(map[string]int)
+	for _, st := range cohort {
+		counts[st.SchoolClass]++
 	}
-
-	return fingerprintOf(mappings, students), nil
+	return counts
 }
 
 // ensureFingerprintMatches compares the caller's previewed cohort against the
@@ -478,19 +485,18 @@ func fingerprintOf(mappings []*education.GradeTransitionMapping, students []*edu
 	return hex.EncodeToString(sum[:])
 }
 
-// buildMappingPreviews populates preview with mapping details and returns mapped class names.
+// buildMappingPreviews populates preview with mapping details and returns mapped
+// class names. Counts come from the caller's single cohort snapshot rather than
+// a per-class query, so they cannot disagree with the fingerprint (#405 review).
 func (s *GradeTransitionService) buildMappingPreviews(
-	ctx context.Context,
 	preview *TransitionPreview,
 	mappings []*education.GradeTransitionMapping,
-) (map[string]bool, error) {
+	countsByClass map[string]int,
+) map[string]bool {
 	mappedClasses := make(map[string]bool)
 
 	for _, mapping := range mappings {
-		count, err := s.transitionRepo.GetStudentCountByClass(ctx, mapping.FromClass)
-		if err != nil {
-			return nil, fmt.Errorf("failed to count students in class %s: %w", mapping.FromClass, err)
-		}
+		count := countsByClass[mapping.FromClass]
 
 		mp := s.createMappingPreview(mapping, count)
 		if mapping.IsGraduating() {
@@ -504,7 +510,7 @@ func (s *GradeTransitionService) buildMappingPreviews(
 		mappedClasses[mapping.FromClass] = true
 	}
 
-	return mappedClasses, nil
+	return mappedClasses
 }
 
 // createMappingPreview creates a MappingPreview from a mapping and student count.
@@ -1196,14 +1202,18 @@ func (s *GradeTransitionService) executeRevert(
 		return err
 	}
 
-	if err := s.revertGraduatedStudents(ctx, graduated, result); err != nil {
+	reactivated, err := s.revertGraduatedStudents(ctx, graduated, result)
+	if err != nil {
 		return err
 	}
 
 	// Re-add the restored children to already-materialized rosters they were
-	// dropped from (on apply, replayed verbatim from the archive) or never added
-	// to (materialized while alumni) (#405 review).
-	if err := s.reconcileRestoredRosters(ctx, transition, graduated); err != nil {
+	// dropped from (replayed from the archive, with today's day statuses) or
+	// never added to (materialized while alumni) (#405 review). Only the children this revert
+	// actually reactivated — a graduate whose status was changed by hand since
+	// the apply is deliberately left as-is, and putting them back on future
+	// rosters would contradict that decision.
+	if err := s.reconcileRestoredRosters(ctx, transition, reactivated); err != nil {
 		return err
 	}
 
@@ -1213,17 +1223,18 @@ func (s *GradeTransitionService) executeRevert(
 // reconcileRestoredRosters re-adds the reactivated students to the rosters this
 // transition took them off, and fills the instances materialized after the apply
 // from enrollments. No-op when no reconciler is wired.
+//
+// `ids` are the students whose lifecycle status this revert actually restored —
+// never the whole graduated history. A child who is no longer an alumnus for
+// another reason (manually set inactive, say) is skipped by the reactivation and
+// must stay off the rosters too (#405 review).
 func (s *GradeTransitionService) reconcileRestoredRosters(
 	ctx context.Context,
 	transition *education.GradeTransition,
-	graduated []*education.GradeTransitionHistory,
+	ids []int64,
 ) error {
-	if s.rosterReconciler == nil || len(graduated) == 0 {
+	if s.rosterReconciler == nil || len(ids) == 0 {
 		return nil
-	}
-	ids := make([]int64, 0, len(graduated))
-	for _, h := range graduated {
-		ids = append(ids, h.StudentID)
 	}
 
 	// Everything inserted above the apply's marker is what the materializer built
@@ -1289,13 +1300,17 @@ func (s *GradeTransitionService) revertPromotedStudents(
 // back to active. Graduation is a soft delete, so the revert is complete — only
 // students whose rows were deleted or manually changed since cannot be restored
 // and are reported as a warning.
+//
+// Returns the ids actually restored, so the caller reconciles rosters for
+// exactly those children and not for the ones it deliberately skipped
+// (#405 review).
 func (s *GradeTransitionService) revertGraduatedStudents(
 	ctx context.Context,
 	graduated []*education.GradeTransitionHistory,
 	result *TransitionResult,
-) error {
+) ([]int64, error) {
 	if len(graduated) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	// Group by the status to restore so each distinct status is one UPDATE.
@@ -1308,22 +1323,22 @@ func (s *GradeTransitionService) revertGraduatedStudents(
 		byStatus[status] = append(byStatus[status], h.StudentID)
 	}
 
-	var restored int64
+	restored := make([]int64, 0, len(graduated))
 	for status, ids := range byStatus {
-		n, err := s.transitionRepo.ReactivateStudentsToStatus(ctx, ids, status)
+		reactivated, err := s.transitionRepo.ReactivateStudentsToStatus(ctx, ids, status)
 		if err != nil {
-			return fmt.Errorf("failed to reactivate graduated students: %w", err)
+			return nil, fmt.Errorf("failed to reactivate graduated students: %w", err)
 		}
-		restored += n
+		restored = append(restored, reactivated...)
 	}
-	result.StudentsGraduated = int(restored)
+	result.StudentsGraduated = len(restored)
 
-	if notRestored := len(graduated) - int(restored); notRestored > 0 {
+	if notRestored := len(graduated) - len(restored); notRestored > 0 {
 		result.Warnings = append(result.Warnings,
 			fmt.Sprintf("%d graduated students could not be restored (deleted or status changed since graduation)",
 				notRestored))
 	}
-	return nil
+	return restored, nil
 }
 
 // revertStudentClass moves a promoted student back to their original class,

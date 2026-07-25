@@ -247,10 +247,11 @@ describe("GradeTransitionsManager", () => {
   // their status changed after the apply. The backend says so in result.warnings
   // and the admin must be told, not shown an unconditional success (#405 review).
   // The backend picks the revert target with `applied_at DESC NULLS LAST,
-  // id DESC`, but the API serializes applied_at at second precision — two
-  // transitions applied within the same second look tied here. Offering the
-  // older one earns a 409 and, after the refresh, the same wrong target again:
-  // a loop the admin cannot break out of (#405 review).
+  // id DESC`. Timestamps now arrive at full microsecond precision, so a tie
+  // means the rows really are indistinguishable by time (legacy rows applied
+  // before the column carried one). Offering the older one earns a 409 and,
+  // after the refresh, the same wrong target again: a loop the admin cannot
+  // break out of (#405 review).
   it("breaks an applied_at tie by id, like the backend does", async () => {
     const earlier: GradeTransition = {
       ...appliedTransition,

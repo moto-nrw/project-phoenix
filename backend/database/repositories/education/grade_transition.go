@@ -820,7 +820,11 @@ func (r *GradeTransitionRepository) GraduateStudentsByIDs(ctx context.Context, s
 // in alumnus status are touched so a manually changed status is never
 // clobbered.
 func (r *GradeTransitionRepository) ReactivateStudentsByIDs(ctx context.Context, studentIDs []int64) (int64, error) {
-	return r.ReactivateStudentsToStatus(ctx, studentIDs, string(users.StudentStatusActive))
+	reactivated, err := r.ReactivateStudentsToStatus(ctx, studentIDs, string(users.StudentStatusActive))
+	if err != nil {
+		return 0, err
+	}
+	return int64(len(reactivated)), nil
 }
 
 // ReactivateStudentsToStatus restores graduated (alumnus) students to a
@@ -828,10 +832,20 @@ func (r *GradeTransitionRepository) ReactivateStudentsByIDs(ctx context.Context,
 // graduated them (see grade_transition_history.from_status). Only rows still in
 // alumnus status are touched, so a status changed manually after graduation is
 // never clobbered.
-func (r *GradeTransitionRepository) ReactivateStudentsToStatus(ctx context.Context, studentIDs []int64, targetStatus string) (int64, error) {
+//
+// It returns the ids it ACTUALLY restored, not just how many. A skipped child
+// (deleted, or manually moved off alumnus since the graduation) is deliberately
+// left alone, and the revert's roster reconciliation must skip them too — the
+// caller cannot tell which ids those were from a count (#405 review).
+func (r *GradeTransitionRepository) ReactivateStudentsToStatus(ctx context.Context, studentIDs []int64, targetStatus string) ([]int64, error) {
 	if len(studentIDs) == 0 {
-		return 0, nil
+		return nil, nil
 	}
+
+	type reactivatedRow struct {
+		ID int64 `bun:"id"`
+	}
+	var rows []reactivatedRow
 
 	updQuery := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*struct{})(nil)).
@@ -839,26 +853,22 @@ func (r *GradeTransitionRepository) ReactivateStudentsToStatus(ctx context.Conte
 		Set("status = ?", targetStatus).
 		Set("updated_at = NOW()").
 		Where(`"student".id IN (?)`, bun.List(studentIDs)).
-		Where(`"student".status = ?`, string(users.StudentStatusAlumnus))
+		Where(`"student".status = ?`, string(users.StudentStatusAlumnus)).
+		Returning(`"student".id`)
 
 	updQuery = base.WithTenantFilter(ctx, updQuery, "student")
 
-	result, err := updQuery.Exec(ctx)
-
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
+	if _, err := updQuery.Exec(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{
 			Op:  "reactivate students to status",
 			Err: err,
 		}
 	}
 
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "get rows affected",
-			Err: err,
-		}
+	reactivated := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		reactivated = append(reactivated, row.ID)
 	}
 
-	return affected, nil
+	return reactivated, nil
 }

@@ -1757,3 +1757,96 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen(t *te
 		assert.Nil(t, got)
 	})
 }
+
+// The archive captures a PLAN, and plans expire. An alumnus window of weeks is
+// ample time for a sickness to be reported or cleared, so the replay must take
+// its attendance state from the day statuses active at REVERT time rather than
+// resurrecting the pre-graduation one. Nothing downstream repairs it: the
+// reconciler's active-status pass only touches instances it just materialized
+// (#405 review).
+func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentStatus(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	account := testpkg.CreateTestAccount(t, db, "roster-restore-status@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	today := timezone.TodayDate()
+	soon := today.AddDays(3)
+
+	inst, cleanupInst := createInstanceFixture(t, db, "statusderiv", soon)
+	defer cleanupInst()
+
+	suffix := time.Now().UnixNano()
+	// One child per scenario: the occurrence carries at most one row per student.
+	sickened := testpkg.CreateTestStudent(t, db, "WirdKrank", fmt.Sprintf("D1-%d", suffix), "4a")
+	recovered := testpkg.CreateTestStudent(t, db, "WirdGesund", fmt.Sprintf("D2-%d", suffix), "4a")
+	unbooked := testpkg.CreateTestStudent(t, db, "OhneBuchung", fmt.Sprintf("D3-%d", suffix), "4a")
+	defer testpkg.CleanupActivityFixtures(t, db, sickened.ID, recovered.ID, unbooked.ID)
+
+	// The state at apply time: `recovered` was already down for a planned
+	// sickness, the other two were plain plan rows.
+	oldStatusDay := testpkg.CreateTestStudentStatusDay(t, db, recovered.ID, soon, "sick")
+	defer testpkg.CleanupStudentStatusDays(t, db, oldStatusDay.ID)
+
+	sickenedRow := testpkg.CreateTestInstanceStudent(t, db, inst.ID, sickened.ID,
+		scheduleModels.AttendanceStatusExpected)
+	recoveredRow := testpkg.CreateTestInstanceStudent(t, db, inst.ID, recovered.ID,
+		scheduleModels.AttendanceStatusAbsent,
+		testpkg.InstanceStudentOpts{StudentStatusDayID: &oldStatusDay.ID})
+	unbookedRow := testpkg.CreateTestInstanceStudent(t, db, inst.ID, unbooked.ID,
+		scheduleModels.AttendanceStatusExpected,
+		testpkg.InstanceStudentOpts{NotScheduled: true})
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students",
+		sickenedRow.ID, recoveredRow.ID, unbookedRow.ID)
+
+	graduates := []int64{sickened.ID, recovered.ID, unbooked.ID}
+	removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, graduates, today)
+	require.NoError(t, err)
+	require.Equal(t, 3, removed, "all three plan rows are archived on apply")
+
+	// The alumnus window: one child is reported sick, the other's sickness is
+	// cleared. Neither change could reach the archived snapshot.
+	newStatusDay := testpkg.CreateTestStudentStatusDay(t, db, sickened.ID, soon, "sick")
+	defer testpkg.CleanupStudentStatusDays(t, db, newStatusDay.ID)
+	_, err = db.NewRaw(`UPDATE active.student_status_days SET cleared_at = NOW() WHERE id = ?`,
+		oldStatusDay.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	replayed, err := repo.RestoreArchivedByTransition(ctx, transition.ID, graduates, today)
+	require.NoError(t, err)
+	require.Equal(t, 3, replayed)
+
+	get := func(studentID int64) *scheduleModels.InstanceStudent {
+		got, gErr := repo.FindByInstanceAndStudent(ctx, inst.ID, studentID)
+		require.NoError(t, gErr)
+		require.NotNil(t, got)
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", got.ID)
+		return got
+	}
+
+	gotSickened := get(sickened.ID)
+	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, gotSickened.Status,
+		"a sickness reported while the child was an alumnus must win over the archived plan")
+	require.NotNil(t, gotSickened.Substatus)
+	assert.Equal(t, scheduleModels.AttendanceSubstatusSick, *gotSickened.Substatus)
+	require.NotNil(t, gotSickened.StudentStatusDayID)
+	assert.Equal(t, newStatusDay.ID, *gotSickened.StudentStatusDayID,
+		"the row must be owned by the status day that is active now")
+
+	gotRecovered := get(recovered.ID)
+	assert.Equal(t, scheduleModels.AttendanceStatusExpected, gotRecovered.Status,
+		"a cleared status day must not come back as an absence")
+	assert.Nil(t, gotRecovered.Substatus)
+	assert.Nil(t, gotRecovered.StudentStatusDayID)
+
+	gotUnbooked := get(unbooked.ID)
+	assert.True(t, gotUnbooked.NotScheduled, "the non-booking marker is structural and replays verbatim")
+	assert.Equal(t, scheduleModels.AttendanceStatusExpected, gotUnbooked.Status)
+	assert.Nil(t, gotUnbooked.StudentStatusDayID)
+}

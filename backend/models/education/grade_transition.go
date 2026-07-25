@@ -217,7 +217,12 @@ type GradeTransitionRepository interface {
 	// is never silently graduated without those guards (#405 review).
 	GraduateStudentsByIDs(ctx context.Context, studentIDs []int64) (int64, error)
 	ReactivateStudentsByIDs(ctx context.Context, studentIDs []int64) (int64, error)
-	ReactivateStudentsToStatus(ctx context.Context, studentIDs []int64, targetStatus string) (int64, error)
+	// ReactivateStudentsToStatus restores still-alumnus students to the given
+	// lifecycle status and returns the ids it actually restored. Students whose
+	// status was changed by hand since the graduation are skipped, and the
+	// caller must treat them as not reverted — including for roster
+	// reconciliation (#405 review).
+	ReactivateStudentsToStatus(ctx context.Context, studentIDs []int64, targetStatus string) ([]int64, error)
 }
 
 // StudentClassInfo contains basic student information for class transitions

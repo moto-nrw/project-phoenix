@@ -856,6 +856,18 @@ func TestToTransitionResponse(t *testing.T) {
 		data := response["data"].(map[string]interface{})
 		assert.NotNil(t, data["applied_at"])
 		assert.NotNil(t, data["applied_by"])
+
+		// The revert UI must offer exactly the transition LockLatestApplied would
+		// pick (`applied_at DESC NULLS LAST, id DESC`) or the admin loops on a 409
+		// forever. That only works if the wire timestamp is as precise as the
+		// column AND fixed-width, because the client compares these strings
+		// lexically: a trimmed fraction would sort ".5Z" before "Z" (#405 review).
+		for _, field := range []string{"applied_at", "created_at"} {
+			serialized, ok := data[field].(string)
+			require.True(t, ok, "%s must serialize as a string", field)
+			assert.Regexp(t, `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$`, serialized,
+				"%s must be UTC with fixed-width microsecond precision", field)
+		}
 	})
 
 	t.Run("response includes reverted_at and reverted_by", func(t *testing.T) {

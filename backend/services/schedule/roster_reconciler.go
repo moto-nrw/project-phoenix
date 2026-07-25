@@ -118,9 +118,13 @@ func (s *RosterReconciler) CurrentRosterBaseline(ctx context.Context) (int64, er
 // the given (now reactivated) students:
 //
 //  1. Every row the apply archived on a STILL-ACTIONABLE instance is replayed
-//     verbatim — same status, substatus, note, room, unplanned / non-booking /
-//     manual-status markers and owning status day. This preserves per-occurrence
-//     edits in both directions: a child deliberately removed from one occurrence
+//     with its structural fields intact — same note, room, unplanned /
+//     non-booking / manual-status markers — while status, substatus and the
+//     owning status day are re-derived from the day statuses active NOW, so a
+//     sickness reported or cleared during the alumnus window wins over the
+//     stale plan the archive captured (#405 review). This preserves
+//     per-occurrence edits in both directions: a child deliberately removed
+//     from one occurrence
 //     before the transition is NOT resurrected (there is no archive entry for a
 //     row that never existed), and a child hand-added to one occurrence without
 //     an enrollment comes back. Archived rows whose occurrence has since become

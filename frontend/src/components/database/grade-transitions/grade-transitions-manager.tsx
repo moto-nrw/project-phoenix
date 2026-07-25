@@ -97,13 +97,17 @@ function describeMappings(transition: GradeTransition): string {
 // 409 (NOT_LATEST_TRANSITION_CODE), so this runs over a freshly fetched list too.
 //
 // The comparison must reproduce the backend's ordering EXACTLY
-// (`applied_at DESC NULLS LAST, id DESC` in LockLatestApplied). Comparing only
-// the timestamp is not enough: the API serializes applied_at at second
-// precision, so two transitions applied within the same second compare equal
-// here while the backend still separates them by id — and legacy applied rows
-// carry no timestamp at all. Picking the wrong one of a tied pair means the UI
-// offers a target the backend rejects with 409, refetches, and picks the same
-// invalid target again: an unbreakable loop for the admin (#405 review).
+// (`applied_at DESC NULLS LAST, id DESC` in LockLatestApplied). Picking the
+// wrong one of two close applies means the UI offers a target the backend
+// rejects with 409, refetches, and picks the same invalid target again: an
+// unbreakable loop for the admin (#405 review).
+//
+// Two properties of the wire format make the string compare below faithful:
+// applied_at is serialized in UTC with fixed-width microsecond precision (see
+// timeFormatISO8601 in api/admin/grade_transitions.go), so it is both as precise
+// as the database column and lexically ordered. The id tiebreak below therefore
+// only decides genuinely equal timestamps — legacy rows applied before the
+// column carried one.
 function isMoreRecentlyApplied(
   candidate: GradeTransition,
   current: GradeTransition,
@@ -112,9 +116,9 @@ function isMoreRecentlyApplied(
   const a = candidate.appliedAt ?? "";
   const b = current.appliedAt ?? "";
   if (a !== b) return a > b;
-  // Tie (same second, or both untimestamped) — id DESC, numerically. The ids are
-  // backend int64s rendered as strings, so a lexical compare would order "9"
-  // above "10".
+  // Tie (identical timestamps, or both untimestamped) — id DESC, numerically.
+  // The ids are backend int64s rendered as strings, so a lexical compare would
+  // order "9" above "10".
   return Number(candidate.id) > Number(current.id);
 }
 

@@ -21,7 +21,18 @@ import (
 
 // Constants for error messages and time formatting
 const (
-	timeFormatISO8601       = "2006-01-02T15:04:05Z"
+	// timeFormatISO8601 carries FIXED-WIDTH microsecond precision (PostgreSQL's
+	// own timestamp resolution) and is always applied to a UTC time.
+	//
+	// Both properties are load-bearing for the revert UI. It must offer exactly
+	// the transition the backend considers latest (`applied_at DESC NULLS LAST,
+	// id DESC` in LockLatestApplied) or the admin gets a 409, refetches, and is
+	// offered the same rejected target forever. At second precision two applies
+	// in the same second serialized identically, hiding a real ordering behind
+	// the id tiebreak; a variable-width fraction would be worse still, since the
+	// client compares these strings lexically and ".5Z" sorts before "Z"
+	// (#405 review).
+	timeFormatISO8601       = "2006-01-02T15:04:05.000000Z"
 	errMsgNoAccountID       = "no account ID in context"
 	errMsgInvalidTransition = "invalid transition ID"
 )
@@ -147,7 +158,7 @@ func toTransitionResponse(t *education.GradeTransition) TransitionResponse {
 		ID:           t.ID,
 		AcademicYear: t.AcademicYear,
 		Status:       t.Status,
-		CreatedAt:    t.CreatedAt.Format(timeFormatISO8601),
+		CreatedAt:    t.CreatedAt.UTC().Format(timeFormatISO8601),
 		CreatedBy:    t.CreatedBy,
 		Notes:        t.Notes,
 		CanModify:    t.CanModify(),
@@ -156,14 +167,14 @@ func toTransitionResponse(t *education.GradeTransition) TransitionResponse {
 	}
 
 	if t.AppliedAt != nil {
-		formatted := t.AppliedAt.Format(timeFormatISO8601)
+		formatted := t.AppliedAt.UTC().Format(timeFormatISO8601)
 		resp.AppliedAt = &formatted
 	}
 	if t.AppliedBy != nil {
 		resp.AppliedBy = t.AppliedBy
 	}
 	if t.RevertedAt != nil {
-		formatted := t.RevertedAt.Format(timeFormatISO8601)
+		formatted := t.RevertedAt.UTC().Format(timeFormatISO8601)
 		resp.RevertedAt = &formatted
 	}
 	if t.RevertedBy != nil {

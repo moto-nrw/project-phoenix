@@ -1199,6 +1199,94 @@ func TestGradeTransitionService_Revert_WithGraduatedStudents(t *testing.T) {
 	})
 }
 
+// recordingRosterReconciler captures the student ids each reconciliation pass
+// is handed, so a test can pin WHICH children a revert puts back on the
+// timetable — not merely that it called the reconciler.
+type recordingRosterReconciler struct {
+	removed  []int64
+	restored []int64
+}
+
+func (r *recordingRosterReconciler) RemoveStudentsFromFutureRosters(
+	_ context.Context, _ int64, studentIDs []int64,
+) error {
+	r.removed = append(r.removed, studentIDs...)
+	return nil
+}
+
+func (r *recordingRosterReconciler) RestoreStudentsToFutureRosters(
+	_ context.Context, _ int64, studentIDs []int64, _ *int64,
+) error {
+	r.restored = append(r.restored, studentIDs...)
+	return nil
+}
+
+func (r *recordingRosterReconciler) CurrentRosterBaseline(_ context.Context) (int64, error) {
+	return 0, nil
+}
+
+// A graduate whose lifecycle status was changed by hand after the apply is
+// deliberately NOT reactivated by the revert (the UPDATE only matches rows still
+// in alumnus status) and is reported as a warning. Roster reconciliation must
+// follow that decision: replaying the archive for such a child would put an
+// inactive student back on upcoming timetables — reverting half of a change the
+// admin never asked to revert (#405 review).
+func TestGradeTransitionService_Revert_ReconcilesOnlyReactivatedStudents(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	reconciler := &recordingRosterReconciler{}
+	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
+		TransitionRepo:   educationRepo.NewGradeTransitionRepository(db),
+		StudentRepo:      usersRepo.NewStudentRepository(db),
+		PersonRepo:       usersRepo.NewPersonRepository(db),
+		RosterReconciler: reconciler,
+		DB:               db,
+	})
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-revert-partial@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	graduateClass := fmt.Sprintf("4partial-%s", suffix)
+
+	restorable := testpkg.CreateTestStudent(t, db, "Zurueck", "Kommt", graduateClass)
+	handChanged := testpkg.CreateTestStudent(t, db, "Bleibt", "Weg", graduateClass)
+	defer testpkg.CleanupActivityFixtures(t, db, restorable.ID, handChanged.ID)
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, graduateClass, nil)
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	_, err := service.Apply(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []int64{restorable.ID, handChanged.ID}, reconciler.removed,
+		"both graduates leave the future rosters on apply")
+
+	// An admin decides one departed child is simply inactive, not an alumnus.
+	_, err = db.NewRaw(`UPDATE users.students SET status = 'inactive' WHERE id = ?`, handChanged.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	result, err := service.Revert(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.StudentsGraduated, "only the still-alumnus child is restored")
+	require.Len(t, result.Warnings, 1)
+	assert.Contains(t, result.Warnings[0], "could not be restored")
+
+	assert.Equal(t, []int64{restorable.ID}, reconciler.restored,
+		"the hand-changed child must not be replayed onto future rosters")
+
+	var status string
+	require.NoError(t, db.NewSelect().TableExpr(`users.students`).Column("status").
+		Where("id = ?", handChanged.ID).Scan(ctx, &status))
+	assert.Equal(t, string(users.StudentStatusInactive), status,
+		"the manual status decision survives the revert")
+}
+
 func TestGradeTransitionService_Preview_NoMappings(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()

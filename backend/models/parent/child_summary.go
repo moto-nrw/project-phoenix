@@ -58,7 +58,8 @@ type ChildRepository interface {
 	// ListByAccount returns every student linked to a guardian profile
 	// owned by the given account, across every active tenant mapping
 	// for that account. Sorted by school name, then student first
-	// name, then last name. Soft-deleted persons are filtered out.
+	// name, then last name. Soft-deleted persons and graduated
+	// (alumnus) students are filtered out.
 	ListByAccount(ctx context.Context, accountID int64) ([]*ChildSummary, error)
 
 	// FindForAccount resolves a single child the account is a guardian
@@ -66,7 +67,9 @@ type ChildRepository interface {
 	// callers can scope a follow-up tenant transaction). Returns nil,
 	// nil when the student is not linked to the account — the caller MUST
 	// treat that as a 403/404, never trusting the studentID alone. This
-	// is the authorization gate for every per-child parent write.
+	// is the authorization gate for every per-child parent write, so
+	// graduated (alumnus) children resolve to nil here too: a departed
+	// child is neither visible nor writable in the portal.
 	FindForAccount(ctx context.Context, accountID, studentID int64) (*ChildSummary, error)
 }
 

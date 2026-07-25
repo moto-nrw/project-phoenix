@@ -869,11 +869,27 @@ func (r *InstanceStudentRepository) ArchivePlannedByStudentIDsFrom(
 // invented (reconstructing rosters from enrollments does both wrong — #405
 // review).
 //
-// room_id and student_status_day_id are re-validated against their current rows
-// instead of being trusted: a room or status day deleted during the alumnus
-// window restores as NULL rather than failing the whole revert on a foreign key.
-// ON CONFLICT DO NOTHING covers a row that already exists again (a re-run, or a
-// manual re-add during the alumnus window) — the existing row wins.
+// "Verbatim" covers the STRUCTURAL fields — room, note, unplanned / non-booking
+// markers — but NOT the attendance state. status / substatus /
+// student_status_day_id are re-derived from the day statuses that are active
+// NOW, because the archived pair only ever describes a PLAN (the archive
+// predicate excludes everything that recorded an event), and plans expire: an
+// alumnus window of several weeks is ample time for a sickness to be reported or
+// cleared. Replaying the snapshot would resurrect the pre-graduation state —
+// expected for a child who has since been reported sick, absent for one whose
+// status day was cleared. The reconciler's active-status pass cannot repair
+// either: it only touches rows it just materialized, never these replayed ones
+// (#405 review).
+//
+// Rows marked not_scheduled keep their own status: a non-booking is not an
+// attendance plan, and ApplyActiveStatusDaysForInstance skips them for the same
+// reason.
+//
+// room_id is re-validated against its current row instead of being trusted: a
+// room deleted during the alumnus window restores as NULL rather than failing
+// the whole revert on a foreign key. ON CONFLICT DO NOTHING covers a row that
+// already exists again (a re-run, or a manual re-add during the alumnus
+// window) — the existing row wins.
 //
 // Only STILL-ACTIONABLE instances are replayed: dated on or after `from`
 // (today at revert time) and neither completed nor cancelled. The alumnus
@@ -909,9 +925,23 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 			created_at, updated_at
 		)
 		SELECT restored.tenant_id, restored.instance_id, restored.student_id,
-		       room.id, restored.status, restored.substatus, restored.note,
+		       room.id,
+		       CASE
+		           WHEN restored.not_scheduled          THEN restored.status
+		           WHEN active_day.id IS NOT NULL       THEN ?
+		           ELSE ?
+		       END,
+		       CASE
+		           WHEN restored.not_scheduled          THEN restored.substatus
+		           WHEN active_day.status = 'sick'       THEN ?
+		           WHEN active_day.status = 'excused'    THEN ?
+		           WHEN active_day.status = 'class_trip' THEN ?
+		           ELSE NULL
+		       END,
+		       restored.note,
 		       restored.is_unplanned, restored.not_scheduled, restored.manual_status_at,
-		       status_day.id, NOW(), NOW()
+		       CASE WHEN restored.not_scheduled THEN NULL ELSE active_day.id END,
+		       NOW(), NOW()
 		FROM restored
 		JOIN schedule.activity_instances AS ai
 		       ON ai.id = restored.instance_id
@@ -919,9 +949,16 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 		LEFT JOIN facilities.rooms AS room
 		       ON room.id = restored.room_id
 		      AND room.tenant_id = restored.tenant_id
-		LEFT JOIN active.student_status_days AS status_day
-		       ON status_day.id = restored.student_status_day_id
-		      AND status_day.tenant_id = restored.tenant_id
+		LEFT JOIN LATERAL (
+		       SELECT sd.id, sd.status
+		       FROM active.student_status_days AS sd
+		       WHERE sd.student_id = restored.student_id
+		         AND sd.tenant_id  = restored.tenant_id
+		         AND sd.date       = ai.date
+		         AND sd.cleared_at IS NULL
+		       ORDER BY sd.reported_at DESC, sd.id DESC
+		       LIMIT 1
+		) AS active_day ON TRUE
 		WHERE ai.date >= ?
 		  AND ai.status NOT IN (?, ?)
 		ON CONFLICT (instance_id, student_id) DO NOTHING`
@@ -930,6 +967,11 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 		transitionID,
 		bun.List(studentIDs),
 		tenant.FromContext(ctx),
+		schedule.AttendanceStatusAbsent,
+		schedule.AttendanceStatusExpected,
+		schedule.AttendanceSubstatusSick,
+		schedule.AttendanceSubstatusExcused,
+		schedule.AttendanceSubstatusFieldTrip,
 		from,
 		schedule.InstanceStatusCompleted,
 		schedule.InstanceStatusCancelled,
