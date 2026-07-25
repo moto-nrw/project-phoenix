@@ -3,6 +3,7 @@ package migrations
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/uptrace/bun"
 )
@@ -138,6 +139,40 @@ func auditAppendOnlyGrantsUp(ctx context.Context, db *bun.DB) error {
 			REVOKE UPDATE, DELETE, TRUNCATE ON TABLES FROM phoenix_tenant;
 	`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed narrowing default privileges on schema audit: %w", err)
+	}
+
+	// Verify the ALTER actually landed. ALTER DEFAULT PRIVILEGES without
+	// FOR ROLE is implicitly FOR ROLE current_user: it narrows only the
+	// pg_default_acl row whose grantor is the migrating superuser. If 1.14.1
+	// was applied under a different role than this migration runs as, the
+	// REVOKE above creates a *second* row and the original arwd default
+	// survives — every future audit table would silently inherit
+	// UPDATE/DELETE again while this migration reports success. The guard
+	// tests only ever see the test database, so fail loudly here instead.
+	var defaultACL []string
+	if err := db.NewRaw(`
+		SELECT acl::text
+		FROM pg_default_acl d
+		JOIN pg_namespace n ON n.oid = d.defaclnamespace
+		CROSS JOIN LATERAL unnest(d.defaclacl) AS acl
+		WHERE n.nspname = 'audit'
+		  AND d.defaclobjtype = 'r'
+		  AND acl::text LIKE 'phoenix_tenant=%';
+	`).Scan(ctx, &defaultACL); err != nil {
+		return fmt.Errorf("failed reading back default privileges on schema audit: %w", err)
+	}
+	for _, item := range defaultACL {
+		// aclitem text form: "grantee=privileges/grantor".
+		privileges, _, _ := strings.Cut(strings.TrimPrefix(item, "phoenix_tenant="), "/")
+		// Privilege letters (case-sensitive): w=UPDATE, d=DELETE, D=TRUNCATE.
+		if strings.ContainsAny(privileges, "wdD") {
+			return fmt.Errorf(
+				"default privileges on schema audit still grant phoenix_tenant UPDATE/DELETE/TRUNCATE (%s); "+
+					"the ALTER DEFAULT PRIVILEGES above is scoped to the grantor role, so a row created by a "+
+					"different superuser survives — re-run the REVOKE as that role "+
+					"(ALTER DEFAULT PRIVILEGES FOR ROLE <grantor> IN SCHEMA audit ...)",
+				item)
+		}
 	}
 
 	fmt.Println("  ✓ audit schema is append-only for phoenix_tenant (DELETE kept on deviation_events + unregistered_tag_scans for retention)")
