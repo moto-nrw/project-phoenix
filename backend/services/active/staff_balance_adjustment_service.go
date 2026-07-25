@@ -191,11 +191,11 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 	if err := s.rejectPreAccountDate(ctx, req.EffectiveDate); err != nil {
 		return nil, err
 	}
-	if err := s.rejectFrozenMonth(ctx, staffID, req.EffectiveDate); err != nil {
-		return nil, err
-	}
 	if err := s.adjustmentRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, fmt.Errorf("failed to lock staff balance writes: %w", err)
+	}
+	if err := s.rejectFrozenMonth(ctx, staffID, req.EffectiveDate); err != nil {
+		return nil, err
 	}
 	resets, err := s.listResetsOnOrAfter(ctx, staffID, req.EffectiveDate)
 	if err != nil {
@@ -340,14 +340,14 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 	if err := s.rejectPreAccountDate(ctx, effectiveDate); err != nil {
 		return nil, err
 	}
-	if err := s.rejectFrozenMonth(ctx, staffID, effectiveDate); err != nil {
-		return nil, err
-	}
 
 	// Serialize concurrent resets: the advisory lock covers the
 	// read-compute-insert sequence, the partial unique index is the backstop.
 	if err := s.adjustmentRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, fmt.Errorf("failed to lock staff balance writes: %w", err)
+	}
+	if err := s.rejectFrozenMonth(ctx, staffID, effectiveDate); err != nil {
+		return nil, err
 	}
 	resets, err := s.listResetsOnOrAfter(ctx, staffID, effectiveDate)
 	if err != nil {

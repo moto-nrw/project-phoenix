@@ -420,7 +420,7 @@ type StaffMonthBalanceSnapshotRepository interface {
 	GetLatestClosedThrough(ctx context.Context, staffID int64, year, month int) (*StaffMonthBalanceSnapshot, error)
 
 	// GetByMonth lists the ACTIVE snapshots of one month for the whole tenant.
-	// Backs the close-status view and CloseMonth's idempotency check.
+	// Backs the close-status view.
 	GetByMonth(ctx context.Context, year, month int) ([]*StaffMonthBalanceSnapshot, error)
 
 	// LockStaffBalanceWrites takes the same per-staff advisory lock the

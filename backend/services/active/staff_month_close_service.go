@@ -154,15 +154,6 @@ func (s *staffMonthCloseService) CloseMonth(ctx context.Context, closedBy int64,
 		return nil, err
 	}
 
-	existing, err := s.snapshotRepo.GetByMonth(ctx, year, month)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load existing month snapshots: %w", err)
-	}
-	alreadyClosed := make(map[int64]bool, len(existing))
-	for _, snapshot := range existing {
-		alreadyClosed[snapshot.StaffID] = true
-	}
-
 	staffMembers, err := s.staffLister.ListAllWithPerson(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list staff for month close: %w", err)
@@ -183,13 +174,13 @@ func (s *staffMonthCloseService) CloseMonth(ctx context.Context, closedBy int64,
 
 	result := &MonthCloseResult{Year: year, Month: month}
 	for _, staff := range staffMembers {
-		if alreadyClosed[staff.ID] {
-			result.SkippedStaff++
-			continue
-		}
-		snapshot, err := s.closeStaffMonth(ctx, staff.ID, closedBy, key, trimmedReason)
+		snapshot, alreadyClosed, err := s.closeStaffMonth(ctx, staff.ID, closedBy, key, trimmedReason)
 		if err != nil {
 			return nil, err
+		}
+		if alreadyClosed {
+			result.SkippedStaff++
+			continue
 		}
 		result.ClosedStaff++
 		result.Snapshots = append(result.Snapshots, snapshot)
@@ -214,13 +205,20 @@ func (s *staffMonthCloseService) closeStaffMonth(
 	staffID, closedBy int64,
 	key monthKey,
 	reason string,
-) (*activeModels.StaffMonthBalanceSnapshot, error) {
+) (*activeModels.StaffMonthBalanceSnapshot, bool, error) {
 	if err := s.snapshotRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
-		return nil, fmt.Errorf("failed to lock staff balance writes: %w", err)
+		return nil, false, fmt.Errorf("failed to lock staff balance writes: %w", err)
+	}
+	existing, err := s.snapshotRepo.GetLatestClosedThrough(ctx, staffID, key.Year, key.Month)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to check existing month snapshot for staff %d: %w", staffID, err)
+	}
+	if existing != nil && existing.Year == key.Year && existing.Month == key.Month {
+		return nil, true, nil
 	}
 	summary, err := s.monthService.GetMonthSummaryAtMonthEnd(ctx, staffID, key.Year, key.Month)
 	if err != nil {
-		return nil, fmt.Errorf("failed to compute month summary for staff %d: %w", staffID, err)
+		return nil, false, fmt.Errorf("failed to compute month summary for staff %d: %w", staffID, err)
 	}
 	snapshot := &activeModels.StaffMonthBalanceSnapshot{
 		StaffID:               staffID,
@@ -240,7 +238,7 @@ func (s *staffMonthCloseService) closeStaffMonth(
 		Source:            activeModels.SnapshotSourceAdmin,
 	}
 	if err := s.snapshotRepo.Create(ctx, snapshot); err != nil {
-		return nil, fmt.Errorf("failed to create month snapshot for staff %d: %w", staffID, err)
+		return nil, false, fmt.Errorf("failed to create month snapshot for staff %d: %w", staffID, err)
 	}
 	s.getLogger().Debug("month balance snapshot written",
 		"staff_id", staffID,
@@ -248,7 +246,7 @@ func (s *staffMonthCloseService) closeStaffMonth(
 		"month", key.Month,
 		"closing_balance_minutes", snapshot.ClosingBalanceMinutes,
 	)
-	return snapshot, nil
+	return snapshot, false, nil
 }
 
 func (s *staffMonthCloseService) ReopenMonth(ctx context.Context, staffID, reopenedBy int64, year, month int, reason string) error {
