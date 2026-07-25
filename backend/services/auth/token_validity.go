@@ -25,7 +25,7 @@ func GuardianInvitationExpired(i *auth.GuardianInvitation, now time.Time) bool {
 }
 
 // GuardianInvitationValid reports whether a guardian invitation can still be
-// consumed: not expired and not already accepted.
+// consumed: not revoked, not expired, and not already accepted.
 func GuardianInvitationValid(i *auth.GuardianInvitation, now time.Time) bool {
-	return i != nil && !GuardianInvitationExpired(i, now) && !i.IsAccepted()
+	return i != nil && i.RevokedAt == nil && !GuardianInvitationExpired(i, now) && !i.IsAccepted()
 }

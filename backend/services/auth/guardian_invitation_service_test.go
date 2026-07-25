@@ -552,6 +552,32 @@ func TestGuardianInvitationService_Resend_ResetsEmailColumns(t *testing.T) {
 	assert.Nil(t, updated.EmailError, "email_error must be cleared on resend")
 }
 
+func TestGuardianInvitationService_Resend_RejectsRevokedToken(t *testing.T) {
+	outbox := &stubOutboxEnqueuer{}
+	env := setupGuardianInvitationTest(t, func(cfg *authService.GuardianInvitationServiceConfig) {
+		cfg.OutboxEnqueuer = outbox
+	})
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "resend-revoked")
+	creatorID := env.inviterAccountID(t)
+	ctx := testpkg.TenantContext(1)
+	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.NoError(t, err)
+	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+	_, err = env.repos.GuardianInvitation.RevokeOpenByGuardianProfileID(ctx, profile.ID, "guardian email changed")
+	require.NoError(t, err)
+
+	err = env.service.Resend(ctx, invitation.ID, creatorID)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, authService.ErrInvitationNotFound)
+	assert.Len(t, outbox.requests, 1, "revoked tokens must not enqueue another email")
+}
+
 // --- Enrollment backfill on accept ---
 
 // stubEnrollmentBackfiller records inputs to BackfillGuardianAccountID

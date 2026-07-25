@@ -110,11 +110,13 @@ func (w *OutboxWorker) SetMaxAttempts(n int) {
 //     bypasses RLS on email_outbox).
 //  2. For each claimed row, switch into the row's tenant context and
 //     call the registered Renderer.
-//  3. Re-lock the row (LockSending) and Mailer.Send the rendered
-//     message inside one phoenix_admin transaction, so a concurrent
-//     cancellation (deletion of the outbox row) cannot slip between
-//     claim and send.
-//  4. Mark the row sent / retry / failed depending on outcome and
+//  3. Persist the generated Message-ID in a short phoenix_admin transaction.
+//     This commit must happen before transport submission so an immediate
+//     delivery webhook can correlate the message.
+//  4. Re-lock the row (LockSending) and Mailer.Send the rendered message
+//     inside a second phoenix_admin transaction, so a concurrent cancellation
+//     cannot slip between the final probe and send.
+//  5. Mark the row sent / retry / failed depending on outcome and
 //     attempt count.
 //
 // Errors during step 1 are logged and returned. Errors per row are
@@ -177,14 +179,6 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 		return
 	}
 
-	// Send and MarkSent share one admin transaction that first re-locks
-	// the claimed row (FOR UPDATE). Features cancel queued emails by
-	// deleting their outbox rows (e.g. enrollment deletion wipes the rows
-	// for a deleted request), and that delete races the committed claim:
-	// without the lock the worker could still send a message built from
-	// data that is already gone. With it, a concurrent delete either
-	// committed first (the probe finds nothing, the send is skipped) or
-	// blocks until this transaction commits.
 	// Correlation identifier for provider delivery events. Minted per send
 	// attempt (the column is UNIQUE, so a retry after a partial failure gets a
 	// fresh value and cannot collide). The local part carries tenant and
@@ -195,6 +189,30 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 	msg.MessageID = messageID
 
 	var cancelled bool
+	if err := tenant.WithAdminTx(ctx, w.db, func(adminCtx context.Context, _ bun.Tx) error {
+		stillClaimed, lockErr := w.repo.LockSending(adminCtx, row.ID)
+		if lockErr != nil {
+			return lockErr
+		}
+		if !stillClaimed {
+			cancelled = true
+			return nil
+		}
+		return w.repo.SetDispatchIdentifiers(adminCtx, row.ID, messageID, nil)
+	}); err != nil {
+		w.recordFailure(ctx, row, fmt.Sprintf("persist message id: %v", err))
+		return
+	}
+	if cancelled {
+		w.logCancelled(row)
+		return
+	}
+
+	// Send and MarkSent share a second admin transaction that re-locks the
+	// claimed row. Features cancel queued emails by deleting their outbox rows;
+	// the delete either commits before this probe (send is skipped) or blocks
+	// until this transaction commits. The Message-ID remains visible because
+	// its transaction above already committed.
 	var sendFailure string
 	if err := tenant.WithAdminTx(ctx, w.db, func(adminCtx context.Context, _ bun.Tx) error {
 		stillClaimed, lockErr := w.repo.LockSending(adminCtx, row.ID)
@@ -210,8 +228,10 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 			sendFailure = fmt.Sprintf("send: %v", sendErr)
 			return nil
 		}
-		if idErr := w.repo.SetDispatchIdentifiers(adminCtx, row.ID, messageID, providerMessageID); idErr != nil {
-			return idErr
+		if providerMessageID != nil {
+			if idErr := w.repo.SetDispatchIdentifiers(adminCtx, row.ID, messageID, providerMessageID); idErr != nil {
+				return idErr
+			}
 		}
 		return w.repo.MarkSent(adminCtx, row.ID, time.Now())
 	}); err != nil {
@@ -222,10 +242,7 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 		return
 	}
 	if cancelled {
-		w.logger.Info("outbox: send skipped, row cancelled after claim",
-			slog.Int64("outbox_id", row.ID),
-			slog.Int64("tenant_id", row.GetTenantID()),
-			slog.String("kind", row.Kind))
+		w.logCancelled(row)
 		return
 	}
 	if sendFailure != "" {
@@ -233,6 +250,13 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 		return
 	}
 	w.logger.Info("outbox: email sent",
+		slog.Int64("outbox_id", row.ID),
+		slog.Int64("tenant_id", row.GetTenantID()),
+		slog.String("kind", row.Kind))
+}
+
+func (w *OutboxWorker) logCancelled(row *platformModels.EmailOutbox) {
+	w.logger.Info("outbox: send skipped, row cancelled after claim",
 		slog.Int64("outbox_id", row.ID),
 		slog.Int64("tenant_id", row.GetTenantID()),
 		slog.String("kind", row.Kind))

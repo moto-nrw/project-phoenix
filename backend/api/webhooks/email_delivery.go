@@ -31,10 +31,13 @@ func (rs *Resource) ingestDeliveryEvents(w http.ResponseWriter, r *http.Request)
 	provider := chi.URLParam(r, "provider")
 	adapter, ok := adapterFor(provider)
 	if !ok {
-		observability.RecordEmailWebhook(provider, "malformed")
+		observability.RecordEmailWebhook("unknown", "malformed")
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unknown provider"})
 		return
 	}
+	// Only registered adapter names may become metric labels. The raw path is
+	// unauthenticated input and would otherwise create unbounded cardinality.
+	provider = adapter.Name()
 
 	if !rs.Verifier.Configured() {
 		observability.RecordEmailWebhook(provider, "not_configured")

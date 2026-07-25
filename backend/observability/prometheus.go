@@ -258,7 +258,8 @@ func RecordSSEBroadcast(tenantID int64, eventType, target string, dropped int) {
 // RecordEmailWebhook counts one webhook request by verification outcome.
 // Results in use: accepted, invalid_signature, stale_timestamp, malformed,
 // not_configured. A non-zero invalid_signature rate is an alertable event —
-// nothing legitimate produces one.
+// nothing legitimate produces one. Callers must pass only a registered
+// provider name or the fixed "unknown" value; the path is unauthenticated.
 func RecordEmailWebhook(provider, result string) {
 	emailWebhookRequests.WithLabelValues(sanitizeLabel(provider), sanitizeLabel(result)).Inc()
 }

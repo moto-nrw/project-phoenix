@@ -609,6 +609,51 @@ func TestInviteToStudent_ReusesOpenInvitationForSameChildAndProfile(t *testing.T
 	assert.Equal(t, 1, openForStudent)
 }
 
+func TestInviteToStudent_ReplacesRevokedInvitation(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+	ctx := testpkg.TenantContext(1)
+	creator := env.inviterAccountID(t)
+	student := testpkg.CreateTestStudent(t, env.db, "Replacement", "Invite", "4b")
+	email := fmt.Sprintf("replacement-invite-%d@example.test", time.Now().UnixNano())
+	defer env.deleteStudentGuardianLinks(student.ID)
+
+	first, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID: student.ID,
+		Email:     email,
+		CreatedBy: creator,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, first.InvitationID)
+	defer func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("auth.guardian_invitations").
+			Where("guardian_profile_id = ?", first.GuardianProfileID).
+			Exec(context.Background())
+		_, _ = env.db.NewDelete().
+			TableExpr("users.guardian_profiles").
+			Where("id = ?", first.GuardianProfileID).
+			Exec(context.Background())
+	}()
+
+	revokedIDs, err := env.repos.GuardianInvitation.RevokeOpenByGuardianProfileID(ctx, first.GuardianProfileID, "guardian email changed")
+	require.NoError(t, err)
+	require.Contains(t, revokedIDs, *first.InvitationID)
+
+	second, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID: student.ID,
+		Email:     email,
+		CreatedBy: creator,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, second.InvitationID)
+	assert.NotEqual(t, *first.InvitationID, *second.InvitationID, "a revoked token must be replaced")
+
+	replacement, err := env.repos.GuardianInvitation.FindByID(ctx, *second.InvitationID)
+	require.NoError(t, err)
+	assert.Nil(t, replacement.RevokedAt)
+}
+
 func TestRevokeAccess_ValidationAndNotLinked(t *testing.T) {
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()

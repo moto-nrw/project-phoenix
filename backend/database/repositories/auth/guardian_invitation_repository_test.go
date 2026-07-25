@@ -233,7 +233,44 @@ func TestGuardianInvitationRepository_FindPending(t *testing.T) {
 		pending, err := repo.FindPending(ctx)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(pending), 1)
+
+		_, err = repo.RevokeOpenByGuardianProfileID(ctx, guardian.ID, "test revocation")
+		require.NoError(t, err)
+		pending, err = repo.FindPending(ctx)
+		require.NoError(t, err)
+		for _, found := range pending {
+			assert.NotEqual(t, invitation.ID, found.ID, "revoked invitations must not remain pending")
+		}
 	})
+}
+
+func TestGuardianInvitationRepository_FindPendingApprovalExcludesRevoked(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GuardianInvitation
+	ctx := testpkg.TenantContext(1)
+	guardian := testpkg.CreateTestGuardianProfile(t, db, "FindPendingApprovalRevoked")
+	defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+	invitation := &auth.GuardianInvitation{
+		GuardianProfileID: guardian.ID,
+		Token:             uuid.Must(uuid.NewV4()).String(),
+		ExpiresAt:         time.Now().Add(48 * time.Hour),
+		CreatedBy:         1,
+		ApprovalStatus:    auth.GuardianInvitationApprovalPending,
+	}
+	require.NoError(t, repo.Create(ctx, invitation))
+	defer testpkg.CleanupTableRecords(t, db, "auth.guardian_invitations", invitation.ID)
+
+	_, err := repo.RevokeOpenByGuardianProfileID(ctx, guardian.ID, "test revocation")
+	require.NoError(t, err)
+
+	pending, err := repo.FindPendingApproval(ctx)
+	require.NoError(t, err)
+	for _, found := range pending {
+		assert.NotEqual(t, invitation.ID, found.ID, "revoked invitations must not await approval")
+	}
 }
 
 func TestGuardianInvitationRepository_MarkAsAccepted(t *testing.T) {
@@ -270,6 +307,28 @@ func TestGuardianInvitationRepository_MarkAsAccepted(t *testing.T) {
 		err := repo.MarkAsAccepted(ctx, 999999)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("refuses a revoked invitation", func(t *testing.T) {
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "MarkRevokedAccepted")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		now := time.Now()
+		invitation := &auth.GuardianInvitation{
+			GuardianProfileID: guardian.ID,
+			Token:             uuid.Must(uuid.NewV4()).String(),
+			ExpiresAt:         now.Add(48 * time.Hour),
+			CreatedBy:         1,
+			RevokedAt:         &now,
+		}
+		require.NoError(t, repo.Create(ctx, invitation))
+		defer testpkg.CleanupTableRecords(t, db, "auth.guardian_invitations", invitation.ID)
+
+		require.Error(t, repo.MarkAsAccepted(ctx, invitation.ID))
+
+		found, err := repo.FindByID(ctx, invitation.ID)
+		require.NoError(t, err)
+		assert.Nil(t, found.AcceptedAt)
 	})
 }
 

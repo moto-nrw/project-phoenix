@@ -494,7 +494,7 @@ func guardianApprovalExpired(inv *authModels.GuardianInvitation, now time.Time) 
 }
 
 func guardianInvitationNonFinal(inv *authModels.GuardianInvitation, now time.Time) bool {
-	if inv == nil || inv.AcceptedAt != nil {
+	if inv == nil || inv.AcceptedAt != nil || inv.RevokedAt != nil {
 		return false
 	}
 	if inv.ApprovalStatus == authModels.GuardianInvitationApprovalRejected {

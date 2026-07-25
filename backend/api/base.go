@@ -71,12 +71,13 @@ import (
 
 // API represents the API structure
 type API struct {
-	Services           *services.Factory
-	Router             chi.Router
-	db                 *bun.DB
-	repos              *repositories.Factory
-	Metrics            *observability.HTTPMetrics
-	metricsBearerToken string
+	Services             *services.Factory
+	Router               chi.Router
+	db                   *bun.DB
+	repos                *repositories.Factory
+	Metrics              *observability.HTTPMetrics
+	metricsBearerToken   string
+	webhookSigningSecret string
 
 	// API Resources
 	Auth             *authAPI.Resource
@@ -129,6 +130,10 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
+	emailWebhookSigningSecret := strings.TrimSpace(viper.GetString("email_webhook_signing_secret"))
+	if emailWebhookSigningSecret == "" {
+		return nil, errors.New("EMAIL_WEBHOOK_SIGNING_SECRET is required")
+	}
 
 	// Get database connection as phoenix_auth (least-privilege for serve)
 	db, err := database.DBConnForServe()
@@ -154,12 +159,13 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	// Create API instance
 	httpMetrics := observability.NewHTTPMetrics()
 	api := &API{
-		Services:           serviceFactory,
-		Router:             chi.NewRouter(),
-		db:                 db,
-		repos:              repoFactory,
-		Metrics:            httpMetrics,
-		metricsBearerToken: metricsBearerToken,
+		Services:             serviceFactory,
+		Router:               chi.NewRouter(),
+		db:                   db,
+		repos:                repoFactory,
+		Metrics:              httpMetrics,
+		metricsBearerToken:   metricsBearerToken,
+		webhookSigningSecret: emailWebhookSigningSecret,
 	}
 
 	// Setup router middleware
@@ -560,7 +566,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	// tenant and only an operator may rotate it.
 	api.Webhooks = webhooksAPI.NewResource(webhooksAPI.ResourceConfig{
 		DeliveryService: api.Services.EmailDelivery,
-		Verifier:        webhooksig.NewVerifier(os.Getenv("EMAIL_WEBHOOK_SIGNING_SECRET")),
+		Verifier:        webhooksig.NewVerifier(api.webhookSigningSecret),
 		Logger:          logger.With("handler", "webhooks"),
 		RateLimiter:     customMiddleware.NewRateLimiter(120, 20).Middleware(),
 	})

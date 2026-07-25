@@ -124,6 +124,7 @@ func validateServeConfig() error {
 		"frontend_url",
 		"parents_url",
 		"phoenix_auth_password",
+		"email_webhook_signing_secret",
 	}
 
 	var missing []string

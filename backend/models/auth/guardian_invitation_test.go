@@ -144,6 +144,30 @@ func TestGuardianInvitation_IsAccepted(t *testing.T) {
 	}
 }
 
+func TestGuardianInvitation_IsPendingApproval_RejectsRevoked(t *testing.T) {
+	now := time.Now()
+
+	assertions := []struct {
+		name      string
+		revokedAt *time.Time
+		want      bool
+	}{
+		{name: "open", want: true},
+		{name: "revoked", revokedAt: &now, want: false},
+	}
+	for _, assertion := range assertions {
+		t.Run(assertion.name, func(t *testing.T) {
+			invitation := &GuardianInvitation{
+				ApprovalStatus: GuardianInvitationApprovalPending,
+				RevokedAt:      assertion.revokedAt,
+			}
+			if got := invitation.IsPendingApproval(); got != assertion.want {
+				t.Errorf("GuardianInvitation.IsPendingApproval() = %v, want %v", got, assertion.want)
+			}
+		})
+	}
+}
+
 func TestGuardianInvitation_SetExpiry(t *testing.T) {
 	inv := &GuardianInvitation{
 		Token:             "test-token",

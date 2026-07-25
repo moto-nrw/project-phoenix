@@ -57,9 +57,10 @@ const (
 )
 
 // IsPendingApproval reports whether this invite is a parent-initiated request
-// still awaiting staff approval (pure field accessor).
+// still awaiting staff approval. Revocation is terminal: a revoked request
+// must never be approved or rejected into a new lifecycle state.
 func (i *GuardianInvitation) IsPendingApproval() bool {
-	return i.ApprovalStatus == GuardianInvitationApprovalPending
+	return i.RevokedAt == nil && i.ApprovalStatus == GuardianInvitationApprovalPending
 }
 
 // Validate ensures core fields are present and sensible

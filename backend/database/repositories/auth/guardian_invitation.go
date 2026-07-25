@@ -57,6 +57,7 @@ func (r *GuardianInvitationRepository) Update(ctx context.Context, invitation *a
 		Model(invitation).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Where(`"guardian_invitation".id = ?`, invitation.ID).
+		Where(`"guardian_invitation".revoked_at IS NULL`).
 		Exec(ctx)
 
 	if err != nil {
@@ -69,7 +70,7 @@ func (r *GuardianInvitationRepository) Update(ctx context.Context, invitation *a
 	}
 
 	if rowsAffected == 0 {
-		return errors.New(errMsgInvitationNotFound)
+		return fmt.Errorf("%s: %w", errMsgInvitationNotFound, sql.ErrNoRows)
 	}
 
 	return nil
@@ -150,6 +151,7 @@ func (r *GuardianInvitationRepository) FindPending(ctx context.Context) ([]*auth
 		Model(&invitations).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Where(`"guardian_invitation".accepted_at IS NULL`).
+		Where(`"guardian_invitation".revoked_at IS NULL`).
 		Where(`"guardian_invitation".expires_at > ?`, time.Now()).
 		Where(`"guardian_invitation".approval_status IN (?)`, bun.List([]string{
 			auth.GuardianInvitationApprovalNotRequired,
@@ -178,6 +180,7 @@ func (r *GuardianInvitationRepository) FindPendingApproval(ctx context.Context) 
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Where(`"guardian_invitation".approval_status = ?`, auth.GuardianInvitationApprovalPending).
 		Where(`"guardian_invitation".accepted_at IS NULL`).
+		Where(`"guardian_invitation".revoked_at IS NULL`).
 		Where(`"guardian_invitation".expires_at > ?`, time.Now()).
 		OrderExpr(`"guardian_invitation".created_at DESC`).
 		Scan(ctx)
@@ -221,6 +224,8 @@ func (r *GuardianInvitationRepository) MarkAsAccepted(ctx context.Context, id in
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Set("accepted_at = ?", now).
 		Where(`"guardian_invitation".id = ?`, id).
+		Where(`"guardian_invitation".accepted_at IS NULL`).
+		Where(`"guardian_invitation".revoked_at IS NULL`).
 		Exec(ctx)
 
 	if err != nil {
@@ -233,7 +238,7 @@ func (r *GuardianInvitationRepository) MarkAsAccepted(ctx context.Context, id in
 	}
 
 	if rowsAffected == 0 {
-		return errors.New(errMsgInvitationNotFound)
+		return fmt.Errorf("%s: %w", errMsgInvitationNotFound, sql.ErrNoRows)
 	}
 
 	return nil

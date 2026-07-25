@@ -66,6 +66,17 @@ func TestValidateServeConfig_MissingRequiredConfigFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "AUTH_JWT_SECRET")
 }
 
+func TestValidateServeConfig_MissingEmailWebhookSigningSecretFails(t *testing.T) {
+	resetServeConfig(t)
+	setValidServeConfig()
+	viper.Set("email_webhook_signing_secret", "")
+
+	err := validateServeConfig()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "EMAIL_WEBHOOK_SIGNING_SECRET")
+}
+
 func TestValidateServeConfig_MissingDatabaseDSNFails(t *testing.T) {
 	resetServeConfig(t)
 	setValidServeConfig()
@@ -185,5 +196,6 @@ func setValidServeConfig() {
 	viper.Set("frontend_url", "http://localhost:3000")
 	viper.Set("parents_url", "http://parents.localhost:3000")
 	viper.Set("phoenix_auth_password", "phoenix_auth_dev")
+	viper.Set("email_webhook_signing_secret", "webhook-test-secret")
 	viper.Set("db_dsn", "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable")
 }

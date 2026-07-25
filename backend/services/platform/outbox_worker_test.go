@@ -190,11 +190,15 @@ func TestOutboxService_Enqueue_RejectsMissingKind(t *testing.T) {
 
 // stubMailer captures sends and optionally returns an error.
 type stubMailer struct {
-	sent []email.Message
-	err  error
+	sent       []email.Message
+	err        error
+	beforeSend func()
 }
 
 func (m *stubMailer) Send(msg email.Message) error {
+	if m.beforeSend != nil {
+		m.beforeSend()
+	}
 	if m.err != nil {
 		return m.err
 	}
@@ -272,7 +276,8 @@ func TestOutboxWorker_RunOnce_HappyPath_SendsAndMarksSent(t *testing.T) {
 	defer cleanup()
 
 	expectAdminTx(mock) // Phase 1: ClaimDuePending
-	expectAdminTx(mock) // Phase 2: send tx (LockSending + send + MarkSent)
+	expectAdminTx(mock) // Phase 2: persist Message-ID
+	expectAdminTx(mock) // Phase 3: send tx (LockSending + send + MarkSent)
 
 	registry := NewTemplateRegistry()
 	registry.Register("welcome", RendererFunc(func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
@@ -380,6 +385,7 @@ func TestOutboxWorker_RunOnce_SendError_SchedulesRetry(t *testing.T) {
 	defer cleanup()
 
 	expectAdminTx(mock) // ClaimDuePending
+	expectAdminTx(mock) // persist Message-ID
 	expectAdminTx(mock) // send tx (LockSending + failed send)
 	expectAdminTx(mock) // MarkRetry
 
@@ -413,6 +419,7 @@ func TestOutboxWorker_RunOnce_ExhaustedAttempts_MarksFailed(t *testing.T) {
 	defer cleanup()
 
 	expectAdminTx(mock) // ClaimDuePending
+	expectAdminTx(mock) // persist Message-ID
 	expectAdminTx(mock) // send tx (LockSending + failed send)
 	expectAdminTx(mock) // MarkFailed
 
@@ -503,8 +510,10 @@ func TestOutboxWorker_RunOnce_MultipleRows_OneBadDoesNotStallBatch(t *testing.T)
 	defer cleanup()
 
 	expectAdminTx(mock) // ClaimDuePending
+	expectAdminTx(mock) // row 1 persist Message-ID
 	expectAdminTx(mock) // row 1 MarkSent
 	expectAdminTx(mock) // row 2 MarkFailed (unknown kind)
+	expectAdminTx(mock) // row 3 persist Message-ID
 	expectAdminTx(mock) // row 3 MarkSent
 
 	registry := NewTemplateRegistry()
@@ -566,6 +575,7 @@ func TestOutboxWorker_RunOnce_MissingDependencies_Errors(t *testing.T) {
 type idReportingMailer struct {
 	captured   []email.Message
 	providerID string
+	beforeSend func()
 }
 
 func (m *idReportingMailer) Send(msg email.Message) error {
@@ -574,6 +584,9 @@ func (m *idReportingMailer) Send(msg email.Message) error {
 }
 
 func (m *idReportingMailer) SendWithID(msg email.Message) (string, error) {
+	if m.beforeSend != nil {
+		m.beforeSend()
+	}
 	m.captured = append(m.captured, msg)
 	return m.providerID, nil
 }
@@ -587,7 +600,8 @@ func TestOutboxWorker_StampsMessageIDAndPersistsIt(t *testing.T) {
 	defer cleanup()
 
 	expectAdminTx(mock) // Phase 1: ClaimDuePending
-	expectAdminTx(mock) // Phase 2: send tx
+	expectAdminTx(mock) // Phase 2: persist Message-ID
+	expectAdminTx(mock) // Phase 3: send tx
 
 	registry := NewTemplateRegistry()
 	registry.Register("welcome", RendererFunc(func(_ context.Context, _ *platformModels.EmailOutbox) (*email.Message, error) {
@@ -596,7 +610,14 @@ func TestOutboxWorker_StampsMessageIDAndPersistsIt(t *testing.T) {
 
 	row := makeRow(4321, 7, "welcome", 0)
 	repo := &stubOutboxRepo{due: []*platformModels.EmailOutbox{row}}
-	mailer := &idReportingMailer{providerID: "provider-abc-123"}
+	mailer := &idReportingMailer{
+		providerID: "provider-abc-123",
+		beforeSend: func() {
+			persisted, ok := repo.dispatchIDs[row.ID]
+			require.True(t, ok, "Message-ID must commit before transport submission")
+			require.NotEmpty(t, persisted.MessageID)
+		},
+	}
 
 	w := NewOutboxWorker(OutboxWorkerConfig{
 		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3,
@@ -630,6 +651,7 @@ func TestOutboxWorker_StampsMessageIDWithoutProviderReporter(t *testing.T) {
 	db, mock, cleanup := newAdminTxDB(t)
 	defer cleanup()
 
+	expectAdminTx(mock)
 	expectAdminTx(mock)
 	expectAdminTx(mock)
 

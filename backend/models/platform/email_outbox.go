@@ -205,9 +205,9 @@ type EmailOutboxRepository interface {
 	// identifier, for providers that rewrite our Message-ID.
 	FindByProviderMessageID(ctx context.Context, providerMessageID string) (*EmailOutbox, error)
 
-	// SetDispatchIdentifiers stores the Message-ID minted at send time (and
-	// the provider's identifier when the mailer reports one). Called by the
-	// worker inside its phoenix_admin send transaction.
+	// SetDispatchIdentifiers stores the Message-ID before transport submission
+	// so immediate webhooks can correlate it. The worker calls it again inside
+	// the send transaction when the mailer reports a provider identifier.
 	SetDispatchIdentifiers(ctx context.Context, id int64, messageID string, providerMessageID *string) error
 
 	// ApplyDeliveryStatus performs the monotone, out-of-order-safe status

@@ -293,6 +293,20 @@ func (s *guardianInvitationService) Accept(ctx context.Context, token string, da
 
 	var account *authModels.Account
 	txErr := s.txHandler.RunInTx(tenantCtx, func(txCtx context.Context, _ bun.Tx) error {
+		current, innerErr := s.InvitationRepo.FindByID(txCtx, invitation.ID)
+		if innerErr != nil {
+			return &AuthError{Op: opGuardianInviteAccept, Err: innerErr}
+		}
+		if current.IsAccepted() {
+			return &AuthError{Op: opGuardianInviteAccept, Err: ErrInvitationUsed}
+		}
+		if GuardianInvitationExpired(current, time.Now()) {
+			return &AuthError{Op: opGuardianInviteAccept, Err: ErrInvitationExpired}
+		}
+		if !guardianInvitationTokenConsumable(current) {
+			return &AuthError{Op: opGuardianInviteAccept, Err: ErrInvitationNotFound}
+		}
+
 		acc, innerErr := s.createOrFindAccount(txCtx, emailAddress, passwordHash)
 		if innerErr != nil {
 			return innerErr
@@ -301,6 +315,9 @@ func (s *guardianInvitationService) Accept(ctx context.Context, token string, da
 			return innerErr
 		}
 		if innerErr := s.InvitationRepo.MarkAsAccepted(txCtx, invitation.ID); innerErr != nil {
+			if isNotFoundError(innerErr) {
+				return &AuthError{Op: opGuardianInviteAccept, Err: ErrInvitationNotFound}
+			}
 			return &AuthError{Op: opGuardianInviteAccept, Err: innerErr}
 		}
 		account = acc
@@ -423,6 +440,9 @@ func (s *guardianInvitationService) Resend(ctx context.Context, invitationID int
 	}
 	if invitation.IsAccepted() {
 		return &AuthError{Op: opGuardianInviteResend, Err: ErrInvitationUsed}
+	}
+	if invitation.RevokedAt != nil {
+		return &AuthError{Op: opGuardianInviteResend, Err: ErrInvitationNotFound}
 	}
 	if GuardianInvitationExpired(invitation, time.Now()) {
 		return &AuthError{Op: opGuardianInviteResend, Err: ErrInvitationExpired}

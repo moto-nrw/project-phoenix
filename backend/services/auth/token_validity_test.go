@@ -35,6 +35,7 @@ func TestGuardianInvitationValidity(t *testing.T) {
 	future := now.Add(time.Hour)
 	past := now.Add(-time.Hour)
 	accepted := now.Add(-time.Minute)
+	revoked := now.Add(-time.Minute)
 
 	tests := []struct {
 		name        string
@@ -45,6 +46,7 @@ func TestGuardianInvitationValidity(t *testing.T) {
 		{"nil", nil, false, false},
 		{"valid", &auth.GuardianInvitation{ExpiresAt: future}, false, true},
 		{"accepted", &auth.GuardianInvitation{ExpiresAt: future, AcceptedAt: &accepted}, false, false},
+		{"revoked", &auth.GuardianInvitation{ExpiresAt: future, RevokedAt: &revoked}, false, false},
 		{"expired", &auth.GuardianInvitation{ExpiresAt: past}, true, false},
 	}
 	for _, tt := range tests {
