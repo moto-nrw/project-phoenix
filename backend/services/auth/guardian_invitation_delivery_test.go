@@ -56,13 +56,13 @@ func deliveryService(reader *stubOutboxReader, events *stubDeliveryEventRepo) *g
 
 func TestDeliveryStatus_ReturnsAttemptsWithEvents(t *testing.T) {
 	reasonCode := "5.1.1"
+	newest := outboxRow(2, platformModels.EmailKindGuardianInvitation, platformModels.EmailOutboxStatusSent, platformModels.EmailDeliveryStatusBounced)
+	older := outboxRow(1, platformModels.EmailKindGuardianInvitation, platformModels.EmailOutboxStatusSent, platformModels.EmailDeliveryStatusDelivered)
+
 	svc := deliveryService(
-		&stubOutboxReader{rows: []*platformModels.EmailOutbox{
-			outboxRow(2, platformModels.EmailKindGuardianInvitation, platformModels.EmailOutboxStatusSent, platformModels.EmailDeliveryStatusBounced),
-			outboxRow(1, platformModels.EmailKindGuardianInvitation, platformModels.EmailOutboxStatusSent, platformModels.EmailDeliveryStatusDelivered),
-		}},
+		&stubOutboxReader{rows: []*platformModels.EmailOutbox{newest, older}},
 		&stubDeliveryEventRepo{events: []*platformModels.EmailDeliveryEvent{
-			{OutboxID: 2, EventType: platformModels.DeliveryEventBounced, OccurredAt: time.Now(), ReasonCode: &reasonCode},
+			{OutboxID: newest.ID, EventType: platformModels.DeliveryEventBounced, OccurredAt: time.Now(), ReasonCode: &reasonCode},
 		}},
 	)
 
@@ -71,7 +71,7 @@ func TestDeliveryStatus_ReturnsAttemptsWithEvents(t *testing.T) {
 
 	assert.Equal(t, int64(42), result.InvitationID)
 	require.Len(t, result.Attempts, 2, "a resend adds another attempt")
-	assert.Equal(t, int64(2), result.Attempts[0].OutboxID, "newest first")
+	assert.Equal(t, newest.ID, result.Attempts[0].OutboxID, "newest first")
 	assert.Equal(t, platformModels.EmailDeliveryStatusBounced, result.Attempts[0].DeliveryStatus)
 	require.Len(t, result.Attempts[0].Events, 1)
 	require.NotNil(t, result.Attempts[0].Events[0].ReasonCode)
@@ -84,16 +84,16 @@ func TestDeliveryStatus_ReturnsAttemptsWithEvents(t *testing.T) {
 // it. Counting it as a dispatch attempt would let a freshly queued notice mask
 // the very bounce it reports.
 func TestDeliveryStatus_IgnoresNonInvitationKinds(t *testing.T) {
-	svc := deliveryService(&stubOutboxReader{rows: []*platformModels.EmailOutbox{
-		outboxRow(9, platformModels.EmailKindDeliveryFailureNotice, platformModels.EmailOutboxStatusPending, platformModels.EmailDeliveryStatusUnknown),
-		outboxRow(5, platformModels.EmailKindGuardianInvitation, platformModels.EmailOutboxStatusSent, platformModels.EmailDeliveryStatusBounced),
-	}}, nil)
+	notice := outboxRow(9, platformModels.EmailKindDeliveryFailureNotice, platformModels.EmailOutboxStatusPending, platformModels.EmailDeliveryStatusUnknown)
+	invitation := outboxRow(5, platformModels.EmailKindGuardianInvitation, platformModels.EmailOutboxStatusSent, platformModels.EmailDeliveryStatusBounced)
+
+	svc := deliveryService(&stubOutboxReader{rows: []*platformModels.EmailOutbox{notice, invitation}}, nil)
 
 	result, err := svc.DeliveryStatus(context.Background(), 42)
 	require.NoError(t, err)
 
 	require.Len(t, result.Attempts, 1)
-	assert.Equal(t, int64(5), result.Attempts[0].OutboxID)
+	assert.Equal(t, invitation.ID, result.Attempts[0].OutboxID)
 	assert.Equal(t, platformModels.EmailDeliveryStatusBounced, result.Attempts[0].DeliveryStatus)
 }
 

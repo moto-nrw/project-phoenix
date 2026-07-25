@@ -302,7 +302,7 @@ func TestDeliveryEventRepository_ListAndRetention(t *testing.T) {
 
 	deleted, err := repo.DeleteOlderThan(ctx, time.Now().AddDate(0, 0, -90))
 	require.NoError(t, err)
-	assert.Equal(t, int64(1), deleted, "only the expired event is removed")
+	assert.EqualValues(t, 1, deleted, "only the expired event is removed")
 
 	remaining, err := repo.ListByOutboxIDs(ctx, []int64{row.ID})
 	require.NoError(t, err)

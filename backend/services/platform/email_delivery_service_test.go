@@ -608,7 +608,7 @@ func TestCleanupExpiredDeliveryEvents_UsesTenantRetentionSetting(t *testing.T) {
 
 	deleted, err := svc.CleanupExpiredDeliveryEvents(context.Background(), 7)
 	require.NoError(t, err)
-	assert.Equal(t, int64(2), deleted)
+	assert.EqualValues(t, 2, deleted)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
