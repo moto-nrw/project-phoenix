@@ -58,10 +58,11 @@ func TestToggleStudentAttendance_IoTAutoOpensWorkSession(t *testing.T) {
 	assert.Equal(t, active.WorkSessionSourceNFC, session.Source)
 }
 
-// TestToggleStudentAttendance_WebDoesNotOpenWorkSession verifies that a
-// web-side toggle (no IoT device context) leaves work sessions untouched —
-// staff may act remotely.
-func TestToggleStudentAttendance_WebDoesNotOpenWorkSession(t *testing.T) {
+// TestToggleStudentAttendance_WebOpensWorkSessionWithAppSource verifies that
+// a web-side toggle (no IoT device context) also stamps the acting staff
+// member, recorded with the app source channel — this is the binary-mode
+// "Betreuer markiert Kind als anwesend" path (issue #1439).
+func TestToggleStudentAttendance_WebOpensWorkSessionWithAppSource(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -77,7 +78,9 @@ func TestToggleStudentAttendance_WebDoesNotOpenWorkSession(t *testing.T) {
 	_, err := service.ToggleStudentAttendance(ctx, student.ID, staff.ID, dev.ID, true)
 	require.NoError(t, err)
 
-	assert.Nil(t, todayWorkSession(t, db, staff.ID), "web toggle must not auto-open a work session")
+	session := todayWorkSession(t, db, staff.ID)
+	require.NotNil(t, session, "web toggle must auto-open the staff work session")
+	assert.Equal(t, active.WorkSessionSourceApp, session.Source)
 }
 
 // TestCreateGroupSupervisor_AutoOpensWorkSession verifies that assigning a

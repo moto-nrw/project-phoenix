@@ -158,14 +158,20 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 		return nil, err
 	}
 
-	// A staff member handling a kiosk-driven attendance toggle is physically
-	// on site — auto-open their work session so they show as "Anwesend"
-	// (issue #1439). Web-side toggles are excluded: staff may act remotely.
-	if device.IsIoTDeviceRequest(ctx) {
-		s.ensureStaffPresence(ctx, authorizedStaffID, active.WorkSessionSourceNFC)
-	}
+	// A staff member marking a student's attendance is working right now —
+	// auto-open their work session so they show as "Anwesend" (issue #1439).
+	s.ensureStaffPresence(ctx, authorizedStaffID, attendanceStampSource(ctx))
 
 	return result, nil
+}
+
+// attendanceStampSource picks the work-session source channel for the
+// presence auto-stamp: kiosk-driven requests stamp as nfc, web requests as app.
+func attendanceStampSource(ctx context.Context) string {
+	if device.IsIoTDeviceRequest(ctx) {
+		return active.WorkSessionSourceNFC
+	}
+	return active.WorkSessionSourceApp
 }
 
 // ensureStaffPresence best-effort-opens today's work session for the staff
@@ -204,7 +210,14 @@ func (s *service) CheckInStudent(ctx context.Context, studentID, staffID, device
 	}
 	now := time.Now()
 	today := timezone.TodayDate()
-	return s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
+	result, err := s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
+	if err != nil {
+		return nil, err
+	}
+	// Marking a student present marks the acting staff member present too
+	// (issue #1439) — this is the binary-mode web check-in path.
+	s.ensureStaffPresence(ctx, authorizedStaffID, attendanceStampSource(ctx))
+	return result, nil
 }
 
 // CheckOutStudent applies "out" unconditionally via the state-checked
@@ -222,7 +235,13 @@ func (s *service) CheckOutStudent(ctx context.Context, studentID, staffID int64,
 	if err != nil {
 		return nil, err
 	}
-	return s.performCheckOut(ctx, studentID, authorizedStaffID, time.Now(), checkoutTypeWeb)
+	result, err := s.performCheckOut(ctx, studentID, authorizedStaffID, time.Now(), checkoutTypeWeb)
+	if err != nil {
+		return nil, err
+	}
+	// Checking a student out is equally an on-duty action (issue #1439).
+	s.ensureStaffPresence(ctx, authorizedStaffID, attendanceStampSource(ctx))
+	return result, nil
 }
 
 // CheckOutStudentFromDevice applies "out" for an IoT device after resolving
