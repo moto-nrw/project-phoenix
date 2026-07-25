@@ -229,7 +229,7 @@ func setupCORS(router chi.Router) {
 
 	opts := cors.Options{
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Staff-PIN", "X-Staff-ID", "X-Device-Key"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Staff-PIN", "X-Staff-ID", "X-Staff-Auth-PIN", "X-Device-Key"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: true,
 		MaxAge:           300,
@@ -410,6 +410,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		UserContextService:      api.Services.UserContext,
 		ActiveService:           api.Services.Active,
 		IoTService:              api.Services.IoT,
+		StaffPINAuthenticator:   api.Services.StaffPINAuth,
 		PickupScheduleService:   api.Services.PickupSchedule,
 		ArrivalScheduleService:  api.Services.ArrivalSchedule,
 		InstanceService:         api.Services.Instance,
@@ -470,6 +471,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:            api.Services.IoT,
+		StaffPINAuthenticator: api.Services.StaffPINAuth,
 		CheckinService:        api.Services.Checkin,
 		StaffClockService:     api.Services.StaffClock,
 		UsersService:          api.Services.Users,

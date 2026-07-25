@@ -21,6 +21,7 @@ package active_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -290,6 +291,38 @@ func TestToggleStudentAttendance_CheckIn(t *testing.T) {
 	assert.Equal(t, student.ID, result.StudentID)
 	assert.NotZero(t, result.AttendanceID)
 	assert.False(t, result.Timestamp.IsZero())
+}
+
+// TestToggleStudentAttendance_CheckInWithZeroStaffID verifies that a
+// device-authenticated legacy kiosk can record attendance without claiming an
+// unverified staff identity.
+func TestToggleStudentAttendance_CheckInWithZeroStaffID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "DeviceOnly", "CheckIn", "4d")
+	testDevice := testpkg.CreateTestDevice(t, db, "toggle-device-without-staff")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, testDevice.ID)
+
+	result, err := service.ToggleStudentAttendance(ctx, student.ID, 0, testDevice.ID, true)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "checked_in", result.Action)
+	assert.Equal(t, student.ID, result.StudentID)
+	assert.NotZero(t, result.AttendanceID)
+
+	var checkedInBy sql.NullInt64
+	err = db.NewSelect().
+		TableExpr(`active.attendance`).
+		Column("checked_in_by").
+		Where("id = ?", result.AttendanceID).
+		Scan(ctx, &checkedInBy)
+	require.NoError(t, err)
+	assert.False(t, checkedInBy.Valid, "device-attributed check-in must not claim a staff identity")
 }
 
 // TestToggleStudentAttendance_CheckOut tests checking out a student who is checked in.
