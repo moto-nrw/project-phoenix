@@ -49,15 +49,23 @@ func (s *RosterReconciler) getLogger() *slog.Logger {
 	return cmp.Or(s.logger, slog.Default())
 }
 
-// RemoveStudentsFromFutureRosters deletes still-planned ('expected') attendance
-// rows for the given (now graduated) students on non-cancelled instances dated
-// strictly after today. Past and today's rows are kept as a historical record.
+// RemoveStudentsFromFutureRosters deletes still-planned attendance rows for the
+// given (now graduated) students on non-cancelled instances dated strictly after
+// today. Past and today's rows are kept as a historical record.
+//
+// "Still planned" covers more than status 'expected': a future status day
+// (planned sickness, excusal, class trip) has already rewritten such a row to
+// 'absent', and slot-list Plan/Abgleich reads load every instance row regardless
+// of status — eligibleOn filters on the enrollment interval, not on alumnus — so
+// a row left behind keeps the departed child visible and counted in future
+// exports. Only rows recording an actual event (observed presence or a stamped
+// check-in/checkout) survive (#405 review).
 func (s *RosterReconciler) RemoveStudentsFromFutureRosters(ctx context.Context, studentIDs []int64) error {
 	if len(studentIDs) == 0 {
 		return nil
 	}
 	after := timezone.TodayDate()
-	removed, err := s.instanceStudentRepo.DeleteExpectedByStudentIDsAfter(ctx, studentIDs, after)
+	removed, err := s.instanceStudentRepo.DeletePlannedByStudentIDsAfter(ctx, studentIDs, after)
 	if err != nil {
 		return &ScheduleError{Op: "reconcile roster: remove graduated students", Err: err}
 	}
@@ -74,6 +82,12 @@ func (s *RosterReconciler) RemoveStudentsFromFutureRosters(ctx context.Context, 
 // duplicated (the UNIQUE (instance_id, student_id) constraint and the in-memory
 // dedup both guard it), and only enrollment-valid (instance, student) pairs are
 // inserted — reusing the same validity predicate the materializer applies.
+//
+// Restored rows go in as 'expected' and are then handed to
+// ApplyActiveStatusDaysForInstance, exactly as the materializer does after
+// copying enrollments: a child whose future date already carries an active
+// sickness / excusal / class-trip status day must come back as absent for that
+// date, not as expected (#405 review).
 func (s *RosterReconciler) RestoreStudentsToFutureRosters(ctx context.Context, studentIDs []int64) error {
 	if len(studentIDs) == 0 {
 		return nil
@@ -108,6 +122,9 @@ func (s *RosterReconciler) RestoreStudentsToFutureRosters(ctx context.Context, s
 	}
 
 	restored := 0
+	// Instances that received at least one restored row, so the status-day pass
+	// below runs once per instance instead of once per inserted row.
+	touched := make(map[int64]timezone.Date)
 	for _, sid := range studentIDs {
 		enrollments, err := s.enrollmentRepo.FindByStudentID(ctx, sid)
 		if err != nil {
@@ -135,14 +152,32 @@ func (s *RosterReconciler) RestoreStudentsToFutureRosters(ctx context.Context, s
 					return &ScheduleError{Op: "reconcile roster: restore student", Err: err}
 				}
 				existing[key] = struct{}{}
+				touched[inst.ID] = inst.Date
 				restored++
 			}
 		}
 	}
 
+	// Reapply broad day statuses to the rows just inserted. The row went in as
+	// 'expected'; if the restored child has an active (non-cleared) status day on
+	// that date the row must read absent + the matching substatus instead. This
+	// mirrors the materializer's post-copy pass — without it a revert shows a
+	// sick / excused / class-trip child as expected for a future date, because
+	// the original materialization skipped the row entirely while they were an
+	// alumnus and never got the chance to stamp the status day (#405 review).
+	statusApplied := 0
+	for instanceID, date := range touched {
+		n, err := s.instanceStudentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, date)
+		if err != nil {
+			return &ScheduleError{Op: "reconcile roster: apply student status days", Err: err}
+		}
+		statusApplied += n
+	}
+
 	s.getLogger().Info("reconciled future rosters after revert",
 		slog.Int("students", len(studentIDs)),
 		slog.Int("rows_restored", restored),
+		slog.Int("status_days_applied", statusApplied),
 	)
 	return nil
 }

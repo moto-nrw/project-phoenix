@@ -183,6 +183,17 @@ func (rs *Resource) resolveStudentForRead(w http.ResponseWriter, r *http.Request
 		return nil, false
 	}
 
+	// A graduated (alumnus) student is soft-deleted: invisible to every staff
+	// read. GetStudentByID is unfiltered and CanReadStudent only decides group /
+	// permission scope, so without this gate an administrator or group
+	// supervisor with a bookmarked student ID could keep reading a departed
+	// child's day/week timetable. Same 404 as the students resource applies
+	// (api/students.parseAndGetStudent) (#405 review).
+	if student.Status == usersModel.StudentStatusAlumnus {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
+		return nil, false
+	}
+
 	if !authorize.CanReadStudent(
 		ctx,
 		jwt.PermissionsFromCtx(ctx),

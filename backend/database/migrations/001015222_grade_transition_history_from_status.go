@@ -7,7 +7,11 @@ import (
 )
 
 const (
-	gradeTransitionHistoryFromStatusVersion     = "1.15.219"
+	// 1.15.219 through 1.15.221 are taken on development (staff balance
+	// adjustments + absence comp-time type), so this branch's migration claims
+	// the next unused version instead of panicking SafeMigrationMap.Register at
+	// package init on merge.
+	gradeTransitionHistoryFromStatusVersion     = "1.15.222"
 	gradeTransitionHistoryFromStatusDescription = "Record each graduate's pre-transition lifecycle status so a revert restores it exactly"
 )
 

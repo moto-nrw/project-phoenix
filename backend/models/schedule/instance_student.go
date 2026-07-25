@@ -215,15 +215,20 @@ type InstanceStudentRepository interface {
 	// DeleteByInstanceID removes all attendance rows for an instance.
 	DeleteByInstanceID(ctx context.Context, instanceID int64) error
 
-	// DeleteExpectedByStudentIDsAfter removes still-planned ('expected')
-	// attendance rows for the given students on non-cancelled instances dated
-	// strictly after `after`. Past and in-progress-day rows are kept as a
-	// historical record, and any row a human or a check-in has already acted on
-	// (status != 'expected') is left untouched. Used when a grade transition
-	// graduates a cohort after the scheduler has already materialized upcoming
-	// instances, so departed children stop counting on future timetables and
-	// staffing ratios (#405 review). Tenant-scoped; returns the rows removed.
-	DeleteExpectedByStudentIDsAfter(ctx context.Context, studentIDs []int64, after timezone.Date) (int, error)
+	// DeletePlannedByStudentIDsAfter removes still-planned attendance rows for
+	// the given students on non-cancelled instances dated strictly after
+	// `after`. Past and in-progress-day rows are kept as a historical record,
+	// and so is any row that records an actual event — an observed presence or a
+	// stamped check-in/checkout. Rows a future status day rewrote to 'absent'
+	// (planned sickness, excusal, class trip) ARE removed: every timetable and
+	// slot-list reader loads instance rows irrespective of status, so leaving
+	// them behind keeps a departed child visible and counted (#405 review).
+	//
+	// Used when a grade transition graduates a cohort after the scheduler has
+	// already materialized upcoming instances, so departed children stop
+	// counting on future timetables and staffing ratios. Tenant-scoped; returns
+	// the rows removed.
+	DeletePlannedByStudentIDsAfter(ctx context.Context, studentIDs []int64, after timezone.Date) (int, error)
 
 	// UpdateAttendanceFromCheckin opens observed presence for an expected row,
 	// a broad-status absence, or a checked-out present row. It stamps the first

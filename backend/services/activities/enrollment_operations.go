@@ -153,7 +153,14 @@ func (s *Service) addNewEnrollmentsInTx(ctx context.Context, txService ActivityS
 	return nil
 }
 
-// GetEnrolledStudents retrieves all students enrolled in a group
+// GetEnrolledStudents retrieves all students enrolled in a group.
+//
+// Graduated (alumnus) students are omitted. Their enrollment rows deliberately
+// survive a grade transition so materialization and a transition revert can
+// still reason about them, but this is the staff-facing read behind
+// GET /api/activities/{id}/students, the activity detail response and the
+// enrollment counts — a soft-deleted child must not be listed or counted there
+// (#405 review).
 func (s *Service) GetEnrolledStudents(ctx context.Context, groupID int64) ([]*users.Student, error) {
 	// Get the enrollments for this group
 	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, groupID)
@@ -165,9 +172,13 @@ func (s *Service) GetEnrolledStudents(ctx context.Context, groupID int64) ([]*us
 	students := make([]*users.Student, 0, len(enrollments))
 	for _, enrollment := range enrollments {
 		// Check if the Student relation is loaded
-		if enrollment.Student != nil {
-			students = append(students, enrollment.Student)
+		if enrollment.Student == nil {
+			continue
 		}
+		if enrollment.Student.Status == users.StudentStatusAlumnus {
+			continue
+		}
+		students = append(students, enrollment.Student)
 	}
 
 	return students, nil

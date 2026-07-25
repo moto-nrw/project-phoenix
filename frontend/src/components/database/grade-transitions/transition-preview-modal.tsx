@@ -11,8 +11,8 @@ import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { createLogger } from "~/lib/logger";
 import {
   applyGradeTransition,
-  ApplyTransitionError,
   GRADUATES_CHECKED_IN_CODE,
+  TransitionRequestError,
   previewGradeTransition,
   type GradeTransition,
   type TransitionPreview,
@@ -79,7 +79,7 @@ export function TransitionPreviewModal({
         error: error instanceof Error ? error.message : String(error),
       });
       if (
-        error instanceof ApplyTransitionError &&
+        error instanceof TransitionRequestError &&
         error.code === GRADUATES_CHECKED_IN_CODE
       ) {
         // Actionable safety condition, not a transient failure: retrying alone

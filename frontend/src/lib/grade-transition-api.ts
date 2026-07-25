@@ -292,15 +292,25 @@ async function readError(response: Response): Promise<string> {
 export const GRADUATES_CHECKED_IN_CODE = "graduates_checked_in";
 
 /**
- * Error thrown by {@link applyGradeTransition} that preserves the backend's
- * stable error `code`, so the caller can distinguish a recoverable safety
- * condition (graduates still checked in) from a generic failure.
+ * Stable backend error code returned (409) when a revert is refused because the
+ * targeted transition is no longer the latest applied one — another
+ * administrator applied a newer transition since this page loaded. Recoverable:
+ * the caller must reload the list and revert the new latest first. Mirrors the
+ * code the Go handler sets via ErrorConflictWithCode (#405).
  */
-export class ApplyTransitionError extends Error {
+export const NOT_LATEST_TRANSITION_CODE = "not_latest_transition";
+
+/**
+ * Error thrown by {@link applyGradeTransition} and {@link revertGradeTransition}
+ * that preserves the backend's stable error `code`, so the caller can
+ * distinguish a recoverable conflict (graduates still checked in, stale revert
+ * target) from a generic failure.
+ */
+export class TransitionRequestError extends Error {
   readonly code?: string;
   constructor(message: string, code?: string) {
     super(message);
-    this.name = "ApplyTransitionError";
+    this.name = "TransitionRequestError";
     this.code = code;
   }
 }
@@ -402,17 +412,18 @@ export async function previewGradeTransition(
   return mapPreview(await readJSON<BackendTransitionPreview>(response));
 }
 
-export async function applyGradeTransition(
-  id: string,
+/**
+ * Reads an apply/revert response, throwing a {@link TransitionRequestError} that
+ * keeps the backend's stable `code` on failure. The generic {@link readJSON}
+ * path drops that code, which would leave the caller unable to tell a
+ * recoverable 409 conflict from a real failure.
+ */
+async function readResultOrThrow(
+  response: Response,
 ): Promise<TransitionResult> {
-  const response = await fetch(`${BASE}/${encodeURIComponent(id)}/apply`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}),
-  });
   if (!response.ok) {
     const { message, code } = await readErrorWithCode(response);
-    throw new ApplyTransitionError(message, code);
+    throw new TransitionRequestError(message, code);
   }
   const body = (await response.json()) as
     { data?: BackendTransitionResult } | BackendTransitionResult;
@@ -423,6 +434,17 @@ export async function applyGradeTransition(
   return mapResult(data);
 }
 
+export async function applyGradeTransition(
+  id: string,
+): Promise<TransitionResult> {
+  const response = await fetch(`${BASE}/${encodeURIComponent(id)}/apply`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  return readResultOrThrow(response);
+}
+
 export async function revertGradeTransition(
   id: string,
 ): Promise<TransitionResult> {
@@ -431,7 +453,7 @@ export async function revertGradeTransition(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({}),
   });
-  return mapResult(await readJSON<BackendTransitionResult>(response));
+  return readResultOrThrow(response);
 }
 
 export async function fetchTransitionClasses(): Promise<string[]> {

@@ -235,7 +235,7 @@ func (f *fakeInstanceStudentRepo) DeleteByInstanceID(context.Context, int64) err
 	panic("unused")
 }
 
-func (f *fakeInstanceStudentRepo) DeleteExpectedByStudentIDsAfter(context.Context, []int64, timezone.Date) (int, error) {
+func (f *fakeInstanceStudentRepo) DeletePlannedByStudentIDsAfter(context.Context, []int64, timezone.Date) (int, error) {
 	panic("unused")
 }
 

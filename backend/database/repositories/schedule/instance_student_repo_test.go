@@ -1480,3 +1480,141 @@ func TestInstanceStudentRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 		assert.Empty(t, m)
 	})
 }
+
+// TestInstanceStudentRepository_DeletePlannedByStudentIDsAfter pins the
+// graduation-reconciliation predicate (#405 review): every still-PLANNED future
+// row of a graduated student goes, including the ones a future status day
+// already rewrote to 'absent', while anything recording an actual event and
+// anything not in the future survives.
+func TestInstanceStudentRepository_DeletePlannedByStudentIDsAfter(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	today := timezone.TodayDate()
+	future := today.AddDays(7)
+	past := today.AddDays(-7)
+
+	futureInst, cleanupFuture := createInstanceFixture(t, db, "delfut", future)
+	defer cleanupFuture()
+	pastInst, cleanupPast := createInstanceFixture(t, db, "delpast", past)
+	defer cleanupPast()
+	todayInst, cleanupToday := createInstanceFixture(t, db, "deltoday", today)
+	defer cleanupToday()
+
+	suffix := time.Now().UnixNano()
+	graduate := testpkg.CreateTestStudent(t, db, "Abgang", fmt.Sprintf("G-%d", suffix), "4a")
+	stayer := testpkg.CreateTestStudent(t, db, "Bleibt", fmt.Sprintf("S-%d", suffix), "3a")
+	defer testpkg.CleanupActivityFixtures(t, db, graduate.ID, stayer.ID)
+
+	// A planned sickness on the future date: ApplyActiveStatusDaysForInstance has
+	// already turned the graduate's row into an absence owned by the status day.
+	// This is the row the old status='expected' predicate left behind.
+	statusDay := testpkg.CreateTestStudentStatusDay(t, db, graduate.ID, future, "sick")
+	defer testpkg.CleanupStudentStatusDays(t, db, statusDay.ID)
+
+	// Deleted: future + planned.
+	futureExpected := testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, graduate.ID,
+		scheduleModels.AttendanceStatusExpected)
+	// Kept: not in the future.
+	pastExpected := testpkg.CreateTestInstanceStudent(t, db, pastInst.ID, graduate.ID,
+		scheduleModels.AttendanceStatusExpected)
+	todayExpected := testpkg.CreateTestInstanceStudent(t, db, todayInst.ID, graduate.ID,
+		scheduleModels.AttendanceStatusExpected)
+	// Kept: another child's future row must be untouched.
+	stayerExpected := testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, stayer.ID,
+		scheduleModels.AttendanceStatusExpected)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students",
+		futureExpected.ID, pastExpected.ID, todayExpected.ID, stayerExpected.ID)
+
+	removed, err := repo.DeletePlannedByStudentIDsAfter(ctx, []int64{graduate.ID}, today)
+	require.NoError(t, err)
+	assert.Equal(t, 1, removed, "only the graduate's future planned row is removed")
+
+	assertRowGone := func(t *testing.T, instanceID, studentID int64) {
+		t.Helper()
+		got, err := repo.FindByInstanceAndStudent(ctx, instanceID, studentID)
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	}
+	assertRowKept := func(t *testing.T, instanceID, studentID int64) {
+		t.Helper()
+		got, err := repo.FindByInstanceAndStudent(ctx, instanceID, studentID)
+		require.NoError(t, err)
+		assert.NotNil(t, got)
+	}
+
+	assertRowGone(t, futureInst.ID, graduate.ID)
+	assertRowKept(t, pastInst.ID, graduate.ID)
+	assertRowKept(t, todayInst.ID, graduate.ID)
+	assertRowKept(t, futureInst.ID, stayer.ID)
+
+	t.Run("removes a future absence a status day owns", func(t *testing.T) {
+		absent := scheduleModels.AttendanceStatusAbsent
+		sick := scheduleModels.AttendanceSubstatusSick
+		row := testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, graduate.ID, absent,
+			testpkg.InstanceStudentOpts{StudentStatusDayID: &statusDay.ID})
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID,
+			scheduleModels.AttendanceFieldPatch{Substatus: &sick}))
+
+		removed, err := repo.DeletePlannedByStudentIDsAfter(ctx, []int64{graduate.ID}, today)
+		require.NoError(t, err)
+		assert.Equal(t, 1, removed)
+		assertRowGone(t, futureInst.ID, graduate.ID)
+	})
+
+	t.Run("keeps a future row that records an actual presence", func(t *testing.T) {
+		row := &scheduleModels.InstanceStudent{
+			InstanceID: futureInst.ID,
+			StudentID:  graduate.ID,
+			Status:     scheduleModels.AttendanceStatusPresent,
+		}
+		row.SetTenantID(1)
+		require.NoError(t, repo.Create(ctx, row))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		removed, err := repo.DeletePlannedByStudentIDsAfter(ctx, []int64{graduate.ID}, today)
+		require.NoError(t, err)
+		assert.Equal(t, 0, removed)
+		assertRowKept(t, futureInst.ID, graduate.ID)
+	})
+
+	t.Run("keeps a future row carrying a stamped check-in", func(t *testing.T) {
+		checkedInAt := time.Now()
+		row := &scheduleModels.InstanceStudent{
+			InstanceID:  futureInst.ID,
+			StudentID:   graduate.ID,
+			Status:      scheduleModels.AttendanceStatusExpected,
+			CheckedInAt: &checkedInAt,
+		}
+		row.SetTenantID(1)
+		require.NoError(t, repo.Create(ctx, row))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		removed, err := repo.DeletePlannedByStudentIDsAfter(ctx, []int64{graduate.ID}, today)
+		require.NoError(t, err)
+		assert.Equal(t, 0, removed)
+		assertRowKept(t, futureInst.ID, graduate.ID)
+	})
+
+	t.Run("empty student set is a no-op", func(t *testing.T) {
+		removed, err := repo.DeletePlannedByStudentIDsAfter(ctx, nil, today)
+		require.NoError(t, err)
+		assert.Equal(t, 0, removed)
+	})
+
+	t.Run("tenant isolation leaves other tenants alone", func(t *testing.T) {
+		row := testpkg.CreateTestInstanceStudent(t, db, futureInst.ID, graduate.ID,
+			scheduleModels.AttendanceStatusExpected)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		removed, err := repo.DeletePlannedByStudentIDsAfter(
+			testpkg.TenantContext(999), []int64{graduate.ID}, today)
+		require.NoError(t, err)
+		assert.Equal(t, 0, removed)
+		assertRowKept(t, futureInst.ID, graduate.ID)
+	})
+}

@@ -14,7 +14,9 @@ import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
   deleteGradeTransition,
   listGradeTransitions,
+  NOT_LATEST_TRANSITION_CODE,
   revertGradeTransition,
+  TransitionRequestError,
   type GradeTransition,
   type TransitionResult,
   type TransitionStatus,
@@ -86,6 +88,26 @@ function describeMappings(transition: GradeTransition): string {
   return parts.join(", ");
 }
 
+// Only the most-recently-applied transition may be reverted. Reverting an older
+// one writes each student's recorded from_class back, clobbering the class a
+// later transition (or a manual edit) has since assigned. Gating the action to
+// the latest applied row enforces a strict reverse-order unwind: once it is
+// reverted the previous transition becomes the latest and can be reverted in
+// turn. The backend enforces the same order and answers a stale target with a
+// 409 (NOT_LATEST_TRANSITION_CODE), so this runs over a freshly fetched list too.
+function pickLatestRevertable(
+  list: readonly GradeTransition[],
+): GradeTransition | null {
+  let latest: GradeTransition | null = null;
+  for (const t of list) {
+    if (!t.canRevert || t.status !== "applied") continue;
+    if (latest === null || (t.appliedAt ?? "") > (latest.appliedAt ?? "")) {
+      latest = t;
+    }
+  }
+  return latest;
+}
+
 export function GradeTransitionsManager({
   permissions = FULL_ACCESS,
 }: {
@@ -107,15 +129,21 @@ export function GradeTransitionsManager({
   );
   const [busy, setBusy] = useState(false);
 
-  const refresh = useCallback(async () => {
+  // Returns the freshly fetched list (null when the fetch failed) so callers
+  // that must act on the new server state — the stale-revert conflict path —
+  // can read it without waiting for the state update to land.
+  const refresh = useCallback(async (): Promise<GradeTransition[] | null> => {
     try {
-      setTransitions(await listGradeTransitions());
+      const list = await listGradeTransitions();
+      setTransitions(list);
       setLoadError(null);
+      return list;
     } catch (error) {
       logger.error("transitions_load_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
       setLoadError("Jahrgangswechsel konnten nicht geladen werden.");
+      return null;
     }
   }, []);
 
@@ -147,7 +175,26 @@ export function GradeTransitionsManager({
         transition_id: revertTarget.id,
         error: error instanceof Error ? error.message : String(error),
       });
-      toast.error("Zurücksetzen fehlgeschlagen. Bitte erneut versuchen.");
+      // A stale target is recoverable, but only after reloading: another admin
+      // applied a newer transition since this list was fetched, and reverts must
+      // unwind newest-first. Retrying the same ID is guaranteed to 409 again, so
+      // reload and re-point the dialog at the new latest instead of telling the
+      // user to try again against a target that can never succeed (#405 review).
+      if (
+        error instanceof TransitionRequestError &&
+        error.code === NOT_LATEST_TRANSITION_CODE
+      ) {
+        const list = await refresh();
+        const latest = list ? pickLatestRevertable(list) : null;
+        setRevertTarget(latest);
+        toast.error(
+          latest
+            ? `Inzwischen wurde ein neuerer Jahrgangswechsel angewendet. Es muss zuerst ${latest.academicYear} zurückgesetzt werden - die Auswahl wurde entsprechend angepasst.`
+            : "Inzwischen wurde ein neuerer Jahrgangswechsel angewendet. Die Liste wurde neu geladen.",
+        );
+      } else {
+        toast.error("Zurücksetzen fehlgeschlagen. Bitte erneut versuchen.");
+      }
     } finally {
       setBusy(false);
     }
@@ -177,23 +224,12 @@ export function GradeTransitionsManager({
     setEditorOpen(true);
   }, []);
 
-  // Only the most-recently-applied transition may be reverted. Reverting an
-  // older one writes each student's recorded from_class back, clobbering the
-  // class a later transition (or a manual edit) has since assigned. Gating the
-  // action to the latest applied row enforces a strict reverse-order unwind:
-  // once it is reverted the previous transition becomes the latest and can be
-  // reverted in turn.
-  const latestRevertableId = useMemo(() => {
-    if (!transitions) return null;
-    let latest: GradeTransition | null = null;
-    for (const t of transitions) {
-      if (!t.canRevert || t.status !== "applied") continue;
-      if (latest === null || (t.appliedAt ?? "") > (latest.appliedAt ?? "")) {
-        latest = t;
-      }
-    }
-    return latest?.id ?? null;
-  }, [transitions]);
+  // See pickLatestRevertable: only the newest applied transition is revertable.
+  const latestRevertableId = useMemo(
+    () =>
+      transitions ? (pickLatestRevertable(transitions)?.id ?? null) : null,
+    [transitions],
+  );
 
   const columns = useMemo<DataTableColumn<GradeTransition>[]>(
     () => [

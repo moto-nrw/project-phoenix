@@ -760,12 +760,22 @@ func (r *InstanceStudentRepository) DeleteByInstanceID(ctx context.Context, inst
 	return nil
 }
 
-// DeleteExpectedByStudentIDsAfter removes still-planned ('expected') rows for
-// the given students on non-cancelled instances dated strictly after `after`.
+// DeletePlannedByStudentIDsAfter removes the given students' still-planned
+// attendance rows on non-cancelled instances dated strictly after `after`.
+//
+// "Planned" is deliberately wider than status = 'expected': a future status day
+// (planned sickness, excusal, class trip) rewrites the row to 'absent' with a
+// student_status_day_id, and a graduated child left on such a row stays visible
+// and counted in slot-list Plan/Abgleich reads and future exports, which load
+// every instance row regardless of status. So the predicate excludes only rows
+// that record something that actually HAPPENED — an observed presence or a
+// stamped check-in/checkout — which a future-dated instance cannot legitimately
+// carry but which must never be destroyed if corrupt data does (#405 review).
+//
 // Cross-table predicate (join on activity_instances for date/status), so it is
 // expressed as one DELETE ... USING statement in the repository rather than the
 // generic builder. Tenant-scoped; a nil/empty student set is a no-op.
-func (r *InstanceStudentRepository) DeleteExpectedByStudentIDsAfter(ctx context.Context, studentIDs []int64, after timezone.Date) (int, error) {
+func (r *InstanceStudentRepository) DeletePlannedByStudentIDsAfter(ctx context.Context, studentIDs []int64, after timezone.Date) (int, error) {
 	if len(studentIDs) == 0 {
 		return 0, nil
 	}
@@ -775,21 +785,23 @@ func (r *InstanceStudentRepository) DeleteExpectedByStudentIDsAfter(ctx context.
 		USING schedule.activity_instances AS ai
 		WHERE s.instance_id = ai.id
 		  AND s.student_id IN (?)
-		  AND s.status = ?
+		  AND s.status <> ?
+		  AND s.checked_in_at IS NULL
+		  AND s.checked_out_at IS NULL
 		  AND ai.date > ?
 		  AND ai.status <> ?
 		  AND s.tenant_id = ?`
 
 	result, err := base.GetDB(ctx, r.db).ExecContext(ctx, rawSQL,
-		bun.In(studentIDs),
-		schedule.AttendanceStatusExpected,
+		bun.List(studentIDs),
+		schedule.AttendanceStatusPresent,
 		after,
 		schedule.InstanceStatusCancelled,
 		tenant.FromContext(ctx),
 	)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
-			Op:  "delete expected by student ids after",
+			Op:  "delete planned by student ids after",
 			Err: err,
 		}
 	}
