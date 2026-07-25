@@ -161,6 +161,38 @@ function blankInput(): PhaseInput {
   };
 }
 
+// withNonEmptyClasses trims a class list and drops blank entries, matching the
+// backend's own trim-then-ignore-empty reading of both class lists.
+function withNonEmptyClasses(classes: readonly string[]): string[] {
+  return classes.map((cls) => cls.trim()).filter((cls) => cls.length > 0);
+}
+
+// mergeOfferedClasses returns the offered ("Konkrete Klassen") list with every
+// eligible class kept in it, preserving order and dropping duplicates.
+//
+// The backend requires eligible ⊆ available — the form can only present offered
+// classes, so a restriction to a class it never offers rejects every submission.
+// ADD rather than REPLACE: available may legitimately be a wider superset,
+// because a late-invite recipient bypasses the eligibility gate and keeps the
+// full offered list, while every self-service load is narrowed to the eligible
+// subset server-side (#1663).
+function mergeOfferedClasses(
+  offered: readonly string[],
+  eligible: readonly string[],
+): string[] {
+  const merged: string[] = [];
+  const seen = new Set<string>();
+  for (const cls of [
+    ...withNonEmptyClasses(offered),
+    ...withNonEmptyClasses(eligible),
+  ]) {
+    if (seen.has(cls)) continue;
+    seen.add(cls);
+    merged.push(cls);
+  }
+  return merged;
+}
+
 // RFC3339 to datetime-local "YYYY-MM-DDTHH:MM" helpers. The HTML
 // datetime-local input always works in the browser's local zone,
 // which matches what an admin expects when they type "1. März 09:00".
@@ -371,31 +403,21 @@ export function PhasesEditor() {
       // after the parent completed the whole form (#1663). The tenant-wide
       // Klassen-Abfrage must still be active for the pick to appear —
       // surfaced in the field hint, not enforceable here.
-      const eligibleClasses = (payload.eligible_school_classes ?? [])
-        .map((cls) => cls.trim())
-        .filter((cls) => cls.length > 0);
+      const eligibleClasses = withNonEmptyClasses(
+        payload.eligible_school_classes ?? [],
+      );
       // Grade-1 classes ("1a") are supported (#1663): when a phase offers a
       // grade-1 class the form collects it (grade 1 is no longer restricted to
       // grade-level only), so a grade-1 eligibility restriction is satisfiable.
+      //
+      // The editor already keeps the two lists in sync while typing; this stays
+      // as the safety net for a draft loaded from a phase whose stored lists
+      // drifted apart (an older editor build, or a direct API write).
       if (eligibleClasses.length > 0) {
-        // ADD the eligible classes to the offered list instead of REPLACING
-        // it. available_school_classes may legitimately be a wider superset:
-        // a late-invite recipient bypasses the eligibility gate and keeps the
-        // full offered list, while every self-service form load is narrowed
-        // to the eligible subset server-side. Overwriting here would delete
-        // those exception-only classes on any unrelated phase edit (#1663).
-        const offered: string[] = [];
-        const seen = new Set<string>();
-        for (const cls of [
-          ...(payload.available_school_classes ?? []),
-          ...eligibleClasses,
-        ]) {
-          const trimmed = cls.trim();
-          if (!trimmed || seen.has(trimmed)) continue;
-          seen.add(trimmed);
-          offered.push(trimmed);
-        }
-        payload.available_school_classes = offered;
+        payload.available_school_classes = mergeOfferedClasses(
+          payload.available_school_classes ?? [],
+          eligibleClasses,
+        );
         payload.require_school_class = true;
       }
       // Both restrictions apply together, so a class outside the selected
@@ -998,12 +1020,17 @@ function PhaseActions({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const hasReviewList = tenantSlug && phase.rollover_source_phase_id;
-  // linked_parents phases are never publicly reachable: the backend rejects the
-  // plain /enroll/{id} URL unless it carries a valid late-invite token, so the
-  // untokenized public actions ("Formular ansehen", the copy-link button) would
-  // send users to a 404. Hide them for this audience while keeping the tokenized
-  // "Nachzügler-Link erstellen" action, which appends the accepted token (#1663).
-  const isLinkedParentsOnly = phase.audience === "linked_parents";
+  // Audience-restricted phases are never publicly reachable: the anonymous form
+  // gate refuses BOTH linked_parents and existing_students, so the plain
+  // /enroll/{id} URL 404s for either unless it carries a valid late-invite
+  // token. The untokenized public actions ("Formular ansehen", the copy-link
+  // button) would hand out a dead link, so hide them for both audiences while
+  // keeping the tokenized "Nachzügler-Link erstellen" action, which appends the
+  // accepted token (#1663). Those parents reach the form through the parents
+  // portal picker instead.
+  const hasNoPublicForm =
+    phase.audience === "linked_parents" ||
+    phase.audience === "existing_students";
   const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId: phase.id });
   const enrollmentsHref = tenantPath(
     `/admin/enrollments/phases/${encodeURIComponent(phase.id)}`,
@@ -1097,7 +1124,7 @@ function PhaseActions({
         Bearbeiten
       </button>
 
-      {!isLinkedParentsOnly ? (
+      {!hasNoPublicForm ? (
         <a
           href={`/enroll/${encodeURIComponent(phase.id)}`}
           target="_blank"
@@ -1227,7 +1254,7 @@ function PhaseActions({
   return (
     <>
       <div className="flex justify-end gap-1.5">
-        {phaseUrl && !isLinkedParentsOnly ? (
+        {phaseUrl && !hasNoPublicForm ? (
           <PublicLinkCopyButton
             url={phaseUrl}
             componentId={`PhaseActions:${phase.id}`}
@@ -1730,7 +1757,25 @@ function PhaseForm(props: PhaseFormProps) {
           </p>
           <SchoolClassListEditor
             value={draft.eligible_school_classes ?? []}
-            onChange={(list) => update({ eligible_school_classes: list })}
+            onChange={(list) =>
+              // An eligible class the phase does not offer is rejected by the
+              // backend (eligible ⊆ available), and the restriction is only
+              // enforceable when the class pick is mandatory. Mirror both here
+              // so the "Konkrete Klassen" list below shows the truth while
+              // editing instead of the save silently adding the classes (#1663).
+              update(
+                withNonEmptyClasses(list).length > 0
+                  ? {
+                      eligible_school_classes: list,
+                      available_school_classes: mergeOfferedClasses(
+                        draft.available_school_classes ?? [],
+                        list,
+                      ),
+                      require_school_class: true,
+                    }
+                  : { eligible_school_classes: list },
+              )
+            }
           />
         </div>
       </fieldset>
@@ -1747,20 +1792,28 @@ function PhaseForm(props: PhaseFormProps) {
         </p>
         <SchoolClassListEditor
           value={draft.available_school_classes ?? []}
-          onChange={(list) =>
+          onChange={(list) => {
+            // A class that is still an eligibility target cannot be dropped
+            // from the offered list: the backend refuses eligible ⊄ available,
+            // and removing it here while the "Nur für Klassen" list keeps it
+            // would look like it worked until the save re-added it (#1663).
+            const offered = mergeOfferedClasses(
+              list,
+              draft.eligible_school_classes ?? [],
+            );
             // Clearing the list must also clear "verpflichtend": a mandatory
             // phase with no offered classes is impossible - grade >= 2 parents
             // would be required to pick a class from an empty dropdown and the
             // backend would reject every submission (#1833).
             update(
-              list.length === 0
+              offered.length === 0
                 ? {
-                    available_school_classes: list,
+                    available_school_classes: offered,
                     require_school_class: false,
                   }
-                : { available_school_classes: list },
-            )
-          }
+                : { available_school_classes: offered },
+            );
+          }}
         />
         <div className="mt-3">
           <PhaseCheckbox

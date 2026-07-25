@@ -3081,6 +3081,59 @@ func narrowOfferedClassesToEligibleForForm(phase *enrollmentModels.Phase) {
 		}
 	}
 	phase.AvailableSchoolClasses = narrowed
+	narrowOfferedGradesToEligibleClassesForForm(phase)
+}
+
+// narrowOfferedGradesToEligibleClassesForForm derives the form's grade options
+// from a class-only eligibility restriction. A phase restricted to "3a" but with
+// an empty eligible_grade_levels leaves the grade select offering every grade
+// 1..grade_level_max, while only grade 3 can ever declare an eligible class: the
+// form filters the class pick list by the selected grade, so grade 1 shows no
+// class at all (or "Klasse offen") and the submit then fails with
+// class_not_eligible after the whole form was filled in. That is the same dead
+// end narrowOfferedClassesToEligibleForForm removes on the class side, one level
+// up (#1663).
+//
+// Only ever narrows, and only for the self-service loads that narrowing serves:
+// an explicit eligible_grade_levels is left untouched (Phase.Validate already
+// keeps the two lists consistent, so it is never wider than the class-derived
+// set), and an eligible class with no derivable grade ("Bienen") is compatible
+// with every grade — exactly as Phase.Validate treats it — so it suppresses the
+// narrowing entirely rather than hiding the grade a prefixless class belongs to.
+//
+// Presentation only: this mutates a phase already cleared for a form load, and
+// Submit reloads the phase independently, so the derived list never reaches
+// validation or the database. The class gate stays the enforcing side.
+func narrowOfferedGradesToEligibleClassesForForm(phase *enrollmentModels.Phase) {
+	if phase == nil || len(phase.EligibleGradeLevels) > 0 {
+		return
+	}
+	grades := make([]int, 0, len(phase.EligibleSchoolClasses))
+	seen := make(map[int]struct{}, len(phase.EligibleSchoolClasses))
+	for _, c := range phase.EligibleSchoolClasses {
+		if strings.TrimSpace(c) == "" {
+			continue
+		}
+		prefix := schoolclass.GradePrefix(c)
+		if prefix == "" {
+			// Grade-agnostic eligible class: every grade stays satisfiable.
+			return
+		}
+		level, err := strconv.Atoi(prefix)
+		if err != nil {
+			return
+		}
+		if _, ok := seen[level]; ok {
+			continue
+		}
+		seen[level] = struct{}{}
+		grades = append(grades, level)
+	}
+	if len(grades) == 0 {
+		return
+	}
+	sort.Ints(grades)
+	phase.EligibleGradeLevels = grades
 }
 
 // LoadPublicPhaseWithLateInvite is the anonymous public form-load gate: it

@@ -61,7 +61,7 @@ func TestGetEnrollmentBootstrap_EligibleGuardianUsesEnrolleeGate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule"}
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
 	school.ID = 1
 	requestSvc := &parentBootstrapRequestStub{}
 	rs := &Resource{
@@ -91,7 +91,7 @@ func TestGetEnrollmentBootstrap_EnrolledChildUnlocksExistingStudents(t *testing.
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule"}
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
 	school.ID = 1
 	requestSvc := &parentBootstrapRequestStub{}
 	rs := &Resource{
@@ -122,7 +122,7 @@ func TestGetEnrollmentBootstrap_IneligibleAccountUsesPublicGate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule"}
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
 	school.ID = 1
 	requestSvc := &parentBootstrapRequestStub{}
 	rs := &Resource{
@@ -147,7 +147,7 @@ func TestGetEnrollmentBootstrap_RevokedPermissionUsesPublicGate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule"}
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
 	school.ID = 1
 	requestSvc := &parentBootstrapRequestStub{}
 	rs := &Resource{
@@ -168,4 +168,87 @@ func TestGetEnrollmentBootstrap_RevokedPermissionUsesPublicGate(t *testing.T) {
 	assert.Equal(t, enrollmentService.EnrolleeAudienceAccess{}, requestSvc.access,
 		"revoked submit permission must unlock no restricted audience")
 	assert.False(t, requestSvc.publicCalled)
+}
+
+// A hidden school is excluded from the parents-portal picker for everyone
+// without a family link there. The direct bootstrap route must apply the same
+// rule, or the hidden flag only hides the school from the list while a guessed
+// subdomain plus a phase id still serves its form (#1663).
+func TestGetEnrollmentBootstrap_HiddenSchoolIsUnreachableWithoutFamilyLink(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true, Hidden: true}
+	school.ID = 1
+	requestSvc := &parentBootstrapRequestStub{}
+	rs := &Resource{
+		// Linked as an account (e.g. staff, or a stale mapping) but with no
+		// guardian relationship — exactly the case ListEnrollable refuses.
+		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+			Linked: true,
+		}},
+		RequestService: requestSvc,
+		SchoolService:  &parentSubmitSchoolStub{school: school},
+		db:             db,
+	}
+
+	w := serveBootstrap(t, rs, 7005)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+	assert.False(t, requestSvc.enrolleeCalled, "the form must not load for a hidden school without a family link")
+	assert.False(t, requestSvc.publicCalled)
+}
+
+// The family-link fact mirrors guard.has_family_link in ListEnrollable: an
+// active mapping AND a guardian relationship. An existing family keeps
+// reaching its own hidden school's re-enrollment forms.
+func TestGetEnrollmentBootstrap_HiddenSchoolLoadsForLinkedFamily(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true, Hidden: true}
+	school.ID = 1
+	requestSvc := &parentBootstrapRequestStub{}
+	rs := &Resource{
+		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+			Linked:              true,
+			HasGuardianLink:     true,
+			HasSubmitPermission: true,
+		}},
+		RequestService: requestSvc,
+		SchoolService:  &parentSubmitSchoolStub{school: school},
+		db:             db,
+	}
+
+	w := serveBootstrap(t, rs, 7006)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.True(t, requestSvc.enrolleeCalled)
+	assert.True(t, requestSvc.access.LinkedParents)
+}
+
+// A deactivated school is unreachable for everyone, family link or not — the
+// same account-independent gate /auth/tenant/resolve applies.
+func TestGetEnrollmentBootstrap_InactiveSchoolIsUnreachable(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: false}
+	school.ID = 1
+	requestSvc := &parentBootstrapRequestStub{}
+	rs := &Resource{
+		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+			Linked:              true,
+			HasGuardianLink:     true,
+			HasSubmitPermission: true,
+		}},
+		RequestService: requestSvc,
+		SchoolService:  &parentSubmitSchoolStub{school: school},
+		db:             db,
+	}
+
+	w := serveBootstrap(t, rs, 7007)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+	assert.False(t, requestSvc.enrolleeCalled)
 }

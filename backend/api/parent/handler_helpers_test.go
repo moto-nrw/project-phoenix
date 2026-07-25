@@ -65,7 +65,7 @@ func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermis
 	t.Cleanup(func() { _ = db.Close() })
 
 	var tenantID int64 = 1
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule"}
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
 	school.ID = tenantID
 	requestSvc := &parentSubmitRequestStub{}
 	rs := &Resource{
@@ -121,7 +121,7 @@ func TestSubmitParentEnrollment_NoSubmitPermissionStillReachesServiceForNewChild
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule"}
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
 	school.ID = 1
 	requestSvc := &parentSubmitRequestStub{}
 	rs := &Resource{
@@ -170,7 +170,7 @@ func TestSubmitParentEnrollment_StampsSubmitEligibility(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule"}
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
 	school.ID = 1
 	requestSvc := &parentSubmitRequestStub{}
 	rs := &Resource{
@@ -291,4 +291,107 @@ func TestToMessageResponses_StaffNameMaskedUnlessVisible(t *testing.T) {
 	assert.Equal(t, counterpart, out[0].SenderName, "masked staff reply collapses to the OGS label")
 	assert.Equal(t, "Sabine S.", out[1].SenderName, "visible staff reply shows first name + last initial")
 	assert.Equal(t, "Olivia Berg", out[2].SenderName, "guardian name passes through unchanged")
+}
+
+// serveParentSubmit posts a minimal new-child application for {tenantSlug}
+// "testschule" and returns the recorder.
+func serveParentSubmit(t *testing.T, rs *Resource, accountID int) *httptest.ResponseRecorder {
+	t.Helper()
+	body, err := json.Marshal(enrollmentAPI.SubmitEnrollmentRequest{
+		PhaseID:           4242,
+		GuardianFirstName: "Anna",
+		GuardianLastName:  "Beispiel",
+		GuardianEmail:     "anna@example.test",
+		Children: []enrollmentAPI.SubmitChildRequest{
+			{FirstName: "Lara", LastName: "Beispiel", DateOfBirth: "2018-03-04"},
+		},
+	})
+	require.NoError(t, err)
+
+	router := chi.NewRouter()
+	router.Post("/parent/enrollments/{tenantSlug}/submit", rs.submitParentEnrollment)
+	req := withClaims(
+		httptest.NewRequest(http.MethodPost, "/parent/enrollments/testschule/submit", strings.NewReader(string(body))),
+		accountID,
+	)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	return w
+}
+
+// The hidden-school gate covers the submit route too: hiding a school from the
+// picker must also stop a submission that reaches it through a guessed
+// subdomain, not just the form load (#1663).
+func TestSubmitParentEnrollment_HiddenSchoolRejectsCallerWithoutFamilyLink(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true, Hidden: true}
+	school.ID = 1
+	requestSvc := &parentSubmitRequestStub{}
+	rs := &Resource{
+		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+			Linked: true,
+		}},
+		RequestService: requestSvc,
+		SchoolService:  &parentSubmitSchoolStub{school: school},
+		db:             db,
+	}
+
+	w := serveParentSubmit(t, rs, 7780)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+	assert.False(t, requestSvc.called, "a hidden school must not accept a submission from a caller with no family link")
+}
+
+// A deactivated school accepts no submission at all — the account-independent
+// half of the gate, matching /auth/tenant/resolve.
+func TestSubmitParentEnrollment_InactiveSchoolIsRejected(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: false}
+	school.ID = 1
+	requestSvc := &parentSubmitRequestStub{}
+	rs := &Resource{
+		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+			Linked:              true,
+			HasGuardianLink:     true,
+			HasSubmitPermission: true,
+		}},
+		RequestService: requestSvc,
+		SchoolService:  &parentSubmitSchoolStub{school: school},
+		db:             db,
+	}
+
+	w := serveParentSubmit(t, rs, 7781)
+
+	require.Equal(t, http.StatusNotFound, w.Code)
+	assert.False(t, requestSvc.called)
+}
+
+// An existing family at a hidden school keeps submitting its re-enrollments.
+func TestSubmitParentEnrollment_HiddenSchoolAcceptsLinkedFamily(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true, Hidden: true}
+	school.ID = 1
+	requestSvc := &parentSubmitRequestStub{}
+	rs := &Resource{
+		ParentService: &fakeParentService{submitStatus: &parentModels.GuardianSubmitStatus{
+			Linked:              true,
+			HasGuardianLink:     true,
+			HasSubmitPermission: true,
+		}},
+		RequestService: requestSvc,
+		SchoolService:  &parentSubmitSchoolStub{school: school},
+		db:             db,
+	}
+
+	w := serveParentSubmit(t, rs, 7782)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	require.True(t, requestSvc.called)
+	assert.True(t, requestSvc.got.GuardianSubmitEligible)
 }

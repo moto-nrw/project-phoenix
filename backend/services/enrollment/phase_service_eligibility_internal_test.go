@@ -13,9 +13,11 @@ import (
 // A class-based eligibility restriction is uncheckable when the school does
 // not collect a concrete class, so every submission would be rejected with
 // class_not_eligible. Create/Update must reject that config up front (#1663).
+// The guard is scoped to ACTIVE phases — the same scope the settings side
+// enforces from its end — so the fixtures below are active.
 func TestValidateEligibleClassesCollectable(t *testing.T) {
-	eligible := &enrollmentModels.Phase{EligibleSchoolClasses: []string{"2a"}}
-	empty := &enrollmentModels.Phase{EligibleSchoolClasses: []string{}}
+	eligible := &enrollmentModels.Phase{EligibleSchoolClasses: []string{"2a"}, IsActive: true}
+	empty := &enrollmentModels.Phase{EligibleSchoolClasses: []string{}, IsActive: true}
 
 	t.Run("collection off with eligible classes is rejected", func(t *testing.T) {
 		s := &phaseService{settings: schoolClassSettingsStub{collect: false}}
@@ -36,5 +38,16 @@ func TestValidateEligibleClassesCollectable(t *testing.T) {
 	t.Run("nil settings skips the guard", func(t *testing.T) {
 		s := &phaseService{}
 		assert.NoError(t, s.validateEligibleClassesCollectable(context.Background(), eligible))
+	})
+
+	// A phase that is not active accepts no submission at all, so its
+	// restriction cannot reject anything. Gating it only made a historical
+	// restricted phase unwritable once the school turned class collection off —
+	// a name or date correction, and even deactivating the phase, was refused
+	// (#1663).
+	t.Run("an inactive phase is not gated", func(t *testing.T) {
+		s := &phaseService{settings: schoolClassSettingsStub{collect: false}}
+		inactive := &enrollmentModels.Phase{EligibleSchoolClasses: []string{"2a"}}
+		require.NoError(t, s.validateEligibleClassesCollectable(context.Background(), inactive))
 	})
 }

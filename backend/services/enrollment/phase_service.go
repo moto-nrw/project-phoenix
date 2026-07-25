@@ -272,8 +272,20 @@ func ensureEligibleGradeLevelsWithinTenantCap(ctx context.Context, settings clas
 
 // validateEligibleClassesCollectable is the phaseService adapter over the two
 // collectability guards used by Create/Update.
+//
+// Only ACTIVE phases are guarded. The invariant these guards protect is
+// "no ACTIVE restricted phase while the matching collection setting is off" —
+// exactly the scope the settings side enforces from its end
+// (ExistsActiveWithEligibleClasses / ExistsActiveWithEligibleGradeLevels only
+// look at is_active phases). Applying them to an inactive phase made a
+// historical restricted phase unwritable once collection was disabled: a name
+// or date correction, or even deactivating the phase, hit the guard and could
+// not be saved at all, while clearing the restriction to get past it would
+// destroy the record of what that phase was restricted to. Reactivating such a
+// phase still goes through Update with is_active=true and is still refused
+// (#1663).
 func (s *phaseService) validateEligibleClassesCollectable(ctx context.Context, phase *enrollmentModels.Phase) error {
-	if s.settings == nil {
+	if s.settings == nil || !phase.IsActive {
 		return nil
 	}
 	if err := ensureEligibleGradeLevelsCollectable(ctx, s.settings, phase.EligibleGradeLevels); err != nil {

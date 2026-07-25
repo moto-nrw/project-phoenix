@@ -16,6 +16,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -46,11 +48,12 @@ func (rs *Resource) getEnrollmentProfile(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	schoolID, err := rs.resolveSchoolID(r.Context(), slug)
+	school, err := rs.resolveEnrollmentSchool(r.Context(), slug)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(err))
 		return
 	}
+	schoolID := school.ID
 
 	loaded, err := rs.GuardianProfileLoader.LoadForTenant(r.Context(), accountID, schoolID)
 	if err != nil {
@@ -106,11 +109,12 @@ func (rs *Resource) getEnrollmentBootstrap(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	schoolID, err := rs.resolveSchoolID(r.Context(), slug)
+	school, err := rs.resolveEnrollmentSchool(r.Context(), slug)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(err))
 		return
 	}
+	schoolID := school.ID
 
 	// Restricted phases must only load for a caller who could actually
 	// submit them — the same guardian facts the picker (ListEnrollable) and
@@ -136,6 +140,13 @@ func (rs *Resource) getEnrollmentBootstrap(w http.ResponseWriter, r *http.Reques
 		common.RenderError(w, r, common.ErrorInternalServer(statusErr))
 		return
 	}
+	// A hidden school is excluded from cross-school discovery; that exclusion
+	// has to hold on the direct route too, or knowing the subdomain is enough
+	// to bootstrap its forms (#1663).
+	if !enrollmentSchoolReachable(school, status) {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("tenant not found")))
+		return
+	}
 	var access enrollmentService.EnrolleeAudienceAccess
 	if status != nil {
 		access.LinkedParents = status.HasSubmitPermission
@@ -158,29 +169,66 @@ func (rs *Resource) getEnrollmentBootstrap(w http.ResponseWriter, r *http.Reques
 	common.Respond(w, r, http.StatusOK, resp, "Parent enrollment form bootstrap retrieved")
 }
 
-// resolveSchoolID resolves the {tenantSlug} path segment to a school id inside
-// WithAdminTx so the cross-tenant lookup is allowed. Returns an error when the
-// identifier doesn't resolve or the school is soft-deleted.
+// resolveEnrollmentSchool resolves the {tenantSlug} path segment to a school
+// inside WithAdminTx so the cross-tenant lookup is allowed. Returns an error
+// when the identifier doesn't resolve, the school is soft-deleted, or the
+// school is deactivated — the same account-independent gate
+// /auth/tenant/resolve applies, so a school an operator switched off cannot be
+// enrolled into through a stale link. The account-dependent part of the gate
+// (hidden schools) lives in enrollmentSchoolReachable, because it needs the
+// caller's guardian facts.
 //
 // The lookup is by SUBDOMAIN, not slug (#1663): the parents portal reaches this
 // route through links built from platform.schools.subdomain, which is the same
 // identifier /auth/tenant/resolve accepts (the enroll page resolves tenant
 // metadata through it in the same render). platform.schools.slug is only unique
 // per organization, so it is not usable as a global routing key at all.
-func (rs *Resource) resolveSchoolID(ctx context.Context, slug string) (int64, error) {
-	var out int64
+func (rs *Resource) resolveEnrollmentSchool(ctx context.Context, slug string) (*platformModels.School, error) {
+	var out *platformModels.School
 	err := tenant.WithAdminTx(ctx, rs.db, func(adminCtx context.Context, _ bun.Tx) error {
 		school, findErr := rs.SchoolService.GetSchoolBySubdomain(adminCtx, slug)
-		if findErr != nil || school == nil || school.IsDeleted() {
+		if findErr != nil || !enrollmentSchoolActive(school) {
 			return errors.New("tenant not found")
 		}
-		out = school.ID
+		out = school
 		return nil
 	})
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	return out, nil
+}
+
+// enrollmentSchoolActive is the account-independent half of the reachability
+// gate: the school must exist, not be soft-deleted, and still be active.
+func enrollmentSchoolActive(school *platformModels.School) bool {
+	return school != nil && !school.IsDeleted() && school.Active
+}
+
+// enrollmentSchoolReachable reports whether the authenticated parent enrollment
+// endpoints may operate on this school for this caller.
+//
+// Hidden schools (platform.schools.hidden) are kept out of the parents portal:
+// ListEnrollable already refuses to list them to anyone without an actual
+// FAMILY link there. The direct routes — bootstrap and submit — must apply the
+// same rule, otherwise the hidden flag only hides the school from the picker
+// while a guessed subdomain plus a phase id still loads its form and accepts a
+// submission (#1663).
+//
+// The family-link fact mirrors guard.has_family_link in ListEnrollable exactly:
+// a guardian_profile with at least one students_guardians row (HasGuardianLink)
+// AND an ACTIVE auth.account_tenants mapping (Linked). Membership alone is not
+// enough — auth.account_tenants also carries staff and other roles — and a
+// guardian row alone is not either, since a deactivated mapping leaves the
+// historical rows behind.
+func enrollmentSchoolReachable(school *platformModels.School, status *parentModels.GuardianSubmitStatus) bool {
+	if !enrollmentSchoolActive(school) {
+		return false
+	}
+	if !school.Hidden {
+		return true
+	}
+	return status != nil && status.Linked && status.HasGuardianLink
 }
 
 // submitParentEnrollment handles a parent-authenticated submission.
@@ -281,10 +329,11 @@ type parentSubmitOutcome struct {
 func (rs *Resource) runParentEnrollmentSubmit(r *http.Request, accountID int64, slug string, wireReq *enrollmentAPI.SubmitEnrollmentRequest) parentSubmitOutcome {
 	var out parentSubmitOutcome
 	out.resolveErr = tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		// By subdomain, matching resolveSchoolID and /auth/tenant/resolve —
-		// see resolveSchoolID for why slug is not a routing key (#1663).
+		// By subdomain, matching resolveEnrollmentSchool and
+		// /auth/tenant/resolve — see resolveEnrollmentSchool for why slug is
+		// not a routing key (#1663).
 		school, err := rs.SchoolService.GetSchoolBySubdomain(adminCtx, slug)
-		if err != nil || school == nil || school.IsDeleted() {
+		if err != nil || !enrollmentSchoolActive(school) {
 			return errors.New("tenant not found")
 		}
 
@@ -304,6 +353,14 @@ func (rs *Resource) runParentEnrollmentSubmit(r *http.Request, accountID int64, 
 			// client cannot tell from a genuinely dead link and will not retry.
 			out.statusErr = fmt.Errorf("resolve enrollment submit status: %w", stErr)
 			return out.statusErr
+		}
+
+		// Same hidden-school gate as the bootstrap path: a school excluded from
+		// the picker must not accept a submission through a guessed subdomain
+		// either. Rendered as the resolve 404 on purpose — the caller learns
+		// nothing about the phase or the school (#1663).
+		if !enrollmentSchoolReachable(school, status) {
+			return errors.New("tenant not found")
 		}
 
 		out.result, out.submitErr = rs.submitEnrollmentForTenant(adminCtx, school.ID, accountID, status.HasSubmitPermission, wireReq, getClientIP(r))

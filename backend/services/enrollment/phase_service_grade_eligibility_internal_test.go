@@ -49,10 +49,12 @@ func (s gradeCollectionSettingsStub) ResolveInt(_ context.Context, key string) (
 // collect the grade level: every child's grade is nil at submit and the gate
 // rejects every submission with grade_not_eligible. Create/Update must reject
 // that config up front — but, unlike the class restriction, a whole-grade phase
-// must stay valid while concrete-class collection is off (#1663).
+// must stay valid while concrete-class collection is off (#1663). Like the
+// class guard, this one only applies to ACTIVE phases, so the fixtures below
+// are active.
 func TestValidateEligibleGradeLevelsCollectable(t *testing.T) {
-	restricted := &enrollmentModels.Phase{EligibleGradeLevels: []int{3}}
-	unrestricted := &enrollmentModels.Phase{EligibleGradeLevels: []int{}}
+	restricted := &enrollmentModels.Phase{EligibleGradeLevels: []int{3}, IsActive: true}
+	unrestricted := &enrollmentModels.Phase{EligibleGradeLevels: []int{}, IsActive: true}
 
 	t.Run("grade collection off with a grade restriction is rejected", func(t *testing.T) {
 		s := &phaseService{settings: gradeCollectionSettingsStub{collectGrade: false, collectClass: true}}
@@ -75,6 +77,16 @@ func TestValidateEligibleGradeLevelsCollectable(t *testing.T) {
 		s := &phaseService{}
 		assert.NoError(t, s.validateEligibleClassesCollectable(context.Background(), restricted))
 	})
+
+	// Same carve-out as the class guard: an inactive phase takes no
+	// submissions, so its grade restriction cannot reject one — and gating it
+	// would leave a historical phase unwritable after the grade toggle was
+	// turned off (#1663).
+	t.Run("an inactive phase is not gated", func(t *testing.T) {
+		s := &phaseService{settings: gradeCollectionSettingsStub{collectGrade: false, collectClass: false}}
+		inactive := &enrollmentModels.Phase{EligibleGradeLevels: []int{3}}
+		require.NoError(t, s.validateEligibleClassesCollectable(context.Background(), inactive))
+	})
 }
 
 // A grade restriction above the tenant's enrollment.grade_level_max is
@@ -92,7 +104,7 @@ func TestValidateEligibleGradeLevelsWithinTenantCap(t *testing.T) {
 		s := &phaseService{settings: collecting(4)}
 		err := s.validateEligibleClassesCollectable(
 			context.Background(),
-			&enrollmentModels.Phase{EligibleGradeLevels: []int{5}},
+			&enrollmentModels.Phase{EligibleGradeLevels: []int{5}, IsActive: true},
 		)
 		require.ErrorIs(t, err, ErrInvalidPhase)
 		assert.Contains(t, err.Error(), "above the tenant maximum 4")
@@ -102,7 +114,7 @@ func TestValidateEligibleGradeLevelsWithinTenantCap(t *testing.T) {
 		s := &phaseService{settings: collecting(4)}
 		err := s.validateEligibleClassesCollectable(
 			context.Background(),
-			&enrollmentModels.Phase{EligibleGradeLevels: []int{3, 7}},
+			&enrollmentModels.Phase{EligibleGradeLevels: []int{3, 7}, IsActive: true},
 		)
 		require.ErrorIs(t, err, ErrInvalidPhase)
 		assert.Contains(t, err.Error(), "grade 7")
@@ -112,7 +124,7 @@ func TestValidateEligibleGradeLevelsWithinTenantCap(t *testing.T) {
 		s := &phaseService{settings: collecting(4)}
 		require.NoError(t, s.validateEligibleClassesCollectable(
 			context.Background(),
-			&enrollmentModels.Phase{EligibleGradeLevels: []int{4}},
+			&enrollmentModels.Phase{EligibleGradeLevels: []int{4}, IsActive: true},
 		))
 	})
 
@@ -120,7 +132,7 @@ func TestValidateEligibleGradeLevelsWithinTenantCap(t *testing.T) {
 		s := &phaseService{settings: collecting(schoolclass.MaxGradeLevel)}
 		require.NoError(t, s.validateEligibleClassesCollectable(
 			context.Background(),
-			&enrollmentModels.Phase{EligibleGradeLevels: []int{9}},
+			&enrollmentModels.Phase{EligibleGradeLevels: []int{9}, IsActive: true},
 		))
 	})
 
@@ -128,7 +140,7 @@ func TestValidateEligibleGradeLevelsWithinTenantCap(t *testing.T) {
 		s := &phaseService{settings: collecting(schoolclass.MaxGradeLevel + 1)}
 		err := s.validateEligibleClassesCollectable(
 			context.Background(),
-			&enrollmentModels.Phase{EligibleGradeLevels: []int{3}},
+			&enrollmentModels.Phase{EligibleGradeLevels: []int{3}, IsActive: true},
 		)
 		require.Error(t, err, "a corrupt cap must stop the write, not pick a substitute bound")
 		assert.NotErrorIs(t, err, ErrInvalidPhase, "a corrupt setting is operational, not a client error")
@@ -138,7 +150,7 @@ func TestValidateEligibleGradeLevelsWithinTenantCap(t *testing.T) {
 		s := &phaseService{settings: collecting(schoolclass.MaxGradeLevel + 1)}
 		require.NoError(t, s.validateEligibleClassesCollectable(
 			context.Background(),
-			&enrollmentModels.Phase{EligibleGradeLevels: []int{}},
+			&enrollmentModels.Phase{EligibleGradeLevels: []int{}, IsActive: true},
 		))
 	})
 }
