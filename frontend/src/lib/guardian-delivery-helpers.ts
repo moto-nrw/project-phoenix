@@ -12,10 +12,9 @@ import { LOCATION_COLORS } from "~/lib/location-helper";
  * rendered as "gesendet", which schools read as "angekommen".
  */
 
-export type InvitationDispatchStatus =
-  "pending" | "sending" | "sent" | "failed";
+type InvitationDispatchStatus = "pending" | "sending" | "sent" | "failed";
 
-export type InvitationDeliveryStatus =
+type InvitationDeliveryStatus =
   | "unknown"
   | "queued"
   | "deferred"
@@ -25,7 +24,7 @@ export type InvitationDeliveryStatus =
   | "complained"
   | "bounced";
 
-export interface InvitationDeliveryEvent {
+interface InvitationDeliveryEvent {
   readonly type: string;
   readonly occurredAt: string;
   readonly reasonCode?: string;
