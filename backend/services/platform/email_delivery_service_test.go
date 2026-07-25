@@ -246,6 +246,7 @@ func TestIngestEvent_AppliesDeliveredStatus(t *testing.T) {
 	assert.Equal(t, IngestApplied, outcome)
 	require.Len(t, outboxRepo.applied, 1)
 	assert.Equal(t, platformModels.EmailDeliveryStatusDelivered, outboxRepo.applied[0].Status)
+	assert.Equal(t, testMessageID, outboxRepo.applied[0].ExpectedMessageID)
 	require.Len(t, eventRepo.created, 1)
 	assert.Equal(t, row.GetTenantID(), eventRepo.created[0].GetTenantID(),
 		"the tenant must come from the resolved outbox row, never from the request")

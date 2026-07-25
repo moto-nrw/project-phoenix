@@ -35,11 +35,10 @@ type stubOutboxRepo struct {
 	locked       []int64
 
 	// Delivery-tracking capture (#1937).
-	dispatchIDs                map[int64]dispatchIdentifiers
-	dispatchAttempts           []*platformModels.EmailDispatchAttempt
-	dispatchIDErr              error
-	attemptProviderIDErr       error
-	currentOutboxProviderIDErr error
+	dispatchIDs        map[int64]dispatchIdentifiers
+	dispatchAttempts   []*platformModels.EmailDispatchAttempt
+	dispatchIDErr      error
+	dispatchAttemptErr error
 }
 
 type dispatchIdentifiers struct {
@@ -145,24 +144,12 @@ func (s *stubOutboxRepo) FindByProviderMessageID(_ context.Context, _ string) (*
 func (s *stubOutboxRepo) CreateDispatchAttempt(_ context.Context, attempt *platformModels.EmailDispatchAttempt) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.dispatchAttemptErr != nil {
+		return s.dispatchAttemptErr
+	}
 	attempt.ID = int64(len(s.dispatchAttempts) + 1)
 	s.dispatchAttempts = append(s.dispatchAttempts, attempt)
 	return nil
-}
-
-func (s *stubOutboxRepo) SetDispatchAttemptProviderMessageID(_ context.Context, attemptID int64, providerMessageID string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.attemptProviderIDErr != nil {
-		return s.attemptProviderIDErr
-	}
-	for _, attempt := range s.dispatchAttempts {
-		if attempt.ID == attemptID {
-			attempt.ProviderMessageID = &providerMessageID
-			return nil
-		}
-	}
-	return fmt.Errorf("dispatch attempt %d not found", attemptID)
 }
 
 func (s *stubOutboxRepo) FindDispatchAttemptByMessageID(_ context.Context, _ string) (*platformModels.EmailDispatchAttempt, error) {
@@ -180,9 +167,6 @@ func (s *stubOutboxRepo) FindDispatchAttemptByCorrelationToken(_ context.Context
 func (s *stubOutboxRepo) SetDispatchIdentifiers(_ context.Context, id int64, messageID string, providerMessageID *string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if providerMessageID != nil && s.currentOutboxProviderIDErr != nil {
-		return s.currentOutboxProviderIDErr
-	}
 	if s.dispatchIDErr != nil {
 		return s.dispatchIDErr
 	}
@@ -633,8 +617,7 @@ func TestOutboxWorker_RunOnce_MissingDependencies_Errors(t *testing.T) {
 // --- Message-ID stamping (#1937) -----------------------------------------
 
 // idReportingMailer implements the optional MessageIDReporter extension so the
-// worker's preference for it can be observed. Behaviourally divergent from the
-// shared doubles (it captures and returns a provider id), so it stays local.
+// worker's two-phase provider correlation can be observed.
 type idReportingMailer struct {
 	captured   []email.Message
 	providerID string
@@ -642,30 +625,38 @@ type idReportingMailer struct {
 }
 
 func (m *idReportingMailer) Send(msg email.Message) error {
-	_, err := m.SendWithID(msg)
-	return err
+	providerID, err := m.PrepareProviderMessageID(msg)
+	if err != nil {
+		return err
+	}
+	return m.SendWithID(msg, providerID)
 }
 
-func (m *idReportingMailer) SendWithID(msg email.Message) (string, error) {
+func (m *idReportingMailer) PrepareProviderMessageID(_ email.Message) (string, error) {
+	return m.providerID, nil
+}
+
+func (m *idReportingMailer) SendWithID(msg email.Message, providerMessageID string) error {
 	if m.beforeSend != nil {
 		m.beforeSend()
 	}
 	m.captured = append(m.captured, msg)
-	return m.providerID, nil
+	if providerMessageID != m.providerID {
+		return fmt.Errorf("unexpected provider message id %q", providerMessageID)
+	}
+	return nil
 }
 
-// Without a Message-ID on the wire there is nothing to correlate a later
-// delivery event against, so the whole feature silently degrades to
-// "unmatched". This is the guard for that, and for the identifiers being
-// persisted inside the send transaction rather than after it.
+// Without committed identifiers there is nothing to correlate an immediate
+// delivery event against. This guards both identifiers being durable before
+// the transport can submit the message.
 func TestOutboxWorker_StampsMessageIDAndPersistsIt(t *testing.T) {
 	db, mock, cleanup := newAdminTxDB(t)
 	defer cleanup()
 
 	expectAdminTx(mock) // Phase 1: ClaimDuePending
-	expectAdminTx(mock) // Phase 2: persist Message-ID
+	expectAdminTx(mock) // Phase 2: persist Message-ID and provider ID
 	expectAdminTx(mock) // Phase 3: send + terminal status
-	expectAdminTx(mock) // Phase 4: persist provider identifiers
 
 	registry := NewTemplateRegistry()
 	registry.Register("welcome", RendererFunc(func(_ context.Context, _ *platformModels.EmailOutbox) (*email.Message, error) {
@@ -678,9 +669,13 @@ func TestOutboxWorker_StampsMessageIDAndPersistsIt(t *testing.T) {
 		providerID: "provider-abc-123",
 		beforeSend: func() {
 			persisted, ok := repo.dispatchIDs[row.ID]
-			require.True(t, ok, "Message-ID must commit before transport submission")
+			require.True(t, ok, "correlation identifiers must commit before transport submission")
 			require.NotEmpty(t, persisted.MessageID)
+			require.NotNil(t, persisted.ProviderMessageID)
+			assert.Equal(t, "provider-abc-123", *persisted.ProviderMessageID)
 			require.Len(t, repo.dispatchAttempts, 1, "the attempt correlation must commit before transport submission")
+			require.NotNil(t, repo.dispatchAttempts[0].ProviderMessageID)
+			assert.Equal(t, "provider-abc-123", *repo.dispatchAttempts[0].ProviderMessageID)
 		},
 	}
 
@@ -714,21 +709,21 @@ func TestOutboxWorker_StampsMessageIDAndPersistsIt(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestOutboxWorker_ProviderIDPersistenceFailureKeepsSent(t *testing.T) {
+func TestOutboxWorker_ProviderIDPersistenceFailureDoesNotSubmit(t *testing.T) {
 	tests := []struct {
 		name      string
 		configure func(*stubOutboxRepo)
 	}{
 		{
-			name: "dispatch attempt provider id",
+			name: "dispatch attempt",
 			configure: func(repo *stubOutboxRepo) {
-				repo.attemptProviderIDErr = errors.New("attempt provider id unavailable")
+				repo.dispatchAttemptErr = errors.New("attempt unavailable")
 			},
 		},
 		{
-			name: "current outbox provider id",
+			name: "current outbox identifiers",
 			configure: func(repo *stubOutboxRepo) {
-				repo.currentOutboxProviderIDErr = errors.New("outbox provider id unavailable")
+				repo.dispatchIDErr = errors.New("outbox identifiers unavailable")
 			},
 		},
 	}
@@ -739,9 +734,8 @@ func TestOutboxWorker_ProviderIDPersistenceFailureKeepsSent(t *testing.T) {
 			defer cleanup()
 
 			expectAdminTx(mock)         // claim
-			expectAdminTx(mock)         // persist Message-ID
-			expectAdminTx(mock)         // submit + mark sent
-			expectAdminTxRollback(mock) // optional provider-id enrichment
+			expectAdminTxRollback(mock) // correlation persistence
+			expectAdminTx(mock)         // retry without submitting
 
 			registry := NewTemplateRegistry()
 			registry.Register("welcome", RendererFunc(func(_ context.Context, _ *platformModels.EmailOutbox) (*email.Message, error) {
@@ -760,9 +754,9 @@ func TestOutboxWorker_ProviderIDPersistenceFailureKeepsSent(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.Equal(t, 1, processed)
-			require.Len(t, mailer.captured, 1, "a submitted message must not be resent")
-			assert.Equal(t, []int64{row.ID}, repo.sent)
-			assert.Empty(t, repo.retried)
+			assert.Empty(t, mailer.captured, "the transport must not run before provider ID persistence commits")
+			assert.Empty(t, repo.sent)
+			require.Len(t, repo.retried, 1)
 			assert.Empty(t, repo.failed)
 			require.NoError(t, mock.ExpectationsWereMet())
 		})

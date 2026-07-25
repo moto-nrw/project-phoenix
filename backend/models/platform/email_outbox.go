@@ -212,19 +212,14 @@ type EmailOutboxRepository interface {
 	// submits the message to the transport.
 	CreateDispatchAttempt(ctx context.Context, attempt *EmailDispatchAttempt) error
 
-	// SetDispatchAttemptProviderMessageID adds the transport's identifier to
-	// the already-committed attempt after a successful submission.
-	SetDispatchAttemptProviderMessageID(ctx context.Context, attemptID int64, providerMessageID string) error
-
 	// Dispatch-attempt lookups preserve correlation across retries. All are
 	// admin-scoped because the webhook has no tenant before correlation.
 	FindDispatchAttemptByMessageID(ctx context.Context, messageID string) (*EmailDispatchAttempt, error)
 	FindDispatchAttemptByProviderMessageID(ctx context.Context, providerMessageID string) (*EmailDispatchAttempt, error)
 	FindDispatchAttemptByCorrelationToken(ctx context.Context, correlationToken string) (*EmailDispatchAttempt, error)
 
-	// SetDispatchIdentifiers stores the Message-ID before transport submission
-	// so immediate webhooks can correlate it. The worker calls it again inside
-	// the send transaction when the mailer reports a provider identifier.
+	// SetDispatchIdentifiers stores every available identifier before transport
+	// submission so immediate webhooks can correlate it.
 	SetDispatchIdentifiers(ctx context.Context, id int64, messageID string, providerMessageID *string) error
 
 	// ApplyDeliveryStatus performs the monotone, out-of-order-safe status
@@ -242,10 +237,11 @@ type EmailOutboxRepository interface {
 // the precedence lattice in services/platform; the model deliberately holds no
 // policy of its own.
 type DeliveryTransition struct {
-	Status     string
-	Rank       int
-	OccurredAt time.Time
-	Detail     string
+	Status            string
+	Rank              int
+	OccurredAt        time.Time
+	Detail            string
+	ExpectedMessageID string
 }
 
 type EmailOutboxCleanupRepository interface {

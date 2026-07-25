@@ -260,24 +260,6 @@ func (r *EmailOutboxRepository) CreateDispatchAttempt(ctx context.Context, attem
 	return nil
 }
 
-func (r *EmailOutboxRepository) SetDispatchAttemptProviderMessageID(ctx context.Context, attemptID int64, providerMessageID string) error {
-	res, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*platform.EmailDispatchAttempt)(nil)).
-		ModelTableExpr(dispatchAttemptTableAlias).
-		Set("provider_message_id = ?", strings.TrimSpace(providerMessageID)).
-		Set("updated_at = NOW()").
-		Where(`"email_dispatch_attempt".id = ?`, attemptID).
-		Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to set dispatch attempt provider message id: %w", err)
-	}
-	rows, _ := res.RowsAffected()
-	if rows == 0 {
-		return fmt.Errorf("email dispatch attempt %d not found", attemptID)
-	}
-	return nil
-}
-
 func (r *EmailOutboxRepository) FindDispatchAttemptByMessageID(ctx context.Context, messageID string) (*platform.EmailDispatchAttempt, error) {
 	return r.findDispatchAttempt(ctx, "message_id", strings.Trim(strings.TrimSpace(messageID), "<>"))
 }
@@ -358,9 +340,9 @@ func (r *EmailOutboxRepository) SetDispatchIdentifiers(ctx context.Context, id i
 }
 
 // ApplyDeliveryStatus advances the row's delivery status only when the
-// incoming event outranks what is stored. The guard in the WHERE clause is the
-// concurrency control: duplicate and out-of-order provider deliveries are
-// absorbed here, not by any ordering guarantee from the provider.
+// incoming event belongs to the current Message-ID and outranks what is
+// stored. Both guards live in the UPDATE so a retry cannot rotate identifiers
+// between an earlier service-level check and this write.
 //
 //	apply ⟺ newRank > storedRank ∨ (newRank == storedRank ∧ newOccurredAt > storedAt)
 func (r *EmailOutboxRepository) ApplyDeliveryStatus(ctx context.Context, id int64, t platform.DeliveryTransition) (bool, error) {
@@ -374,6 +356,7 @@ func (r *EmailOutboxRepository) ApplyDeliveryStatus(ctx context.Context, id int6
 		Set("delivery_detail = ?", detail).
 		Set("updated_at = NOW()").
 		Where(`"email_outbox".id = ?`, id).
+		Where(`"email_outbox".message_id = ?`, strings.Trim(strings.TrimSpace(t.ExpectedMessageID), "<>")).
 		Where(`(? > "email_outbox".delivery_status_rank
 			OR (? = "email_outbox".delivery_status_rank
 				AND ("email_outbox".delivery_status_at IS NULL

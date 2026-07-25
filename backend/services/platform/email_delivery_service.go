@@ -178,10 +178,11 @@ func (s *EmailDeliveryService) IngestEvent(ctx context.Context, ev DeliveryEvent
 		}
 
 		advanced, err := s.OutboxRepo.ApplyDeliveryStatus(adminCtx, row.ID, platformModels.DeliveryTransition{
-			Status:     status,
-			Rank:       DeliveryRank(status),
-			OccurredAt: ev.OccurredAt,
-			Detail:     deliveryDetail(ev),
+			Status:            status,
+			Rank:              DeliveryRank(status),
+			OccurredAt:        ev.OccurredAt,
+			Detail:            deliveryDetail(ev),
+			ExpectedMessageID: resolved.Attempt.MessageID,
 		})
 		if err != nil {
 			return err

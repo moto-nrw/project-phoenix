@@ -21,13 +21,16 @@ type Mailer interface {
 	Send(Message) error
 }
 
-// MessageIDReporter is the optional extension a mailer implements when its
-// transport hands back a provider-side identifier. API-based providers do;
-// plain SMTP does not, which is why this is separate from Mailer: adding a
-// return value to Send would break every implementation and the shared test
-// doubles for no gain.
+// MessageIDReporter is the optional extension for API transports whose
+// delivery callbacks identify a message only by a provider-side ID.
+//
+// PrepareProviderMessageID must reserve a stable ID without submitting the
+// message. The outbox worker commits that ID before calling SendWithID, so an
+// immediate callback can always correlate. SendWithID must submit with exactly
+// the prepared ID.
 type MessageIDReporter interface {
-	SendWithID(Message) (providerMessageID string, err error)
+	PrepareProviderMessageID(Message) (providerMessageID string, err error)
+	SendWithID(message Message, providerMessageID string) error
 }
 
 // Message struct holds all parts of a specific email Message.

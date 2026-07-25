@@ -128,7 +128,10 @@ func TestApplyDeliveryStatus_IsMonotone(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			row := seedOutboxRow(t, db, scope.TenantID, messageIDFor(scope.TenantID, i))
+			messageID := messageIDFor(scope.TenantID, i)
+			row := seedOutboxRow(t, db, scope.TenantID, messageID)
+			tt.first.ExpectedMessageID = messageID
+			tt.second.ExpectedMessageID = messageID
 
 			applied, err := repo.ApplyDeliveryStatus(ctx, row.ID, tt.first)
 			require.NoError(t, err)
@@ -143,6 +146,32 @@ func TestApplyDeliveryStatus_IsMonotone(t *testing.T) {
 			assert.Equal(t, tt.wantStatus, stored.DeliveryStatus)
 		})
 	}
+}
+
+func TestApplyDeliveryStatus_RejectsPreviousDispatchAttempt(t *testing.T) {
+	db := SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	scope := NewTenantScope(t, db)
+	defer CleanupTenantTestData(t, db, scope.TenantID)
+
+	repo := platformRepo.NewEmailOutboxRepository(db)
+	ctx := context.Background()
+	previousMessageID := fmt.Sprintf("ob.%d.%s@test.local", scope.TenantID, uuid.Must(uuid.NewV4()))
+	currentMessageID := fmt.Sprintf("ob.%d.%s@test.local", scope.TenantID, uuid.Must(uuid.NewV4()))
+	row := seedOutboxRow(t, db, scope.TenantID, previousMessageID)
+	require.NoError(t, repo.SetDispatchIdentifiers(ctx, row.ID, currentMessageID, nil))
+
+	candidate := transition(platformModels.EmailDeliveryStatusBounced, time.Now())
+	candidate.ExpectedMessageID = previousMessageID
+	applied, err := repo.ApplyDeliveryStatus(ctx, row.ID, candidate)
+
+	require.NoError(t, err)
+	assert.False(t, applied)
+	stored, err := repo.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	assert.Equal(t, currentMessageID, *stored.MessageID)
+	assert.Equal(t, platformModels.EmailDeliveryStatusUnknown, stored.DeliveryStatus)
 }
 
 func transition(status string, at time.Time) platformModels.DeliveryTransition {

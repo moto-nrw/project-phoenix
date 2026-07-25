@@ -112,9 +112,9 @@ func (w *OutboxWorker) SetMaxAttempts(n int) {
 //     bypasses RLS on email_outbox).
 //  2. For each claimed row, switch into the row's tenant context and
 //     call the registered Renderer.
-//  3. Persist the generated Message-ID in a short phoenix_admin transaction.
-//     This commit must happen before transport submission so an immediate
-//     delivery webhook can correlate the message.
+//  3. Reserve any API-provider ID, then persist it with the generated
+//     Message-ID in a short phoenix_admin transaction. This commit must happen
+//     before transport submission so an immediate webhook can correlate.
 //  4. Re-lock the row (LockSending) and Mailer.Send the rendered message
 //     inside a second phoenix_admin transaction, so a concurrent cancellation
 //     cannot slip between the final probe and send.
@@ -193,11 +193,17 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 	correlationToken := uuid.Must(uuid.NewV4()).String()
 	messageID := fmt.Sprintf("ob.%d.%d.%s@%s", row.GetTenantID(), row.ID, correlationToken, w.messageIDDomain)
 	msg.MessageID = messageID
+	preparedSend, prepareErr := w.prepareSend(*msg)
+	if prepareErr != nil {
+		w.recordFailure(ctx, row, fmt.Sprintf("prepare send: %v", prepareErr))
+		return
+	}
 	dispatchAttempt := &platformModels.EmailDispatchAttempt{
-		OutboxID:         row.ID,
-		AttemptNumber:    row.Attempts + 1,
-		CorrelationToken: correlationToken,
-		MessageID:        messageID,
+		OutboxID:          row.ID,
+		AttemptNumber:     row.Attempts + 1,
+		CorrelationToken:  correlationToken,
+		MessageID:         messageID,
+		ProviderMessageID: preparedSend.providerMessageID,
 	}
 	dispatchAttempt.SetTenantID(row.GetTenantID())
 
@@ -214,9 +220,9 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 		if createErr := w.repo.CreateDispatchAttempt(adminCtx, dispatchAttempt); createErr != nil {
 			return createErr
 		}
-		return w.repo.SetDispatchIdentifiers(adminCtx, row.ID, messageID, nil)
+		return w.repo.SetDispatchIdentifiers(adminCtx, row.ID, messageID, preparedSend.providerMessageID)
 	}); err != nil {
-		w.recordFailure(ctx, row, fmt.Sprintf("persist message id: %v", err))
+		w.recordFailure(ctx, row, fmt.Sprintf("persist dispatch identifiers: %v", err))
 		return
 	}
 	if cancelled {
@@ -230,10 +236,9 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 	// until this transaction commits. The Message-ID remains visible because
 	// its transaction above already committed.
 	var (
-		providerMessageID *string
-		sendFailure       string
-		submitted         bool
-		sentAt            time.Time
+		sendFailure string
+		submitted   bool
+		sentAt      time.Time
 	)
 	if err := tenant.WithAdminTx(ctx, w.db, func(adminCtx context.Context, _ bun.Tx) error {
 		stillClaimed, lockErr := w.repo.LockSending(adminCtx, row.ID)
@@ -244,9 +249,7 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 			cancelled = true
 			return nil
 		}
-		var sendErr error
-		providerMessageID, sendErr = w.send(*msg)
-		if sendErr != nil {
+		if sendErr := preparedSend.send(); sendErr != nil {
 			sendFailure = fmt.Sprintf("send: %v", sendErr)
 			return nil
 		}
@@ -273,9 +276,6 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 		w.recordFailure(ctx, row, sendFailure)
 		return
 	}
-	if providerMessageID != nil {
-		w.persistProviderIdentifiers(ctx, row, dispatchAttempt.ID, messageID, *providerMessageID)
-	}
 	w.logger.Info("outbox: email sent",
 		slog.Int64("outbox_id", row.ID),
 		slog.Int64("tenant_id", row.GetTenantID()),
@@ -289,24 +289,31 @@ func (w *OutboxWorker) logCancelled(row *platformModels.EmailOutbox) {
 		slog.String("kind", row.Kind))
 }
 
-// send dispatches the message, preferring the MessageIDReporter extension so
-// providers that return their own identifier get it stored alongside ours.
-// Plain SMTP mailers fall through to Send and report no provider id.
-func (w *OutboxWorker) send(msg email.Message) (*string, error) {
+type preparedOutboxSend struct {
+	providerMessageID *string
+	send              func() error
+}
+
+// prepareSend reserves an API provider's correlation ID before submission.
+// Plain SMTP has no provider ID and only needs the stamped RFC Message-ID.
+func (w *OutboxWorker) prepareSend(msg email.Message) (*preparedOutboxSend, error) {
 	if reporter, ok := w.mailer.(email.MessageIDReporter); ok {
-		providerID, err := reporter.SendWithID(msg)
+		providerID, err := reporter.PrepareProviderMessageID(msg)
 		if err != nil {
 			return nil, err
 		}
-		if providerID != "" {
-			return &providerID, nil
+		providerID = strings.TrimSpace(providerID)
+		if providerID == "" {
+			return nil, fmt.Errorf("provider message id is empty")
 		}
-		return nil, nil
+		return &preparedOutboxSend{
+			providerMessageID: &providerID,
+			send: func() error {
+				return reporter.SendWithID(msg, providerID)
+			},
+		}, nil
 	}
-	if err := w.mailer.Send(msg); err != nil {
-		return nil, err
-	}
-	return nil, nil
+	return &preparedOutboxSend{send: func() error { return w.mailer.Send(msg) }}, nil
 }
 
 // recoverSubmitted completes the terminal state without calling the transport
@@ -327,30 +334,6 @@ func (w *OutboxWorker) recoverSubmitted(ctx context.Context, row *platformModels
 		slog.String("kind", row.Kind),
 		slog.String("transaction_error", cause.Error()))
 	return true
-}
-
-// persistProviderIdentifiers enriches correlation after the terminal sent
-// state commits. The Message-ID was committed before submission, so failure
-// here must never roll the row back to sending or trigger another send.
-func (w *OutboxWorker) persistProviderIdentifiers(
-	ctx context.Context,
-	row *platformModels.EmailOutbox,
-	dispatchAttemptID int64,
-	messageID string,
-	providerMessageID string,
-) {
-	err := tenant.WithAdminTx(ctx, w.db, func(adminCtx context.Context, _ bun.Tx) error {
-		if err := w.repo.SetDispatchAttemptProviderMessageID(adminCtx, dispatchAttemptID, providerMessageID); err != nil {
-			return err
-		}
-		return w.repo.SetDispatchIdentifiers(adminCtx, row.ID, messageID, &providerMessageID)
-	})
-	if err != nil {
-		w.logger.Error("outbox: provider message id persistence failed after submission",
-			slog.Int64("outbox_id", row.ID),
-			slog.String("kind", row.Kind),
-			slog.String("error", err.Error()))
-	}
 }
 
 // recordFailure increments attempts and decides retry vs terminal.
