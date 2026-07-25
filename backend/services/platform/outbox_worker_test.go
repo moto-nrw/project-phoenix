@@ -30,13 +30,16 @@ type stubOutboxRepo struct {
 	failed       []failEntry
 	claimErr     error
 	markSentErr  error
+	markSentErrs []error
 	cancelledIDs map[int64]bool // LockSending returns false for these
 	locked       []int64
 
 	// Delivery-tracking capture (#1937).
-	dispatchIDs      map[int64]dispatchIdentifiers
-	dispatchAttempts []*platformModels.EmailDispatchAttempt
-	dispatchIDErr    error
+	dispatchIDs                map[int64]dispatchIdentifiers
+	dispatchAttempts           []*platformModels.EmailDispatchAttempt
+	dispatchIDErr              error
+	attemptProviderIDErr       error
+	currentOutboxProviderIDErr error
 }
 
 type dispatchIdentifiers struct {
@@ -91,6 +94,13 @@ func (s *stubOutboxRepo) LockSending(_ context.Context, id int64) (bool, error) 
 func (s *stubOutboxRepo) MarkSent(_ context.Context, id int64, _ time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if len(s.markSentErrs) > 0 {
+		err := s.markSentErrs[0]
+		s.markSentErrs = s.markSentErrs[1:]
+		if err != nil {
+			return err
+		}
+	}
 	if s.markSentErr != nil {
 		return s.markSentErr
 	}
@@ -139,6 +149,9 @@ func (s *stubOutboxRepo) CreateDispatchAttempt(_ context.Context, attempt *platf
 func (s *stubOutboxRepo) SetDispatchAttemptProviderMessageID(_ context.Context, attemptID int64, providerMessageID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.attemptProviderIDErr != nil {
+		return s.attemptProviderIDErr
+	}
 	for _, attempt := range s.dispatchAttempts {
 		if attempt.ID == attemptID {
 			attempt.ProviderMessageID = &providerMessageID
@@ -163,6 +176,9 @@ func (s *stubOutboxRepo) FindDispatchAttemptByCorrelationToken(_ context.Context
 func (s *stubOutboxRepo) SetDispatchIdentifiers(_ context.Context, id int64, messageID string, providerMessageID *string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if providerMessageID != nil && s.currentOutboxProviderIDErr != nil {
+		return s.currentOutboxProviderIDErr
+	}
 	if s.dispatchIDErr != nil {
 		return s.dispatchIDErr
 	}
@@ -263,6 +279,13 @@ func expectAdminTx(mock sqlmock.Sqlmock) {
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
+}
+
+func expectAdminTxRollback(mock sqlmock.Sqlmock) {
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
 }
 
 func makeRow(id, tenantID int64, kind string, attempts int) *platformModels.EmailOutbox {
@@ -637,7 +660,8 @@ func TestOutboxWorker_StampsMessageIDAndPersistsIt(t *testing.T) {
 
 	expectAdminTx(mock) // Phase 1: ClaimDuePending
 	expectAdminTx(mock) // Phase 2: persist Message-ID
-	expectAdminTx(mock) // Phase 3: send tx
+	expectAdminTx(mock) // Phase 3: send + terminal status
+	expectAdminTx(mock) // Phase 4: persist provider identifiers
 
 	registry := NewTemplateRegistry()
 	registry.Register("welcome", RendererFunc(func(_ context.Context, _ *platformModels.EmailOutbox) (*email.Message, error) {
@@ -683,6 +707,96 @@ func TestOutboxWorker_StampsMessageIDAndPersistsIt(t *testing.T) {
 	require.NotNil(t, repo.dispatchAttempts[0].ProviderMessageID)
 	assert.Equal(t, "provider-abc-123", *repo.dispatchAttempts[0].ProviderMessageID)
 	assert.Contains(t, repo.sent, row.ID)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestOutboxWorker_ProviderIDPersistenceFailureKeepsSent(t *testing.T) {
+	tests := []struct {
+		name      string
+		configure func(*stubOutboxRepo)
+	}{
+		{
+			name: "dispatch attempt provider id",
+			configure: func(repo *stubOutboxRepo) {
+				repo.attemptProviderIDErr = errors.New("attempt provider id unavailable")
+			},
+		},
+		{
+			name: "current outbox provider id",
+			configure: func(repo *stubOutboxRepo) {
+				repo.currentOutboxProviderIDErr = errors.New("outbox provider id unavailable")
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			db, mock, cleanup := newAdminTxDB(t)
+			defer cleanup()
+
+			expectAdminTx(mock)         // claim
+			expectAdminTx(mock)         // persist Message-ID
+			expectAdminTx(mock)         // submit + mark sent
+			expectAdminTxRollback(mock) // optional provider-id enrichment
+
+			registry := NewTemplateRegistry()
+			registry.Register("welcome", RendererFunc(func(_ context.Context, _ *platformModels.EmailOutbox) (*email.Message, error) {
+				return &email.Message{Subject: "Welcome"}, nil
+			}))
+
+			row := makeRow(5432, 7, "welcome", 0)
+			repo := &stubOutboxRepo{due: []*platformModels.EmailOutbox{row}}
+			tc.configure(repo)
+			mailer := &idReportingMailer{providerID: "provider-abc-123"}
+			worker := NewOutboxWorker(OutboxWorkerConfig{
+				Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3, MessageIDDomain: testWorkerMessageIDDomain,
+			})
+
+			processed, err := worker.RunOnce(context.Background(), 1)
+
+			require.NoError(t, err)
+			assert.Equal(t, 1, processed)
+			require.Len(t, mailer.captured, 1, "a submitted message must not be resent")
+			assert.Equal(t, []int64{row.ID}, repo.sent)
+			assert.Empty(t, repo.retried)
+			assert.Empty(t, repo.failed)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestOutboxWorker_MarkSentFailureRecoversWithoutResending(t *testing.T) {
+	db, mock, cleanup := newAdminTxDB(t)
+	defer cleanup()
+
+	expectAdminTx(mock)         // claim
+	expectAdminTx(mock)         // persist Message-ID
+	expectAdminTxRollback(mock) // submission succeeds, first MarkSent fails
+	expectAdminTx(mock)         // recover terminal state without another send
+
+	registry := NewTemplateRegistry()
+	registry.Register("welcome", RendererFunc(func(_ context.Context, _ *platformModels.EmailOutbox) (*email.Message, error) {
+		return &email.Message{Subject: "Welcome"}, nil
+	}))
+
+	row := makeRow(6543, 7, "welcome", 0)
+	repo := &stubOutboxRepo{
+		due:          []*platformModels.EmailOutbox{row},
+		markSentErrs: []error{errors.New("temporary status write failure")},
+	}
+	mailer := &stubMailer{}
+	worker := NewOutboxWorker(OutboxWorkerConfig{
+		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3, MessageIDDomain: testWorkerMessageIDDomain,
+	})
+
+	processed, err := worker.RunOnce(context.Background(), 1)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, processed)
+	require.Len(t, mailer.sent, 1, "status recovery must not call the transport again")
+	assert.Equal(t, []int64{row.ID}, repo.sent)
+	assert.Empty(t, repo.retried)
+	assert.Empty(t, repo.failed)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

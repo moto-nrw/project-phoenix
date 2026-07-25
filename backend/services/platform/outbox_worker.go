@@ -229,7 +229,12 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 	// the delete either commits before this probe (send is skipped) or blocks
 	// until this transaction commits. The Message-ID remains visible because
 	// its transaction above already committed.
-	var sendFailure string
+	var (
+		providerMessageID *string
+		sendFailure       string
+		submitted         bool
+		sentAt            time.Time
+	)
 	if err := tenant.WithAdminTx(ctx, w.db, func(adminCtx context.Context, _ bun.Tx) error {
 		stillClaimed, lockErr := w.repo.LockSending(adminCtx, row.ID)
 		if lockErr != nil {
@@ -239,26 +244,26 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 			cancelled = true
 			return nil
 		}
-		providerMessageID, sendErr := w.send(*msg)
+		var sendErr error
+		providerMessageID, sendErr = w.send(*msg)
 		if sendErr != nil {
 			sendFailure = fmt.Sprintf("send: %v", sendErr)
 			return nil
 		}
-		if providerMessageID != nil {
-			if idErr := w.repo.SetDispatchAttemptProviderMessageID(adminCtx, dispatchAttempt.ID, *providerMessageID); idErr != nil {
-				return idErr
-			}
-			if idErr := w.repo.SetDispatchIdentifiers(adminCtx, row.ID, messageID, providerMessageID); idErr != nil {
-				return idErr
-			}
-		}
-		return w.repo.MarkSent(adminCtx, row.ID, time.Now())
+		submitted = true
+		sentAt = time.Now()
+		return w.repo.MarkSent(adminCtx, row.ID, sentAt)
 	}); err != nil {
-		w.logger.Error("outbox: send transaction failed",
-			slog.Int64("outbox_id", row.ID),
-			slog.String("kind", row.Kind),
-			slog.String("error", err.Error()))
-		return
+		if !submitted {
+			w.logger.Error("outbox: send transaction failed",
+				slog.Int64("outbox_id", row.ID),
+				slog.String("kind", row.Kind),
+				slog.String("error", err.Error()))
+			return
+		}
+		if !w.recoverSubmitted(ctx, row, sentAt, err) {
+			return
+		}
 	}
 	if cancelled {
 		w.logCancelled(row)
@@ -267,6 +272,9 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 	if sendFailure != "" {
 		w.recordFailure(ctx, row, sendFailure)
 		return
+	}
+	if providerMessageID != nil {
+		w.persistProviderIdentifiers(ctx, row, dispatchAttempt.ID, messageID, *providerMessageID)
 	}
 	w.logger.Info("outbox: email sent",
 		slog.Int64("outbox_id", row.ID),
@@ -299,6 +307,50 @@ func (w *OutboxWorker) send(msg email.Message) (*string, error) {
 		return nil, err
 	}
 	return nil, nil
+}
+
+// recoverSubmitted completes the terminal state without calling the transport
+// again. Once Send has succeeded, retrying the mail would risk a duplicate.
+func (w *OutboxWorker) recoverSubmitted(ctx context.Context, row *platformModels.EmailOutbox, sentAt time.Time, cause error) bool {
+	if err := tenant.WithAdminTx(ctx, w.db, func(adminCtx context.Context, _ bun.Tx) error {
+		return w.repo.MarkSent(adminCtx, row.ID, sentAt)
+	}); err != nil {
+		w.logger.Error("outbox: recover submitted email failed",
+			slog.Int64("outbox_id", row.ID),
+			slog.String("kind", row.Kind),
+			slog.String("transaction_error", cause.Error()),
+			slog.String("recovery_error", err.Error()))
+		return false
+	}
+	w.logger.Warn("outbox: recovered submitted email status",
+		slog.Int64("outbox_id", row.ID),
+		slog.String("kind", row.Kind),
+		slog.String("transaction_error", cause.Error()))
+	return true
+}
+
+// persistProviderIdentifiers enriches correlation after the terminal sent
+// state commits. The Message-ID was committed before submission, so failure
+// here must never roll the row back to sending or trigger another send.
+func (w *OutboxWorker) persistProviderIdentifiers(
+	ctx context.Context,
+	row *platformModels.EmailOutbox,
+	dispatchAttemptID int64,
+	messageID string,
+	providerMessageID string,
+) {
+	err := tenant.WithAdminTx(ctx, w.db, func(adminCtx context.Context, _ bun.Tx) error {
+		if err := w.repo.SetDispatchAttemptProviderMessageID(adminCtx, dispatchAttemptID, providerMessageID); err != nil {
+			return err
+		}
+		return w.repo.SetDispatchIdentifiers(adminCtx, row.ID, messageID, &providerMessageID)
+	})
+	if err != nil {
+		w.logger.Error("outbox: provider message id persistence failed after submission",
+			slog.Int64("outbox_id", row.ID),
+			slog.String("kind", row.Kind),
+			slog.String("error", err.Error()))
+	}
 }
 
 // recordFailure increments attempts and decides retry vs terminal.
