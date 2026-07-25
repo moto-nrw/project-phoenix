@@ -58,6 +58,14 @@ func init() {
 // table's RLS, so revoking here does not break the cascade paths
 // (audit.work_session_edits via active.work_sessions,
 // audit.deviation_events.instance_id, audit.data_access_log.student_id, …).
+//
+// Two audit tables are deliberately absent from every statement below, and
+// their absence is not a gap: audit.enrollment_deletions (revoked in 1.15.200,
+// the same migration that creates it) and audit.enrollment_offering_adjustments
+// (revoked in 1.15.201) already hold SELECT, INSERT only. Re-revoking would be
+// a no-op that implies the earlier migrations left something undone. The guard
+// test does not take that on trust — it enumerates every table in the audit
+// schema from pg_class, so both are asserted append-only there like all others.
 func auditAppendOnlyGrantsUp(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.15.225: Making the audit schema append-only for phoenix_tenant...")
 
