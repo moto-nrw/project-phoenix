@@ -44,16 +44,17 @@ type genericPayload struct {
 }
 
 type genericEvent struct {
-	EventID           string         `json:"event_id"`
-	Type              string         `json:"type"`
-	OccurredAt        time.Time      `json:"occurred_at"`
-	MessageID         string         `json:"message_id"`
-	ProviderMessageID string         `json:"provider_message_id"`
-	Recipient         string         `json:"recipient"`
-	BounceClass       string         `json:"bounce_class"`
-	ReasonCode        string         `json:"reason_code"`
-	Reason            string         `json:"reason"`
-	Raw               map[string]any `json:"raw"`
+	EventID           string            `json:"event_id"`
+	Type              string            `json:"type"`
+	OccurredAt        time.Time         `json:"occurred_at"`
+	MessageID         string            `json:"message_id"`
+	ProviderMessageID string            `json:"provider_message_id"`
+	Headers           map[string]string `json:"headers"`
+	Recipient         string            `json:"recipient"`
+	BounceClass       string            `json:"bounce_class"`
+	ReasonCode        string            `json:"reason_code"`
+	Reason            string            `json:"reason"`
+	Raw               map[string]any    `json:"raw"`
 }
 
 type genericAdapter struct{}
@@ -77,8 +78,9 @@ func (a genericAdapter) Parse(body []byte) ([]platformSvc.DeliveryEvent, error) 
 		if ev.EventID == "" || ev.OccurredAt.IsZero() {
 			return nil, errors.New("event_id and occurred_at are required")
 		}
-		if ev.MessageID == "" && ev.ProviderMessageID == "" {
-			return nil, errors.New("event needs message_id or provider_message_id")
+		fallbackMessageID := headerValue(ev.Headers, "X-Phoenix-Outbox-Id")
+		if ev.MessageID == "" && ev.ProviderMessageID == "" && fallbackMessageID == "" {
+			return nil, errors.New("event needs message_id, provider_message_id, or X-Phoenix-Outbox-Id header")
 		}
 		if !knownEventType(ev.Type) {
 			// Skipped rather than rejected: an unknown event type from a
@@ -97,6 +99,7 @@ func (a genericAdapter) Parse(body []byte) ([]platformSvc.DeliveryEvent, error) 
 			OccurredAt:        ev.OccurredAt,
 			MessageID:         ev.MessageID,
 			ProviderMessageID: ev.ProviderMessageID,
+			FallbackMessageID: fallbackMessageID,
 			Recipient:         ev.Recipient,
 			BounceClass:       bounceClass,
 			ReasonCode:        ev.ReasonCode,
@@ -105,6 +108,15 @@ func (a genericAdapter) Parse(body []byte) ([]platformSvc.DeliveryEvent, error) 
 		})
 	}
 	return out, nil
+}
+
+func headerValue(headers map[string]string, name string) string {
+	for key, value := range headers {
+		if strings.EqualFold(strings.TrimSpace(key), name) {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func normalizeBounceClass(class string) (string, error) {

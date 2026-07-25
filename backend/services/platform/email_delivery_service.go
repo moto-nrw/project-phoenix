@@ -26,6 +26,7 @@ type DeliveryEvent struct {
 	OccurredAt        time.Time
 	MessageID         string
 	ProviderMessageID string
+	FallbackMessageID string
 	Recipient         string
 	BounceClass       string
 	ReasonCode        string
@@ -235,7 +236,10 @@ func (s *EmailDeliveryService) resolveOutbox(ctx context.Context, ev DeliveryEve
 			return s.loadResolvedDispatch(ctx, attempt)
 		}
 	}
-	return s.resolveByLocalPart(ctx, ev)
+	if resolved, err := s.resolveByLocalPart(ctx, ev.MessageID); err != nil || resolved != nil {
+		return resolved, err
+	}
+	return s.resolveByLocalPart(ctx, ev.FallbackMessageID)
 }
 
 func (s *EmailDeliveryService) loadResolvedDispatch(ctx context.Context, attempt *platformModels.EmailDispatchAttempt) (*resolvedDispatch, error) {
@@ -254,8 +258,8 @@ func (s *EmailDeliveryService) loadResolvedDispatch(ctx context.Context, attempt
 // lookup hint: the row is fetched by id and then re-checked against the parsed
 // tenant AND against having actually been dispatched. Without those checks,
 // anyone who can reach the webhook could aim an event at an arbitrary row.
-func (s *EmailDeliveryService) resolveByLocalPart(ctx context.Context, ev DeliveryEvent) (*resolvedDispatch, error) {
-	tenantID, outboxID, correlationToken, ok := parseOutboxRef(normalizeMessageID(ev.MessageID))
+func (s *EmailDeliveryService) resolveByLocalPart(ctx context.Context, messageID string) (*resolvedDispatch, error) {
+	tenantID, outboxID, correlationToken, ok := parseOutboxRef(normalizeMessageID(messageID))
 	if !ok {
 		return nil, nil
 	}

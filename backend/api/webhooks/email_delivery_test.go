@@ -241,6 +241,33 @@ func TestAdapterNormalizesKnownBounceClass(t *testing.T) {
 	assert.Equal(t, "soft", events[0].BounceClass)
 }
 
+func TestAdapterExtractsPhoenixOutboxHeader(t *testing.T) {
+	events, err := genericAdapter{}.Parse([]byte(`{"events":[{
+		"event_id":"evt_rewritten",
+		"type":"delivered",
+		"occurred_at":"2026-07-25T10:31:02Z",
+		"message_id":"rewritten@relay.example",
+		"headers":{"x-phoenix-outbox-id":" <ob.1.2.abc@mail.example.de> "}
+	}]}`))
+
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	assert.Equal(t, "<ob.1.2.abc@mail.example.de>", events[0].FallbackMessageID)
+}
+
+func TestAdapterAcceptsPhoenixOutboxHeaderAsOnlyCorrelation(t *testing.T) {
+	events, err := genericAdapter{}.Parse([]byte(`{"events":[{
+		"event_id":"evt_header_only",
+		"type":"delivered",
+		"occurred_at":"2026-07-25T10:31:02Z",
+		"headers":{"X-Phoenix-Outbox-Id":"ob.1.2.abc@mail.example.de"}
+	}]}`))
+
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	assert.Equal(t, "ob.1.2.abc@mail.example.de", events[0].FallbackMessageID)
+}
+
 func TestAdapterRejectsOversizedBatch(t *testing.T) {
 	var sb strings.Builder
 	sb.WriteString(`{"events":[`)

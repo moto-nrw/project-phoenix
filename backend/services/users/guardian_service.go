@@ -1052,6 +1052,12 @@ func (s *GuardianService) GetPendingInvitations(ctx context.Context) ([]*authMod
 	return s.GuardianInvitationRepo.FindPending(ctx)
 }
 
+// GetPendingInvitationsForGuardianProfiles limits the pending invitation list
+// to the guardian rows already visible in a student view.
+func (s *GuardianService) GetPendingInvitationsForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64) ([]*authModels.GuardianInvitation, error) {
+	return s.GuardianInvitationRepo.FindPendingByGuardianProfileIDs(ctx, guardianProfileIDs)
+}
+
 // CleanupExpiredInvitations deletes expired invitations
 func (s *GuardianService) CleanupExpiredInvitations(ctx context.Context) (int, error) {
 	return s.GuardianInvitationRepo.DeleteExpired(ctx)

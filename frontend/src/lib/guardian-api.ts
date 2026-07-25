@@ -1155,19 +1155,30 @@ export async function rejectGuardianInvitation(
 interface BackendPendingInvitation {
   id: number;
   guardian_profile_id: number;
+  delivery: BackendInvitationDelivery;
+}
+
+export interface OpenInvitationDelivery {
+  readonly invitationId: string;
+  readonly delivery: InvitationDelivery;
 }
 
 /**
- * Map guardian profile ID → open invitation ID.
+ * Map guardian profile ID → open invitation and its current delivery summary.
  *
- * The delivery-status endpoint is keyed on the invitation, but the guardian
- * list only knows the profile. One list call resolves the mapping for every
- * guardian on screen instead of one lookup per row.
+ * The backend scopes the query to the profiles on screen and resolves every
+ * latest outbox attempt in one batch, so periodic badge refreshes remain one
+ * request regardless of the number of open invitations.
  */
-export async function fetchOpenInvitationsByGuardian(): Promise<
-  Map<string, string>
-> {
-  const response = await fetch("/api/guardians/invitations/pending");
+export async function fetchOpenInvitationDeliveriesByGuardian(
+  guardianProfileIds: readonly string[],
+): Promise<Map<string, OpenInvitationDelivery>> {
+  const query = new URLSearchParams({
+    guardian_profile_ids: guardianProfileIds.join(","),
+  });
+  const response = await fetch(
+    `/api/guardians/invitations/pending?${query.toString()}`,
+  );
   if (!response.ok) {
     throw new Error(
       `Failed to load pending invitations: ${response.statusText}`,
@@ -1179,12 +1190,15 @@ export async function fetchOpenInvitationsByGuardian(): Promise<
   if (result.status === "error" || !result.data) {
     throw new Error(result.error ?? "Failed to load pending invitations");
   }
-  const map = new Map<string, string>();
+  const map = new Map<string, OpenInvitationDelivery>();
   for (const invitation of result.data) {
     // The list is newest-first per profile; keep the first one seen.
     const profileId = invitation.guardian_profile_id.toString();
     if (!map.has(profileId)) {
-      map.set(profileId, invitation.id.toString());
+      map.set(profileId, {
+        invitationId: invitation.id.toString(),
+        delivery: mapInvitationDelivery(invitation.delivery),
+      });
     }
   }
   return map;

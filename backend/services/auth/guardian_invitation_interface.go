@@ -60,6 +60,9 @@ type GuardianInvitationService interface {
 	// for an invitation: one entry per dispatch attempt, newest first,
 	// separating "handed to the mail server" from "arrived at the recipient".
 	DeliveryStatus(ctx context.Context, invitationID int64) (*GuardianInvitationDelivery, error)
+	// DeliverySummaries returns only the newest attempt for each requested
+	// invitation in one read, for periodically refreshed list badges.
+	DeliverySummaries(ctx context.Context, invitationIDs []int64) (map[int64]*GuardianInvitationDelivery, error)
 
 	// GetTenantSlugForToken resolves the tenant slug for a guardian
 	// invitation token. Best-effort: returns "" on any error or for deleted

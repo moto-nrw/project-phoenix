@@ -49,6 +49,43 @@ type GuardianDeliveryEvent struct {
 	Reason     *string   `json:"reason,omitempty"`
 }
 
+// DeliverySummaries returns only the newest invitation-mail attempt for every
+// requested invitation. It deliberately omits event history: the list badge
+// needs the current state, while the on-demand detail endpoint supplies the
+// complete audit trail.
+func (s *guardianInvitationService) DeliverySummaries(ctx context.Context, invitationIDs []int64) (map[int64]*GuardianInvitationDelivery, error) {
+	if s.OutboxReader == nil {
+		return nil, errors.New("guardian invitation service not wired for delivery status")
+	}
+
+	result := make(map[int64]*GuardianInvitationDelivery, len(invitationIDs))
+	for _, invitationID := range invitationIDs {
+		result[invitationID] = &GuardianInvitationDelivery{
+			InvitationID: invitationID,
+			Attempts:     []GuardianDeliveryAttempt{},
+		}
+	}
+	if len(invitationIDs) == 0 {
+		return result, nil
+	}
+
+	rows, err := s.OutboxReader.FindByRelatedEntities(ctx, platformModels.EmailRelatedTypeGuardianInvitation, invitationIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		if row.Kind != platformModels.EmailKindGuardianInvitation || row.RelatedEntityID == nil {
+			continue
+		}
+		delivery, ok := result[*row.RelatedEntityID]
+		if !ok || len(delivery.Attempts) > 0 {
+			continue
+		}
+		delivery.Attempts = append(delivery.Attempts, guardianDeliveryAttempt(row, nil))
+	}
+	return result, nil
+}
+
 // DeliveryStatus returns every dispatch attempt for an invitation together
 // with its provider delivery outcome.
 //
@@ -115,29 +152,33 @@ func (s *guardianInvitationService) DeliveryStatus(ctx context.Context, invitati
 	}
 
 	for _, row := range rows {
-		attempt := GuardianDeliveryAttempt{
-			OutboxID:       row.ID,
-			DispatchStatus: row.Status,
-			DeliveryStatus: row.DeliveryStatus,
-			QueuedAt:       row.CreatedAt,
-			SentAt:         row.SentAt,
-			DeliveryAt:     row.DeliveryStatusAt,
-			Attempts:       row.Attempts,
-			LastError:      row.LastError,
-			DeliveryDetail: row.DeliveryDetail,
-			Events:         eventsByOutbox[row.ID],
-		}
-		// next_retry_at is only meaningful while a retry is actually pending;
-		// on a sent or failed row it is a stale artefact of the last attempt.
-		if row.Status == platformModels.EmailOutboxStatusPending {
-			next := row.NextRetryAt
-			attempt.NextRetryAt = &next
-		}
-		if attempt.Events == nil {
-			attempt.Events = []GuardianDeliveryEvent{}
-		}
-		result.Attempts = append(result.Attempts, attempt)
+		result.Attempts = append(result.Attempts, guardianDeliveryAttempt(row, eventsByOutbox[row.ID]))
 	}
 
 	return result, nil
+}
+
+func guardianDeliveryAttempt(row *platformModels.EmailOutbox, events []GuardianDeliveryEvent) GuardianDeliveryAttempt {
+	attempt := GuardianDeliveryAttempt{
+		OutboxID:       row.ID,
+		DispatchStatus: row.Status,
+		DeliveryStatus: row.DeliveryStatus,
+		QueuedAt:       row.CreatedAt,
+		SentAt:         row.SentAt,
+		DeliveryAt:     row.DeliveryStatusAt,
+		Attempts:       row.Attempts,
+		LastError:      row.LastError,
+		DeliveryDetail: row.DeliveryDetail,
+		Events:         events,
+	}
+	// next_retry_at is only meaningful while a retry is actually pending;
+	// on a sent or failed row it is a stale artefact of the last attempt.
+	if row.Status == platformModels.EmailOutboxStatusPending {
+		next := row.NextRetryAt
+		attempt.NextRetryAt = &next
+	}
+	if attempt.Events == nil {
+		attempt.Events = []GuardianDeliveryEvent{}
+	}
+	return attempt
 }

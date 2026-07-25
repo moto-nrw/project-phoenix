@@ -23,7 +23,7 @@ const mockAddGuardianPhoneNumber = vi.fn();
 const mockUpdateGuardianPhoneNumber = vi.fn();
 const mockDeleteGuardianPhoneNumber = vi.fn();
 const mockSetGuardianPrimaryPhone = vi.fn();
-const mockFetchOpenInvitationsByGuardian = vi.fn();
+const mockFetchOpenInvitationDeliveriesByGuardian = vi.fn();
 const mockFetchInvitationDelivery = vi.fn();
 
 // Real subclass exported from the guardian-api mock so any code path that
@@ -71,7 +71,8 @@ vi.mock("@/lib/guardian-api", () => ({
     mockDeleteGuardianPhoneNumber(guardianId, phoneId),
   setGuardianPrimaryPhone: (guardianId: string, phoneId: string) =>
     mockSetGuardianPrimaryPhone(guardianId, phoneId),
-  fetchOpenInvitationsByGuardian: () => mockFetchOpenInvitationsByGuardian(),
+  fetchOpenInvitationDeliveriesByGuardian: (guardianProfileIds: string[]) =>
+    mockFetchOpenInvitationDeliveriesByGuardian(guardianProfileIds),
   fetchInvitationDelivery: (invitationId: string) =>
     mockFetchInvitationDelivery(invitationId),
 }));
@@ -412,7 +413,7 @@ describe("StudentGuardianManager", () => {
     // with an id. clearAllMocks() clears call records but NOT implementations, so
     // setting this here avoids depending on another test's leaked mockResolvedValue.
     mockAddGuardianPhoneNumber.mockResolvedValue({ id: "new-phone-1" });
-    mockFetchOpenInvitationsByGuardian.mockResolvedValue(new Map());
+    mockFetchOpenInvitationDeliveriesByGuardian.mockResolvedValue(new Map());
     mockFetchInvitationDelivery.mockResolvedValue({
       invitationId: "invitation-1",
       attempts: [],
@@ -459,38 +460,55 @@ describe("StudentGuardianManager", () => {
 
     it("refreshes invitation delivery status while an invitation is open", async () => {
       vi.useFakeTimers();
-      mockFetchOpenInvitationsByGuardian.mockResolvedValue(
-        new Map([["guardian-1", "invitation-1"]]),
-      );
-      mockFetchInvitationDelivery
-        .mockResolvedValueOnce({
-          invitationId: "invitation-1",
-          attempts: [
-            {
-              outboxId: "outbox-1",
-              dispatchStatus: "pending",
-              deliveryStatus: "unknown",
-              queuedAt: "2026-07-25T10:31:02Z",
-              attempts: 0,
-              events: [],
-            },
-          ],
-        })
-        .mockResolvedValue({
-          invitationId: "invitation-1",
-          attempts: [
-            {
-              outboxId: "outbox-1",
-              dispatchStatus: "sent",
-              deliveryStatus: "delivered",
-              queuedAt: "2026-07-25T10:31:02Z",
-              sentAt: "2026-07-25T10:31:03Z",
-              deliveryStatusAt: "2026-07-25T10:31:04Z",
-              attempts: 1,
-              events: [],
-            },
-          ],
-        });
+      mockFetchOpenInvitationDeliveriesByGuardian
+        .mockResolvedValueOnce(
+          new Map([
+            [
+              "guardian-1",
+              {
+                invitationId: "invitation-1",
+                delivery: {
+                  invitationId: "invitation-1",
+                  attempts: [
+                    {
+                      outboxId: "outbox-1",
+                      dispatchStatus: "pending",
+                      deliveryStatus: "unknown",
+                      queuedAt: "2026-07-25T10:31:02Z",
+                      attempts: 0,
+                      events: [],
+                    },
+                  ],
+                },
+              },
+            ],
+          ]),
+        )
+        .mockResolvedValue(
+          new Map([
+            [
+              "guardian-1",
+              {
+                invitationId: "invitation-1",
+                delivery: {
+                  invitationId: "invitation-1",
+                  attempts: [
+                    {
+                      outboxId: "outbox-1",
+                      dispatchStatus: "sent",
+                      deliveryStatus: "delivered",
+                      queuedAt: "2026-07-25T10:31:02Z",
+                      sentAt: "2026-07-25T10:31:03Z",
+                      deliveryStatusAt: "2026-07-25T10:31:04Z",
+                      attempts: 1,
+                      events: [],
+                    },
+                  ],
+                },
+              },
+            ],
+          ]),
+        );
 
       const view = render(<StudentGuardianManager studentId="student-123" />);
 
@@ -506,7 +524,10 @@ describe("StudentGuardianManager", () => {
           await vi.advanceTimersByTimeAsync(10_000);
         });
 
-        expect(mockFetchInvitationDelivery).toHaveBeenCalledTimes(2);
+        expect(
+          mockFetchOpenInvitationDeliveriesByGuardian,
+        ).toHaveBeenCalledTimes(2);
+        expect(mockFetchInvitationDelivery).not.toHaveBeenCalled();
         expect(screen.getByTestId("delivery-guardian-1")).toHaveTextContent(
           "Zugestellt",
         );

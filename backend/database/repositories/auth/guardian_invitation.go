@@ -145,9 +145,22 @@ func (r *GuardianInvitationRepository) FindByGuardianProfileID(ctx context.Conte
 // (staff invites + parent direct mode) and 'approved' (staff approved; email
 // dispatched) statuses back a real, acceptable invitation.
 func (r *GuardianInvitationRepository) FindPending(ctx context.Context) ([]*auth.GuardianInvitation, error) {
+	return r.findPending(ctx, nil)
+}
+
+// FindPendingByGuardianProfileIDs retrieves consumable invitations for only
+// the guardian profiles visible in the current student view.
+func (r *GuardianInvitationRepository) FindPendingByGuardianProfileIDs(ctx context.Context, guardianProfileIDs []int64) ([]*auth.GuardianInvitation, error) {
+	if len(guardianProfileIDs) == 0 {
+		return []*auth.GuardianInvitation{}, nil
+	}
+	return r.findPending(ctx, guardianProfileIDs)
+}
+
+func (r *GuardianInvitationRepository) findPending(ctx context.Context, guardianProfileIDs []int64) ([]*auth.GuardianInvitation, error) {
 	var invitations []*auth.GuardianInvitation
 
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&invitations).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Where(`"guardian_invitation".accepted_at IS NULL`).
@@ -157,8 +170,11 @@ func (r *GuardianInvitationRepository) FindPending(ctx context.Context) ([]*auth
 			auth.GuardianInvitationApprovalNotRequired,
 			auth.GuardianInvitationApprovalApproved,
 		})).
-		OrderExpr(`"guardian_invitation".created_at DESC`).
-		Scan(ctx)
+		OrderExpr(`"guardian_invitation".created_at DESC`)
+	if len(guardianProfileIDs) > 0 {
+		query = query.Where(`"guardian_invitation".guardian_profile_id IN (?)`, bun.List(guardianProfileIDs))
+	}
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to find pending invitations: %w", err)

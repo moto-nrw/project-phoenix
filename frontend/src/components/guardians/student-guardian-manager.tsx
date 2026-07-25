@@ -28,8 +28,7 @@ import {
   setGuardianPrimaryPhone,
   inviteGuardianToStudent,
   fetchGuardianDeletePreview,
-  fetchOpenInvitationsByGuardian,
-  fetchInvitationDelivery,
+  fetchOpenInvitationDeliveriesByGuardian,
   GuardianApiError,
 } from "@/lib/guardian-api";
 import type { DeliveryPresentation } from "~/lib/guardian-delivery-helpers";
@@ -118,31 +117,29 @@ export default function StudentGuardianManager({
       isCurrent: () => boolean,
     ): Promise<boolean> => {
       try {
-        const ids = await fetchOpenInvitationsByGuardian();
+        const invitations = await fetchOpenInvitationDeliveriesByGuardian(
+          current.map((guardian) => guardian.id),
+        );
         if (!isCurrent()) return false;
-        setInvitationIds(ids);
-
-        const entries = await Promise.all(
-          current
-            .map((guardian) => {
-              const invitationId = ids.get(guardian.id);
-              return invitationId ? { guardian, invitationId } : null;
-            })
-            .filter((entry) => entry !== null)
-            .map(async ({ guardian, invitationId }) => {
-              const delivery = await fetchInvitationDelivery(invitationId);
-              const presentation = presentLatestAttempt(delivery);
-              return presentation
-                ? ([guardian.id, presentation] as const)
-                : null;
-            }),
+        setInvitationIds(
+          new Map(
+            Array.from(invitations, ([guardianID, invitation]) => [
+              guardianID,
+              invitation.invitationId,
+            ]),
+          ),
         );
 
+        const entries = current.map((guardian) => {
+          const invitation = invitations.get(guardian.id);
+          const presentation = presentLatestAttempt(invitation?.delivery);
+          return presentation ? ([guardian.id, presentation] as const) : null;
+        });
         if (!isCurrent()) return false;
         setDeliveryByGuardianId(
           new Map(entries.filter((entry) => entry !== null)),
         );
-        return ids.size > 0;
+        return invitations.size > 0;
       } catch (err) {
         logger.warn("guardian_delivery_status_load_failed", {
           error: err instanceof Error ? err.message : String(err),

@@ -18,7 +18,7 @@ import {
   updateGuardianPhoneNumber,
   deleteGuardianPhoneNumber,
   setGuardianPrimaryPhone,
-  fetchOpenInvitationsByGuardian,
+  fetchOpenInvitationDeliveriesByGuardian,
   fetchInvitationDelivery,
 } from "./guardian-api";
 import type {
@@ -1670,27 +1670,56 @@ describe("guardian-api functions", () => {
   });
 
   // Email delivery status (#1937).
-  describe("fetchOpenInvitationsByGuardian", () => {
-    it("maps guardian profile id to the newest open invitation", async () => {
+  describe("fetchOpenInvitationDeliveriesByGuardian", () => {
+    it("maps guardian profile id to the newest open invitation and delivery summary", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: () =>
           Promise.resolve({
             status: "success",
             data: [
-              { id: 9, guardian_profile_id: 5 },
+              {
+                id: 9,
+                guardian_profile_id: 5,
+                delivery: {
+                  invitation_id: 9,
+                  attempts: [
+                    {
+                      outbox_id: 90,
+                      dispatch_status: "sent",
+                      delivery_status: "delivered",
+                      queued_at: "2026-07-25T10:00:00Z",
+                      attempts: 1,
+                    },
+                  ],
+                },
+              },
               // Older invitation for the same guardian — the list is
               // newest-first, so the first one seen wins.
-              { id: 3, guardian_profile_id: 5 },
-              { id: 7, guardian_profile_id: 8 },
+              {
+                id: 3,
+                guardian_profile_id: 5,
+                delivery: { invitation_id: 3, attempts: [] },
+              },
+              {
+                id: 7,
+                guardian_profile_id: 8,
+                delivery: { invitation_id: 7, attempts: [] },
+              },
             ],
           }),
       });
 
-      const result = await fetchOpenInvitationsByGuardian();
+      const result = await fetchOpenInvitationDeliveriesByGuardian(["5", "8"]);
 
-      expect(result.get("5")).toBe("9");
-      expect(result.get("8")).toBe("7");
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/guardians/invitations/pending?guardian_profile_ids=5%2C8",
+      );
+      expect(result.get("5")?.invitationId).toBe("9");
+      expect(result.get("5")?.delivery.attempts[0]?.deliveryStatus).toBe(
+        "delivered",
+      );
+      expect(result.get("8")?.invitationId).toBe("7");
       expect(result.size).toBe(2);
     });
 
@@ -1700,9 +1729,9 @@ describe("guardian-api functions", () => {
         statusText: "Forbidden",
       });
 
-      await expect(fetchOpenInvitationsByGuardian()).rejects.toThrow(
-        "Forbidden",
-      );
+      await expect(
+        fetchOpenInvitationDeliveriesByGuardian(["5"]),
+      ).rejects.toThrow("Forbidden");
     });
 
     it("throws when the API reports an error payload", async () => {
@@ -1711,7 +1740,9 @@ describe("guardian-api functions", () => {
         json: () => Promise.resolve({ status: "error", error: "nope" }),
       });
 
-      await expect(fetchOpenInvitationsByGuardian()).rejects.toThrow("nope");
+      await expect(
+        fetchOpenInvitationDeliveriesByGuardian(["5"]),
+      ).rejects.toThrow("nope");
     });
   });
 

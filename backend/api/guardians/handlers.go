@@ -31,6 +31,7 @@ const (
 	errInvalidPhoneID       = "invalid phone ID"
 	errPhoneNotFound        = "phone number not found"
 	errPhoneNotBelongsGuard = "phone number does not belong to this guardian"
+	maxDeliveryProfileIDs   = 100
 )
 
 // Note: "log" import kept for non-RenderError logging (e.g., line 741)
@@ -1040,7 +1041,28 @@ func shouldExposeSeedInvitationToken(r *http.Request) bool {
 
 // listPendingInvitations handles listing all pending guardian invitations
 func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Request) {
-	invitations, err := rs.GuardianService.GetPendingInvitations(r.Context())
+	profileIDs, err := parseDeliveryProfileIDs(r.URL.Query().Get("guardian_profile_ids"))
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	var invitations []*authModels.GuardianInvitation
+	if len(profileIDs) > 0 {
+		invitations, err = rs.GuardianService.GetPendingInvitationsForGuardianProfiles(r.Context(), profileIDs)
+	} else {
+		invitations, err = rs.GuardianService.GetPendingInvitations(r.Context())
+	}
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	invitationIDs := make([]int64, 0, len(invitations))
+	for _, inv := range invitations {
+		invitationIDs = append(invitationIDs, inv.ID)
+	}
+	deliveryByInvitation, err := rs.InvitationService.DeliverySummaries(r.Context(), invitationIDs)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -1057,10 +1079,30 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 			"email_sent_at":       inv.EmailSentAt,
 			"email_error":         inv.EmailError,
 			"email_retry_count":   inv.EmailRetryCount,
+			"delivery":            deliveryByInvitation[inv.ID],
 		})
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Pending invitations retrieved successfully")
+}
+
+func parseDeliveryProfileIDs(raw string) ([]int64, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	parts := strings.Split(raw, ",")
+	if len(parts) > maxDeliveryProfileIDs {
+		return nil, fmt.Errorf("guardian_profile_ids exceeds %d entries", maxDeliveryProfileIDs)
+	}
+	ids := make([]int64, 0, len(parts))
+	for _, part := range parts {
+		id, err := strconv.ParseInt(strings.TrimSpace(part), 10, 64)
+		if err != nil || id <= 0 {
+			return nil, errors.New("invalid guardian_profile_ids")
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
 
 // getStudentGuardians handles getting all guardians for a student (PUBLIC - everyone can view for emergency)

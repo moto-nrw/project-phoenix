@@ -70,6 +70,10 @@ func (s *stubOutboxRepo) FindByID(_ context.Context, _ int64) (*platformModels.E
 	return nil, errors.New("not implemented in stub")
 }
 
+func (s *stubOutboxRepo) FindByRelatedEntities(_ context.Context, _ string, _ []int64) ([]*platformModels.EmailOutbox, error) {
+	return nil, errors.New("not implemented in stub")
+}
+
 func (s *stubOutboxRepo) ClaimDuePending(_ context.Context, _ int, _ time.Time) ([]*platformModels.EmailOutbox, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

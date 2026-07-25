@@ -242,6 +242,33 @@ func TestGuardianInvitationRepository_FindPending(t *testing.T) {
 			assert.NotEqual(t, invitation.ID, found.ID, "revoked invitations must not remain pending")
 		}
 	})
+
+	t.Run("scopes pending invitations to guardian profiles", func(t *testing.T) {
+		first := testpkg.CreateTestGuardianProfile(t, db, "FindPendingScopedFirst")
+		second := testpkg.CreateTestGuardianProfile(t, db, "FindPendingScopedSecond")
+		defer testpkg.CleanupActivityFixtures(t, db, first.ID, second.ID)
+
+		firstInvitation := &auth.GuardianInvitation{
+			GuardianProfileID: first.ID,
+			Token:             uuid.Must(uuid.NewV4()).String(),
+			ExpiresAt:         time.Now().Add(48 * time.Hour),
+			CreatedBy:         1,
+		}
+		secondInvitation := &auth.GuardianInvitation{
+			GuardianProfileID: second.ID,
+			Token:             uuid.Must(uuid.NewV4()).String(),
+			ExpiresAt:         time.Now().Add(48 * time.Hour),
+			CreatedBy:         1,
+		}
+		require.NoError(t, repo.Create(ctx, firstInvitation))
+		require.NoError(t, repo.Create(ctx, secondInvitation))
+		defer testpkg.CleanupTableRecords(t, db, "auth.guardian_invitations", firstInvitation.ID, secondInvitation.ID)
+
+		pending, err := repo.FindPendingByGuardianProfileIDs(ctx, []int64{first.ID})
+		require.NoError(t, err)
+		require.Len(t, pending, 1)
+		assert.Equal(t, firstInvitation.ID, pending[0].ID)
+	})
 }
 
 func TestGuardianInvitationRepository_FindPendingApprovalExcludesRevoked(t *testing.T) {

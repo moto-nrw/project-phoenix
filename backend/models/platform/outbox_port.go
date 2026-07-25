@@ -26,6 +26,7 @@ type OutboxEnqueuer interface {
 // importing services/platform. Tenant-scoped.
 type OutboxRelatedReader interface {
 	FindByRelatedEntity(ctx context.Context, relatedType string, relatedID int64) ([]*EmailOutbox, error)
+	FindByRelatedEntities(ctx context.Context, relatedType string, relatedIDs []int64) ([]*EmailOutbox, error)
 }
 
 // OutboxCanceller lets a feature service stop still-queued mails for an entity

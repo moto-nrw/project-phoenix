@@ -185,3 +185,12 @@ func (s *OutboxService) FindByRelatedEntity(ctx context.Context, relatedType str
 	}
 	return s.repo.FindByRelatedEntity(ctx, relatedType, relatedID)
 }
+
+// FindByRelatedEntities surfaces the batched related-entity lookup for list
+// views that must not issue one outbox query per row.
+func (s *OutboxService) FindByRelatedEntities(ctx context.Context, relatedType string, relatedIDs []int64) ([]*platformModels.EmailOutbox, error) {
+	if s == nil || s.repo == nil {
+		return nil, errors.New("outbox service not wired")
+	}
+	return s.repo.FindByRelatedEntities(ctx, relatedType, relatedIDs)
+}

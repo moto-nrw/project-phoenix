@@ -429,6 +429,34 @@ func TestIngestEvent_LocalPartFallbackResolves(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestIngestEvent_HeaderFallbackResolvesRewrittenMessageID(t *testing.T) {
+	db, mock, cleanup := newAdminTxDB(t)
+	defer cleanup()
+	expectAdminTx(mock)
+
+	row := dispatchedRow(7, 4321, platformModels.EmailKindGuardianInvitation)
+	attempt := dispatchedAttempt(row, testCorrelationToken, testMessageID)
+	outboxRepo := &deliveryOutboxRepo{
+		byID:           map[int64]*platformModels.EmailOutbox{row.ID: row},
+		attemptByToken: map[string]*platformModels.EmailDispatchAttempt{testCorrelationToken: attempt},
+		applyResult:    true,
+	}
+	eventRepo := &deliveryEventRepo{}
+	svc := NewEmailDeliveryService(EmailDeliveryServiceConfig{
+		OutboxRepo: outboxRepo, EventRepo: eventRepo, DB: db,
+	})
+
+	ev := deliveryEvent("evt_rewritten", platformModels.DeliveryEventDelivered, "rewritten@relay.example")
+	ev.FallbackMessageID = testMessageID
+	outcome, err := svc.IngestEvent(context.Background(), ev)
+
+	require.NoError(t, err)
+	assert.Equal(t, IngestApplied, outcome)
+	require.Len(t, eventRepo.created, 1)
+	assert.Equal(t, attempt.ID, eventRepo.created[0].DispatchAttemptID)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestIngestEvent_AlteredFallbackTokenIsRejected(t *testing.T) {
 	db, mock, cleanup := newAdminTxDB(t)
 	defer cleanup()

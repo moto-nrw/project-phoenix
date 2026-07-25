@@ -403,3 +403,23 @@ func (r *EmailOutboxRepository) FindByRelatedEntity(ctx context.Context, related
 	}
 	return rows, nil
 }
+
+// FindByRelatedEntities returns outbox rows for several related entities in
+// one tenant-scoped query.
+func (r *EmailOutboxRepository) FindByRelatedEntities(ctx context.Context, relatedType string, relatedIDs []int64) ([]*platform.EmailOutbox, error) {
+	if len(relatedIDs) == 0 {
+		return []*platform.EmailOutbox{}, nil
+	}
+	var rows []*platform.EmailOutbox
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableExprAlias).
+		Where(`"email_outbox".related_entity_type = ?`, relatedType).
+		Where(`"email_outbox".related_entity_id IN (?)`, bun.List(relatedIDs)).
+		OrderExpr(`"email_outbox".related_entity_id ASC, "email_outbox".created_at DESC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find by related entities: %w", err)
+	}
+	return rows, nil
+}

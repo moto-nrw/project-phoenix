@@ -549,6 +549,35 @@ func TestEmailOutboxRepository_FindByRelatedEntity_EmptyResultNoError(t *testing
 	assert.Empty(t, list)
 }
 
+func TestEmailOutboxRepository_FindByRelatedEntities_FiltersRequestedIDs(t *testing.T) {
+	db, repo, tenantID := setupOutboxRepoTest(t)
+	kind := uniqueOutboxToken("related-batch")
+	defer wipeOutbox(db, tenantID, kind)
+
+	relatedType := platformModels.EmailRelatedTypeGuardianInvitation
+	requestedIDs := []int64{515151, 616161}
+	otherID := int64(717171)
+	for _, relatedID := range append(requestedIDs, otherID) {
+		row := makeOutbox(kind)
+		row.RelatedEntityType = &relatedType
+		row.RelatedEntityID = &relatedID
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			return repo.Create(ctx, row)
+		}))
+	}
+
+	var rows []*platformModels.EmailOutbox
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var err error
+		rows, err = repo.FindByRelatedEntities(ctx, relatedType, requestedIDs)
+		return err
+	}))
+
+	require.Len(t, rows, 2)
+	assert.Equal(t, requestedIDs[0], *rows[0].RelatedEntityID)
+	assert.Equal(t, requestedIDs[1], *rows[1].RelatedEntityID)
+}
+
 // --- CancelPendingByRelatedEntity ------------------------------------
 
 func TestEmailOutboxRepository_CancelPendingByRelatedEntity_FailsOnlyPendingForEntity(t *testing.T) {

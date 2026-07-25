@@ -358,6 +358,9 @@ type GuardianInvitationRepository interface {
 	// FindPending retrieves all pending (not accepted, not expired) invitations
 	FindPending(ctx context.Context) ([]*GuardianInvitation, error)
 
+	// FindPendingByGuardianProfileIDs is the scoped variant for student views.
+	FindPendingByGuardianProfileIDs(ctx context.Context, guardianProfileIDs []int64) ([]*GuardianInvitation, error)
+
 	// FindPendingApproval retrieves parent-initiated invitations awaiting
 	// staff approval (approval_status = 'pending'), newest first.
 	FindPendingApproval(ctx context.Context) ([]*GuardianInvitation, error)
