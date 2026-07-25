@@ -183,20 +183,25 @@ func (s *service) ensureStaffPresence(ctx context.Context, staffID int64, source
 	if staffID <= 0 || s.WorkSessionService == nil {
 		return
 	}
-	session, err := s.WorkSessionService.EnsureCheckedIn(ctx, staffID, source)
-	if err != nil {
+
+	s.runBestEffortDB(ctx, "staff_presence_checkin", func() error {
+		session, err := s.WorkSessionService.EnsureCheckedIn(ctx, staffID, source)
+		if err != nil {
+			return err
+		}
+		if session == nil {
+			s.getLogger().DebugContext(ctx, "staff already checked out today, presence auto-stamp skipped",
+				slog.Int64("staff_id", staffID),
+			)
+		}
+		return nil
+	}, func(err error) {
 		s.getLogger().WarnContext(ctx, "auto work-session check-in failed",
 			slog.Int64("staff_id", staffID),
 			slog.String("source", source),
 			slog.String("error", err.Error()),
 		)
-		return
-	}
-	if session == nil {
-		s.getLogger().DebugContext(ctx, "staff already checked out today, presence auto-stamp skipped",
-			slog.Int64("staff_id", staffID),
-		)
-	}
+	})
 }
 
 // CheckInStudent applies "in" unconditionally. Concurrency-safe: the

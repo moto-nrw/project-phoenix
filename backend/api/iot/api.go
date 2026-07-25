@@ -15,7 +15,6 @@ import (
 	staffclockAPI "github.com/moto-nrw/project-phoenix/api/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
@@ -93,28 +92,6 @@ func (rs *Resource) pinResolver() device.PINResolver {
 	}
 }
 
-// deviceStaffLookup wraps the person service in a tenant transaction so the
-// X-Staff-ID resolution in device auth (which runs before TenantTxMiddleware)
-// executes under the phoenix_tenant role with RLS enforced — same reason
-// the PIN resolver uses ResolveStringForTenant.
-type deviceStaffLookup struct {
-	users usersSvc.PersonService
-	db    *bun.DB
-}
-
-func (l *deviceStaffLookup) GetStaffByID(ctx context.Context, id int64) (*userModels.Staff, error) {
-	var staff *userModels.Staff
-	err := tenant.WithTenantTx(ctx, l.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
-		s, err := l.users.GetStaffByID(txCtx, id)
-		staff = s
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-	return staff, nil
-}
-
 // getLogger returns the resource's logger, falling back to slog.Default() if nil.
 func (rs *Resource) getLogger() *slog.Logger {
 	return cmp.Or(rs.Logger, slog.Default())
@@ -159,7 +136,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.SchoolService, &deviceStaffLookup{users: rs.UsersService, db: rs.DB}, rs.pinResolver()))
+		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.SchoolService, rs.pinResolver()))
 		r.Use(iotMetricsMiddleware)
 		r.Use(tenant.TenantTxMiddleware(rs.DB))
 

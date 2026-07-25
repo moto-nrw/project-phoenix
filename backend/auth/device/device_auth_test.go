@@ -432,7 +432,7 @@ func TestDeviceAuthenticator_ValidAPIKeyAndPIN(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		// Verify device is in context
 		ctxDevice := DeviceFromCtx(r.Context())
@@ -469,7 +469,7 @@ func TestDeviceAuthenticator_MissingPIN(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -497,7 +497,7 @@ func TestDeviceAuthenticator_InvalidPIN(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -525,7 +525,7 @@ func TestDeviceAuthenticator_MissingOGSPINConfig(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -546,7 +546,7 @@ func TestDeviceAuthenticator_MissingAPIKey(t *testing.T) {
 	mockIoT := newMockIoTService()
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -568,7 +568,7 @@ func TestDeviceAuthenticator_InvalidAPIKey(t *testing.T) {
 	// No devices added
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -596,7 +596,7 @@ func TestDeviceAuthenticator_InactiveDevice(t *testing.T) {
 	mockIoT.addDevice(apiKey, device)
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, nil))
+	r.Use(DeviceAuthenticator(mockIoT, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -641,7 +641,7 @@ func TestDeviceAuthenticator_UsesPINResolver(t *testing.T) {
 	}
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, resolver))
+	r.Use(DeviceAuthenticator(mockIoT, nil, resolver))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -679,7 +679,7 @@ func TestDeviceAuthenticator_PINResolverFallsBackToEnv(t *testing.T) {
 	}
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, resolver))
+	r.Use(DeviceAuthenticator(mockIoT, nil, resolver))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -712,7 +712,7 @@ func TestDeviceAuthenticator_PINResolverWrongPIN(t *testing.T) {
 	}
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockIoT, nil, nil, resolver))
+	r.Use(DeviceAuthenticator(mockIoT, nil, resolver))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -904,7 +904,7 @@ func TestDeviceAuthenticator_NilDeviceReturn(t *testing.T) {
 	mockService := &mockIoTServiceNilDevice{mockIoTService: *newMockIoTService()}
 
 	r := chi.NewRouter()
-	r.Use(DeviceAuthenticator(mockService, nil, nil, nil))
+	r.Use(DeviceAuthenticator(mockService, nil, nil))
 	r.Post("/checkin", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
