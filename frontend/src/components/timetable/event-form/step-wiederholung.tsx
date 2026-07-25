@@ -210,10 +210,13 @@ export function StepWiederholung({
                       : undefined
                   }
                   value={form.calendarPeriodId}
-                  options={calendarPeriods.map((period) => ({
-                    value: period.id,
-                    label: period.name,
-                  }))}
+                  options={[
+                    { value: "", label: "Zeitraum auswählen …" },
+                    ...calendarPeriods.map((period) => ({
+                      value: period.id,
+                      label: period.name,
+                    })),
+                  ]}
                   onChange={(next) => update("calendarPeriodId", next)}
                   required
                   invalid={Boolean(fieldErrors.calendarPeriodId)}

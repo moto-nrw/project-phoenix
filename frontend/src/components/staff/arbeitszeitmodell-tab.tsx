@@ -612,13 +612,16 @@ function TemplateSelector({
         ariaLabelledBy="arbeitszeitmodell-template-select-label"
         value={selectedId}
         onChange={onSelect}
-        options={templates.map((t) => ({
-          value: t.id,
-          label:
-            t.rotationLength > 1
-              ? `${t.name} (${t.rotationLength} Wochen)`
-              : t.name,
-        }))}
+        options={[
+          { value: "", label: "Bitte wählen…" },
+          ...templates.map((t) => ({
+            value: t.id,
+            label:
+              t.rotationLength > 1
+                ? `${t.name} (${t.rotationLength} Wochen)`
+                : t.name,
+          })),
+        ]}
         placeholder="Bitte wählen…"
       />
       {selected && <TemplatePreviewBlock model={selected} />}

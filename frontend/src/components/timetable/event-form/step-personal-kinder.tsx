@@ -248,7 +248,10 @@ export function StepPersonalKinder({
                       : undefined
                   }
                   value={form.targetGradeLevel}
-                  options={targetGradeOptions}
+                  options={[
+                    { value: "", label: "Jahrgang wählen …" },
+                    ...targetGradeOptions,
+                  ]}
                   onChange={(next) => update("targetGradeLevel", next)}
                   required
                   invalid={Boolean(fieldErrors.targetGradeLevel)}
@@ -278,10 +281,13 @@ export function StepPersonalKinder({
                   ariaLabel="Klasse"
                   ariaDescribedBy={targetClassDescriptionIDs || undefined}
                   value={form.targetSchoolClass}
-                  options={targetClassOptions.map((schoolClass) => ({
-                    value: schoolClass,
-                    label: schoolClass,
-                  }))}
+                  options={[
+                    { value: "", label: "Klasse wählen …" },
+                    ...targetClassOptions.map((schoolClass) => ({
+                      value: schoolClass,
+                      label: schoolClass,
+                    })),
+                  ]}
                   onChange={(next) => update("targetSchoolClass", next)}
                   disabled={loadingStudents || studentLoadError !== null}
                   required
@@ -320,10 +326,13 @@ export function StepPersonalKinder({
                       : undefined
                   }
                   value={form.educationGroupId}
-                  options={groups.map((group) => ({
-                    value: group.id,
-                    label: group.name,
-                  }))}
+                  options={[
+                    { value: "", label: "Gruppe wählen …" },
+                    ...groups.map((group) => ({
+                      value: group.id,
+                      label: group.name,
+                    })),
+                  ]}
                   onChange={(next) => update("educationGroupId", next)}
                   disabled={loadingRefs}
                   required

@@ -142,10 +142,18 @@ export function StepTermin({
                 fieldErrors.categoryId ? "event_category_error" : undefined
               }
               value={form.categoryId}
-              options={categories.map((category) => ({
-                value: category.id,
-                label: category.name,
-              }))}
+              options={[
+                {
+                  value: "",
+                  label: loadingRefs
+                    ? "Lade Kategorien …"
+                    : "Kategorie wählen …",
+                },
+                ...categories.map((category) => ({
+                  value: category.id,
+                  label: category.name,
+                })),
+              ]}
               onChange={(next) => update("categoryId", next)}
               required
               disabled={loadingRefs}
@@ -202,12 +210,18 @@ export function StepTermin({
           ariaLabel="Raum"
           ariaDescribedBy={fieldErrors.roomId ? "event_room_error" : undefined}
           value={form.roomId}
-          options={rooms.map((room) => ({
-            value: String(room.id),
-            label: room.building
-              ? `${room.building} - ${room.name}`
-              : room.name,
-          }))}
+          options={[
+            {
+              value: "",
+              label: loadingRefs ? "Lade Räume …" : "Raum auswählen …",
+            },
+            ...rooms.map((room) => ({
+              value: String(room.id),
+              label: room.building
+                ? `${room.building} - ${room.name}`
+                : room.name,
+            })),
+          ]}
           onChange={(next) => update("roomId", next)}
           disabled={loadingRefs}
           required

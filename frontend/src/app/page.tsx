@@ -104,10 +104,16 @@ export default function RootPage() {
                 disabled={loading || isNavigating}
                 onChange={setSelectedSlug}
                 placeholder={loading ? "Laden..." : "Bitte auswählen..."}
-                options={tenants.map((tenant) => ({
-                  value: tenant.slug,
-                  label: tenant.name,
-                }))}
+                options={[
+                  {
+                    value: "",
+                    label: loading ? "Laden..." : "Bitte auswählen...",
+                  },
+                  ...tenants.map((tenant) => ({
+                    value: tenant.slug,
+                    label: tenant.name,
+                  })),
+                ]}
               />
             </div>
 

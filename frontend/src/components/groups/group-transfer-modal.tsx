@@ -287,10 +287,13 @@ export function GroupTransferModal({
             ariaLabelledBy="transfer-user-select-label"
             value={selectedPersonId}
             onChange={setSelectedPersonId}
-            options={availableUsers.map((user) => ({
-              value: user.personId,
-              label: user.fullName,
-            }))}
+            options={[
+              { value: "", label: "Betreuer auswählen..." },
+              ...availableUsers.map((user) => ({
+                value: user.personId,
+                label: user.fullName,
+              })),
+            ]}
             placeholder="Betreuer auswählen..."
           />
           {availableUsers.length === 0 && (

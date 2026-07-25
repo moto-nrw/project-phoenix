@@ -172,7 +172,10 @@ export function PermissionSelector({
           ariaLabelledBy="permission-resource-label"
           value={resource}
           onChange={handleResourceChange}
-          options={RESOURCES.map((r) => ({ value: r.value, label: r.label }))}
+          options={[
+            { value: "", label: "Ressource auswählen..." },
+            ...RESOURCES.map((r) => ({ value: r.value, label: r.label })),
+          ]}
           placeholder="Ressource auswählen..."
           required={required}
         />
@@ -192,10 +195,18 @@ export function PermissionSelector({
           ariaLabelledBy="permission-action-label"
           value={action}
           onChange={handleActionChange}
-          options={availableActions.map((a) => ({
-            value: a,
-            label: ACTION_LABELS[a] ?? a,
-          }))}
+          options={[
+            {
+              value: "",
+              label: resource
+                ? "Aktion auswählen..."
+                : "Zuerst Ressource wählen",
+            },
+            ...availableActions.map((a) => ({
+              value: a,
+              label: ACTION_LABELS[a] ?? a,
+            })),
+          ]}
           placeholder={
             resource ? "Aktion auswählen..." : "Zuerst Ressource wählen"
           }

@@ -450,4 +450,52 @@ describe("CustomSelect", () => {
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps a menu wider than its trigger inside the right viewport edge", () => {
+    // A start-aligned menu anchored at a trigger near the right edge would run
+    // off screen whenever its content is wider than the trigger, leaving the
+    // last options unreachable on narrow layouts.
+    const viewportWidth = 360;
+    const menuWidth = 240;
+    window.innerWidth = viewportWidth;
+
+    const triggerRect = {
+      top: 100,
+      bottom: 140,
+      left: 260,
+      right: 340,
+      width: 80,
+      height: 40,
+      x: 260,
+      y: 100,
+      toJSON: () => ({}),
+    } as DOMRect;
+    const rectSpy = vi
+      .spyOn(HTMLButtonElement.prototype, "getBoundingClientRect")
+      .mockReturnValue(triggerRect);
+    const widthSpy = vi
+      .spyOn(HTMLUListElement.prototype, "offsetWidth", "get")
+      .mockReturnValue(menuWidth);
+
+    try {
+      render(
+        <CustomSelect
+          value=""
+          options={options}
+          onChange={vi.fn()}
+          ariaLabel="Auswahl"
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("combobox", { name: "Auswahl" }));
+
+      const listbox = screen.getByRole("listbox");
+      const left = Number.parseFloat(listbox.style.left);
+      expect(left).toBeLessThan(triggerRect.left);
+      expect(left + menuWidth).toBeLessThanOrEqual(viewportWidth);
+    } finally {
+      rectSpy.mockRestore();
+      widthSpy.mockRestore();
+    }
+  });
 });

@@ -220,12 +220,13 @@ export function CreateDeviceModal({
             id="device-school"
             ariaLabel="Schule"
             value={schoolId}
-            options={
-              schools?.map((school) => ({
+            options={[
+              { value: "", label: "Schule auswählen..." },
+              ...(schools?.map((school) => ({
                 value: school.id,
                 label: school.name,
-              })) ?? []
-            }
+              })) ?? []),
+            ]}
             onChange={setSchoolId}
             placeholder="Schule auswählen..."
             required
@@ -250,9 +251,13 @@ export function CreateDeviceModal({
             id="device-type"
             ariaLabel="Typ"
             value={deviceType}
-            options={Object.entries(DEVICE_TYPE_OPTIONS).map(
-              ([value, label]) => ({ value, label }),
-            )}
+            options={[
+              { value: "", label: "Typ auswählen..." },
+              ...Object.entries(DEVICE_TYPE_OPTIONS).map(([value, label]) => ({
+                value,
+                label,
+              })),
+            ]}
             onChange={setDeviceType}
             placeholder="Typ auswählen..."
             required

@@ -210,6 +210,19 @@ export function ListboxDropdown<K extends string>({
     // unreachable; the browser then never gives the ul a scroll region there.
     const available = Math.max(openUpward ? spaceAbove : spaceBelow, 0);
     const maxHeight = Math.min(MENU_MAX_HEIGHT_PX, available);
+    const maxWidth = viewportWidth - 2 * MENU_VIEWPORT_MARGIN_PX;
+    // The rendered width, needed to clamp the horizontal anchor: the menu is
+    // only as wide as the trigger at minimum, but its content may be wider, so
+    // anchoring at the trigger edge alone can push it past the viewport on
+    // narrow layouts and leave options unreachable.
+    const menuWidth = Math.min(
+      Math.max(menuRef.current?.offsetWidth ?? rect.width, rect.width),
+      maxWidth,
+    );
+    const edgeInset = Math.max(
+      viewportWidth - MENU_VIEWPORT_MARGIN_PX - menuWidth,
+      MENU_VIEWPORT_MARGIN_PX,
+    );
     const style: CSSProperties = {
       position: "fixed",
       // Above the modal/dialog overlays (z-[9999]) so menus opened from
@@ -223,16 +236,21 @@ export function ListboxDropdown<K extends string>({
       // the pointerdown guard on the menu below.
       pointerEvents: "auto",
       minWidth: rect.width,
-      maxWidth: viewportWidth - 2 * MENU_VIEWPORT_MARGIN_PX,
+      maxWidth,
       maxHeight,
     };
+    // Clamp both anchors so the opposite edge stays inside the viewport; the
+    // margin floor still wins when the menu is as wide as the viewport allows.
     if (menuAlign === "end") {
-      style.right = Math.max(
-        viewportWidth - rect.right,
-        MENU_VIEWPORT_MARGIN_PX,
+      style.right = Math.min(
+        Math.max(viewportWidth - rect.right, MENU_VIEWPORT_MARGIN_PX),
+        edgeInset,
       );
     } else {
-      style.left = Math.max(rect.left, MENU_VIEWPORT_MARGIN_PX);
+      style.left = Math.min(
+        Math.max(rect.left, MENU_VIEWPORT_MARGIN_PX),
+        edgeInset,
+      );
     }
     if (openUpward) {
       style.bottom = viewportHeight - rect.top + MENU_OFFSET_PX;

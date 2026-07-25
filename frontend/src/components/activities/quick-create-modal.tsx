@@ -261,10 +261,13 @@ export function QuickCreateActivityModal({
                   setForm((prev) => ({ ...prev, category_id: next }));
                   setError(null);
                 }}
-                options={categories.map((category) => ({
-                  value: category.id,
-                  label: category.name,
-                }))}
+                options={[
+                  { value: "", label: "Kategorie wählen..." },
+                  ...categories.map((category) => ({
+                    value: category.id,
+                    label: category.name,
+                  })),
+                ]}
                 placeholder="Kategorie wählen..."
                 invalid={errorFieldName === "category_id"}
                 required

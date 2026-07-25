@@ -192,12 +192,13 @@ export function EditSchoolModal({
             id="edit-school-org"
             ariaLabel="Träger"
             value={schoolOrgId}
-            options={
-              organizations?.map((org) => ({
+            options={[
+              { value: "", label: "Träger auswählen..." },
+              ...(organizations?.map((org) => ({
                 value: org.id,
                 label: org.name,
-              })) ?? []
-            }
+              })) ?? []),
+            ]}
             onChange={setSchoolOrgId}
             placeholder="Träger auswählen..."
             required

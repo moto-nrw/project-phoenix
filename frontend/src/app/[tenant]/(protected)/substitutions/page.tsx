@@ -879,10 +879,13 @@ function SubstitutionPageContent() {
               value={selectedGroup}
               onChange={setSelectedGroup}
               placeholder="Gruppe auswählen..."
-              options={groups.map((group) => ({
-                value: group.name,
-                label: group.name,
-              }))}
+              options={[
+                { value: "", label: "Gruppe auswählen..." },
+                ...groups.map((group) => ({
+                  value: group.name,
+                  label: group.name,
+                })),
+              ]}
             />
           </div>
 

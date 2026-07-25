@@ -82,9 +82,10 @@ describe("RootPage", () => {
 
     fireEvent.click(screen.getByRole("combobox"));
     const options = screen.getAllByRole("option");
-    expect(options).toHaveLength(2);
-    expect(options[0]).toHaveTextContent("Testschule A");
-    expect(options[1]).toHaveTextContent("Testschule B");
+    // Placeholder + 2 tenants
+    expect(options).toHaveLength(3);
+    expect(options[1]).toHaveTextContent("Testschule A");
+    expect(options[2]).toHaveTextContent("Testschule B");
   });
 
   it("disables button when no tenant is selected", async () => {
