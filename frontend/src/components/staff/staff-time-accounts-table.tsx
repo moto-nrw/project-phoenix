@@ -72,6 +72,7 @@ interface Props {
   readonly onCustomSaldoHoursChange: (value: string) => void;
   readonly showCustomSaldo: boolean;
   readonly onShowCustomSaldoChange: (show: boolean) => void;
+  readonly paginationResetKey?: string;
 }
 
 export function StaffTimeAccountsTable({
@@ -87,6 +88,7 @@ export function StaffTimeAccountsTable({
   onCustomSaldoHoursChange,
   showCustomSaldo,
   onShowCustomSaldoChange,
+  paginationResetKey,
 }: Props) {
   const columns = useMemo<DataTableColumn<TimeAccountRow>[]>(
     () => [
@@ -250,6 +252,7 @@ export function StaffTimeAccountsTable({
         // rendert nur die ersten 50 Zeilen und lädt auf Klick nach. Sortiert
         // wird trotzdem über den vollen Datensatz, nicht über die Seite.
         pageSize={50}
+        paginationResetKey={paginationResetKey}
         emptyState={
           <div className="py-10 text-center">
             <p className="font-medium text-gray-900">

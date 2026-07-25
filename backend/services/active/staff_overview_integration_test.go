@@ -314,6 +314,37 @@ func TestTimeTrackingOverview_VacationMatchesQuotaEndpoint(t *testing.T) {
 	}
 }
 
+func TestTimeTrackingOverview_HistoricalVacationStopsAtMonthEnd(t *testing.T) {
+	f := newOverviewFixture(t, 1)
+	historicalYear := f.today.Year - 1
+
+	// Each seven-day range contains exactly five weekdays. The March view
+	// spends the February vacation, but must not subtract the November range.
+	f.addAbsence(
+		t,
+		f.staff[0].ID,
+		activeModels.AbsenceTypeVacation,
+		activeModels.AbsenceStatusApproved,
+		timezone.NewDate(historicalYear, time.February, 1),
+		timezone.NewDate(historicalYear, time.February, 7),
+	)
+	f.addAbsence(
+		t,
+		f.staff[0].ID,
+		activeModels.AbsenceTypeVacation,
+		activeModels.AbsenceStatusApproved,
+		timezone.NewDate(historicalYear, time.November, 1),
+		timezone.NewDate(historicalYear, time.November, 7),
+	)
+
+	overview, err := f.svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{
+		Year: historicalYear, Month: int(time.March),
+	})
+	require.NoError(t, err)
+	require.Len(t, overview.Rows, 1)
+	assert.InDelta(t, 25, overview.Rows[0].RemainingVacationDays, 0.001)
+}
+
 // TestTimeTrackingOverview_QueryCountIsConstant is the only test that protects
 // the performance property. Without it the prefetch adapters could silently
 // regress to per-staff reads and nothing would fail.

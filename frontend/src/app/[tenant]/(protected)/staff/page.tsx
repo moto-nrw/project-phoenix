@@ -31,6 +31,7 @@ import {
   type SaldoPresetId,
 } from "~/components/staff/staff-time-accounts-table";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { staffOverviewService } from "~/lib/staff-overview-api";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
 import { StaffPageSkeleton } from "./page-skeleton";
@@ -349,6 +350,10 @@ function StaffPageContent() {
     return <StaffPageSkeleton />;
   }
 
+  if (!canReadUsers && !canManageTimeTracking) {
+    return <ForbiddenPage />;
+  }
+
   return (
     <div className="-mt-1.5 w-full">
       {/* PageHeaderWithSearch - Title only on mobile */}
@@ -435,6 +440,7 @@ function StaffPageContent() {
           onCustomSaldoHoursChange={setCustomSaldoHours}
           showCustomSaldo={showCustomSaldo}
           onShowCustomSaldoChange={setShowCustomSaldo}
+          paginationResetKey={`${accountsKey ?? "inactive"}:${searchTerm}`}
         />
       )}
 

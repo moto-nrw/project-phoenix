@@ -405,13 +405,18 @@ func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filt
 	if err != nil {
 		return nil, fmt.Errorf("failed to prefetch vacation quotas: %w", err)
 	}
-	// Loaded separately over the WHOLE year rather than reused from the
-	// prefetch: that window starts at the account anchor, which may lie after
-	// January 1st, and Resturlaub counted over a shorter year would differ
-	// from GET /staff/{id}/vacation/quota. One extra query, constant in N.
-	yearAbsences, err := s.absenceRepo.GetByStaffIDsAndDateRange(ctx, staffIDs,
+	// Loaded separately rather than reused from the month prefetch: that
+	// window starts at the account anchor, which may lie after January 1st.
+	// Current-month views keep the annual semantics of the quota endpoint.
+	// Historical views stop at month end so later vacation does not rewrite
+	// an earlier Resturlaub. One extra query, constant in N.
+	vacationThrough := timezone.NewDate(key.Year, time.December, 31)
+	if key.before(monthOf(today)) {
+		vacationThrough = key.lastDay()
+	}
+	vacationAbsences, err := s.absenceRepo.GetByStaffIDsAndDateRange(ctx, staffIDs,
 		timezone.NewDate(key.Year, time.January, 1),
-		timezone.NewDate(key.Year, time.December, 31),
+		vacationThrough,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prefetch vacation absences: %w", err)
@@ -425,11 +430,17 @@ func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filt
 			return nil, fmt.Errorf("failed to compute month summary for staff %d: %w", staff.ID, err)
 		}
 		row := TimeTrackingOverviewRow{
-			StaffID:               staff.ID,
-			SollMinutes:           summary.TargetMinutesToDate,
-			IstMinutes:            summary.ActualMinutes,
-			BalanceMinutes:        summary.ClosingBalanceMinutes,
-			RemainingVacationDays: s.remainingVacationDays(staff.ID, key.Year, quotas[staff.ID], yearAbsences[staff.ID]),
+			StaffID:        staff.ID,
+			SollMinutes:    summary.TargetMinutesToDate,
+			IstMinutes:     summary.ActualMinutes,
+			BalanceMinutes: summary.ClosingBalanceMinutes,
+			RemainingVacationDays: s.remainingVacationDays(
+				staff.ID,
+				key.Year,
+				vacationThrough,
+				quotas[staff.ID],
+				vacationAbsences[staff.ID],
+			),
 		}
 		if staff.EmploymentType != nil {
 			row.EmploymentType = *staff.EmploymentType
@@ -451,13 +462,13 @@ func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filt
 	return overview, nil
 }
 
-// remainingVacationDays reuses the absence service's arithmetic on the
-// full-year absence rows so the value is identical to what
-// GET /staff/{id}/vacation/quota reports, including the default entitlement
-// fallback and the reservation for requested/question rows.
+// remainingVacationDays reuses the absence service's arithmetic through the
+// selected cutoff, including the default entitlement fallback and the
+// reservation for requested/question rows.
 func (s *staffOverviewService) remainingVacationDays(
 	staffID int64,
 	year int,
+	through timezone.Date,
 	quota *activeModels.StaffVacationQuota,
 	absences []*activeModels.StaffAbsence,
 ) float64 {
@@ -465,7 +476,7 @@ func (s *staffOverviewService) remainingVacationDays(
 	if quota != nil {
 		entitled, carryover = quota.EntitledDays, quota.CarryoverDays
 	}
-	return computeVacationQuotaSummary(staffID, year, entitled, carryover, absences).RemainingDays
+	return computeVacationQuotaSummaryThrough(staffID, year, entitled, carryover, through, absences).RemainingDays
 }
 
 // resolveOverviewMonth turns the requested year/month into the month to

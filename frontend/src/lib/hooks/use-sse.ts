@@ -156,6 +156,7 @@ export function useSSE(
           "activity_update",
           "active_supervision_changed",
           "dashboard_counts_changed",
+          "staff_time_tracking_changed",
           "arrival_schedule_changed",
           "pickup_schedule_changed",
           "tenant_settings_changed",

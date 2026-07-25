@@ -98,6 +98,17 @@ describe("/staff — Berechtigungs-Split", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("zeigt ohne eine der beiden Leseberechtigungen eine Zugriffssperre", () => {
+    mockSession([]);
+
+    render(<StaffPage />);
+
+    expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+    expect(getAllStaff).not.toHaveBeenCalled();
+    expect(getTimeAccounts).not.toHaveBeenCalled();
+    expect(getDashboardSummary).not.toHaveBeenCalled();
+  });
+
   it("blendet den Zeitkonten-Umschalter ohne time_tracking:manage aus und fragt die Zeitkonten nicht ab", () => {
     mockSession(["users:read"]);
 

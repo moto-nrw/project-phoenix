@@ -1287,8 +1287,31 @@ func computeVacationQuotaSummary(
 	entitled, carryover float64,
 	absences []*activeModels.StaffAbsence,
 ) *VacationQuotaSummary {
+	return computeVacationQuotaSummaryThrough(
+		staffID,
+		year,
+		entitled,
+		carryover,
+		timezone.NewDate(year, time.December, 31),
+		absences,
+	)
+}
+
+// computeVacationQuotaSummaryThrough is the historical counterpart of the
+// full-year quota summary. Absence ranges are clipped at through so a past
+// month does not spend vacation that lies later in the selected year.
+func computeVacationQuotaSummaryThrough(
+	staffID int64,
+	year int,
+	entitled, carryover float64,
+	through timezone.Date,
+	absences []*activeModels.StaffAbsence,
+) *VacationQuotaSummary {
 	yearStart := timezone.NewDate(year, time.January, 1)
 	yearEnd := timezone.NewDate(year, time.December, 31)
+	if through.Before(yearEnd) {
+		yearEnd = through
+	}
 
 	taken, reserved := 0.0, 0.0
 	for _, a := range absences {

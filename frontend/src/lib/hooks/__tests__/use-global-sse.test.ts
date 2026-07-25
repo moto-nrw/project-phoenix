@@ -509,6 +509,36 @@ describe("useGlobalSSE", () => {
       expect(dashboardCall).toBeDefined();
     });
 
+    it("invalidates staff time-account caches after a work-session change", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+      onMessage?.({
+        type: "staff_time_tracking_changed",
+        active_group_id: "",
+        data: {},
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      const call = vi.mocked(mutate).mock.calls.find(([matcher]) => {
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)(
+            "tenant:staff-time-accounts-all--",
+          )
+        );
+      });
+      expect(call).toBeDefined();
+
+      const matcher = call![0] as (key: string) => boolean;
+      expect(matcher("tenant:staff-time-accounts-all--")).toBe(true);
+      expect(matcher("tenant:staff-dashboard-summary-month")).toBe(true);
+      expect(matcher("tenant:dashboard")).toBe(false);
+      expect(matcher("tenant:staff-list")).toBe(false);
+    });
+
     it("student_checkout without active_group_id invalidates ogs-students caches", () => {
       renderHook(() => useGlobalSSE());
 
