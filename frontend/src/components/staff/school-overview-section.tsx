@@ -59,7 +59,9 @@ export function SchoolOverviewSection() {
   } = useSWRAuth(
     `staff-dashboard-summary-${period}`,
     () => staffOverviewService.getDashboardSummary(period),
-    { keepPreviousData: true, revalidateOnFocus: false },
+    // The period label changes immediately. Previous-key data would therefore
+    // appear as a summary for the wrong period while this request is pending.
+    { keepPreviousData: false, revalidateOnFocus: false },
   );
 
   const dash = "–";

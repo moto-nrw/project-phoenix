@@ -133,7 +133,9 @@ function StaffPageContent() {
         saldoMin,
         saldoMax,
       }),
-    { keepPreviousData: true, revalidateOnFocus: false },
+    // Filters update immediately. Keep the old rows out of the table until
+    // the response for the active filter key arrives.
+    { keepPreviousData: false, revalidateOnFocus: false },
   );
 
   const accountRows = useMemo(() => {

@@ -121,6 +121,9 @@ func TestTimeTrackingOverviewAPI_FilterValidation(t *testing.T) {
 		"?month=3",   // month without year
 		"?year=2026", // year without month
 		"?year=abc&month=3",
+		"?year=0&month=0",
+		"?year=0&month=1",
+		"?year=2026&month=0",
 		"?year=2026&month=13",
 		"?year=2999&month=1", // future
 	} {

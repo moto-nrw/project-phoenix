@@ -66,6 +66,9 @@ func parseOverviewFilters(r *http.Request) (activeSvc.OverviewFilters, error) {
 		if filters.Month, err = strconv.Atoi(rawMonth); err != nil {
 			return filters, errors.New("month must be an integer")
 		}
+		if filters.Year == 0 || filters.Month == 0 {
+			return filters, errors.New("year and month must be greater than zero")
+		}
 	}
 	for _, bound := range []struct {
 		name   string

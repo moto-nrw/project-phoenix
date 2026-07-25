@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SchoolOverviewSection } from "./school-overview-section";
 
 const mutate = vi.hoisted(() => vi.fn());
+const useSWRAuth = vi.hoisted(() => vi.fn());
 const swrResult = vi.hoisted(() => ({
   current: {
     data: undefined as
@@ -27,7 +28,7 @@ const swrResult = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/swr", () => ({
-  useSWRAuth: () => swrResult.current,
+  useSWRAuth,
 }));
 
 vi.mock("~/lib/staff-overview-api", () => ({
@@ -49,6 +50,8 @@ const summary = {
 describe("SchoolOverviewSection", () => {
   beforeEach(() => {
     mutate.mockReset();
+    useSWRAuth.mockReset();
+    useSWRAuth.mockImplementation(() => swrResult.current);
     swrResult.current = {
       data: undefined,
       error: undefined,
@@ -56,6 +59,27 @@ describe("SchoolOverviewSection", () => {
       isValidating: false,
       mutate,
     };
+  });
+
+  it("deaktiviert previous-key Daten für Zeitraumwechsel", () => {
+    render(<SchoolOverviewSection />);
+
+    expect(useSWRAuth).toHaveBeenCalledWith(
+      "staff-dashboard-summary-month",
+      expect.any(Function),
+      { keepPreviousData: false, revalidateOnFocus: false },
+    );
+
+    const weekTab = screen.getByRole("tab", { name: "Woche" });
+    fireEvent.pointerDown(weekTab, { button: 0, pointerType: "mouse" });
+    fireEvent.mouseDown(weekTab, { button: 0 });
+    fireEvent.click(weekTab);
+
+    expect(useSWRAuth).toHaveBeenLastCalledWith(
+      "staff-dashboard-summary-week",
+      expect.any(Function),
+      { keepPreviousData: false, revalidateOnFocus: false },
+    );
   });
 
   it("zeigt Ladefehler mit Wiederholen statt leeren KPI-Werten", () => {

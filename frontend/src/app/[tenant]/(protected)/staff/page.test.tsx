@@ -288,6 +288,51 @@ describe("StaffPage", () => {
       screen.getByLabelText("Mitarbeitende werden geladen"),
     ).toBeInTheDocument();
   });
+
+  it("disables previous-key data for time-account filters", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          permissions: ["users:read", "time_tracking:manage"],
+        },
+      },
+      status: "authenticated",
+    } as never);
+    vi.mocked(useSWRAuth).mockImplementation((key) => {
+      if (key === "staff-list") {
+        return { data: mockStaff, isLoading: false, error: null } as never;
+      }
+      return {
+        data: undefined,
+        isLoading: false,
+        isValidating: false,
+        error: null,
+        mutate: vi.fn(),
+      } as never;
+    });
+
+    render(<StaffPage />);
+
+    const accountsTab = screen.getByRole("tab", { name: "Zeitkonten" });
+    fireEvent.pointerDown(accountsTab, {
+      button: 0,
+      pointerType: "mouse",
+    });
+    fireEvent.mouseDown(accountsTab, { button: 0 });
+    fireEvent.click(accountsTab);
+
+    const accountsCall = vi
+      .mocked(useSWRAuth)
+      .mock.calls.find(
+        ([key]) =>
+          typeof key === "string" && key.startsWith("staff-time-accounts-"),
+      );
+    expect(accountsCall?.[2]).toEqual({
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+    });
+  });
 });
 
 describe("StaffPage location filter logic", () => {
