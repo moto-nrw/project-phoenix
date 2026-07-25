@@ -5,6 +5,14 @@ import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import type { StudentCompanion } from "~/lib/student-companion-api";
 import { CompanionPlanConflictError } from "~/lib/api";
 
+// The birthday field moved from a native input to the kit picker; this stub
+// keeps it readable/settable as an input. Imported inside the factory because
+// vi.mock is hoisted above the imports.
+vi.mock("~/components/ui/date-picker", async (importOriginal) => {
+  const { isoDatePickerMock } = await import("~/test/mocks/date-picker");
+  return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
+});
+
 const { fetchStudentCompanionsMock } = vi.hoisted(() => ({
   // Unreachable by default, exactly like the un-mocked network call these
   // tests used to make: the stored links stay unknown, which is the state

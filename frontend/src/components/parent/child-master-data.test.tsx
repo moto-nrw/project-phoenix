@@ -19,6 +19,14 @@ import {
   type ChildMasterData,
 } from "~/lib/parent-api";
 
+// The birthday field moved from a native input to the kit picker; this stub
+// keeps it readable/settable as an input. Imported inside the factory because
+// vi.mock is hoisted above the imports.
+vi.mock("~/components/ui/date-picker", async (importOriginal) => {
+  const { isoDatePickerMock } = await import("~/test/mocks/date-picker");
+  return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
+});
+
 vi.mock("~/lib/breadcrumb-context", () => ({
   useSetBreadcrumb: vi.fn(),
 }));

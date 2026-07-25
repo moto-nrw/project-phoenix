@@ -9,6 +9,8 @@ import type { Student } from "@/lib/api";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { ISODatePicker } from "~/components/ui/date-picker";
+import { todayISO } from "~/lib/date-helpers";
 import {
   BUS_WEEKDAYS,
   busDaysHaveAny,
@@ -248,12 +250,15 @@ function DateInput({
       >
         {label}
       </label>
-      <input
+      <ISODatePicker
         id={inputId}
-        type="date"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="moto-content-surface block w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+        onChange={onChange}
+        // A birthday is years back, so month arrows alone are unusable; and it
+        // can never be in the future.
+        monthYearNavigation
+        max={todayISO()}
+        calendarLayout="popover"
       />
     </div>
   );

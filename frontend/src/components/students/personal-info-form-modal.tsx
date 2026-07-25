@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useMemo, useState, useEffect } from "react";
+import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
+import { todayISO } from "~/lib/date-helpers";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import { DepartureSection } from "./student-form-fields";
 import {
@@ -663,19 +665,20 @@ interface DateInputProps {
 }
 
 function DateInput({ id, label, value, onChange }: Readonly<DateInputProps>) {
-  const displayValue = value ? value.split("T")[0] : "";
-
   return (
     <div>
       <label htmlFor={id} className="mb-1 block text-xs text-gray-500">
         {label}
       </label>
-      <input
+      <ISODatePicker
         id={id}
-        type="date"
-        value={displayValue}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        // The API returns the birthday as a full timestamp here; ISODatePicker
+        // takes the calendar day off it, which is what displayValue did.
+        value={value ?? ""}
+        onChange={onChange}
+        monthYearNavigation
+        max={todayISO()}
+        calendarLayout="popover"
       />
     </div>
   );

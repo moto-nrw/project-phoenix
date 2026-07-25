@@ -3,8 +3,10 @@
 import { useState, type FormEvent } from "react";
 import { Pencil } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
+import { todayISO } from "~/lib/date-helpers";
 import {
   correctAdminChildData,
   type AdminRequestChild,
@@ -168,13 +170,19 @@ export function AdminChildDataCorrection({
               required
             />
           </div>
-          <Input
-            name="correction-date-of-birth"
+          <ISODatePicker
+            id="correction-date-of-birth"
             label="Geburtsdatum"
-            type="date"
             value={dateOfBirth}
-            onChange={(event) => setDateOfBirth(event.target.value)}
-            required
+            onChange={setDateOfBirth}
+            monthYearNavigation
+            max={todayISO()}
+            calendarLayout="popover"
+            // submit() never validated the date itself, it relied on the native
+            // `required`. The value always arrives set (date_of_birth is
+            // mandatory on the enrollment record) and can no longer be cleared,
+            // so an empty date stays impossible.
+            hideClearButton
           />
           <div className="grid gap-4 sm:grid-cols-2">
             <Input
