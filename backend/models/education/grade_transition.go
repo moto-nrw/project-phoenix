@@ -3,6 +3,7 @@ package education
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -16,6 +17,32 @@ const (
 	TransitionStatusApplied  = "applied"
 	TransitionStatusReverted = "reverted"
 )
+
+// TenantTransitionsLockKey is the advisory-lock key that serializes everything
+// which may not interleave with applying or reverting a grade transition, per
+// tenant. It lives on the model because it has TWO independent holders that
+// must agree on the exact string:
+//
+//   - GradeTransitionRepository.LockTenantTransitions — taken by Apply and
+//     Revert before reading any class or lifecycle state.
+//   - The timetable materializer (services/schedule) — taken for the whole
+//     materialization pass.
+//
+// The second holder is what closes the graduation race: the materializer copies
+// enrollments using the student status it read when the pass started, so
+// without a shared gate an apply could commit a graduation AND finish its
+// roster archive pass in between, leaving the materializer to insert an
+// upcoming roster row for a child who is now an alumnus — a row nothing would
+// ever remove. Re-reading the status before each insert does not close it
+// (the graduation can commit in the gap); only mutual exclusion does (#405
+// review).
+//
+// LOCK ORDER: holders that also take the tenant recurrence lock
+// (`template-recurrence:<tenant>`) must take THAT one first. Apply/Revert take
+// only this key, so the order stays acyclic and the two can never deadlock.
+func TenantTransitionsLockKey(tenantID int64) string {
+	return fmt.Sprintf("education.grade_transitions:%d", tenantID)
+}
 
 // GradeTransition represents a bulk grade level change operation
 type GradeTransition struct {

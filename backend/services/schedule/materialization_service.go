@@ -241,6 +241,16 @@ func (s *materializationService) MaterializeForTenant(
 		if err := lockTenantRecurrenceWrites(ctx, s.db); err != nil {
 			return nil, &ScheduleError{Op: "materialize for tenant: lock recurrence", Err: err}
 		}
+		// Then the grade-transition gate, in that order (see
+		// education.TenantTransitionsLockKey — recurrence first, transitions
+		// second, everywhere). copyEnrollments decides whether to insert a roster
+		// row from the student status this pass read; a grade transition
+		// committing its graduation and its roster-archive pass in between would
+		// leave a departed child on an upcoming roster with nothing left to
+		// remove them (#405 review).
+		if err := lockTenantGradeTransitions(ctx, s.db); err != nil {
+			return nil, &ScheduleError{Op: "materialize for tenant: lock grade transitions", Err: err}
+		}
 	}
 
 	return s.materializeForTenantLocked(ctx, tenantID, from, to, source, start)

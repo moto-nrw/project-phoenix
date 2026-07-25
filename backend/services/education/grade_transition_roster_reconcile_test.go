@@ -305,6 +305,90 @@ func TestGradeTransitionService_Apply_RemovesTodaysPlannedRows(t *testing.T) {
 	assert.Equal(t, 1, countRow(observedToday.ID))
 }
 
+// TestGradeTransitionService_Revert_FillsTodaysInstanceMaterializedWhileAlumnus
+// covers the boundary case of the alumnus-window fill (#405 review): an
+// instance materialized AFTER the apply and dated TODAY carries no archive row
+// — the materializer skipped the alumnus outright, so there was never a row to
+// remove — which makes the revert's enrollment fill the only thing that can put
+// the child back. Excluding the boundary date left them off today's roster
+// permanently, with nothing left to repair it.
+func TestGradeTransitionService_Revert_FillsTodaysInstanceMaterializedWhileAlumnus(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := newRosterReconcilingTransitionService(t, db)
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-roster-boundary@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	gradClass := fmt.Sprintf("4bound-%s", suffix)
+
+	activityGroup := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("AG-%s", suffix))
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Room-%s", suffix))
+	student := testpkg.CreateTestStudent(t, db, "Boundary", "Child", gradClass)
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, activityGroup.ID, room.ID)
+
+	today := timezone.TodayDate()
+
+	enrollment := &activitiesModel.StudentEnrollment{
+		StudentID:       student.ID,
+		ActivityGroupID: activityGroup.ID,
+		ValidFrom:       today.AddDays(-30),
+	}
+	enrollment.SetTenantID(1)
+	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
+	require.NoError(t, err)
+	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	_, err = service.Apply(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	// The materializer runs while the child is an alumnus and builds a block for
+	// later today. It skips the alumnus, so the instance has no row for them —
+	// and no archive entry either.
+	todayInstance := testpkg.CreateTestActivityInstance(t, db, today, room.ID,
+		testpkg.ActivityInstanceOpts{
+			ActivityGroupID: &activityGroup.ID,
+			StartHHMM:       "16:30",
+			EndHHMM:         "17:30",
+		})
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", todayInstance.ID)
+
+	countRow := func(instanceID int64) int {
+		n, cErr := db.NewSelect().
+			TableExpr(`schedule.instance_students`).
+			Where("instance_id = ?", instanceID).
+			Where("student_id = ?", student.ID).
+			Count(ctx)
+		require.NoError(t, cErr)
+		return n
+	}
+	require.Equal(t, 0, countRow(todayInstance.ID))
+
+	_, err = service.Revert(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, countRow(todayInstance.ID),
+		"a block materialized today while the child was an alumnus must be filled on revert")
+
+	var createdID int64
+	require.NoError(t, db.NewSelect().
+		TableExpr(`schedule.instance_students`).
+		Column("id").
+		Where("instance_id = ?", todayInstance.ID).
+		Where("student_id = ?", student.ID).
+		Scan(ctx, &createdID))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", createdID)
+}
+
 // newRosterReconcilingTransitionService wires the grade transition service with
 // a real RosterReconciler (the production wiring in services.Factory).
 func newRosterReconcilingTransitionService(t *testing.T, db *bun.DB) *educationService.GradeTransitionService {

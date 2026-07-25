@@ -23,6 +23,11 @@ func init() {
 		Description: gradeTransitionRosterRemovalsDescription,
 		DependsOn: []string{
 			gradeTransitionHistoryFromStatusVersion,
+			// UNIQUE(tenant_id, id) on education.grade_transitions and
+			// users.students, and on schedule.activity_instances respectively —
+			// the parent indexes the composite FKs below reference.
+			compositePKIndexesVersion,
+			activityInstancesCompositeFKsVersion,
 		},
 	})
 
@@ -52,6 +57,15 @@ func init() {
 // The table lives in `schedule` because every column except transition_id is a
 // schedule row; transition_id references education.grade_transitions and
 // cascades, so deleting a transition drops its ledger with it.
+//
+// Every parent reference is a COMPOSITE (tenant_id, x_id) foreign key, matching
+// the project-wide pattern established by 1.14.4 / 1.15.2 / 1.15.51. A
+// single-column FK would accept a ledger row carrying tenant A's tenant_id
+// together with tenant B's transition, instance, or student — those ids are
+// globally valid and the RLS policy only checks the ledger's own tenant_id — so
+// a delete in one school could cascade into another school's data. The
+// composite form makes the tenant boundary a database invariant instead of a
+// convention (#405 review).
 func gradeTransitionRosterRemovalsUp(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.15.223: Creating schedule.grade_transition_roster_removals...")
 
@@ -69,9 +83,9 @@ func gradeTransitionRosterRemovalsUp(ctx context.Context, db *bun.DB) error {
 		CREATE TABLE IF NOT EXISTS schedule.grade_transition_roster_removals (
 			id                    BIGSERIAL PRIMARY KEY,
 			tenant_id             BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
-			transition_id         BIGINT NOT NULL REFERENCES education.grade_transitions(id) ON DELETE CASCADE,
-			instance_id           BIGINT NOT NULL REFERENCES schedule.activity_instances(id) ON DELETE CASCADE,
-			student_id            BIGINT NOT NULL REFERENCES users.students(id) ON DELETE CASCADE,
+			transition_id         BIGINT NOT NULL,
+			instance_id           BIGINT NOT NULL,
+			student_id            BIGINT NOT NULL,
 			room_id               BIGINT,
 			status                TEXT NOT NULL,
 			substatus             TEXT,
@@ -81,16 +95,30 @@ func gradeTransitionRosterRemovalsUp(ctx context.Context, db *bun.DB) error {
 			manual_status_at      TIMESTAMPTZ,
 			student_status_day_id BIGINT,
 			created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			CONSTRAINT unique_roster_removal UNIQUE (transition_id, instance_id, student_id)
+			CONSTRAINT unique_roster_removal UNIQUE (transition_id, instance_id, student_id),
+			CONSTRAINT fk_roster_removals_transition
+				FOREIGN KEY (tenant_id, transition_id)
+				REFERENCES education.grade_transitions(tenant_id, id) ON DELETE CASCADE,
+			CONSTRAINT fk_roster_removals_instance
+				FOREIGN KEY (tenant_id, instance_id)
+				REFERENCES schedule.activity_instances(tenant_id, id) ON DELETE CASCADE,
+			CONSTRAINT fk_roster_removals_student
+				FOREIGN KEY (tenant_id, student_id)
+				REFERENCES users.students(tenant_id, id) ON DELETE CASCADE
 		);
 
 		COMMENT ON TABLE schedule.grade_transition_roster_removals IS
 			'Snapshot of the schedule.instance_students rows a grade transition deleted on apply, replayed verbatim on revert (#405). room_id and student_status_day_id are deliberately FK-free: they are a snapshot, and the restore re-validates both so a since-deleted room or status day restores as NULL instead of failing the revert.';
 
+		-- One index per composite FK: the referencing columns of an ON DELETE
+		-- CASCADE child must be indexed or every parent delete seq-scans the
+		-- ledger.
 		CREATE INDEX IF NOT EXISTS idx_roster_removals_tenant_transition
 			ON schedule.grade_transition_roster_removals (tenant_id, transition_id);
-		CREATE INDEX IF NOT EXISTS idx_roster_removals_student
-			ON schedule.grade_transition_roster_removals (student_id);
+		CREATE INDEX IF NOT EXISTS idx_roster_removals_tenant_instance
+			ON schedule.grade_transition_roster_removals (tenant_id, instance_id);
+		CREATE INDEX IF NOT EXISTS idx_roster_removals_tenant_student
+			ON schedule.grade_transition_roster_removals (tenant_id, student_id);
 
 		ALTER TABLE schedule.grade_transition_roster_removals ENABLE ROW LEVEL SECURITY;
 		ALTER TABLE schedule.grade_transition_roster_removals FORCE ROW LEVEL SECURITY;

@@ -96,12 +96,16 @@ func (s *RosterReconciler) RemoveStudentsFromFutureRosters(ctx context.Context, 
 // RestoreStudentsToFutureRosters undoes the apply's roster reconciliation for
 // the given (now reactivated) students:
 //
-//  1. Every row the apply archived is replayed verbatim — same status,
-//     substatus, note, room, unplanned / non-booking / manual-status markers and
-//     owning status day. This preserves per-occurrence edits in both directions:
-//     a child deliberately removed from one occurrence before the transition is
-//     NOT resurrected (there is no archive entry for a row that never existed),
-//     and a child hand-added to one occurrence without an enrollment comes back.
+//  1. Every row the apply archived on a STILL-ACTIONABLE instance is replayed
+//     verbatim — same status, substatus, note, room, unplanned / non-booking /
+//     manual-status markers and owning status day. This preserves per-occurrence
+//     edits in both directions: a child deliberately removed from one occurrence
+//     before the transition is NOT resurrected (there is no archive entry for a
+//     row that never existed), and a child hand-added to one occurrence without
+//     an enrollment comes back. Archived rows whose occurrence has since become
+//     past, completed or cancelled are dropped rather than replayed: that
+//     attendance is frozen history now, and re-inserting an expected/absent
+//     child into it would rewrite a day nobody can still observe (#405 review).
 //
 //  2. Instances materialized DURING the alumnus window (created after
 //     materializedAfter) get the enrollment-valid rows the materializer skipped
@@ -121,12 +125,17 @@ func (s *RosterReconciler) RestoreStudentsToFutureRosters(
 		return nil
 	}
 
-	replayed, err := s.instanceStudentRepo.RestoreArchivedByTransition(ctx, transitionID, studentIDs)
+	// Same "today" bounds both halves: the archive replay must not reach back
+	// into instances that turned into history during the alumnus window, and the
+	// enrollment fill starts at the same boundary date.
+	from := timezone.TodayDate()
+
+	replayed, err := s.instanceStudentRepo.RestoreArchivedByTransition(ctx, transitionID, studentIDs, from)
 	if err != nil {
 		return &ScheduleError{Op: "reconcile roster: replay archived rows", Err: err}
 	}
 
-	restored, statusApplied, err := s.fillInstancesMaterializedDuringAlumnusWindow(ctx, studentIDs, materializedAfter)
+	restored, statusApplied, err := s.fillInstancesMaterializedDuringAlumnusWindow(ctx, studentIDs, from, materializedAfter)
 	if err != nil {
 		return err
 	}
@@ -142,17 +151,21 @@ func (s *RosterReconciler) RestoreStudentsToFutureRosters(
 }
 
 // fillInstancesMaterializedDuringAlumnusWindow adds enrollment-valid rows for
-// the future planned template-backed instances created after materializedAfter,
-// i.e. the instances the materializer built while the students were alumni and
-// therefore skipped. Existing rows are never duplicated (the
-// UNIQUE (instance_id, student_id) constraint and the in-memory dedup both guard
-// it). Returns the rows created and the status-day rows subsequently stamped.
+// the planned template-backed instances dated on or after `from` that were
+// created after materializedAfter, i.e. the instances the materializer built
+// while the students were alumni and therefore skipped. Existing rows are never
+// duplicated (the UNIQUE (instance_id, student_id) constraint and the in-memory
+// dedup both guard it). Returns the rows created and the status-day rows
+// subsequently stamped.
+//
+// `from` is today, inclusively: an instance materialized after the apply and
+// dated today has no archive entry to replay, so excluding the boundary date
+// would leave a same-day apply-then-revert child off today's roster with nothing
+// left to put them back (#405 review).
 func (s *RosterReconciler) fillInstancesMaterializedDuringAlumnusWindow(
-	ctx context.Context, studentIDs []int64, materializedAfter time.Time,
+	ctx context.Context, studentIDs []int64, from timezone.Date, materializedAfter time.Time,
 ) (int, int, error) {
-	after := timezone.TodayDate()
-
-	all, err := s.instanceRepo.FindFuturePlannedTemplateBacked(ctx, after)
+	all, err := s.instanceRepo.FindPlannedTemplateBackedFrom(ctx, from)
 	if err != nil {
 		return 0, 0, &ScheduleError{Op: "reconcile roster: load future instances", Err: err}
 	}

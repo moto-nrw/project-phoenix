@@ -95,13 +95,36 @@ function describeMappings(transition: GradeTransition): string {
 // reverted the previous transition becomes the latest and can be reverted in
 // turn. The backend enforces the same order and answers a stale target with a
 // 409 (NOT_LATEST_TRANSITION_CODE), so this runs over a freshly fetched list too.
+//
+// The comparison must reproduce the backend's ordering EXACTLY
+// (`applied_at DESC NULLS LAST, id DESC` in LockLatestApplied). Comparing only
+// the timestamp is not enough: the API serializes applied_at at second
+// precision, so two transitions applied within the same second compare equal
+// here while the backend still separates them by id — and legacy applied rows
+// carry no timestamp at all. Picking the wrong one of a tied pair means the UI
+// offers a target the backend rejects with 409, refetches, and picks the same
+// invalid target again: an unbreakable loop for the admin (#405 review).
+function isMoreRecentlyApplied(
+  candidate: GradeTransition,
+  current: GradeTransition,
+): boolean {
+  // NULLS LAST: a row with a timestamp always beats one without.
+  const a = candidate.appliedAt ?? "";
+  const b = current.appliedAt ?? "";
+  if (a !== b) return a > b;
+  // Tie (same second, or both untimestamped) — id DESC, numerically. The ids are
+  // backend int64s rendered as strings, so a lexical compare would order "9"
+  // above "10".
+  return Number(candidate.id) > Number(current.id);
+}
+
 function pickLatestRevertable(
   list: readonly GradeTransition[],
 ): GradeTransition | null {
   let latest: GradeTransition | null = null;
   for (const t of list) {
     if (!t.canRevert || t.status !== "applied") continue;
-    if (latest === null || (t.appliedAt ?? "") > (latest.appliedAt ?? "")) {
+    if (latest === null || isMoreRecentlyApplied(t, latest)) {
       latest = t;
     }
   }

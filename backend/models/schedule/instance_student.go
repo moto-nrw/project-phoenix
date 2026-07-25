@@ -241,8 +241,16 @@ type InstanceStudentRepository interface {
 	// revert the exact inverse of the apply instead of a reconstruction from
 	// enrollments, which would resurrect occurrences a supervisor had removed by
 	// hand and could never recreate hand-added rows with no enrollment behind
-	// them (#405 review). Tenant-scoped; returns the rows restored.
-	RestoreArchivedByTransition(ctx context.Context, transitionID int64, studentIDs []int64) (int, error)
+	// them (#405 review).
+	//
+	// Only still-actionable instances are replayed — dated on or after `from`
+	// (today at revert time) and neither completed nor cancelled. An alumnus
+	// window spanning weeks leaves archived rows describing occurrences that are
+	// now frozen history; re-inserting an expected/absent child there would
+	// rewrite attendance nobody can still record. Those ledger entries are
+	// consumed all the same, so a later re-apply starts from a clean snapshot
+	// (#405 review). Tenant-scoped; returns the rows restored.
+	RestoreArchivedByTransition(ctx context.Context, transitionID int64, studentIDs []int64, from timezone.Date) (int, error)
 
 	// UpdateAttendanceFromCheckin opens observed presence for an expected row,
 	// a broad-status absence, or a checked-out present row. It stamps the first

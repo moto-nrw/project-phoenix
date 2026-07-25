@@ -158,15 +158,21 @@ func (r *ActivityInstanceRepository) FindByTenantAndDate(ctx context.Context, da
 	return instances, nil
 }
 
-// FindFuturePlannedTemplateBacked returns planned, template-backed instances
-// dated strictly after `after` for the current tenant. Feeds the grade-transition
+// FindPlannedTemplateBackedFrom returns planned, template-backed instances
+// dated on or after `from` for the current tenant. Feeds the grade-transition
 // revert reconciliation (re-adding restored students the materializer skipped).
-func (r *ActivityInstanceRepository) FindFuturePlannedTemplateBacked(ctx context.Context, after timezone.Date) ([]*schedule.ActivityInstance, error) {
+//
+// The date bound is inclusive so an instance materialized during the alumnus
+// window and dated today is reconciled too: it carries no archive row (the
+// materializer never created the alumnus's row), so nothing else can repair it
+// afterwards. Instances that already started or finished today drop out via the
+// planned-status filter (#405 review).
+func (r *ActivityInstanceRepository) FindPlannedTemplateBackedFrom(ctx context.Context, from timezone.Date) ([]*schedule.ActivityInstance, error) {
 	var instances []*schedule.ActivityInstance
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&instances).
 		ModelTableExpr(modelTblActivityInstance).
-		Where(`"activity_instance".date > ?`, after).
+		Where(`"activity_instance".date >= ?`, from).
 		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
 		Where(`"activity_instance".activity_group_id IS NOT NULL`).
 		Order("date ASC", "start_time ASC")
@@ -176,7 +182,7 @@ func (r *ActivityInstanceRepository) FindFuturePlannedTemplateBacked(ctx context
 	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "find future planned template-backed instances",
+			Op:  "find planned template-backed instances from date",
 			Err: err,
 		}
 	}

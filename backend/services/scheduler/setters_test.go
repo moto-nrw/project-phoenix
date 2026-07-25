@@ -212,7 +212,7 @@ func (f *fakeInstanceRepo) FindByIDs(_ context.Context, _ []int64) ([]*scheduleM
 	return nil, nil
 }
 
-func (f *fakeInstanceRepo) FindFuturePlannedTemplateBacked(_ context.Context, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindPlannedTemplateBackedFrom(_ context.Context, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
 func (f *fakeInstanceRepo) MarkCompleted(_ context.Context, _ int64, _ time.Time) error {

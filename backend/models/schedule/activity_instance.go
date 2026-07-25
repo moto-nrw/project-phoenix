@@ -165,13 +165,20 @@ type ActivityInstanceRepository interface {
 	// given active.group, or nil if none.
 	FindByActiveGroupID(ctx context.Context, activeGroupID int64) (*ActivityInstance, error)
 
-	// FindFuturePlannedTemplateBacked returns every planned, template-backed
-	// (activity_group_id IS NOT NULL) instance dated strictly after `after`,
+	// FindPlannedTemplateBackedFrom returns every planned, template-backed
+	// (activity_group_id IS NOT NULL) instance dated on or after `from`,
 	// tenant-scoped and ordered by date then start time. Used to reconcile
-	// already-materialized future rosters when a reverted grade transition
-	// restores students the insert-only materializer had skipped while they were
-	// alumni (#405 review).
-	FindFuturePlannedTemplateBacked(ctx context.Context, after timezone.Date) ([]*ActivityInstance, error)
+	// already-materialized rosters when a reverted grade transition restores
+	// students the insert-only materializer had skipped while they were alumni
+	// (#405 review).
+	//
+	// The bound is INCLUSIVE of `from` (today, at revert time). An instance
+	// materialized after the apply but dated today has no archive row — the
+	// materializer skipped the alumnus outright — so excluding the boundary date
+	// would leave a same-day apply-then-revert child permanently missing from
+	// today's roster with nothing left to repair it. Today's instances that
+	// already started or finished are excluded by the planned-status filter.
+	FindPlannedTemplateBackedFrom(ctx context.Context, from timezone.Date) ([]*ActivityInstance, error)
 
 	// MarkCompleted updates only lifecycle columns. Do not use a full-row
 	// Update for DB-loaded instances because SQL TIME columns do not round-trip

@@ -478,7 +478,11 @@ func (s *GradeTransitionService) Apply(ctx context.Context, id int64, accountID 
 	// Serialize against a concurrent apply/revert for this tenant BEFORE reading
 	// anything: the class snapshots and student locks taken below must not be
 	// invalidated by an interleaved revert that rewrites the same classes and
-	// statuses (#405 review). The lock releases at COMMIT/ROLLBACK.
+	// statuses (#405 review). The same lock is taken by the timetable
+	// materializer, so a materialization pass can neither insert an upcoming
+	// roster row for a child this apply is about to graduate (from an enrollment
+	// it read while they were still active) nor race the reconciliation below.
+	// The lock releases at COMMIT/ROLLBACK.
 	if err := s.transitionRepo.LockTenantTransitions(ctx); err != nil {
 		return nil, err
 	}
@@ -955,7 +959,10 @@ func finalizeApplyResult(result *TransitionResult) {
 func (s *GradeTransitionService) Revert(ctx context.Context, id int64, accountID int64) (*TransitionResult, error) {
 	// Same tenant-wide lock Apply takes: apply and revert share this resource so
 	// a revert of the current latest transition cannot interleave with an apply of
-	// a newer draft (#405 review). The lock releases at COMMIT/ROLLBACK.
+	// a newer draft (#405 review). It equally excludes a concurrent
+	// materialization pass, which takes the same gate — otherwise the
+	// materializer could insert rows between the reactivation and the roster
+	// reconciliation below. The lock releases at COMMIT/ROLLBACK.
 	if err := s.transitionRepo.LockTenantTransitions(ctx); err != nil {
 		return nil, err
 	}

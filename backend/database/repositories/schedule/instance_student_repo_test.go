@@ -1573,7 +1573,7 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 	assertRowKept(t, futureInst.ID, stayer.ID)
 
 	t.Run("restores exactly the archived rows", func(t *testing.T) {
-		restored, err := repo.RestoreArchivedByTransition(ctx, transition.ID, []int64{graduate.ID})
+		restored, err := repo.RestoreArchivedByTransition(ctx, transition.ID, []int64{graduate.ID}, today)
 		require.NoError(t, err)
 		assert.Equal(t, 2, restored, "both archived rows come back")
 		assertRowKept(t, futureInst.ID, graduate.ID)
@@ -1668,5 +1668,92 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 		require.NoError(t, err)
 		assert.Equal(t, 0, removed)
 		assertRowKept(t, futureInst.ID, graduate.ID)
+	})
+}
+
+// TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen pins the
+// other half of the revert predicate (#405 review): an alumnus window can span
+// weeks, so by the time a transition is reverted some archived rows describe
+// occurrences that have become history. Replaying an 'expected' row into a past
+// or completed instance would rewrite attendance long after anyone could still
+// observe what happened. Those ledger entries are dropped, not replayed — but
+// they ARE consumed, so a later re-apply starts from a clean snapshot.
+func TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	account := testpkg.CreateTestAccount(t, db, "roster-restore-frozen@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	today := timezone.TodayDate()
+	soon := today.AddDays(3)
+
+	// Two occurrences that were both still ahead when the transition was
+	// applied: one finishes during the alumnus window, the other stays open.
+	finishedInst, cleanupFinished := createInstanceFixture(t, db, "frozdone", today)
+	defer cleanupFinished()
+	openInst, cleanupOpen := createInstanceFixture(t, db, "frozopen", soon)
+	defer cleanupOpen()
+
+	suffix := time.Now().UnixNano()
+	graduate := testpkg.CreateTestStudent(t, db, "Abgang", fmt.Sprintf("F-%d", suffix), "4a")
+	defer testpkg.CleanupActivityFixtures(t, db, graduate.ID)
+
+	finishedRow := testpkg.CreateTestInstanceStudent(t, db, finishedInst.ID, graduate.ID,
+		scheduleModels.AttendanceStatusExpected)
+	openRow := testpkg.CreateTestInstanceStudent(t, db, openInst.ID, graduate.ID,
+		scheduleModels.AttendanceStatusExpected)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", finishedRow.ID, openRow.ID)
+
+	removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today)
+	require.NoError(t, err)
+	require.Equal(t, 2, removed, "both planned rows are archived on apply")
+
+	// The alumnus window passes: today's occurrence runs and is completed.
+	require.NoError(t, instanceRepo.MarkCompleted(ctx, finishedInst.ID, time.Now()))
+
+	restored, err := repo.RestoreArchivedByTransition(ctx, transition.ID, []int64{graduate.ID}, today)
+	require.NoError(t, err)
+	assert.Equal(t, 1, restored, "only the still-actionable occurrence is replayed")
+
+	gotOpen, err := repo.FindByInstanceAndStudent(ctx, openInst.ID, graduate.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotOpen, "the open occurrence gets its row back")
+	// The replay inserts a fresh row, so it carries a new id the fixture cleanup
+	// above does not know about.
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", gotOpen.ID)
+
+	gotFinished, err := repo.FindByInstanceAndStudent(ctx, finishedInst.ID, graduate.ID)
+	require.NoError(t, err)
+	assert.Nil(t, gotFinished, "the completed occurrence keeps the attendance it recorded")
+
+	remaining, err := db.NewSelect().
+		TableExpr(`schedule.grade_transition_roster_removals`).
+		Where("transition_id = ?", transition.ID).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 0, remaining, "obsolete ledger entries are consumed, not left behind")
+
+	t.Run("an occurrence that fell into the past is not replayed either", func(t *testing.T) {
+		// Re-archive the row the replay just put back on the open occurrence.
+		n, aErr := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today)
+		require.NoError(t, aErr)
+		require.Equal(t, 1, n)
+
+		// Revert runs a week later — the occurrence is now behind us.
+		replayed, rErr := repo.RestoreArchivedByTransition(
+			ctx, transition.ID, []int64{graduate.ID}, soon.AddDays(1))
+		require.NoError(t, rErr)
+		assert.Equal(t, 0, replayed)
+
+		got, fErr := repo.FindByInstanceAndStudent(ctx, openInst.ID, graduate.ID)
+		require.NoError(t, fErr)
+		assert.Nil(t, got)
 	})
 }

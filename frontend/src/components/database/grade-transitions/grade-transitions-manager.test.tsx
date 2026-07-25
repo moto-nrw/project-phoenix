@@ -240,6 +240,50 @@ describe("GradeTransitionsManager", () => {
   // A revert is only ever partial when children were deleted, moved, or had
   // their status changed after the apply. The backend says so in result.warnings
   // and the admin must be told, not shown an unconditional success (#405 review).
+  // The backend picks the revert target with `applied_at DESC NULLS LAST,
+  // id DESC`, but the API serializes applied_at at second precision — two
+  // transitions applied within the same second look tied here. Offering the
+  // older one earns a 409 and, after the refresh, the same wrong target again:
+  // a loop the admin cannot break out of (#405 review).
+  it("breaks an applied_at tie by id, like the backend does", async () => {
+    const earlier: GradeTransition = {
+      ...appliedTransition,
+      id: "8",
+      academicYear: "2025-2026",
+    };
+    const later: GradeTransition = {
+      ...appliedTransition,
+      id: "12",
+      academicYear: "2026-2027",
+    };
+    // Same second, older row FIRST: a timestamp-only comparison never sees a
+    // reason to move off it and offers id 8, which the backend rejects.
+    expect(earlier.appliedAt).toBe(later.appliedAt);
+    api.listGradeTransitions.mockResolvedValue([earlier, later]);
+    api.revertGradeTransition.mockResolvedValue({
+      transitionId: "12",
+      status: "reverted",
+      studentsPromoted: 20,
+      studentsGraduated: 10,
+      canRevert: false,
+      warnings: [],
+    });
+    render(<GradeTransitionsManager />);
+
+    await screen.findByText("2026-2027");
+    // Exactly one row offers the action, and it is the higher id.
+    const buttons = screen.getAllByRole("button", { name: /Zurücksetzen/i });
+    expect(buttons).toHaveLength(1);
+
+    fireEvent.click(buttons[0]!);
+    await screen.findByText(/wirklich zurücksetzen/i);
+    fireEvent.click(screen.getByRole("button", { name: /Ja, zurücksetzen/i }));
+
+    await waitFor(() => {
+      expect(api.revertGradeTransition).toHaveBeenCalledWith("12");
+    });
+  });
+
   it("reports a partial revert instead of claiming full success", async () => {
     api.listGradeTransitions.mockResolvedValue([appliedTransition]);
     api.revertGradeTransition.mockResolvedValue({

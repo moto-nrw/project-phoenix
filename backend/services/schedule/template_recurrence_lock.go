@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -38,6 +39,29 @@ func lockTenantRecurrenceWrites(ctx context.Context, db *bun.DB) error {
 	key := fmt.Sprintf("template-recurrence:%d", tenantID)
 	if err := base.AcquireXactLock(ctx, db, key); err != nil {
 		return fmt.Errorf("lock template recurrence writes: %w", err)
+	}
+	return nil
+}
+
+// lockTenantGradeTransitions takes the tenant-wide gate that
+// education.GradeTransitionRepository.LockTenantTransitions holds for the whole
+// of an apply/revert, so a materialization pass and a grade transition can never
+// run concurrently for one school. See education.TenantTransitionsLockKey for
+// the race this closes and for the required lock ordering: the recurrence gate
+// is always taken FIRST, this one second.
+func lockTenantGradeTransitions(ctx context.Context, db *bun.DB) error {
+	if db == nil {
+		return errors.New("database is not configured")
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return errors.New("tenant id is required")
+	}
+	if _, ok := modelBase.TxFromContext(ctx); !ok {
+		return errors.New("grade transition lock requires a transaction")
+	}
+	if err := base.AcquireXactLock(ctx, db, education.TenantTransitionsLockKey(tenantID)); err != nil {
+		return fmt.Errorf("lock tenant grade transitions: %w", err)
 	}
 	return nil
 }

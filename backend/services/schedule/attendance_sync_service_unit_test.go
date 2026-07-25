@@ -239,7 +239,7 @@ func (f *fakeInstanceStudentRepo) ArchivePlannedByStudentIDsFrom(context.Context
 	panic("unused")
 }
 
-func (f *fakeInstanceStudentRepo) RestoreArchivedByTransition(context.Context, int64, []int64) (int, error) {
+func (f *fakeInstanceStudentRepo) RestoreArchivedByTransition(context.Context, int64, []int64, timezone.Date) (int, error) {
 	panic("unused")
 }
 
@@ -895,6 +895,6 @@ func (f *fakeInstanceRepo) FindByIDs(context.Context, []int64) ([]*scheduleModel
 	return nil, nil
 }
 
-func (f *fakeInstanceRepo) FindFuturePlannedTemplateBacked(context.Context, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindPlannedTemplateBackedFrom(context.Context, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }

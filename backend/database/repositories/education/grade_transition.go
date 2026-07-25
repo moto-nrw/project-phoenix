@@ -267,8 +267,12 @@ func (r *GradeTransitionRepository) LockLatestApplied(ctx context.Context) (*edu
 // classes a concurrent revert then changes underneath it). The key is scoped by
 // tenant so different schools never block each other; the lock releases
 // automatically at COMMIT/ROLLBACK of the caller's transaction (#405 review).
+//
+// The timetable materializer takes the SAME key — see
+// education.TenantTransitionsLockKey for why a graduation and a materialization
+// pass must not interleave.
 func (r *GradeTransitionRepository) LockTenantTransitions(ctx context.Context) error {
-	key := fmt.Sprintf("education.grade_transitions:%d", tenant.FromContext(ctx))
+	key := education.TenantTransitionsLockKey(tenant.FromContext(ctx))
 	if err := base.AcquireXactLock(ctx, r.db, key); err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "lock tenant grade transitions",

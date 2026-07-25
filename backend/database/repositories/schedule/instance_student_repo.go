@@ -864,10 +864,21 @@ func (r *InstanceStudentRepository) ArchivePlannedByStudentIDsFrom(
 // ON CONFLICT DO NOTHING covers a row that already exists again (a re-run, or a
 // manual re-add during the alumnus window) — the existing row wins.
 //
+// Only STILL-ACTIONABLE instances are replayed: dated on or after `from`
+// (today at revert time) and neither completed nor cancelled. The alumnus
+// window can span weeks, so archived rows routinely describe occurrences that
+// have since become history. Replaying an 'expected' or status-day 'absent' row
+// into a past or completed instance would retroactively insert a child into
+// frozen attendance — after every chance to record what actually happened has
+// passed — corrupting reports and exports. Their ledger entries are still
+// consumed by the same DELETE (they are obsolete, and leaving them would make a
+// re-apply's upsert collide with a stale snapshot); only the INSERT is filtered
+// (#405 review).
+//
 // (The archiving direction upserts instead, so a repeated archive of the same
 // pair refreshes the snapshot rather than silently keeping a stale one.)
 func (r *InstanceStudentRepository) RestoreArchivedByTransition(
-	ctx context.Context, transitionID int64, studentIDs []int64,
+	ctx context.Context, transitionID int64, studentIDs []int64, from timezone.Date,
 ) (int, error) {
 	if len(studentIDs) == 0 {
 		return 0, nil
@@ -891,18 +902,26 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 		       restored.is_unplanned, restored.not_scheduled, restored.manual_status_at,
 		       status_day.id, NOW(), NOW()
 		FROM restored
+		JOIN schedule.activity_instances AS ai
+		       ON ai.id = restored.instance_id
+		      AND ai.tenant_id = restored.tenant_id
 		LEFT JOIN facilities.rooms AS room
 		       ON room.id = restored.room_id
 		      AND room.tenant_id = restored.tenant_id
 		LEFT JOIN active.student_status_days AS status_day
 		       ON status_day.id = restored.student_status_day_id
 		      AND status_day.tenant_id = restored.tenant_id
+		WHERE ai.date >= ?
+		  AND ai.status NOT IN (?, ?)
 		ON CONFLICT (instance_id, student_id) DO NOTHING`
 
 	result, err := base.GetDB(ctx, r.db).ExecContext(ctx, rawSQL,
 		transitionID,
 		bun.List(studentIDs),
 		tenant.FromContext(ctx),
+		from,
+		schedule.InstanceStatusCompleted,
+		schedule.InstanceStatusCancelled,
 	)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{

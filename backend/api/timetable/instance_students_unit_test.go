@@ -98,7 +98,7 @@ func (f *fakeRepo) DeleteByInstanceID(context.Context, int64) error { panic("unu
 func (f *fakeRepo) ArchivePlannedByStudentIDsFrom(context.Context, int64, []int64, timezone.Date) (int, error) {
 	panic("unused")
 }
-func (f *fakeRepo) RestoreArchivedByTransition(context.Context, int64, []int64) (int, error) {
+func (f *fakeRepo) RestoreArchivedByTransition(context.Context, int64, []int64, timezone.Date) (int, error) {
 	panic("unused")
 }
 func (f *fakeRepo) BulkUpdateStatus(context.Context, int64, string, string, []int64) (int, error) {
