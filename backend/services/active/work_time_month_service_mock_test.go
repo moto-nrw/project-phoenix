@@ -641,6 +641,26 @@ func TestWTMRangeAggregate_ExcludesPreviousMonthBeforeAccountStart(t *testing.T)
 	assert.Equal(t, 120, aggregate.BalanceMinutes, "the weekly delta starts at the account anchor")
 }
 
+func TestWTMRangeAggregate_UnsetAccountStartUsesPeriodEndYear(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = ""
+	f.sessions.sessions = []*activeModels.WorkSession{
+		wtmSession(timezone.NewDate(2025, time.December, 29), 8, 120, 0),
+	}
+
+	aggregate, err := f.svc.GetRangeAggregate(
+		context.Background(),
+		wtmStaffID,
+		timezone.NewDate(2025, time.December, 29),
+		timezone.NewDate(2026, time.January, 4),
+	)
+	require.NoError(t, err)
+
+	assert.Zero(t, aggregate.TargetMinutes, "the default account starts on January 1 of the period-end year")
+	assert.Zero(t, aggregate.ActualMinutes, "December work before that default account start is excluded")
+	assert.Zero(t, aggregate.BalanceMinutes, "the ISO week aggregate starts with the new account year")
+}
+
 func TestPrefetchedMonthService_FiltersSessionsToRequestedRange(t *testing.T) {
 	accountStart := timezone.NewDate(2026, time.July, 8)
 	prefetch := &monthPrefetch{

@@ -338,6 +338,39 @@ func TestWTMAdjustments_ReductionCapacityStartsFromFrozenPriorMonth(t *testing.T
 	assert.Equal(t, 40, capacity)
 }
 
+func TestWTMAdjustments_AdvancedAccountStartIgnoresOlderSnapshotBoundary(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-01"
+	f.svc.SetSnapshotReader(&wtmMockSnapshotReader{
+		snapshot: &activeModels.StaffMonthBalanceSnapshot{
+			StaffID:               wtmStaffID,
+			Year:                  2026,
+			Month:                 6,
+			ClosingBalanceMinutes: 1_000,
+		},
+	})
+	accountStart := timezone.NewDate(2026, time.July, 1)
+
+	opening, err := f.svc.getOpeningBalanceOnDate(
+		context.Background(),
+		wtmStaffID,
+		accountStart,
+		f.svc.today(),
+		nil,
+	)
+	require.NoError(t, err)
+	assert.Zero(t, opening, "the June snapshot lies before the advanced July account anchor")
+
+	minimum, err := f.svc.getMinimumDailyClosingBalance(
+		context.Background(),
+		wtmStaffID,
+		accountStart,
+		accountStart,
+	)
+	require.NoError(t, err)
+	assert.Zero(t, minimum, "the June boundary must not restart the chain on the account anchor")
+}
+
 func TestWTMAdjustments_DailyMinimumMatchesCarryChain(t *testing.T) {
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-01"

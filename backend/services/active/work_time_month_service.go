@@ -833,7 +833,7 @@ func (s *workTimeMonthService) GetRangeAggregate(ctx context.Context, staffID in
 	if from.IsZero() || to.IsZero() || to.Before(from) {
 		return nil, errors.New("from and to must form a valid range")
 	}
-	anchor, err := s.chainAnchor(ctx, monthOf(from))
+	anchor, err := s.chainAnchor(ctx, monthOf(to))
 	if err != nil {
 		return nil, err
 	}
