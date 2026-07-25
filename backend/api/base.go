@@ -131,9 +131,6 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 		return nil, err
 	}
 	emailWebhookSigningSecret := strings.TrimSpace(viper.GetString("email_webhook_signing_secret"))
-	if emailWebhookSigningSecret == "" {
-		return nil, errors.New("EMAIL_WEBHOOK_SIGNING_SECRET is required")
-	}
 
 	// Get database connection as phoenix_auth (least-privilege for serve)
 	db, err := database.DBConnForServe()
