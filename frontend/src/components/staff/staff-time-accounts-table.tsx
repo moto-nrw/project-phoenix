@@ -12,11 +12,13 @@
 // Berechtigung feuert der Request gar nicht erst.
 
 import { useMemo } from "react";
+import { ChevronLeft, ChevronRight, Lock } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { Input } from "~/components/ui/input";
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
+import { formatDate } from "~/lib/date-helpers";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
 import { formatDuration } from "~/lib/time-tracking-helpers";
 import type { TimeAccountRow } from "~/lib/staff-overview-api";
@@ -58,10 +60,29 @@ function saldoClass(minutes: number): string {
   return "text-gray-600";
 }
 
+/** Abschluss-Zustand des angezeigten Monats (#1417). `null` solange der
+ *  Status lädt — dann erscheint weder Badge noch Button, statt kurz falsch
+ *  "offen" zu behaupten. */
+export interface MonthCloseState {
+  readonly closed: boolean;
+  /** Zeitstempel des Abschlusses (erste Snapshot-Zeile), "" wenn offen. */
+  readonly closedAt: string;
+  readonly closedCount: number;
+}
+
 interface Props {
   readonly rows: TimeAccountRow[];
   readonly year: number;
   readonly month: number;
+  /** Monatsnavigation: der Endpoint kann seit #1988 jeden vergangenen Monat. */
+  readonly onPrevMonth: () => void;
+  readonly onNextMonth: () => void;
+  readonly canGoNextMonth: boolean;
+  readonly monthClose: MonthCloseState | null;
+  /** True, wenn der angezeigte Monat vorbei ist — nur dann kann er
+   *  abgeschlossen werden (Backend: ErrMonthNotClosable). */
+  readonly monthIsOver: boolean;
+  readonly onCloseMonth: () => void;
   readonly isLoading: boolean;
   readonly error: string | null;
   readonly onRowClick: (row: TimeAccountRow) => void;
@@ -79,6 +100,12 @@ export function StaffTimeAccountsTable({
   rows,
   year,
   month,
+  onPrevMonth,
+  onNextMonth,
+  canGoNextMonth,
+  monthClose,
+  monthIsOver,
+  onCloseMonth,
   isLoading,
   error,
   onRowClick,
@@ -169,9 +196,36 @@ export function StaffTimeAccountsTable({
     <div className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-gray-800">
-            Zeitkonten — {formatOverviewMonth(year, month)}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={onPrevMonth}
+              aria-label="Vorheriger Monat"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <p className="text-sm font-semibold text-gray-800">
+              Zeitkonten — {formatOverviewMonth(year, month)}
+            </p>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={onNextMonth}
+              disabled={!canGoNextMonth}
+              aria-label="Nächster Monat"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            {monthClose?.closed && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
+                <Lock className="h-3 w-3" />
+                Abgeschlossen am {formatDate(monthClose.closedAt)}
+              </span>
+            )}
+          </div>
           <p className="text-xs text-gray-500">
             Soll bis heute, Ist und Saldo aus dem Stundenkonto. Krankheit und
             Urlaub sind mit dem Tagessoll gutgeschrieben.
@@ -215,8 +269,32 @@ export function StaffTimeAccountsTable({
           >
             {showCustomSaldo ? "Grenze ausblenden" : "Eigene Grenze"}
           </Button>
+          {monthClose !== null && !monthClose.closed && (
+            <Button
+              type="button"
+              size="compact"
+              variant="secondary"
+              onClick={onCloseMonth}
+              disabled={!monthIsOver}
+              title={
+                monthIsOver
+                  ? undefined
+                  : "Der laufende Monat kann erst nach Monatsende abgeschlossen werden."
+              }
+            >
+              <Lock className="mr-1 h-3 w-3" />
+              Monat abschließen
+            </Button>
+          )}
         </div>
       </div>
+      {monthClose !== null && !monthClose.closed && !monthIsOver && (
+        <p className="text-xs text-gray-500">
+          Der Abschluss friert den Stand zum Monatsende ein. Für den laufenden
+          Monat gibt es diesen Stand noch nicht — abschließen geht ab dem 1. des
+          Folgemonats.
+        </p>
+      )}
 
       {showCustomSaldo && (
         <div className="flex flex-wrap items-center gap-2">

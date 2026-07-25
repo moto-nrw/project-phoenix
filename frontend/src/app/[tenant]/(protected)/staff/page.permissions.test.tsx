@@ -32,6 +32,7 @@ vi.mock("~/lib/swr", () => ({
 
 vi.mock("~/lib/staff-api", () => ({
   staffService: { getAllStaff },
+  staffMonthCloseService: { getStatus: vi.fn().mockResolvedValue([]) },
 }));
 
 vi.mock("~/lib/staff-overview-api", () => ({

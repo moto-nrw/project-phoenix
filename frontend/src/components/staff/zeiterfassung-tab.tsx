@@ -9,9 +9,12 @@ import type { StaffShift } from "~/lib/shift-helpers";
 import {
   staffAbsenceService,
   staffHistoryService,
+  staffMonthCloseService,
   staffMonthSummaryService,
   staffScheduleService,
 } from "~/lib/staff-api";
+import { MonthCloseReasonModal } from "~/components/staff/month-close-modal";
+import { useSWRConfig } from "swr";
 import type { StaffAbsenceRow, StaffHistorySession } from "~/lib/staff-api";
 import { Monatskarte } from "~/components/time-tracking/monatskarte";
 import type { MonthSummary } from "~/lib/time-tracking-helpers";
@@ -189,6 +192,8 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
   // lexicographically; both are "YYYY-MM-DD".
   const accountStartsInFuture =
     accountStartDate !== "" && accountStartDate > todayISO;
+  const [showReopenModal, setShowReopenModal] = useState(false);
+  const { mutate: globalMutate } = useSWRConfig();
   const {
     data: monthSummary,
     isLoading: monthSummaryLoading,
@@ -280,8 +285,51 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
               isPreAccountMonth={isPreAccountMonth}
               accountStartsInFuture={accountStartsInFuture}
               accountStartDate={accountStartDate}
+              onReopen={() => setShowReopenModal(true)}
             />
           </div>
+        )}
+
+        {showReopenModal && (
+          <MonthCloseReasonModal
+            title={`Monat wieder öffnen — ${String(monthNumber).padStart(2, "0")}/${monthYear}`}
+            description={
+              <>
+                <p>
+                  Hebt den Abschluss dieses Monats{" "}
+                  <strong>nur für diese Person</strong> auf. Der Übertrag wird
+                  wieder live aus den erfassten Zeiten gerechnet; nachträgliche
+                  Änderungen wirken dann wieder auf alle Folgemonate.
+                </p>
+                <p>
+                  Nur nötig, wenn der Abschluss selbst falsch war. Für eine
+                  einzelne Nachkorrektur ist eine Buchung im offenen Monat
+                  (Übersicht-Tab, Stundenkonto) meist der bessere Weg — der
+                  Abschluss bleibt dann bestehen.
+                </p>
+              </>
+            }
+            submitLabel="Monat wieder öffnen"
+            successMessage="Monat wieder geöffnet."
+            destructive
+            onSubmit={async (reason) => {
+              await staffMonthCloseService.reopenMonth(staffId, {
+                year: monthYear,
+                month: monthNumber,
+                reason,
+              });
+              // Reopen verschiebt den Kettenstart: alle Monatskarten und
+              // Zeitkonten-Antworten dieses Tenants sind potenziell veraltet.
+              await globalMutate(
+                (key) =>
+                  typeof key === "string" &&
+                  (key.includes(`staff-month-summary-${staffId}`) ||
+                    key.includes("staff-time-accounts") ||
+                    key.includes("staff-month-close")),
+              );
+            }}
+            onClose={() => setShowReopenModal(false)}
+          />
         )}
 
         {visibleLoading || shiftsLoading ? (

@@ -36,6 +36,12 @@ var (
 	// ErrAdjustmentExceedsBalance prevents payouts and lump-sum comp-time
 	// grants from reducing the account below zero — HTTP 409.
 	ErrAdjustmentExceedsBalance = errors.New("balance adjustment exceeds accrued balance")
+	// ErrAdjustmentInClosedMonth marks a booking whose effective month is
+	// frozen by a Monatsabschluss (#1417) — HTTP 400 with a stable code so
+	// the frontend can point at the month close instead of a generic
+	// validation message. Wraps ErrAdjustmentInvalid so existing errors.Is
+	// call sites keep matching.
+	ErrAdjustmentInClosedMonth = fmt.Errorf("%w: effective month is closed", ErrAdjustmentInvalid)
 )
 
 const (
@@ -164,7 +170,7 @@ func (s *staffBalanceAdjustmentService) rejectFrozenMonth(ctx context.Context, s
 	}
 	return fmt.Errorf(
 		"%w: effective_date %s lies in the closed month %04d-%02d",
-		ErrAdjustmentInvalid, effectiveDate.String(), year, month,
+		ErrAdjustmentInClosedMonth, effectiveDate.String(), year, month,
 	)
 }
 

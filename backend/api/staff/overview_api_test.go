@@ -172,3 +172,23 @@ func TestMonthCloseAPI(t *testing.T) {
 		`{"year":2025,"month":8,"reason":"Korrektur"}`, "time_tracking:manage")
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 }
+
+// TestMonthCloseAPI_StableErrorCodes pins the machine-readable codes the
+// frontend branches on for its German copy (#1417 UI). The wire strings are
+// English; the codes are the contract.
+func TestMonthCloseAPI_StableErrorCodes(t *testing.T) {
+	ctx := setupOverviewAPI(t)
+	today := time.Now()
+
+	// Closing the current month: it is not over yet.
+	body := fmt.Sprintf(`{"year":%d,"month":%d,"reason":"Abschluss"}`, today.Year(), int(today.Month()))
+	rec := ctx.post("/staff/time-tracking/month-close", body, "time_tracking:manage")
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"code":"month_not_closable"`)
+
+	// Reopening a month that was never closed.
+	rec = ctx.post(fmt.Sprintf("/staff/%d/time-tracking/month-close/reopen", ctx.staffID),
+		`{"year":2025,"month":8,"reason":"Korrektur"}`, "time_tracking:manage")
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"code":"month_not_closed"`)
+}

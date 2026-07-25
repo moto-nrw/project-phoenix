@@ -34,6 +34,10 @@ func renderBalanceAdjustmentError(w http.ResponseWriter, r *http.Request, err er
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "balance_adjustment_exceeds_balance"))
 		return
 	}
+	if errors.Is(err, activeSvc.ErrAdjustmentInClosedMonth) {
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "adjustment_in_closed_month"))
+		return
+	}
 	common.RenderError(w, r, common.RenderWithRules(err, balanceAdjustmentErrorRules, common.ErrorInternalServer))
 }
 

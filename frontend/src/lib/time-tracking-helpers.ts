@@ -621,6 +621,14 @@ export interface BackendMonthSummary {
   adjustments?: BackendBalanceAdjustment[] | null;
   balance_minutes: number;
   closing_balance_minutes: number;
+  is_closed?: boolean;
+  closed_at?: string | null;
+  closed_by?: number | null;
+  close_reason?: string | null;
+  frozen_closing_balance_minutes?: number | null;
+  drift_minutes?: number | null;
+  carry_in_frozen?: boolean;
+  carry_in_frozen_from_month?: string | null;
 }
 
 /** One Stundenkonto transaction (#1420): payout / comp-time grant / reset. */
@@ -700,6 +708,96 @@ export interface MonthSummary {
   adjustments: BalanceAdjustment[];
   balanceMinutes: number;
   closingBalanceMinutes: number;
+  /**
+   * Monatsabschluss state (#1417). A closed month keeps being computed live;
+   * frozenClosingBalanceMinutes is the value the following month's Übertrag
+   * actually uses, and driftMinutes = live closing − frozen value. Non-zero
+   * drift means someone edited times inside the month after it was closed —
+   * shown, never silently reconciled.
+   */
+  isClosed: boolean;
+  closedAt: string | null;
+  closedBy: string | null;
+  closeReason: string | null;
+  frozenClosingBalanceMinutes: number | null;
+  driftMinutes: number;
+  carryInFrozen: boolean;
+  carryInFrozenFromMonth: string | null;
+}
+
+/**
+ * One frozen Monatsabschluss row (#1417) as returned by
+ * GET/POST /api/staff/time-tracking/month-close. The frozen values are what
+ * the following month's Übertrag actually uses; the month itself keeps being
+ * computed live and any divergence surfaces as drift on the MonthSummary.
+ */
+export interface BackendMonthCloseSnapshot {
+  staff_id: number;
+  year: number;
+  month: number;
+  closing_balance_minutes: number;
+  carry_in_minutes: number;
+  target_minutes: number;
+  actual_minutes: number;
+  credited_minutes: number;
+  adjustment_minutes: number;
+  closed_at: string;
+  closed_by: number;
+  close_reason?: string;
+  source: string;
+  reopened_at?: string;
+  reopened_by?: number;
+  reopen_reason?: string;
+}
+
+export interface MonthCloseSnapshot {
+  staffId: string;
+  year: number;
+  month: number;
+  closingBalanceMinutes: number;
+  closedAt: string;
+  closedBy: string;
+  closeReason: string;
+}
+
+export function mapMonthCloseSnapshotResponse(
+  data: BackendMonthCloseSnapshot,
+): MonthCloseSnapshot {
+  return {
+    staffId: data.staff_id.toString(),
+    year: data.year,
+    month: data.month,
+    closingBalanceMinutes: data.closing_balance_minutes,
+    closedAt: data.closed_at,
+    closedBy: data.closed_by.toString(),
+    closeReason: data.close_reason ?? "",
+  };
+}
+
+export interface BackendMonthCloseResult {
+  year: number;
+  month: number;
+  closed_staff: number;
+  skipped_staff: number;
+  snapshots?: BackendMonthCloseSnapshot[] | null;
+}
+
+export interface MonthCloseResult {
+  year: number;
+  month: number;
+  closedStaff: number;
+  skippedStaff: number;
+}
+
+export function mapMonthCloseResultResponse(
+  data: BackendMonthCloseResult,
+): MonthCloseResult {
+  return {
+    year: data.year,
+    month: data.month,
+    closedStaff: data.closed_staff,
+    skippedStaff: data.skipped_staff,
+  };
 }
 
 export function mapMonthSummaryResponse(
@@ -723,5 +821,13 @@ export function mapMonthSummaryResponse(
     adjustments: (data.adjustments ?? []).map(mapBalanceAdjustmentResponse),
     balanceMinutes: data.balance_minutes,
     closingBalanceMinutes: data.closing_balance_minutes,
+    isClosed: data.is_closed ?? false,
+    closedAt: data.closed_at ?? null,
+    closedBy: data.closed_by != null ? data.closed_by.toString() : null,
+    closeReason: data.close_reason ?? null,
+    frozenClosingBalanceMinutes: data.frozen_closing_balance_minutes ?? null,
+    driftMinutes: data.drift_minutes ?? 0,
+    carryInFrozen: data.carry_in_frozen ?? false,
+    carryInFrozenFromMonth: data.carry_in_frozen_from_month ?? null,
   };
 }

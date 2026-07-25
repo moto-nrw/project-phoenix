@@ -15,6 +15,12 @@ const baseProps = {
   onRowClick: vi.fn(),
   saldoPreset: "all" as const,
   customSaldoHours: "10",
+  onPrevMonth: vi.fn(),
+  onNextMonth: vi.fn(),
+  canGoNextMonth: true,
+  monthClose: null,
+  monthIsOver: true,
+  onCloseMonth: vi.fn(),
 };
 
 describe("StaffTimeAccountsTable", () => {
