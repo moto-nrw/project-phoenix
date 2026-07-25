@@ -73,8 +73,9 @@ const (
 	EventDashboardCountsChanged EventType = "dashboard_counts_changed"
 
 	// EventStaffTimeTrackingChanged is a tenant-wide invalidation trigger for
-	// staff work-session writes. It carries no staff identifier: authorized
-	// clients re-fetch their permission-scoped dashboard or time-account view.
+	// writes that change staff work sessions, absences, balances, contractual
+	// schedules, or planned shifts. It carries no staff identifier: authorized
+	// clients re-fetch their permission-scoped time-tracking views.
 	EventStaffTimeTrackingChanged EventType = "staff_time_tracking_changed"
 
 	// Active supervision refresh event — tenant-wide signal that the active

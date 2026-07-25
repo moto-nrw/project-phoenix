@@ -38,6 +38,30 @@ const logger = createLogger({ component: "GlobalSSE" });
 
 const DEBOUNCE_MS = 500;
 
+// Every cache family derived from work sessions, absences, balance
+// adjustments, contractual schedules, or planned shifts. Keep this targeted:
+// unrelated time-tracking configuration, holiday, closing-day, and assignment
+// caches do not change when staff_time_tracking_changed fires.
+const STAFF_TIME_TRACKING_CACHE_KEY_PARTS = [
+  "staff-time-accounts-",
+  "staff-dashboard-summary-",
+  "staff-history-",
+  "staff-absences-",
+  "staff-pending-absences-",
+  "staff-month-summary-",
+  "staff-balance-adjustments-",
+  "staff-schedule-",
+  "staff-shifts-visible-",
+  "time-tracking-current",
+  "time-tracking-history-",
+  "time-tracking-absences-",
+  "time-tracking-table-",
+  "time-tracking-month-summary-",
+  "time-tracking-schedule-targets-",
+  "time-tracking-own-schedule-",
+  "time-tracking-own-shifts-today-",
+] as const;
+
 // Per-student SWR keys carry the id as a segment: "student-detail-<id>",
 // "care-plan-day-<id>-<date>", "care-plan-week-<id>-<from>-<to>". useSWRAuth
 // prefixes the whole thing with the tenant slug ("<slug>:student-detail-7").
@@ -141,8 +165,9 @@ export function useGlobalSSE(): SSEHookState {
       mutate(
         (key) =>
           typeof key === "string" &&
-          (key.includes("staff-time-accounts-") ||
-            key.includes("staff-dashboard-summary-")),
+          STAFF_TIME_TRACKING_CACHE_KEY_PARTS.some((part) =>
+            key.includes(part),
+          ),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),

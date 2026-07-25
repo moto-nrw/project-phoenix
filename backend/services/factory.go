@@ -661,6 +661,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	staffShiftService.SetSeriesExceptionRepo(repos.StaffShiftSeriesException)
 	// #1884: shift moves append a shift_moved Änderungsprotokoll entry.
 	staffShiftService.SetDeviationEventRepo(repos.DeviationEvent)
+	if broadcastAware, ok := staffShiftService.(interface {
+		SetBroadcaster(realtime.Broadcaster)
+	}); ok {
+		broadcastAware.SetBroadcaster(realtimeHub)
+	}
 
 	// Recurring shift series (Dienstplan-Serien, #1889)
 	staffShiftSeriesService := schedule.NewStaffShiftSeriesService(
@@ -673,6 +678,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 		logger.With("service", "staff_shift_series"),
 	)
+	if broadcastAware, ok := staffShiftSeriesService.(interface {
+		SetBroadcaster(realtime.Broadcaster)
+	}); ok {
+		broadcastAware.SetBroadcaster(realtimeHub)
+	}
 	// Self-service Betreuungsplan assignments for a staff member ("Mein Tag",
 	// #1844) — the "Ort/Aufgabe" the Dienstplan shift alone cannot express.
 	staffAssignmentService := schedule.NewStaffAssignmentService(schedule.StaffAssignmentDependencies{
