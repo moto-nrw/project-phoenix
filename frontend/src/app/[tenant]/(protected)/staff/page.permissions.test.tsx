@@ -18,6 +18,9 @@ const berlinToday = vi.hoisted(() => vi.fn());
 const closeMonth = vi.hoisted(() => vi.fn());
 const mutateMonthClose = vi.hoisted(() => vi.fn());
 const globalMutate = vi.hoisted(() => vi.fn());
+const monthCloseRequest = vi.hoisted(() => ({
+  error: null as Error | null,
+}));
 
 vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
@@ -38,9 +41,9 @@ vi.mock("~/lib/swr", () => ({
     if (key !== null) void fetcher();
     if (key?.includes("staff-month-close-")) {
       return {
-        data: [],
+        data: monthCloseRequest.error ? undefined : [],
         isLoading: false,
-        error: null,
+        error: monthCloseRequest.error,
         mutate: mutateMonthClose,
       };
     }
@@ -101,6 +104,7 @@ describe("/staff — Berechtigungs-Split", () => {
     closeMonth.mockReset().mockResolvedValue({});
     mutateMonthClose.mockReset().mockResolvedValue(undefined);
     globalMutate.mockReset().mockResolvedValue(undefined);
+    monthCloseRequest.error = null;
     getAllStaff.mockReset().mockResolvedValue([]);
     getDashboardSummary.mockReset().mockResolvedValue({});
     getTimeAccounts.mockReset().mockResolvedValue({
@@ -222,5 +226,27 @@ describe("/staff — Berechtigungs-Split", () => {
       true,
     );
     expect(isAffectedKey("tenant:staff-list")).toBe(false);
+  });
+
+  it("zeigt einen fehlgeschlagenen Abschlussstatus mit Retry statt Abschlussaktionen", async () => {
+    monthCloseRequest.error = new Error("Bad Gateway");
+    mockSession(["time_tracking:manage"]);
+
+    render(<StaffPage />);
+
+    expect(
+      screen.getByText(/Der Abschlussstatus konnte nicht geladen werden/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Monat abschließen" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Abschlussstatus erneut laden" }),
+    );
+
+    await waitFor(() => {
+      expect(mutateMonthClose).toHaveBeenCalledTimes(1);
+    });
   });
 });

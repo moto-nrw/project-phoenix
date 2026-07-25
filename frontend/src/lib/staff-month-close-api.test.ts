@@ -219,4 +219,16 @@ describe("staffBalanceAdjustmentService closed-month errors", () => {
       "Der gewählte Monat ist abgeschlossen. Wähle ein Datum im offenen Monat oder öffne den Monatsabschluss wieder.",
     );
   });
+
+  it("explains a rejected deletion in a closed month", async () => {
+    mockedSessionFetch.mockResolvedValueOnce(
+      errorResponse("adjustment_in_closed_month"),
+    );
+
+    await expect(
+      staffBalanceAdjustmentService.delete("12", "17"),
+    ).rejects.toThrow(
+      "Der gewählte Monat ist abgeschlossen. Öffne den Monatsabschluss wieder, bevor du die Buchung löschst.",
+    );
+  });
 });

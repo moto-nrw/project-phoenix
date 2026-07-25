@@ -14,6 +14,7 @@
 import { useMemo } from "react";
 import { ChevronLeft, ChevronRight, Lock } from "lucide-react";
 
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { Input } from "~/components/ui/input";
@@ -79,6 +80,8 @@ interface Props {
   readonly onNextMonth: () => void;
   readonly canGoNextMonth: boolean;
   readonly monthClose: MonthCloseState | null;
+  readonly monthCloseError: string | null;
+  readonly onRetryMonthClose: () => void;
   /** True, wenn der angezeigte Monat vorbei ist — nur dann kann er
    *  abgeschlossen werden (Backend: ErrMonthNotClosable). */
   readonly monthIsOver: boolean;
@@ -104,6 +107,8 @@ export function StaffTimeAccountsTable({
   onNextMonth,
   canGoNextMonth,
   monthClose,
+  monthCloseError,
+  onRetryMonthClose,
   monthIsOver,
   onCloseMonth,
   isLoading,
@@ -310,6 +315,22 @@ export function StaffTimeAccountsTable({
           Monat gibt es diesen Stand noch nicht; abschließen geht ab dem 1. des
           Folgemonats.
         </p>
+      )}
+
+      {monthCloseError && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="min-w-64 flex-1">
+            <Alert type="error" message={monthCloseError} />
+          </div>
+          <Button
+            type="button"
+            size="compact"
+            variant="outline"
+            onClick={onRetryMonthClose}
+          >
+            Abschlussstatus erneut laden
+          </Button>
+        </div>
       )}
 
       {showCustomSaldo && (

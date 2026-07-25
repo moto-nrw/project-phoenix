@@ -40,6 +40,22 @@ import { StaffExportButton } from "./staff-export-button";
 import { StaffSessionTable } from "./staff-session-table";
 import { KpiCards, ViewToggle, type ViewMode } from "./staff-time-views";
 
+// Reopening changes both the staff-detail chain and, when the selected person
+// is the signed-in manager, the self-service month chain. The remaining
+// school-wide caches expose the lock state and frozen carry-over.
+export function isStaleAfterMonthReopen(
+  key: unknown,
+  staffId: string,
+): boolean {
+  return (
+    typeof key === "string" &&
+    (key.includes(`staff-month-summary-${staffId}-`) ||
+      key.includes("time-tracking-month-summary-") ||
+      key.includes("staff-time-accounts") ||
+      key.includes("staff-month-close"))
+  );
+}
+
 // Zeiterfassung tab. Day-row table comparing Soll vs Ist for each day in
 // the visible window (week or month). A row click expands the read-only
 // audit history; the pencil action opens admin-session-edit-modal, where
@@ -320,12 +336,8 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
               });
               // Reopen verschiebt den Kettenstart: alle Monatskarten und
               // Zeitkonten-Antworten dieses Tenants sind potenziell veraltet.
-              await globalMutate(
-                (key) =>
-                  typeof key === "string" &&
-                  (key.includes(`staff-month-summary-${staffId}`) ||
-                    key.includes("staff-time-accounts") ||
-                    key.includes("staff-month-close")),
+              await globalMutate((key) =>
+                isStaleAfterMonthReopen(key, staffId),
               );
             }}
             onClose={() => setShowReopenModal(false)}

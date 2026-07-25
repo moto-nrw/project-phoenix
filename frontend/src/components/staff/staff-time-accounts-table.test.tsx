@@ -19,6 +19,8 @@ const baseProps = {
   onNextMonth: vi.fn(),
   canGoNextMonth: true,
   monthClose: null,
+  monthCloseError: null,
+  onRetryMonthClose: vi.fn(),
   monthIsOver: true,
   onCloseMonth: vi.fn(),
 };

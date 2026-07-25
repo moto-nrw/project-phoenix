@@ -163,18 +163,23 @@ function StaffPageContent() {
     canManageTimeTracking && view === "accounts"
       ? `staff-month-close-${monthAnchor.year}-${monthAnchor.month}`
       : null;
-  const { data: monthCloseSnapshots, mutate: mutateMonthClose } = useSWRAuth(
+  const {
+    data: monthCloseSnapshots,
+    error: monthCloseStatusError,
+    mutate: mutateMonthClose,
+  } = useSWRAuth(
     monthCloseKey,
     () => staffMonthCloseService.getStatus(monthAnchor.year, monthAnchor.month),
     { keepPreviousData: false, revalidateOnFocus: false },
   );
-  const monthClose = monthCloseSnapshots
-    ? {
-        closed: monthCloseSnapshots.length > 0,
-        closedAt: monthCloseSnapshots[0]?.closedAt ?? "",
-        closedCount: monthCloseSnapshots.length,
-      }
-    : null;
+  const monthClose =
+    !monthCloseStatusError && monthCloseSnapshots
+      ? {
+          closed: monthCloseSnapshots.length > 0,
+          closedAt: monthCloseSnapshots[0]?.closedAt ?? "",
+          closedCount: monthCloseSnapshots.length,
+        }
+      : null;
 
   const isCurrentOrFutureMonth =
     monthAnchor.year > currentYear ||
@@ -500,6 +505,12 @@ function StaffPageContent() {
           onNextMonth={() => shiftMonth(1)}
           canGoNextMonth={!isCurrentOrFutureMonth}
           monthClose={monthClose}
+          monthCloseError={
+            monthCloseStatusError
+              ? "Der Abschlussstatus konnte nicht geladen werden. Abschließen und erneutes Abschließen sind bis zur erfolgreichen Aktualisierung nicht verfügbar."
+              : null
+          }
+          onRetryMonthClose={() => void mutateMonthClose()}
           monthIsOver={!isCurrentOrFutureMonth}
           onCloseMonth={() => setShowCloseModal(true)}
           isLoading={accountsLoading && !accounts}

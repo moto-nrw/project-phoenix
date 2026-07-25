@@ -1268,6 +1268,11 @@ class StaffBalanceAdjustmentService {
           "Die Buchung kann nicht gelöscht werden, weil spätere Abzüge vom dadurch entstehenden Guthaben abhängen.",
         );
       }
+      if (error.code === "adjustment_in_closed_month") {
+        throw new Error(
+          "Der gewählte Monat ist abgeschlossen. Öffne den Monatsabschluss wieder, bevor du die Buchung löschst.",
+        );
+      }
       throw new Error(error.message);
     }
   }
