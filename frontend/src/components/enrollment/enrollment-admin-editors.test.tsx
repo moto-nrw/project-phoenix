@@ -1918,6 +1918,95 @@ describe("PhasesEditor", () => {
     });
   });
 
+  it("keeps offered classes that are not eligible when saving a restricted phase (#1663)", async () => {
+    // available_school_classes may legitimately be a superset of the eligible
+    // list: late-invite recipients bypass the eligibility gate and get the
+    // full offered list, so an unrelated edit must not drop those classes.
+    const restricted = phase({
+      id: "22",
+      available_school_classes: ["2a", "2b", "3b"],
+      eligible_school_classes: ["3b"],
+      require_school_class: true,
+    });
+    mocks.listPhases.mockResolvedValue([restricted]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.updatePhase.mockResolvedValue(restricted);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updatePhase).toHaveBeenCalledWith(
+        "22",
+        expect.objectContaining({
+          available_school_classes: ["2a", "2b", "3b"],
+          eligible_school_classes: ["3b"],
+          require_school_class: true,
+        }),
+      );
+    });
+  });
+
+  it("adds an eligible class that is not yet offered to the offered list (#1663)", async () => {
+    // The eligible list is edited free-form; the backend rejects a phase whose
+    // eligible list is not a subset of the offered one, so the missing class
+    // is added instead of the offered list being replaced.
+    const restricted = phase({
+      id: "23",
+      available_school_classes: ["2a", "2b"],
+      eligible_school_classes: [],
+      require_school_class: false,
+    });
+    mocks.listPhases.mockResolvedValue([restricted]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.updatePhase.mockResolvedValue(restricted);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    const audienceFieldset = (await screen.findByText("Zielgruppe")).closest(
+      "fieldset",
+    ) as HTMLElement;
+    fireEvent.change(
+      within(audienceFieldset).getByLabelText("Klasse hinzufügen"),
+      { target: { value: "3b" } },
+    );
+    fireEvent.click(
+      within(audienceFieldset).getByRole("button", { name: "Hinzufügen" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updatePhase).toHaveBeenCalledWith(
+        "23",
+        expect.objectContaining({
+          available_school_classes: ["2a", "2b", "3b"],
+          eligible_school_classes: ["3b"],
+          require_school_class: true,
+        }),
+      );
+    });
+  });
+
   it("defaults a legacy phase without eligibility fields to audience open on save (#1663)", async () => {
     // phase() intentionally omits audience/eligible_school_classes, mirroring
     // a phase created before #1663.

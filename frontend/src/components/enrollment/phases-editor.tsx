@@ -363,24 +363,38 @@ export function PhasesEditor() {
       }
       // A "Nur für Klassen" restriction can only be met with a class the form
       // actually offers, and the form offers exactly the "Konkrete Klassen"
-      // (available_school_classes) list with an optional "Klasse offen". When
-      // an eligibility list is set, the form must offer ONLY those classes and
-      // require a declaration — otherwise it would present ineligible classes
-      // and the "Klasse offen" option, and every such submission would fail
-      // server-side with class_not_eligible after the parent completed the
-      // whole form (#1663). The tenant-wide Klassen-Abfrage must still be
-      // active for the pick to appear — surfaced in the field hint, not
-      // enforceable here.
+      // (available_school_classes) list. So every eligible class must also be
+      // an offered one — the backend rejects a phase where it isn't — and the
+      // class pick must be mandatory, otherwise the form shows "Klasse offen"
+      // and every such submission fails server-side with class_not_eligible
+      // after the parent completed the whole form (#1663). The tenant-wide
+      // Klassen-Abfrage must still be active for the pick to appear —
+      // surfaced in the field hint, not enforceable here.
       const eligibleClasses = (payload.eligible_school_classes ?? [])
         .map((cls) => cls.trim())
         .filter((cls) => cls.length > 0);
       // Grade-1 classes ("1a") are supported (#1663): when a phase offers a
       // grade-1 class the form collects it (grade 1 is no longer restricted to
       // grade-level only), so a grade-1 eligibility restriction is satisfiable.
-      // The backend enforces the same rule (every eligible class must be one
-      // the phase offers).
       if (eligibleClasses.length > 0) {
-        payload.available_school_classes = eligibleClasses;
+        // ADD the eligible classes to the offered list instead of REPLACING
+        // it. available_school_classes may legitimately be a wider superset:
+        // a late-invite recipient bypasses the eligibility gate and keeps the
+        // full offered list, while every self-service form load is narrowed
+        // to the eligible subset server-side. Overwriting here would delete
+        // those exception-only classes on any unrelated phase edit (#1663).
+        const offered: string[] = [];
+        const seen = new Set<string>();
+        for (const cls of [
+          ...(payload.available_school_classes ?? []),
+          ...eligibleClasses,
+        ]) {
+          const trimmed = cls.trim();
+          if (!trimmed || seen.has(trimmed)) continue;
+          seen.add(trimmed);
+          offered.push(trimmed);
+        }
+        payload.available_school_classes = offered;
         payload.require_school_class = true;
       }
       if (editingId === "new") {

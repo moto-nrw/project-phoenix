@@ -1000,7 +1000,13 @@ func (s *requestService) findLateInviteForSubmit(ctx context.Context, token stri
 	}
 	invite, err := s.LateInviteRepo.FindUsableByTokenHashForUpdate(ctx, lateInviteTokenHash(token), phaseID, now)
 	if err != nil {
-		return nil, ErrLateInviteInvalid
+		// Same split as the form-load gate: only a genuinely unusable token is
+		// an invalid invite. A lookup failure must not tell the parent their
+		// invite is invalid — surface it as a server error (#1663).
+		if errors.Is(err, enrollmentModels.ErrLateInviteNotFound) {
+			return nil, ErrLateInviteInvalid
+		}
+		return nil, fmt.Errorf("submit: resolve late invite: %w", err)
 	}
 	if strings.ToLower(strings.TrimSpace(invite.GuardianEmail)) != guardianEmail {
 		return nil, ErrLateInviteInvalid
@@ -2954,8 +2960,20 @@ func (s *requestService) loadEditablePhaseWithLateInvite(ctx context.Context, ph
 	// the token is ever validated (#1663).
 	hasValidLateInvite := false
 	if s.LateInviteRepo != nil && strings.TrimSpace(lateInviteToken) != "" {
-		if _, err := s.LateInviteRepo.FindUsableByTokenHash(ctx, lateInviteTokenHash(lateInviteToken), phaseID, now); err == nil {
+		_, inviteErr := s.LateInviteRepo.FindUsableByTokenHash(ctx, lateInviteTokenHash(lateInviteToken), phaseID, now)
+		switch {
+		case inviteErr == nil:
 			hasValidLateInvite = true
+		case errors.Is(inviteErr, enrollmentModels.ErrLateInviteNotFound):
+			// Unknown, used, or expired token: no override, fall through to
+			// the normal audience and window gates below.
+		default:
+			// A database or driver failure leaves the invite status unknown.
+			// Treating it as "no invite" would render an outage as a 404
+			// (ErrPhaseAudienceRestricted / ErrLateInviteInvalid) and tell a
+			// legitimate recipient their link is invalid, so propagate it and
+			// let the handler return a 500 (#1663).
+			return nil, fmt.Errorf("resolve late invite: %w", inviteErr)
 		}
 	}
 	if !allowRestrictedAudience && !hasValidLateInvite && phase.Audience == enrollmentModels.PhaseAudienceLinkedParents {

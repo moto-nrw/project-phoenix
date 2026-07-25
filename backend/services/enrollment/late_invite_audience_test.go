@@ -86,7 +86,7 @@ func TestLoadPublicPhaseWithLateInvite_ValidInviteBypassesAudienceGate(t *testin
 // Without a late-invite token the public gate still refuses a linked_parents
 // phase, so a guessed public URL cannot load a hidden phase.
 func TestLoadPublicPhaseWithLateInvite_NoInviteStillRestricted(t *testing.T) {
-	svc := audienceTestService(nil, errors.New("no token"), linkedParentsPhaseOpenWindow())
+	svc := audienceTestService(nil, enrollmentModels.ErrLateInviteNotFound, linkedParentsPhaseOpenWindow())
 
 	_, err := svc.LoadPublicPhaseWithLateInvite(context.Background(), 4242, time.Now(), "")
 	require.ErrorIs(t, err, ErrPhaseAudienceRestricted)
@@ -95,7 +95,7 @@ func TestLoadPublicPhaseWithLateInvite_NoInviteStillRestricted(t *testing.T) {
 // An invalid/expired invite token does not grant access to a restricted
 // phase — the audience gate still applies.
 func TestLoadPublicPhaseWithLateInvite_InvalidInviteStaysRestricted(t *testing.T) {
-	svc := audienceTestService(nil, errors.New("expired"), linkedParentsPhaseOpenWindow())
+	svc := audienceTestService(nil, enrollmentModels.ErrLateInviteNotFound, linkedParentsPhaseOpenWindow())
 
 	_, err := svc.LoadPublicPhaseWithLateInvite(context.Background(), 4242, time.Now(), "bad-token")
 	require.ErrorIs(t, err, ErrPhaseAudienceRestricted)
@@ -115,10 +115,41 @@ func TestLoadPublicPhaseWithLateInvite_ValidInviteOpensClosedRestrictedPhase(t *
 	require.NotNil(t, loaded)
 }
 
+// A database/driver failure during the invite lookup leaves the invite status
+// unknown. Downgrading it to "no invite" would render an outage as a 404 and
+// tell a legitimate recipient their link is invalid, so the error propagates
+// (the handler turns it into a 500) instead of becoming a gate error (#1663).
+func TestLoadPublicPhaseWithLateInvite_LookupFailurePropagates(t *testing.T) {
+	lookupErr := errors.New("connection reset by peer")
+	svc := audienceTestService(nil, lookupErr, linkedParentsPhaseOpenWindow())
+
+	_, err := svc.LoadPublicPhaseWithLateInvite(context.Background(), 4242, time.Now(), "some-token")
+	require.ErrorIs(t, err, lookupErr)
+	require.NotErrorIs(t, err, ErrPhaseAudienceRestricted)
+	require.NotErrorIs(t, err, ErrLateInviteInvalid)
+}
+
+// Same for a closed window on an unrestricted phase: a failed lookup must not
+// masquerade as an invalid invite.
+func TestLoadPublicPhaseWithLateInvite_LookupFailurePropagatesOnClosedPhase(t *testing.T) {
+	phase := linkedParentsPhaseOpenWindow()
+	phase.Audience = enrollmentModels.PhaseAudienceOpen
+	past := time.Now().Add(-time.Hour)
+	phase.EnrollmentCloseAt = &past // window is closed
+
+	lookupErr := errors.New("connection reset by peer")
+	svc := audienceTestService(nil, lookupErr, phase)
+
+	_, err := svc.LoadPublicPhaseWithLateInvite(context.Background(), 4242, time.Now(), "some-token")
+	require.ErrorIs(t, err, lookupErr)
+	require.NotErrorIs(t, err, ErrLateInviteInvalid)
+	require.NotErrorIs(t, err, ErrEnrollmentWindowClosed)
+}
+
 // The authenticated enrollee gate keeps loading restricted phases without any
 // invite — the guardian is already authorized.
 func TestLoadEnrolleePhaseWithLateInvite_AllowsRestrictedWithoutInvite(t *testing.T) {
-	svc := audienceTestService(nil, errors.New("no token"), linkedParentsPhaseOpenWindow())
+	svc := audienceTestService(nil, enrollmentModels.ErrLateInviteNotFound, linkedParentsPhaseOpenWindow())
 
 	phase, err := svc.LoadEnrolleePhaseWithLateInvite(context.Background(), 4242, time.Now(), "")
 	require.NoError(t, err)
