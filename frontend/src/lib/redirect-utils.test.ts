@@ -122,6 +122,42 @@ describe("redirect-utils", () => {
       expect(result).toBe("/students/search");
     });
 
+    it("should return /students/search for open-care caregivers (#1544)", () => {
+      const session = createSession(["user"]);
+      const supervisionState: SupervisionState = {
+        hasGroups: false,
+        isLoadingGroups: false,
+        isSupervising: true,
+        isLoadingSupervision: false,
+      };
+
+      const result = getSmartRedirectPath(
+        session,
+        supervisionState,
+        "detailed",
+        true,
+      );
+      expect(result).toBe("/students/search");
+    });
+
+    it("should return /students/search for open-care caregivers with groups (#1544)", () => {
+      const session = createSession(["user"]);
+      const supervisionState: SupervisionState = {
+        hasGroups: true,
+        isLoadingGroups: false,
+        isSupervising: false,
+        isLoadingSupervision: false,
+      };
+
+      const result = getSmartRedirectPath(
+        session,
+        supervisionState,
+        "detailed",
+        true,
+      );
+      expect(result).toBe("/students/search");
+    });
+
     it("should return /ogs-groups as default for regular users", () => {
       const session = createSession(["user"]);
       const supervisionState: SupervisionState = {

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { useSmartRedirectPath } from "~/lib/redirect-utils";
-import { usePresenceMode } from "~/lib/tenant-context";
+import { useOpenCareGroupMode, usePresenceMode } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 interface SmartRedirectProps {
@@ -20,6 +20,7 @@ export function SmartRedirect({ onRedirect }: SmartRedirectProps) {
   const tenantPath = useTenantAwarePath();
   const { data: session, status } = useSession();
   const presenceMode = usePresenceMode();
+  const openCareGroupMode = useOpenCareGroupMode();
   const { hasGroups, isLoadingGroups, isSupervising, isLoadingSupervision } =
     useSupervision();
 
@@ -32,6 +33,7 @@ export function SmartRedirect({ onRedirect }: SmartRedirectProps) {
       isLoadingSupervision,
     },
     presenceMode,
+    openCareGroupMode,
   );
 
   useEffect(() => {

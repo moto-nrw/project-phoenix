@@ -39,6 +39,7 @@ vi.mock("~/lib/redirect-utils", () => ({
 
 vi.mock("~/lib/tenant-context", () => ({
   usePresenceMode: vi.fn(() => "detailed"),
+  useOpenCareGroupMode: vi.fn(() => false),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
   useTenantRoutingModeSafe: vi.fn(() => "path"),
   useNFCEnabled: vi.fn(() => true),
@@ -166,6 +167,7 @@ describe("SmartRedirect", () => {
         isSupervising: true,
       }),
       "detailed",
+      false,
     );
   });
 
@@ -178,6 +180,7 @@ describe("SmartRedirect", () => {
       expect.anything(),
       expect.anything(),
       "binary",
+      false,
     );
   });
 });

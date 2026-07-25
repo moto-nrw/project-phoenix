@@ -12,6 +12,7 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { RoleGuard } from "~/components/auth/role-guard";
+import { OpenCareModeGuard } from "~/components/tenant/open-care-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -1623,6 +1624,14 @@ function OGSGroupPageContent() {
 
 // Main component with Suspense wrapper
 export default function OGSGroupPage() {
+  return (
+    <OpenCareModeGuard>
+      <OGSGroupPageGuarded />
+    </OpenCareModeGuard>
+  );
+}
+
+function OGSGroupPageGuarded() {
   return (
     <RoleGuard variant="staffOnly" fallback={<OgsGroupsPageSkeleton />}>
       <Suspense fallback={<OgsGroupsPageSkeleton />}>
