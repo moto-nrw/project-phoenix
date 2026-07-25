@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { DayPicker } from "react-day-picker";
-import { format, addMonths, subMonths } from "date-fns";
+import { format, addMonths, subMonths, type Locale } from "date-fns";
 import { de } from "date-fns/locale";
 import "react-day-picker/style.css";
+import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 
 // How the calendar is placed relative to the trigger:
 // - "overlay": absolutely positioned inside the picker's own stacking context.
@@ -16,6 +17,34 @@ import "react-day-picker/style.css";
 //   trigger's viewport rect. Escapes clipping ancestors AND leaves the layout
 //   untouched — the right choice inside scrollable panels/modals.
 type CalendarLayout = "overlay" | "inline" | "popover";
+
+/**
+ * Control labels. The defaults are German because the staff and operator
+ * portals are German-only; the parent portal and public enrollment form pass
+ * translated strings alongside a matching `locale`.
+ */
+export interface DatePickerLabels {
+  readonly clear?: string;
+  readonly previousMonth?: string;
+  readonly nextMonth?: string;
+  readonly month?: string;
+  readonly year?: string;
+  /** Receives the count, e.g. (3) => "3 Tage ausgewählt". */
+  readonly selectedDays?: (count: number) => string;
+}
+
+const DEFAULT_LABELS = {
+  clear: "Datum löschen",
+  previousMonth: "Vorheriger Monat",
+  nextMonth: "Nächster Monat",
+  month: "Monat",
+  year: "Jahr",
+  selectedDays: (count: number) => `${count} Tage ausgewählt`,
+} as const;
+
+function resolveLabels(labels?: DatePickerLabels) {
+  return { ...DEFAULT_LABELS, ...labels };
+}
 
 // Viewport gap and calendar footprint used to flip/clamp the popover. The
 // calendar is a fixed 7x6 grid of 32px days plus header and padding, so a
@@ -66,6 +95,25 @@ type DatePickerProps =
       readonly maxDate?: Date;
       /** Hide the inline clear ("X") control. Use when the value is required. */
       readonly hideClearButton?: boolean;
+      // Swaps the "Juni 2026" caption for month + year dropdowns. Month arrows
+      // alone need ~80 clicks to reach a birth year, so any field where the
+      // target is years away from today should turn this on.
+      readonly monthYearNavigation?: boolean;
+      /** Blocks opening the calendar and greys the trigger. */
+      readonly disabled?: boolean;
+      // The trigger is a button, not an input: `id` lets an external <label
+      // htmlFor> point at it, `invalid` paints the error border a native input
+      // got from the browser, and ariaDescribedBy links the caller's error text.
+      readonly id?: string;
+      readonly ariaLabel?: string;
+      readonly ariaDescribedBy?: string;
+      readonly invalid?: boolean;
+      // Calendar language. Defaults to German — the staff and operator portals
+      // are German-only; the parent-facing surfaces pass their resolved locale.
+      readonly locale?: Locale;
+      // Overrides for the built-in German control labels, for those same
+      // parent-facing surfaces.
+      readonly labels?: DatePickerLabels;
     }
   | {
       readonly mode: "multiple";
@@ -106,10 +154,13 @@ export function DatePicker({
     useState<PopoverPosition | null>(null);
   const isPopover = calendarLayout === "popover";
   const isMultiple = props.mode === "multiple";
+  const isDisabled = !isMultiple && props.disabled === true;
+  const locale = isMultiple ? de : (props.locale ?? de);
+  const labels = resolveLabels(isMultiple ? undefined : props.labels);
   const displayValue = isMultiple
-    ? formatMultipleDateLabel(props.values)
+    ? formatMultipleDateLabel(props.values, labels.selectedDays)
     : props.value
-      ? format(props.value, "dd.MM.yyyy", { locale: de })
+      ? format(props.value, "dd.MM.yyyy", { locale })
       : null;
 
   // Portals only exist client-side; render nothing on the server pass.
@@ -193,6 +244,9 @@ export function DatePicker({
       value={props.value}
       minDate={props.minDate}
       maxDate={props.maxDate}
+      monthYearNavigation={props.monthYearNavigation}
+      locale={locale}
+      labels={labels}
       dropdownPlacement={dropdownPlacement}
       calendarLayout={calendarLayout}
       onChange={(date) => {
@@ -206,55 +260,71 @@ export function DatePicker({
     <div className={`relative ${className}`} ref={containerRef}>
       <button
         type="button"
+        id={isMultiple ? undefined : props.id}
+        aria-label={isMultiple ? undefined : props.ariaLabel}
+        // The trigger is a plain button, and ARIA does not allow aria-invalid /
+        // aria-required on that role (oxlint jsx-a11y enforces it). The invalid
+        // state is therefore carried visually plus by the caller's own error
+        // text, and `aria-describedby` links the two when the caller passes it.
+        aria-describedby={isMultiple ? undefined : props.ariaDescribedBy}
+        disabled={isDisabled}
         onClick={toggleOpen}
-        className={`flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-all ${
-          isOpen ? "border-gray-300 bg-gray-50" : "hover:bg-gray-50"
+        className={`flex w-full items-center justify-between rounded-lg border bg-white px-3 py-2 text-sm transition-all ${
+          !isMultiple && props.invalid ? "border-[#FF3130]" : "border-gray-200"
+        } ${
+          isDisabled
+            ? "cursor-not-allowed bg-gray-50 text-gray-400"
+            : isOpen
+              ? "border-gray-300 bg-gray-50"
+              : "hover:bg-gray-50"
         }`}
       >
         <span className={displayValue ? "text-gray-900" : "text-gray-500"}>
           {displayValue ?? placeholder}
         </span>
         <div className="flex items-center gap-1">
-          {displayValue && !(!isMultiple && props.hideClearButton) && (
-            <span
-              role="button"
-              tabIndex={0}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (isMultiple) {
-                  props.onChangeDates([]);
-                } else {
-                  props.onChange(null);
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
+          {displayValue &&
+            !isDisabled &&
+            !(!isMultiple && props.hideClearButton) && (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
                   e.stopPropagation();
                   if (isMultiple) {
                     props.onChangeDates([]);
                   } else {
                     props.onChange(null);
                   }
-                }
-              }}
-              className="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Datum löschen"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.stopPropagation();
+                    if (isMultiple) {
+                      props.onChangeDates([]);
+                    } else {
+                      props.onChange(null);
+                    }
+                  }
+                }}
+                className="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                aria-label={labels.clear}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </span>
-          )}
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </span>
+            )}
           <svg
             className="h-4 w-4 text-gray-400"
             fill="none"
@@ -292,20 +362,26 @@ export function DatePicker({
   );
 }
 
-function formatMultipleDateLabel(values: Date[]): string | null {
+function formatMultipleDateLabel(
+  values: Date[],
+  selectedDays: (count: number) => string,
+): string | null {
   if (values.length === 0) {
     return null;
   }
   if (values.length === 1) {
     return format(values[0]!, "dd.MM.yyyy", { locale: de });
   }
-  return `${values.length} Tage ausgewählt`;
+  return selectedDays(values.length);
 }
 
 function DatePickerCalendar({
   value,
   minDate,
   maxDate,
+  monthYearNavigation,
+  locale,
+  labels,
   dropdownPlacement,
   calendarLayout,
   onChange,
@@ -313,6 +389,9 @@ function DatePickerCalendar({
   readonly value?: Date | null;
   readonly minDate?: Date;
   readonly maxDate?: Date;
+  readonly monthYearNavigation?: boolean;
+  readonly locale: Locale;
+  readonly labels: Required<DatePickerLabels>;
   readonly dropdownPlacement: "up" | "down";
   readonly calendarLayout: CalendarLayout;
   readonly onChange: (date: Date | null) => void;
@@ -323,52 +402,15 @@ function DatePickerCalendar({
     <div
       className={getCalendarContainerClass(dropdownPlacement, calendarLayout)}
     >
-      {/* Custom header with navigation */}
-      <div className="mb-3 flex items-center justify-between">
-        <button
-          type="button"
-          aria-label="Vorheriger Monat"
-          onClick={() => setMonth(subMonths(month, 1))}
-          className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
-        >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-        </button>
-        <span className="text-sm font-medium text-gray-900">
-          {format(month, "MMMM yyyy", { locale: de })}
-        </span>
-        <button
-          type="button"
-          aria-label="Nächster Monat"
-          onClick={() => setMonth(addMonths(month, 1))}
-          className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
-        >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 5l7 7-7 7"
-            />
-          </svg>
-        </button>
-      </div>
+      <CalendarNavHeader
+        month={month}
+        onMonthChange={setMonth}
+        monthYearNavigation={monthYearNavigation}
+        minDate={minDate}
+        maxDate={maxDate}
+        locale={locale}
+        labels={labels}
+      />
       <DayPicker
         mode="single"
         selected={value ?? undefined}
@@ -376,7 +418,7 @@ function DatePickerCalendar({
         month={month}
         onMonthChange={setMonth}
         onSelect={(date) => onChange(date ?? null)}
-        locale={de}
+        locale={locale}
         weekStartsOn={1}
         showOutsideDays
         hideNavigation
@@ -415,51 +457,7 @@ function MultipleDatePickerCalendar({
     <div
       className={getCalendarContainerClass(dropdownPlacement, calendarLayout)}
     >
-      <div className="mb-3 flex items-center justify-between">
-        <button
-          type="button"
-          aria-label="Vorheriger Monat"
-          onClick={() => setMonth(subMonths(month, 1))}
-          className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
-        >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-        </button>
-        <span className="text-sm font-medium text-gray-900">
-          {format(month, "MMMM yyyy", { locale: de })}
-        </span>
-        <button
-          type="button"
-          aria-label="Nächster Monat"
-          onClick={() => setMonth(addMonths(month, 1))}
-          className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
-        >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 5l7 7-7 7"
-            />
-          </svg>
-        </button>
-      </div>
+      <CalendarNavHeader month={month} onMonthChange={setMonth} />
       <DayPicker
         mode="multiple"
         selected={values}
@@ -489,6 +487,212 @@ function MultipleDatePickerCalendar({
           disabled: "text-gray-300 cursor-not-allowed",
         }}
       />
+    </div>
+  );
+}
+
+/**
+ * DatePicker for the "YYYY-MM-DD" string shape the API speaks.
+ *
+ * Every form in the app stores calendar dates as ISO day strings, which is what
+ * the replaced native `<input type="date">` round-tripped. Converting per call
+ * site would mean 30+ copies of the same parse/format pair — and every one of
+ * them a chance to reach for `.toISOString()` and land a day early in Berlin's
+ * pre-02:00 window. This wrapper owns the conversion once, via the audited
+ * helpers in `~/lib/date-helpers`.
+ */
+export function ISODatePicker({
+  value,
+  onChange,
+  min,
+  max,
+  ...rest
+}: {
+  /** "YYYY-MM-DD", or "" when unset. */
+  readonly value: string;
+  /** Emits "YYYY-MM-DD", or "" when cleared. */
+  readonly onChange: (value: string) => void;
+  /** Earliest selectable day as "YYYY-MM-DD". */
+  readonly min?: string;
+  /** Latest selectable day as "YYYY-MM-DD". */
+  readonly max?: string;
+  readonly placeholder?: string;
+  readonly className?: string;
+  readonly dropdownPlacement?: "up" | "down";
+  readonly calendarLayout?: CalendarLayout;
+  readonly monthYearNavigation?: boolean;
+  readonly hideClearButton?: boolean;
+  readonly disabled?: boolean;
+  readonly id?: string;
+  readonly ariaLabel?: string;
+  readonly ariaDescribedBy?: string;
+  readonly invalid?: boolean;
+  readonly locale?: Locale;
+  readonly labels?: DatePickerLabels;
+}) {
+  return (
+    <DatePicker
+      {...rest}
+      value={toDateOrNull(value)}
+      minDate={toDateOrNull(min) ?? undefined}
+      maxDate={toDateOrNull(max) ?? undefined}
+      onChange={(date) => onChange(date ? toISODate(date) : "")}
+    />
+  );
+}
+
+// Accepts both a bare "YYYY-MM-DD" and a full backend timestamp
+// ("2015-03-04T00:00:00Z"), because several master-data endpoints return the
+// latter for what is semantically a calendar day. Taking the leading day
+// substring is safe here — unlike `.toISOString()`, it never shifts the day,
+// since the string is already the local calendar date the server sent.
+function toDateOrNull(value: string | undefined): Date | null {
+  if (!value) return null;
+  const day = value.slice(0, 10);
+  return isValidISODate(day) ? parseISODate(day) : null;
+}
+
+// Month names come from the active date-fns locale, never a hardcoded list, so
+// the dropdown matches the calendar grid in every language.
+function buildMonthLabels(locale: Locale): string[] {
+  return Array.from({ length: 12 }, (_, index) =>
+    format(new Date(2000, index, 1), "MMMM", { locale }),
+  );
+}
+
+// Year span offered by the dropdowns when the caller sets no bounds. Back far
+// enough for any birthday, forward far enough for a planning horizon.
+const DEFAULT_YEARS_BACK = 100;
+const DEFAULT_YEARS_AHEAD = 5;
+
+const NAV_SELECT_CLASS =
+  "rounded-md border border-gray-200 bg-white px-1.5 py-1 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:border-gray-300 focus:ring-2 focus:ring-gray-200 focus:outline-none";
+
+// The offered years always include the month currently on screen, so a value
+// outside the caller's bounds (legacy data) still shows its own year instead of
+// silently snapping to the nearest allowed one.
+function buildYearOptions(
+  month: Date,
+  minDate?: Date,
+  maxDate?: Date,
+): number[] {
+  const thisYear = new Date().getFullYear();
+  const first = Math.min(
+    minDate?.getFullYear() ?? thisYear - DEFAULT_YEARS_BACK,
+    month.getFullYear(),
+  );
+  const last = Math.max(
+    maxDate?.getFullYear() ?? thisYear + DEFAULT_YEARS_AHEAD,
+    month.getFullYear(),
+  );
+  return Array.from({ length: last - first + 1 }, (_, index) => first + index);
+}
+
+// Shared caption for both calendars: month arrows plus, when the target date
+// can be years away (birthdays), month and year dropdowns in place of the
+// static caption. Day-level bounds stay with the DayPicker matchers, so
+// navigating to a partly out-of-range month simply shows disabled days.
+function CalendarNavHeader({
+  month,
+  onMonthChange,
+  monthYearNavigation = false,
+  minDate,
+  maxDate,
+  locale = de,
+  labels = DEFAULT_LABELS,
+}: {
+  readonly month: Date;
+  readonly onMonthChange: (month: Date) => void;
+  readonly monthYearNavigation?: boolean;
+  readonly minDate?: Date;
+  readonly maxDate?: Date;
+  readonly locale?: Locale;
+  readonly labels?: Required<DatePickerLabels>;
+}) {
+  const monthLabels = useMemo(() => buildMonthLabels(locale), [locale]);
+
+  return (
+    <div className="mb-3 flex items-center justify-between gap-1">
+      <button
+        type="button"
+        aria-label={labels.previousMonth}
+        onClick={() => onMonthChange(subMonths(month, 1))}
+        className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
+      >
+        <svg
+          className="h-5 w-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M15 19l-7-7 7-7"
+          />
+        </svg>
+      </button>
+      {monthYearNavigation ? (
+        <div className="flex items-center gap-1">
+          <select
+            aria-label={labels.month}
+            value={month.getMonth()}
+            onChange={(event) =>
+              onMonthChange(
+                new Date(month.getFullYear(), Number(event.target.value), 1),
+              )
+            }
+            className={NAV_SELECT_CLASS}
+          >
+            {monthLabels.map((label, index) => (
+              <option key={label} value={index}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label={labels.year}
+            value={month.getFullYear()}
+            onChange={(event) =>
+              onMonthChange(
+                new Date(Number(event.target.value), month.getMonth(), 1),
+              )
+            }
+            className={NAV_SELECT_CLASS}
+          >
+            {buildYearOptions(month, minDate, maxDate).map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <span className="text-sm font-medium text-gray-900">
+          {format(month, "MMMM yyyy", { locale })}
+        </span>
+      )}
+      <button
+        type="button"
+        aria-label={labels.nextMonth}
+        onClick={() => onMonthChange(addMonths(month, 1))}
+        className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
+      >
+        <svg
+          className="h-5 w-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 5l7 7-7 7"
+          />
+        </svg>
+      </button>
     </div>
   );
 }
