@@ -24,7 +24,10 @@ import {
   formatSignedDuration,
 } from "~/components/staff/staff-time-views";
 import { getDeltaStatus } from "~/lib/staff-metrics-helpers";
-import { formatDuration } from "~/lib/time-tracking-helpers";
+import {
+  formatDuration,
+  OPEN_MONTH_REFRESH_MS,
+} from "~/lib/time-tracking-helpers";
 import { useSWRAuth } from "~/lib/swr";
 import {
   staffOverviewService,
@@ -61,7 +64,11 @@ export function SchoolOverviewSection() {
     () => staffOverviewService.getDashboardSummary(period),
     // The period label changes immediately. Previous-key data would therefore
     // appear as a summary for the wrong period while this request is pending.
-    { keepPreviousData: false, revalidateOnFocus: false },
+    {
+      keepPreviousData: false,
+      refreshInterval: OPEN_MONTH_REFRESH_MS,
+      revalidateOnFocus: false,
+    },
   );
 
   const dash = "–";

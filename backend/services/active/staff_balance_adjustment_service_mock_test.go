@@ -11,6 +11,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -95,6 +98,40 @@ func newRecordingBalanceAdjustmentService(
 		&wtmMockSettings{accountStart: "2026-06-01"},
 		slog.New(slog.DiscardHandler),
 	)
+}
+
+func TestStaffBalanceAdjustmentService_BroadcastsAfterCommit(t *testing.T) {
+	events := []string{}
+	repo := &recordingBalanceAdjustmentRepo{events: &events}
+	monthService := &recordingBalanceMonthService{
+		events:  &events,
+		balance: 600,
+	}
+	service := newRecordingBalanceAdjustmentService(&events, repo, monthService)
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	service.(interface {
+		SetBroadcaster(realtime.Broadcaster)
+	}).SetBroadcaster(broadcaster)
+	ctx, commit := tenant.WithAfterCommitHooksForTest(
+		tenant.WithTenantID(context.Background(), 42),
+	)
+
+	_, err := service.CreateAdjustment(ctx, 41, 42, CreateBalanceAdjustmentRequest{
+		Type:          activeModels.BalanceAdjustmentTypePayout,
+		MinutesDelta:  -60,
+		EffectiveDate: timezone.NewDate(2026, time.July, 7),
+		Note:          "Auszahlung",
+	})
+	require.NoError(t, err)
+	assert.Empty(t, broadcaster.Events())
+
+	commit()
+
+	broadcastEvents := broadcaster.EventsOfType(realtime.EventStaffTimeTrackingChanged)
+	require.Len(t, broadcastEvents, 1)
+	calls := broadcaster.CallsByMethod("tenant")
+	require.Len(t, calls, 1)
+	assert.Equal(t, int64(42), calls[0].TenantID)
 }
 
 func TestStaffBalanceAdjustmentService_ChecksFrozenMonthAfterLock(t *testing.T) {

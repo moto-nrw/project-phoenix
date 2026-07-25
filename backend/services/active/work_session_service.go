@@ -376,22 +376,7 @@ func (s *workSessionService) getLogger() *slog.Logger {
 }
 
 func (s *workSessionService) broadcastTimeTrackingChanged(ctx context.Context) {
-	if s.broadcaster == nil {
-		return
-	}
-	tenantID := tenant.FromContext(ctx)
-	if tenantID == 0 {
-		return
-	}
-	tenant.RegisterAfterCommit(ctx, func() {
-		event := realtime.NewEvent(realtime.EventStaffTimeTrackingChanged, "", realtime.EventData{})
-		if err := s.broadcaster.BroadcastToTenant(tenantID, event); err != nil {
-			s.getLogger().Warn("SSE staff time-tracking broadcast failed",
-				slog.String("error", err.Error()),
-				slog.Int64("tenant_id", tenantID),
-			)
-		}
-	})
+	queueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
 }
 
 func (s *workSessionService) lockStaffBalanceWrites(ctx context.Context, staffID int64) error {

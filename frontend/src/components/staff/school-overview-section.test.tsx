@@ -67,7 +67,11 @@ describe("SchoolOverviewSection", () => {
     expect(useSWRAuth).toHaveBeenCalledWith(
       "staff-dashboard-summary-month",
       expect.any(Function),
-      { keepPreviousData: false, revalidateOnFocus: false },
+      {
+        keepPreviousData: false,
+        refreshInterval: 60_000,
+        revalidateOnFocus: false,
+      },
     );
 
     const weekTab = screen.getByRole("tab", { name: "Woche" });
@@ -78,7 +82,11 @@ describe("SchoolOverviewSection", () => {
     expect(useSWRAuth).toHaveBeenLastCalledWith(
       "staff-dashboard-summary-week",
       expect.any(Function),
-      { keepPreviousData: false, revalidateOnFocus: false },
+      {
+        keepPreviousData: false,
+        refreshInterval: 60_000,
+        revalidateOnFocus: false,
+      },
     );
   });
 
