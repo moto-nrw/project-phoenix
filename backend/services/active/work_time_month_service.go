@@ -58,6 +58,31 @@ type MonthSummary struct {
 	// ClosingBalanceMinutes = CarryInMinutes + BalanceMinutes; for the
 	// current month this is the live Stundenkonto as of today.
 	ClosingBalanceMinutes int `json:"closing_balance_minutes"`
+
+	// --- Monatsabschluss (#1417) -----------------------------------------
+	// IsClosed reports whether THIS month is frozen. The remaining fields
+	// below describe the freeze.
+	IsClosed    bool       `json:"is_closed"`
+	ClosedAt    *time.Time `json:"closed_at,omitempty"`
+	ClosedBy    *int64     `json:"closed_by,omitempty"`
+	CloseReason string     `json:"close_reason,omitempty"`
+	// FrozenClosingBalanceMinutes is the value that carries forward once this
+	// month is closed. ClosingBalanceMinutes stays the LIVE number so the
+	// card's carry_in + balance identity holds.
+	FrozenClosingBalanceMinutes *int `json:"frozen_closing_balance_minutes,omitempty"`
+	// DriftMinutes = live ClosingBalanceMinutes − frozen value, i.e. how far
+	// this month has moved since it was closed (0 when not closed). It is
+	// deliberately local to this month — the chain is spliced at the latest
+	// snapshot BEFORE it — so drift stays additive per month instead of each
+	// month inheriting its predecessors'.
+	DriftMinutes int `json:"drift_minutes"`
+	// CarryInFrozen reports that CarryInMinutes came from a frozen month
+	// instead of being summed from the account start; CarryInFrozenFromMonth
+	// names that month ("2026-08"). This is what explains a visible gap
+	// between the previous month's displayed closing balance and this
+	// month's carry-in: the gap is exactly that month's DriftMinutes.
+	CarryInFrozen          bool    `json:"carry_in_frozen"`
+	CarryInFrozenFromMonth *string `json:"carry_in_frozen_from_month,omitempty"`
 }
 
 // WorkTimeMonthService owns the Monatskarte math. It lives outside
@@ -65,6 +90,12 @@ type MonthSummary struct {
 // with its own dependency set.
 type WorkTimeMonthService interface {
 	GetMonthSummary(ctx context.Context, staffID int64, year, month int) (*MonthSummary, error)
+	// GetMonthSummaryAtMonthEnd pins the clamp to the month's last day instead
+	// of today. The Monatsabschluss (#1417) needs the month's true closing
+	// value: with the clamp at today, a not-yet-finished month would charge the
+	// full Soll against an Ist that stops today. Callers must therefore only
+	// use it for months that are over — StaffMonthCloseService enforces that.
+	GetMonthSummaryAtMonthEnd(ctx context.Context, staffID int64, year, month int) (*MonthSummary, error)
 	// GetClosingBalanceAsOf returns the live carry-chain balance through cutoff.
 	// Unlike GetMonthSummary, it never includes activity later in cutoff's month.
 	GetClosingBalanceAsOf(ctx context.Context, staffID int64, cutoff timezone.Date) (int, error)
@@ -82,6 +113,11 @@ type WorkTimeMonthService interface {
 	// nothing (#1420).
 	GetCompTimeDeductionMinutes(ctx context.Context, staffID int64, start, end timezone.Date, halfDay bool) (int, error)
 	GetDailyTargets(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyTarget, error)
+	// GetRangeAggregate sums Soll, Ist and balance over an arbitrary closed
+	// range with the same daily arithmetic as the Monatskarte, WITHOUT a carry
+	// (a range is not an account). The week view of the Leitungs-Dashboard
+	// needs it because the chain itself is month-granular (#1417).
+	GetRangeAggregate(ctx context.Context, staffID int64, from, to timezone.Date) (*RangeAggregate, error)
 	// SetHolidayReader injects the public-holiday resolver (#1418 3a) —
 	// wired in the factory after construction, like
 	// WorkSessionService.SetStaffShiftRepo.
@@ -90,6 +126,10 @@ type WorkTimeMonthService interface {
 	// same after-construction wiring; nil keeps the pre-adjustment behavior
 	// so existing unit fixtures stay valid.
 	SetAdjustmentReader(reader monthAdjustmentReader)
+	// SetSnapshotReader injects the frozen-month reader (#1417) — same
+	// after-construction wiring; nil means no month is ever treated as frozen,
+	// so existing unit fixtures stay valid.
+	SetSnapshotReader(reader monthSnapshotReader)
 }
 
 // AdjustmentView is one Stundenkonto transaction as the Monatskarte shows it
@@ -148,6 +188,12 @@ type monthAdjustmentReader interface {
 	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffBalanceAdjustment, error)
 }
 
+// monthSnapshotReader is implemented by
+// active.StaffMonthBalanceSnapshotRepository (#1417).
+type monthSnapshotReader interface {
+	GetLatestClosedThrough(ctx context.Context, staffID int64, year, month int) (*activeModels.StaffMonthBalanceSnapshot, error)
+}
+
 // monthStaffReader is implemented by users.StaffRepository.
 type monthStaffReader interface {
 	FindByID(ctx context.Context, id any) (*userModels.Staff, error)
@@ -182,6 +228,7 @@ type workTimeMonthService struct {
 	settings       monthSettingsResolver
 	holidayReader  HolidayDatesReader
 	adjustmentRepo monthAdjustmentReader
+	snapshotRepo   monthSnapshotReader
 	logger         *slog.Logger
 
 	// todayFunc is a test hook; production uses timezone.TodayDate.
@@ -224,6 +271,14 @@ func (s *workTimeMonthService) SetHolidayReader(reader HolidayDatesReader) {
 // so existing unit fixtures stay valid.
 func (s *workTimeMonthService) SetAdjustmentReader(reader monthAdjustmentReader) {
 	s.adjustmentRepo = reader
+}
+
+// SetSnapshotReader wires the frozen-month reader (#1417). A setter like
+// SetAdjustmentReader: nil means no month is ever frozen, so the carry chain
+// behaves exactly as it did before the Monatsabschluss existed and existing
+// unit fixtures stay valid.
+func (s *workTimeMonthService) SetSnapshotReader(reader monthSnapshotReader) {
+	s.snapshotRepo = reader
 }
 
 func (s *workTimeMonthService) today() timezone.Date {
@@ -756,6 +811,63 @@ func (s *workTimeMonthService) GetMonthSummary(ctx context.Context, staffID int6
 	return s.getMonthSummaryThrough(ctx, staffID, key, today)
 }
 
+// GetMonthSummaryAtMonthEnd computes the card with the clamp pinned to the
+// month's last day rather than today (#1417). See the interface doc: only the
+// close path may use it, and only for months that are already over.
+func (s *workTimeMonthService) GetMonthSummaryAtMonthEnd(ctx context.Context, staffID int64, year, month int) (*MonthSummary, error) {
+	if err := validateMonth(year, month); err != nil {
+		return nil, err
+	}
+	key := monthKey{Year: year, Month: month}
+	return s.getMonthSummaryThrough(ctx, staffID, key, key.lastDay())
+}
+
+// GetRangeAggregate sums an arbitrary closed range from the SAME helpers the
+// Monatskarte and the daily table use. It first clamps the whole range to the
+// account anchor, then uses GetDailyTargets for the Soll,
+// getDailyActualMinutes for the Ist (day cap, now cap, running break), and
+// getDailyBalanceDeltas for the balance (credits, adjustments, target). No new
+// arithmetic, therefore no way for a week total to contradict the month card
+// above it.
+func (s *workTimeMonthService) GetRangeAggregate(ctx context.Context, staffID int64, from, to timezone.Date) (*RangeAggregate, error) {
+	if from.IsZero() || to.IsZero() || to.Before(from) {
+		return nil, errors.New("from and to must form a valid range")
+	}
+	anchor, err := s.chainAnchor(ctx, monthOf(to))
+	if err != nil {
+		return nil, err
+	}
+	aggregate := &RangeAggregate{}
+	if to.Before(anchor) {
+		return aggregate, nil
+	}
+	if from.Before(anchor) {
+		from = anchor
+	}
+	targets, err := s.GetDailyTargets(ctx, staffID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	for _, target := range targets {
+		aggregate.TargetMinutes += target.TargetMinutes
+	}
+	actual, err := s.getDailyActualMinutes(ctx, staffID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	for _, minutes := range actual {
+		aggregate.ActualMinutes += minutes
+	}
+	deltas, err := s.getDailyBalanceDeltas(ctx, staffID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	for _, delta := range deltas {
+		aggregate.BalanceMinutes += delta
+	}
+	return aggregate, nil
+}
+
 // GetClosingBalanceAsOf computes the carry-chain balance at the end of cutoff.
 // It shares all target/session/absence/adjustment math with the Monatskarte, but
 // pins the "today" clamp to cutoff so a historical reset cannot absorb activity
@@ -961,9 +1073,17 @@ func (s *workTimeMonthService) getOpeningBalanceOnDate(
 	}
 
 	if cutoff := date.AddDays(-1); !cutoff.Before(anchor) {
-		available, err = s.GetClosingBalanceAsOf(ctx, staffID, cutoff)
+		boundaries, err := s.frozenMonthBoundaries(ctx, staffID, date, date)
 		if err != nil {
-			return 0, fmt.Errorf("failed to compute opening balance on %s: %w", date.String(), err)
+			return 0, fmt.Errorf("failed to load opening balance on %s: %w", date.String(), err)
+		}
+		if frozen, ok := boundaries[date]; ok {
+			available = frozen
+		} else {
+			available, err = s.GetClosingBalanceAsOf(ctx, staffID, cutoff)
+			if err != nil {
+				return 0, fmt.Errorf("failed to compute opening balance on %s: %w", date.String(), err)
+			}
 		}
 	}
 	sameDayAdjustments, err := s.GetBalanceAdjustmentMinutes(ctx, staffID, date, date)
@@ -1030,14 +1150,60 @@ func (s *workTimeMonthService) getMinimumDailyClosingBalance(
 	if err != nil {
 		return 0, err
 	}
+	// A frozen month boundary inside the range RESTARTS the chain at the
+	// frozen closing balance (#1417). Accumulating live deltas straight
+	// across it would report a minimum that is off by that month's drift, and
+	// the payout/comp-time capacity checks in #1420 rely on this number.
+	boundaries, err := s.frozenMonthBoundaries(ctx, staffID, from, to)
+	if err != nil {
+		return 0, err
+	}
 	minimum := int(^uint(0) >> 1)
 	for d := from; !d.After(to); d = d.AddDays(1) {
+		if opening, ok := boundaries[d]; ok && d.After(anchor) {
+			balance = opening
+		}
 		balance += deltas[d]
 		minimum = min(minimum, balance)
 	}
 	return minimum, nil
 }
 
+// frozenMonthBoundaries maps each month-start day inside [from, to] to the
+// frozen closing balance of the preceding month, for the days where the carry
+// chain restarts instead of continuing. `from` is a boundary only when it is
+// itself the first day of a month.
+func (s *workTimeMonthService) frozenMonthBoundaries(
+	ctx context.Context,
+	staffID int64,
+	from, to timezone.Date,
+) (map[timezone.Date]int, error) {
+	boundaries := make(map[timezone.Date]int)
+	if s.snapshotRepo == nil {
+		return boundaries, nil
+	}
+	first := monthOf(from)
+	if first.firstDay().Before(from) {
+		first = first.next()
+	}
+	for k := first; !monthOf(to).before(k); k = k.next() {
+		prev := k.addMonths(-1)
+		snapshot, err := s.snapshotRepo.GetLatestClosedThrough(ctx, staffID, prev.Year, prev.Month)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load month balance snapshot for %d-%02d: %w", prev.Year, prev.Month, err)
+		}
+		if snapshot == nil || snapshot.Year != prev.Year || snapshot.Month != prev.Month {
+			continue
+		}
+		boundaries[k.firstDay()] = snapshot.ClosingBalanceMinutes
+	}
+	return boundaries, nil
+}
+
+// getDailyBalanceDeltas is deliberately snapshot-agnostic (#1417): it reports
+// what happened on each day. A frozen month is not a per-day event, so folding
+// it in here would double-count against the boundary reset in
+// getMinimumDailyClosingBalance.
 func (s *workTimeMonthService) getDailyBalanceDeltas(
 	ctx context.Context,
 	staffID int64,
@@ -1059,6 +1225,15 @@ func (s *workTimeMonthService) getDailyBalanceDeltas(
 	}
 	if err := s.addDailyAdjustments(ctx, staffID, from, to, deltas); err != nil {
 		return nil, err
+	}
+	anchor, err := s.chainAnchor(ctx, monthOf(from))
+	if err != nil {
+		return nil, err
+	}
+	for d := from; !d.After(to); d = d.AddDays(1) {
+		if excludedByAccountStart(d, anchor) {
+			deltas[d] = 0
+		}
 	}
 	return deltas, nil
 }
@@ -1227,6 +1402,22 @@ func (s *workTimeMonthService) getMonthSummaryThrough(ctx context.Context, staff
 		startKey, first = key, key.firstDay()
 	}
 
+	// A frozen earlier month (#1417) short-circuits the chain: its closing
+	// balance IS the opening balance here, so nothing before it is re-summed
+	// and a retroactive correction there can no longer move this month.
+	splice, err := s.spliceChainStart(ctx, staffID, key, anchor)
+	if err != nil {
+		return nil, err
+	}
+	carry := 0
+	// Only an EARLIER frozen month shortens the chain. A splice that carries
+	// nothing but the requested month's own snapshot (used for drift) must
+	// leave the chain running from the account start.
+	if splice != nil && splice.carryFrom != nil {
+		startKey, first = splice.startKey, splice.startKey.firstDay()
+		carry = splice.frozenCarry
+	}
+
 	// Bound how far back the chain reaches so a stale/misconfigured account
 	// start can't make each poll aggregate and query decades of days. A
 	// realistic account never predates the floor; when it does, the setting is
@@ -1248,7 +1439,6 @@ func (s *workTimeMonthService) getMonthSummaryThrough(ctx context.Context, staff
 		return nil, err
 	}
 
-	carry := 0
 	for k := startKey; k.before(key); k = k.next() {
 		carry += aggregates[k].balance()
 	}
@@ -1286,7 +1476,95 @@ func (s *workTimeMonthService) getMonthSummaryThrough(ctx context.Context, staff
 		})
 	}
 	summary.ClosingBalanceMinutes = summary.CarryInMinutes + summary.BalanceMinutes
+	if splice != nil {
+		if splice.carryFrom != nil {
+			summary.CarryInFrozen = true
+			label := fmt.Sprintf("%04d-%02d", splice.carryFrom.Year, splice.carryFrom.Month)
+			summary.CarryInFrozenFromMonth = &label
+		}
+		if own := splice.ownSnapshot; own != nil {
+			summary.IsClosed = true
+			closedAt, closedBy := own.ClosedAt, own.ClosedBy
+			summary.ClosedAt, summary.ClosedBy = &closedAt, &closedBy
+			summary.CloseReason = own.CloseReason
+			frozen := own.ClosingBalanceMinutes
+			summary.FrozenClosingBalanceMinutes = &frozen
+			summary.DriftMinutes = summary.ClosingBalanceMinutes - frozen
+		}
+	}
 	return summary, nil
+}
+
+// chainSplice is the outcome of the frozen-month lookup for one requested
+// month: where the carry chain starts, what it starts with, and whether the
+// requested month is itself frozen.
+type chainSplice struct {
+	// startKey is the first month the chain must still aggregate.
+	startKey monthKey
+	// frozenCarry is the opening balance for startKey.
+	frozenCarry int
+	// carryFrom names the frozen month that produced frozenCarry; nil when no
+	// earlier month is frozen and the chain runs from the account start.
+	carryFrom *monthKey
+	// ownSnapshot is the requested month's own active snapshot, if it is
+	// closed. It supplies the drift comparison, never the carry.
+	ownSnapshot *activeModels.StaffMonthBalanceSnapshot
+}
+
+// spliceChainStart resolves how the carry chain for `key` must start (#1417).
+// It returns nil when nothing is frozen and the caller should keep the
+// account-anchor chain untouched.
+//
+// One read covers both questions: the newest active snapshot at or before
+// `key` is either `key`'s own (then a second read finds the one before it) or
+// already an earlier month (then it seeds the chain directly).
+//
+// A snapshot before the anchor month is ignored on purpose. The chain never
+// starts before the account start, so such a row — left behind by a later
+// change to the account-start setting — could only corrupt the card. The
+// close path rejects creating one; this is the read-side half of that fence.
+func (s *workTimeMonthService) spliceChainStart(
+	ctx context.Context,
+	staffID int64,
+	key monthKey,
+	anchor timezone.Date,
+) (*chainSplice, error) {
+	if s.snapshotRepo == nil {
+		return nil, nil
+	}
+	anchorKey := monthOf(anchor)
+
+	latest, err := s.snapshotRepo.GetLatestClosedThrough(ctx, staffID, key.Year, key.Month)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load month balance snapshot: %w", err)
+	}
+	if latest == nil {
+		return nil, nil
+	}
+
+	splice := &chainSplice{startKey: key}
+	seed := latest
+	if latest.Year == key.Year && latest.Month == key.Month {
+		splice.ownSnapshot = latest
+		prev := key.addMonths(-1)
+		seed, err = s.snapshotRepo.GetLatestClosedThrough(ctx, staffID, prev.Year, prev.Month)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load preceding month balance snapshot: %w", err)
+		}
+	}
+
+	if seed != nil {
+		seedKey := monthKey{Year: seed.Year, Month: seed.Month}
+		if !seedKey.before(anchorKey) && seedKey.before(key) {
+			splice.startKey = seedKey.next()
+			splice.frozenCarry = seed.ClosingBalanceMinutes
+			splice.carryFrom = &seedKey
+		}
+	}
+	if splice.carryFrom == nil && splice.ownSnapshot == nil {
+		return nil, nil
+	}
+	return splice, nil
 }
 
 // excludedByAccountStart reports whether d is inside the account-start month

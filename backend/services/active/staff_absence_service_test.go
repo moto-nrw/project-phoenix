@@ -32,7 +32,7 @@ type absStaffAbsenceRepoMock struct {
 	getByStaffAndDateRangeFunc func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffAbsence, error)
 	getByStaffAndDateFunc      func(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.StaffAbsence, error)
 	getByDateRangeFunc         func(ctx context.Context, from, to timezone.Date) ([]*activeModels.StaffAbsence, error)
-	getTodayAbsenceMapFunc     func(ctx context.Context) (map[int64]string, error)
+	getAbsenceMapForDateFunc   func(ctx context.Context, date timezone.Date) (map[int64]string, error)
 	listByStatusesFunc         func(ctx context.Context, statuses []string) ([]*activeModels.StaffAbsence, error)
 }
 
@@ -75,6 +75,12 @@ func (m *absStaffAbsenceRepoMock) List(ctx context.Context, options *base.QueryO
 	return nil, nil
 }
 
+// GetByStaffIDsAndDateRange satisfies the batched interface method (#1417);
+// these tests exercise the single-staff path only.
+func (m *absStaffAbsenceRepoMock) GetByStaffIDsAndDateRange(context.Context, []int64, timezone.Date, timezone.Date) (map[int64][]*activeModels.StaffAbsence, error) {
+	return nil, nil
+}
+
 func (m *absStaffAbsenceRepoMock) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffAbsence, error) {
 	if m.getByStaffAndDateRangeFunc != nil {
 		return m.getByStaffAndDateRangeFunc(ctx, staffID, from, to)
@@ -96,9 +102,9 @@ func (m *absStaffAbsenceRepoMock) GetByDateRange(ctx context.Context, from, to t
 	return nil, nil
 }
 
-func (m *absStaffAbsenceRepoMock) GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error) {
-	if m.getTodayAbsenceMapFunc != nil {
-		return m.getTodayAbsenceMapFunc(ctx)
+func (m *absStaffAbsenceRepoMock) GetAbsenceMapForDate(ctx context.Context, date timezone.Date) (map[int64]string, error) {
+	if m.getAbsenceMapForDateFunc != nil {
+		return m.getAbsenceMapForDateFunc(ctx, date)
 	}
 	return nil, nil
 }
@@ -139,6 +145,11 @@ func (m *absVacationQuotaRepoMock) Delete(context.Context, any) error {
 }
 
 func (m *absVacationQuotaRepoMock) List(context.Context, *base.QueryOptions) ([]*activeModels.StaffVacationQuota, error) {
+	return nil, nil
+}
+
+// GetByStaffIDsAndYear satisfies the batched interface method (#1417).
+func (m *absVacationQuotaRepoMock) GetByStaffIDsAndYear(context.Context, []int64, int) (map[int64]*activeModels.StaffVacationQuota, error) {
 	return nil, nil
 }
 
@@ -260,6 +271,11 @@ func (m *absWorkSessionRepoMock) LockOpenByIDForUpdate(ctx context.Context, id i
 		return nil, errors.New("not found")
 	}
 	return session, nil
+}
+
+// GetHistoryByStaffIDs satisfies the batched interface method (#1417).
+func (m *absWorkSessionRepoMock) GetHistoryByStaffIDs(context.Context, []int64, timezone.Date, timezone.Date) (map[int64][]*activeModels.WorkSession, error) {
+	return nil, nil
 }
 
 func (m *absWorkSessionRepoMock) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {

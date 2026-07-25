@@ -26,6 +26,8 @@ type Resource struct {
 	StaffAbsenceService     activeSvc.StaffAbsenceService
 	WorkTimeMonthService    activeSvc.WorkTimeMonthService
 	BalanceAdjustService    activeSvc.StaffBalanceAdjustmentService
+	MonthCloseService       activeSvc.StaffMonthCloseService
+	StaffOverviewService    activeSvc.StaffOverviewService
 	db                      *bun.DB
 	logger                  *slog.Logger
 }
@@ -40,6 +42,8 @@ func NewResource(
 	staffAbsenceService activeSvc.StaffAbsenceService,
 	workTimeMonthService activeSvc.WorkTimeMonthService,
 	balanceAdjustService activeSvc.StaffBalanceAdjustmentService,
+	monthCloseService activeSvc.StaffMonthCloseService,
+	staffOverviewService activeSvc.StaffOverviewService,
 	db *bun.DB,
 	logger *slog.Logger,
 ) *Resource {
@@ -52,6 +56,8 @@ func NewResource(
 		StaffAbsenceService:     staffAbsenceService,
 		WorkTimeMonthService:    workTimeMonthService,
 		BalanceAdjustService:    balanceAdjustService,
+		MonthCloseService:       monthCloseService,
+		StaffOverviewService:    staffOverviewService,
 		db:                      db,
 		logger:                  logger,
 	}
@@ -69,6 +75,15 @@ func (rs *Resource) Router() chi.Router {
 
 	// Protected routes that require authentication and permissions
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
+
+		// Leitungs-Dashboard KPIs (#1417 2a). Aggregate only, no per-person
+		// working-time data, hence users:read.
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/dashboard-summary", rs.getDashboardSummary)
+		// Per-person Soll/Ist/Saldo/Resturlaub across all staff. Deliberately
+		// stricter than the issue's users:read: this is working-time data about
+		// identifiable people, and users:read is held by everyone who may see
+		// the staff list at all.
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/overview", rs.getTimeTrackingOverview)
 
 		// Staff profile reads are also needed by the absence-management view.
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStaff)
@@ -104,6 +119,13 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/time-tracking/adjustments", rs.createBalanceAdjustment)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}/time-tracking/adjustments/{adjustmentId}", rs.deleteBalanceAdjustment)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/time-tracking/reset", rs.resetStaffBalance)
+
+		// Monatsabschluss (#1417): freezing the carry chain is school-wide,
+		// reopening is per staff member. Static segments before /{id} are
+		// safe — chi prefers them over the wildcard.
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/time-tracking/month-close", rs.listMonthCloseStatus)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/time-tracking/month-close", rs.closeMonth)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/time-tracking/month-close/reopen", rs.reopenMonth)
 
 		// Vacation workflow admin-side (Tranche 4)
 		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Get("/absences/pending", rs.listPendingAbsenceRequests)

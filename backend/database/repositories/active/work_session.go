@@ -300,3 +300,37 @@ func (r *WorkSessionRepository) CloseSession(ctx context.Context, id int64, chec
 
 	return closed == 1, nil
 }
+
+// GetHistoryByStaffIDs is GetHistoryByStaffID for many staff members in one
+// round trip, keyed by staff ID. A batched IN-lookup the generic filter API
+// cannot express as a single query; the cross-staff Stundenkonto overview would
+// otherwise issue one range query per person.
+func (r *WorkSessionRepository) GetHistoryByStaffIDs(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*active.WorkSession, error) {
+	result := make(map[int64][]*active.WorkSession, len(staffIDs))
+	if len(staffIDs) == 0 {
+		// bun renders an empty IN list as invalid SQL.
+		return result, nil
+	}
+
+	var sessions []*active.WorkSession
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&sessions).
+		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
+		Where(`"work_session".staff_id IN (?)`, bun.List(staffIDs)).
+		Where(`"work_session".date >= ?`, from).
+		Where(`"work_session".date <= ?`, to).
+		OrderExpr(`"work_session".staff_id ASC, "work_session".date ASC`)
+
+	query = base.WithTenantFilter(ctx, query, "work_session")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get history by staff IDs",
+			Err: err,
+		}
+	}
+	for _, session := range sessions {
+		result[session.StaffID] = append(result[session.StaffID], session)
+	}
+	return result, nil
+}

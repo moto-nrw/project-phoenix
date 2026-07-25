@@ -68,6 +68,8 @@ type Factory struct {
 	ClosingDays              schedule.ClosingDayService
 	StaffAbsence             active.StaffAbsenceService
 	StaffBalanceAdjust       active.StaffBalanceAdjustmentService
+	StaffMonthClose          active.StaffMonthCloseService
+	StaffOverview            active.StaffOverviewService
 	Activities               activities.ActivityService
 	Education                education.Service
 	GradeTransition          *education.GradeTransitionService
@@ -372,6 +374,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	workTimeMonthService.SetHolidayReader(nonWorkingDayService)
 	// Stundenkonto transactions (#1420) enter the carry chain by effective date.
 	workTimeMonthService.SetAdjustmentReader(repos.StaffBalanceAdjust)
+	// Frozen months (#1417) short-circuit the carry chain so a retroactive
+	// correction can no longer rewrite a closed month's Übertrag.
+	workTimeMonthService.SetSnapshotReader(repos.StaffMonthSnapshot)
 	// The session service's weekly summaries reduce their Soll by holidays
 	// too. The setter is not part of the WorkSessionService interface (it
 	// would break external mocks), hence the assertion.
@@ -387,6 +392,38 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Stundenkonto lifecycle transactions (#1420): payout, comp-time grants,
 	// school-year reset. Reads the live balance through the month service.
 	staffBalanceAdjustService := active.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, settingsService, activeLogger)
+	// A booking inside a closed month (#1417) could not move its frozen
+	// closing balance, so the ledger rejects it.
+	staffBalanceAdjustService.SetSnapshotReader(repos.StaffMonthSnapshot)
+
+	// Monatsabschluss (#1417): freezes a month's closing balance so a
+	// retroactive correction can no longer rewrite every later Übertrag.
+	staffMonthCloseService := active.NewStaffMonthCloseService(
+		repos.StaffMonthSnapshot,
+		workTimeMonthService,
+		repos.Staff,
+		settingsService,
+		activeLogger,
+	)
+
+	// Tenant-wide time-tracking views (#1417 2a). Prefetches all inputs once
+	// and runs the SAME per-staff month math over in-memory readers, so the
+	// list can never drift from the /staff/{id} detail view.
+	staffOverviewService := active.NewStaffOverviewService(
+		repos.Staff,
+		repos.WorkSession,
+		repos.WorkSessionBreak,
+		repos.StaffAbsence,
+		repos.StaffBalanceAdjust,
+		repos.StaffVacationQuota,
+		repos.StaffMonthSnapshot,
+		repos.StaffWorkSchedule,
+		repos.WorkTimeModel,
+		repos.StaffShift,
+		settingsService,
+		activeLogger,
+	)
+	staffOverviewService.SetHolidayReader(nonWorkingDayService)
 
 	// Absence email notifications (#1419 4d). Setter injection keeps the
 	// constructor stable and unit tests email-free (mirrors SetShiftPlanSyncer);
@@ -1572,6 +1609,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ClosingDays:              closingDayService,
 		StaffAbsence:             staffAbsenceService,
 		StaffBalanceAdjust:       staffBalanceAdjustService,
+		StaffMonthClose:          staffMonthCloseService,
+		StaffOverview:            staffOverviewService,
 		Activities:               activitiesService,
 		Education:                educationService,
 		GradeTransition:          gradeTransitionService,

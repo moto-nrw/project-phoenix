@@ -73,13 +73,31 @@ type StaffBalanceAdjustmentService interface {
 	// run inside the ambient tenant transaction (advisory lock + unique
 	// index serialize concurrent resets).
 	ResetBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate timezone.Date, carryoverMinutes int, note string) (*activeModels.StaffBalanceAdjustment, error)
+	// SetSnapshotReader injects the frozen-month reader (#1417) after
+	// construction; nil means no month counts as frozen, so existing unit
+	// fixtures stay valid.
+	SetSnapshotReader(reader adjustmentFreezeReader)
+}
+
+// adjustmentFreezeReader is implemented by
+// active.StaffMonthBalanceSnapshotRepository (#1417).
+type adjustmentFreezeReader interface {
+	GetLatestClosedThrough(ctx context.Context, staffID int64, year, month int) (*activeModels.StaffMonthBalanceSnapshot, error)
 }
 
 type staffBalanceAdjustmentService struct {
 	adjustmentRepo activeModels.StaffBalanceAdjustmentRepository
 	monthService   WorkTimeMonthService
 	settings       monthSettingsResolver
+	snapshotRepo   adjustmentFreezeReader
 	logger         *slog.Logger
+}
+
+// SetSnapshotReader wires the frozen-month reader (#1417). Setter injection
+// like the month service's: nil means no month counts as frozen, so existing
+// unit fixtures stay valid.
+func (s *staffBalanceAdjustmentService) SetSnapshotReader(reader adjustmentFreezeReader) {
+	s.snapshotRepo = reader
 }
 
 func NewStaffBalanceAdjustmentService(
@@ -110,6 +128,32 @@ func (s *staffBalanceAdjustmentService) rejectPreAccountDate(ctx context.Context
 		return fmt.Errorf("%w: effective_date %s lies before the account start %s", ErrAdjustmentInvalid, effectiveDate.String(), anchor.String())
 	}
 	return nil
+}
+
+// rejectFrozenMonth fails a booking whose effective month is closed (#1417).
+// A frozen month's closing balance no longer comes from its own aggregation,
+// so a booking inside it would appear in the history while moving nothing.
+//
+// Deliberately partial, exactly like ErrAdjustmentHasDependentReset: only
+// ADJUSTMENT writes are blocked. Work sessions and comp_time absences inside a
+// frozen month stay editable — the divergence they cause is reported as the
+// month's drift instead of being suppressed. Reopening the month lifts this.
+func (s *staffBalanceAdjustmentService) rejectFrozenMonth(ctx context.Context, staffID int64, effectiveDate timezone.Date) error {
+	if s.snapshotRepo == nil {
+		return nil
+	}
+	year, month := effectiveDate.Year, int(effectiveDate.Month)
+	snapshot, err := s.snapshotRepo.GetLatestClosedThrough(ctx, staffID, year, month)
+	if err != nil {
+		return fmt.Errorf("failed to check month close state for adjustment: %w", err)
+	}
+	if snapshot == nil || snapshot.Year != year || snapshot.Month != month {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: effective_date %s lies in the closed month %04d-%02d",
+		ErrAdjustmentInvalid, effectiveDate.String(), year, month,
+	)
 }
 
 func (s *staffBalanceAdjustmentService) ListAdjustments(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffBalanceAdjustment, error) {
@@ -149,6 +193,9 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 	}
 	if err := s.adjustmentRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, fmt.Errorf("failed to lock staff balance writes: %w", err)
+	}
+	if err := s.rejectFrozenMonth(ctx, staffID, req.EffectiveDate); err != nil {
+		return nil, err
 	}
 	resets, err := s.listResetsOnOrAfter(ctx, staffID, req.EffectiveDate)
 	if err != nil {
@@ -218,6 +265,12 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 	}
 	if adjustment == nil || adjustment.StaffID != staffID {
 		return fmt.Errorf("%w: id %d", ErrAdjustmentNotFound, adjustmentID)
+	}
+	// Checked here rather than up front: the effective date only exists once
+	// the row is loaded. Deleting out of a frozen month is the same violation
+	// as inserting into one.
+	if err := s.rejectFrozenMonth(ctx, staffID, adjustment.EffectiveDate); err != nil {
+		return err
 	}
 	dependent, err := s.hasDependentReset(ctx, adjustment)
 	if err != nil {
@@ -292,6 +345,9 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 	// read-compute-insert sequence, the partial unique index is the backstop.
 	if err := s.adjustmentRepo.LockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, fmt.Errorf("failed to lock staff balance writes: %w", err)
+	}
+	if err := s.rejectFrozenMonth(ctx, staffID, effectiveDate); err != nil {
+		return nil, err
 	}
 	resets, err := s.listResetsOnOrAfter(ctx, staffID, effectiveDate)
 	if err != nil {

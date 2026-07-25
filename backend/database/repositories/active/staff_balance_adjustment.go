@@ -62,3 +62,35 @@ func (r *StaffBalanceAdjustmentRepository) GetByStaffAndDateRange(ctx context.Co
 	}
 	return adjustments, nil
 }
+
+// GetByStaffIDsAndDateRange is GetByStaffAndDateRange for many staff members in
+// one round trip, keyed by staff ID. A batched IN-lookup the generic filter API
+// cannot express as a single query.
+func (r *StaffBalanceAdjustmentRepository) GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*active.StaffBalanceAdjustment, error) {
+	result := make(map[int64][]*active.StaffBalanceAdjustment, len(staffIDs))
+	if len(staffIDs) == 0 {
+		// bun renders an empty IN list as invalid SQL.
+		return result, nil
+	}
+
+	var adjustments []*active.StaffBalanceAdjustment
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&adjustments).
+		ModelTableExpr(tableExprStaffBalanceAdjustmentsAliased).
+		Where(`"staff_balance_adjustment".staff_id IN (?)`, bun.List(staffIDs)).
+		Where(`"staff_balance_adjustment".effective_date >= ?`, from).
+		Where(`"staff_balance_adjustment".effective_date <= ?`, to).
+		OrderExpr(`"staff_balance_adjustment".staff_id ASC, "staff_balance_adjustment".effective_date ASC, "staff_balance_adjustment".id ASC`)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where(`"staff_balance_adjustment".tenant_id = ?`, tenantID)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "get balance adjustments by staff IDs+range", Err: err}
+	}
+	for _, adjustment := range adjustments {
+		result[adjustment.StaffID] = append(result[adjustment.StaffID], adjustment)
+	}
+	return result, nil
+}

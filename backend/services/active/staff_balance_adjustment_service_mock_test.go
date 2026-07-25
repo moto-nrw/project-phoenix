@@ -74,6 +74,16 @@ func (s *recordingBalanceMonthService) GetBalanceReductionCapacity(_ context.Con
 	return s.balance, nil
 }
 
+type recordingAdjustmentFreezeReader struct {
+	events   *[]string
+	snapshot *activeModels.StaffMonthBalanceSnapshot
+}
+
+func (r *recordingAdjustmentFreezeReader) GetLatestClosedThrough(context.Context, int64, int, int) (*activeModels.StaffMonthBalanceSnapshot, error) {
+	*r.events = append(*r.events, "snapshot")
+	return r.snapshot, nil
+}
+
 func newRecordingBalanceAdjustmentService(
 	events *[]string,
 	repo *recordingBalanceAdjustmentRepo,
@@ -85,6 +95,66 @@ func newRecordingBalanceAdjustmentService(
 		&wtmMockSettings{accountStart: "2026-06-01"},
 		slog.New(slog.DiscardHandler),
 	)
+}
+
+func TestStaffBalanceAdjustmentService_ChecksFrozenMonthAfterLock(t *testing.T) {
+	const (
+		staffID   = int64(41)
+		decidedBy = int64(42)
+	)
+	effectiveDate := timezone.NewDate(2026, time.July, 7)
+	frozen := &activeModels.StaffMonthBalanceSnapshot{
+		StaffID: staffID,
+		Year:    effectiveDate.Year,
+		Month:   int(effectiveDate.Month),
+	}
+
+	for _, tc := range []struct {
+		name string
+		run  func(StaffBalanceAdjustmentService) error
+	}{
+		{
+			name: "create",
+			run: func(service StaffBalanceAdjustmentService) error {
+				_, err := service.CreateAdjustment(context.Background(), staffID, decidedBy, CreateBalanceAdjustmentRequest{
+					Type:          activeModels.BalanceAdjustmentTypePayout,
+					MinutesDelta:  -60,
+					EffectiveDate: effectiveDate,
+					Note:          "Auszahlung",
+				})
+				return err
+			},
+		},
+		{
+			name: "reset",
+			run: func(service StaffBalanceAdjustmentService) error {
+				_, err := service.ResetBalance(
+					context.Background(),
+					staffID,
+					decidedBy,
+					effectiveDate,
+					60,
+					"Schuljahreswechsel",
+				)
+				return err
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			events := []string{}
+			repo := &recordingBalanceAdjustmentRepo{events: &events}
+			service := newRecordingBalanceAdjustmentService(&events, repo, nil)
+			service.SetSnapshotReader(&recordingAdjustmentFreezeReader{
+				events:   &events,
+				snapshot: frozen,
+			})
+
+			err := tc.run(service)
+
+			require.ErrorIs(t, err, ErrAdjustmentInvalid)
+			assert.Equal(t, []string{"lock", "snapshot"}, events)
+		})
+	}
 }
 
 func TestStaffBalanceAdjustmentService_LocksEveryMutation(t *testing.T) {
