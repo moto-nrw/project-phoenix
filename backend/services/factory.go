@@ -58,6 +58,7 @@ import (
 // Factory provides access to all services
 type Factory struct {
 	Auth                     auth.AuthService
+	StaffPINAuth             auth.StaffPINAuthenticator
 	MFA                      auth.MFAService
 	Passkey                  auth.PasskeyService
 	Active                   active.Service
@@ -1599,6 +1600,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	factory := &Factory{
 		Auth:                     authService,
+		StaffPINAuth:             authService,
 		MFA:                      mfaService,
 		Passkey:                  passkeyService,
 		Active:                   activeService,

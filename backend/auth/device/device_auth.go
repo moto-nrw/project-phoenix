@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -219,6 +220,12 @@ type SchoolLookup interface {
 	GetSchoolByID(ctx context.Context, id int64) (*platform.School, error)
 }
 
+// StaffPINAuthenticator verifies that a staff ID and account PIN belong to
+// the device tenant before the middleware exposes staff identity to handlers.
+type StaffPINAuthenticator interface {
+	AuthenticateStaffPIN(ctx context.Context, tenantID, staffID int64, pin string) (*users.Staff, error)
+}
+
 func renderDeviceAuthError(w http.ResponseWriter, r *http.Request, errResp render.Renderer) {
 	if err := render.Render(w, r, errResp); err != nil {
 		slog.Error("failed to render device auth error", slog.String("error", err.Error()))
@@ -259,9 +266,47 @@ func validateDevicePIN(r *http.Request, device *iot.Device, pinResolver PINResol
 	return nil
 }
 
-func authenticatedDeviceContext(r *http.Request, device *iot.Device) context.Context {
+func authenticateStaffContext(
+	ctx context.Context,
+	authenticator StaffPINAuthenticator,
+	device *iot.Device,
+	staffIDHeader, staffPIN string,
+) (*users.Staff, render.Renderer) {
+	if staffIDHeader == "" && staffPIN == "" {
+		return nil, nil
+	}
+	if staffIDHeader == "" || staffPIN == "" || authenticator == nil {
+		slog.Warn("device staff authentication failed: incomplete credentials",
+			slog.String("device_id", device.DeviceID),
+		)
+		return nil, ErrDeviceUnauthorized(ErrInvalidPIN)
+	}
+
+	staffID, err := strconv.ParseInt(staffIDHeader, 10, 64)
+	if err != nil || staffID <= 0 {
+		slog.Warn("device staff authentication failed: invalid staff ID",
+			slog.String("device_id", device.DeviceID),
+		)
+		return nil, ErrDeviceUnauthorized(ErrInvalidPIN)
+	}
+
+	staff, err := authenticator.AuthenticateStaffPIN(ctx, device.TenantID, staffID, staffPIN)
+	if err != nil || staff == nil || staff.TenantID != device.TenantID {
+		slog.Warn("device staff authentication failed",
+			slog.String("device_id", device.DeviceID),
+			slog.Int64("staff_id", staffID),
+		)
+		return nil, ErrDeviceUnauthorized(ErrInvalidPIN)
+	}
+	return staff, nil
+}
+
+func authenticatedDeviceContext(r *http.Request, device *iot.Device, staff *users.Staff) context.Context {
 	ctx := context.WithValue(r.Context(), CtxDevice, device)
 	ctx = context.WithValue(ctx, CtxIsIoTDevice, true)
+	if staff != nil {
+		ctx = context.WithValue(ctx, CtxStaff, staff)
+	}
 
 	// Device-auth routes don't use jwt.TenantMiddleware.
 	if device.TenantID > 0 {
@@ -276,6 +321,7 @@ func serveAuthenticatedDeviceRequest(
 	next http.Handler,
 	iotService iotSvc.Service,
 	schools SchoolLookup,
+	staffPINAuthenticator StaffPINAuthenticator,
 	pinResolver PINResolver,
 ) {
 	device, errResp := extractAndValidateAPIKey(r, iotService)
@@ -296,7 +342,19 @@ func serveAuthenticatedDeviceRequest(
 		return
 	}
 
-	ctx := authenticatedDeviceContext(r, device)
+	staff, errResp := authenticateStaffContext(
+		r.Context(),
+		staffPINAuthenticator,
+		device,
+		r.Header.Get("X-Staff-ID"),
+		r.Header.Get("X-Staff-Auth-PIN"),
+	)
+	if errResp != nil {
+		renderDeviceAuthError(w, r, errResp)
+		return
+	}
+
+	ctx := authenticatedDeviceContext(r, device, staff)
 	slog.Debug("device authentication successful",
 		slog.String("device_id", device.DeviceID),
 	)
@@ -304,15 +362,29 @@ func serveAuthenticatedDeviceRequest(
 	next.ServeHTTP(w, r.WithContext(ctx))
 }
 
-// DeviceAuthenticator is a middleware that validates device API keys and the global OGS PIN.
+// DeviceAuthenticator validates device API keys and the global OGS PIN.
 // It requires both Authorization: Bearer <api_key> and X-Staff-PIN: <pin> headers.
-// The middleware sets device context for downstream handlers.
+// Optional X-Staff-ID attribution requires a matching X-Staff-Auth-PIN; after
+// verification the middleware sets staff context for downstream handlers.
 // Rejects requests for devices belonging to soft-deleted schools.
 // pinResolver is optional — if nil, falls back to OGS_DEVICE_PIN env var.
-func DeviceAuthenticator(iotService iotSvc.Service, schools SchoolLookup, pinResolver PINResolver) func(http.Handler) http.Handler {
+func DeviceAuthenticator(
+	iotService iotSvc.Service,
+	schools SchoolLookup,
+	staffPINAuthenticator StaffPINAuthenticator,
+	pinResolver PINResolver,
+) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			serveAuthenticatedDeviceRequest(w, r, next, iotService, schools, pinResolver)
+			serveAuthenticatedDeviceRequest(
+				w,
+				r,
+				next,
+				iotService,
+				schools,
+				staffPINAuthenticator,
+				pinResolver,
+			)
 		})
 	}
 }

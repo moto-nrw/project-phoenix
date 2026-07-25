@@ -92,7 +92,7 @@ Per-school config resolves tenant DB override → registry default; the service 
 
 ### RFID/IoT Integration
 - Two-layer auth: Device API key (`Authorization: Bearer`) + Staff PIN (`X-Staff-PIN`); devices authenticate without tenant JWTs but are scoped to one school (hence `Resolve*ForTenant` in device auth)
-- The `X-Staff-PIN` header is checked against the per-tenant `security.ogs_device_pin` setting via constant-time compare; per-account staff PINs (separate identity flows) are Argon2id-hashed
+- The `X-Staff-PIN` header is checked against the per-tenant `security.ogs_device_pin` setting via constant-time compare; optional kiosk attribution requires `X-Staff-ID` plus an `X-Staff-Auth-PIN` verified against that account's Argon2id-hashed PIN
 - Check-in/out tracked in `active.visits`; scheduled statuses (sick/excused/class trip) in `active.student_status_days`
 - **Error strings returned by `/api/iot/*` are a cross-repo contract** — PyrePortal maps them to German UI text (see root `CLAUDE.md` Ecosystem)
 

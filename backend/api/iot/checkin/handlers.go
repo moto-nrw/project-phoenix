@@ -461,10 +461,8 @@ func (rs *Resource) processBinaryModeCheckin(
 ) {
 	ctx := r.Context()
 
-	// Binary-mode kiosks don't open activity sessions, so a staff identity
-	// must come from credential-bound authentication. The shared device PIN
-	// cannot establish who is acting; caller-controlled staff IDs are not
-	// accepted for attendance attribution.
+	// Binary-mode kiosks don't open activity sessions, so staff identity comes
+	// from the account-PIN verification performed by DeviceAuthenticator.
 	var staffID int64
 	if staffCtx := device.StaffFromCtx(ctx); staffCtx != nil {
 		staffID = staffCtx.ID
