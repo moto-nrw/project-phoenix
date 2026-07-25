@@ -3,6 +3,7 @@
 import { Repeat } from "lucide-react";
 
 import { CustomSelect } from "~/components/ui/custom-select";
+import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import { getActivityColor } from "~/lib/timetable-helpers";
@@ -232,14 +233,12 @@ export function StepTermin({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Field label="Datum" htmlFor="event_date" required>
-          <Input
+          <ISODatePicker
             id="event_date"
-            type="date"
             value={form.date}
-            controlSize="compact"
             error={fieldErrors.date}
-            onChange={(event) => {
-              const nextDate = event.target.value;
+            calendarLayout="popover"
+            onChange={(nextDate) => {
               const nextWeekday = isoWeekday(nextDate);
               update("date", nextDate);
               // One-off events follow the date; the quick preset
@@ -251,7 +250,6 @@ export function StepTermin({
                 update("weekdays", [nextWeekday]);
               }
             }}
-            required
           />
         </Field>
         <Field label="Start" htmlFor="event_start" required>

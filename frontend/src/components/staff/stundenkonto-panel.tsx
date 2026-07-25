@@ -11,6 +11,7 @@ import { Banknote, Clock4, RotateCcw, Trash2 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { ISODatePicker } from "~/components/ui/date-picker";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
@@ -336,14 +337,14 @@ function AdjustmentModal({
           >
             Wirksam am
           </label>
-          <input
+          <ISODatePicker
             id="adjustment-date"
-            type="date"
             min={accountStartKey}
             max={maxEffectiveDateKey}
             value={effectiveDate}
-            onChange={(e) => setEffectiveDate(e.target.value)}
-            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
+            onChange={setEffectiveDate}
+            calendarLayout="popover"
+            hideClearButton
           />
         </div>
         <NoteField note={note} onChange={setNote} />
@@ -453,14 +454,14 @@ function ResetModal({
           >
             Stichtag
           </label>
-          <input
+          <ISODatePicker
             id="reset-date"
-            type="date"
             min={accountStartKey}
             max={lastClosedDateKey}
             value={effectiveDate}
-            onChange={(e) => setEffectiveDate(e.target.value)}
-            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
+            onChange={setEffectiveDate}
+            calendarLayout="popover"
+            hideClearButton
           />
           <p className="mt-1 text-xs text-gray-400">
             Der Stichtag muss vor dem heutigen Tag liegen.

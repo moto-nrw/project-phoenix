@@ -13,6 +13,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
@@ -675,28 +676,30 @@ export default function StaffCalendarPage() {
               onChange={(event) => setLocation(event.target.value)}
               disabled={submitting}
             />
-            <Input
+            <ISODatePicker
               label="Startdatum"
-              name="calendar-start-date"
-              type="date"
+              id="calendar-start-date"
               value={startDate}
-              onChange={(event) => {
-                setStartDate(event.target.value);
-                if (endDate < event.target.value)
-                  setEndDate(event.target.value);
+              onChange={(next) => {
+                setStartDate(next);
+                if (endDate < next) setEndDate(next);
               }}
               disabled={submitting}
-              required
+              calendarLayout="popover"
+              // Both dates start at today and nothing clears them, so dropping
+              // the native `required` cannot leave the form submittable with an
+              // empty date — handleSubmit never validated them itself.
+              hideClearButton
             />
-            <Input
+            <ISODatePicker
               label="Enddatum"
-              name="calendar-end-date"
-              type="date"
+              id="calendar-end-date"
               value={endDate}
               min={startDate}
-              onChange={(event) => setEndDate(event.target.value)}
+              onChange={setEndDate}
               disabled={submitting}
-              required
+              calendarLayout="popover"
+              hideClearButton
             />
             <Input
               label="Startzeit"
@@ -941,14 +944,14 @@ export default function StaffCalendarPage() {
               }
               disabled={submitting || frequency === "none"}
             />
-            <Input
+            <ISODatePicker
               label="Endet am"
-              name="calendar-recurrence-end"
-              type="date"
+              id="calendar-recurrence-end"
               value={endsOn}
               min={startDate}
-              onChange={(event) => setEndsOn(event.target.value)}
+              onChange={setEndsOn}
               disabled={submitting || frequency === "none"}
+              calendarLayout="popover"
             />
           </div>
 

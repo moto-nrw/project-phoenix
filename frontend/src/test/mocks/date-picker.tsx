@@ -32,17 +32,25 @@ export function isoDatePickerMock() {
       id,
       ariaLabel,
       disabled,
+      label,
+      error,
     }: ISODatePickerProps) => (
-      <input
-        type="date"
-        id={id}
-        aria-label={ariaLabel}
-        value={value}
-        min={min}
-        max={max}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-      />
+      // The real component renders its own label and error text, so the stub has
+      // to as well — otherwise getByLabelText stops finding the field.
+      <div>
+        {label && <label htmlFor={id}>{label}</label>}
+        <input
+          type="date"
+          id={id}
+          aria-label={ariaLabel}
+          value={value}
+          min={min}
+          max={max}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        {error && <p role="alert">{error}</p>}
+      </div>
     ),
   };
 }

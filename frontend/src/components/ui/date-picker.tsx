@@ -506,8 +506,14 @@ export function ISODatePicker({
   onChange,
   min,
   max,
+  label,
+  error,
   ...rest
 }: {
+  // Renders the same label and error markup as the kit `Input`, so a field that
+  // used <Input label="Startdatum" type="date"> keeps its exact layout.
+  readonly label?: string;
+  readonly error?: string;
   /** "YYYY-MM-DD", or "" when unset. */
   readonly value: string;
   /** Emits "YYYY-MM-DD", or "" when cleared. */
@@ -530,14 +536,40 @@ export function ISODatePicker({
   readonly locale?: Locale;
   readonly labels?: DatePickerLabels;
 }) {
-  return (
+  const errorId = error && rest.id ? `${rest.id}-error` : undefined;
+  const picker = (
     <DatePicker
       {...rest}
+      invalid={rest.invalid ?? Boolean(error)}
+      ariaDescribedBy={rest.ariaDescribedBy ?? errorId}
       value={toDateOrNull(value)}
       minDate={toDateOrNull(min) ?? undefined}
       maxDate={toDateOrNull(max) ?? undefined}
       onChange={(date) => onChange(date ? toISODate(date) : "")}
     />
+  );
+
+  if (!label && !error) {
+    return picker;
+  }
+
+  return (
+    <div>
+      {label && (
+        <label
+          htmlFor={rest.id}
+          className="mb-2 block text-sm font-medium text-gray-700"
+        >
+          {label}
+        </label>
+      )}
+      {picker}
+      {error && (
+        <p id={errorId} role="alert" className="mt-1 text-xs text-red-600">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 
