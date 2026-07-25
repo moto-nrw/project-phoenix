@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -98,6 +99,14 @@ type TransitionRequest struct {
 // Note: academic_year is validated in the specific handler (create requires it, update does not)
 func (req *TransitionRequest) Bind(_ *http.Request) error {
 	return nil
+}
+
+// ApplyRequest carries the fingerprint of the preview the admin confirmed. It is
+// optional (a caller without a preview omits it), but when present the apply is
+// refused with 409 preview_stale unless the current cohort still matches — the
+// confirmation must bind to the children that were actually shown (#405 review).
+type ApplyRequest struct {
+	ExpectedFingerprint string `json:"expected_fingerprint,omitempty"`
 }
 
 // MappingRequest represents a class mapping in a request
@@ -378,11 +387,17 @@ func (rs *GradeTransitionResource) apply(w http.ResponseWriter, r *http.Request)
 	}
 	accountID := int64(claims.ID)
 
+	// Body is optional: an absent or empty one just means "no preview to check".
+	var req ApplyRequest
+	if r.Body != nil {
+		_ = json.NewDecoder(r.Body).Decode(&req)
+	}
+
 	tenantID := tenant.FromContext(r.Context())
 	var result interface{}
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
-		result, txErr = rs.service.Apply(ctx, id, accountID)
+		result, txErr = rs.service.ApplyChecked(ctx, id, accountID, req.ExpectedFingerprint)
 		return txErr
 	}); err != nil {
 		// Graduating children still checked in is a client-recoverable safety
@@ -390,6 +405,12 @@ func (rs *GradeTransitionResource) apply(w http.ResponseWriter, r *http.Request)
 		// can tell the admin to check them out first, instead of a bare 500 (#405).
 		if errors.Is(err, educationService.ErrGraduatesCheckedIn) {
 			common.RenderError(w, r, common.ErrorConflictWithCode(err, "graduates_checked_in"))
+			return
+		}
+		// The confirmed preview no longer describes the current data. Also
+		// client-recoverable: the UI reloads the preview and asks again (#405).
+		if errors.Is(err, educationService.ErrPreviewStale) {
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, "preview_stale"))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))

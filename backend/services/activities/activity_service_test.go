@@ -15,6 +15,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -3008,4 +3009,53 @@ func TestActivityService_SetCategoryShiftTypeLinks(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, c2.ShiftTypeID)
 	assert.Equal(t, st.ID, *c2.ShiftTypeID)
+}
+
+// TestActivityService_UpdateGroupEnrollments_PreservesAlumnusEnrollment covers
+// the #405 review fix: GetEnrolledStudents hides alumni, so the roster a caller
+// reads (GET /api/activities/{id}/students) never lists them and the PUT that
+// replaces it cannot either. Treating "not submitted" as "delete" would wipe
+// exactly the enrollments a grade transition preserved on purpose — the rows the
+// transition's revert and future materialization still need.
+func TestActivityService_UpdateGroupEnrollments_PreservesAlumnusEnrollment(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	group := testpkg.CreateTestActivityGroup(t, db, "alumnus-enrollments")
+	activeStudent := testpkg.CreateTestStudent(t, db, "Still", "Here", "1a")
+	graduated := testpkg.CreateTestStudent(t, db, "Already", "Gone", "4a")
+	defer testpkg.CleanupActivityFixtures(t, db, group.ID, activeStudent.ID, graduated.ID)
+
+	require.NoError(t, service.UpdateGroupEnrollments(ctx, group.ID, []int64{activeStudent.ID, graduated.ID}))
+
+	// The grade transition graduates the second child; the enrollment row stays.
+	_, err := db.NewUpdate().
+		TableExpr(`users.students`).
+		Set("status = ?", string(usersModels.StudentStatusAlumnus)).
+		Where("id = ?", graduated.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// What a staff member sees, and therefore submits back unchanged.
+	visible, err := service.GetEnrolledStudents(ctx, group.ID)
+	require.NoError(t, err)
+	visibleIDs := make([]int64, 0, len(visible))
+	for _, s := range visible {
+		visibleIDs = append(visibleIDs, s.ID)
+	}
+	assert.Equal(t, []int64{activeStudent.ID}, visibleIDs, "the alumnus is hidden from the roster read")
+
+	require.NoError(t, service.UpdateGroupEnrollments(ctx, group.ID, visibleIDs))
+
+	count, err := db.NewSelect().
+		TableExpr(`activities.student_enrollments`).
+		Where("activity_group_id = ?", group.ID).
+		Where("student_id = ?", graduated.ID).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count,
+		"a hidden alumnus enrollment must survive a replacement update that could not show it")
 }

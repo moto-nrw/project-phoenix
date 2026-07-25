@@ -410,3 +410,169 @@ func newRosterReconcilingTransitionService(t *testing.T, db *bun.DB) *educationS
 		DB:               db,
 	})
 }
+
+// TestGradeTransitionService_Apply_PreservesRecordedAttendance covers the P1
+// fix: the archive pass must not delete rows that record something a human
+// observed. A supervisor's hand-finalized absence (manual_status_at) and any row
+// on an instance that already ran to completion are attendance, not a plan —
+// and the revert deliberately refuses to replay rows into completed or past
+// instances while consuming their ledger entries, so anything deleted there is
+// gone for good.
+func TestGradeTransitionService_Apply_PreservesRecordedAttendance(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := newRosterReconcilingTransitionService(t, db)
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-roster-finalized@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	gradClass := fmt.Sprintf("4final-%s", suffix)
+
+	activityGroup := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("AG-%s", suffix))
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Room-%s", suffix))
+	student := testpkg.CreateTestStudent(t, db, "Finalized", "Child", gradClass)
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, activityGroup.ID, room.ID)
+
+	today := timezone.TodayDate()
+	manualAt := time.Now().Add(-30 * time.Minute)
+
+	// Today's block that already finished, with the absence a supervisor
+	// finalized by hand on it.
+	completedToday := testpkg.CreateTestActivityInstance(t, db, today, room.ID,
+		testpkg.ActivityInstanceOpts{
+			ActivityGroupID: &activityGroup.ID,
+			Status:          scheduleModel.InstanceStatusCompleted,
+			StartHHMM:       "08:00",
+			EndHHMM:         "09:00",
+		})
+	// A still-planned block later today carrying a hand-set status too: the
+	// decision is a record even though the occurrence has not run yet.
+	plannedToday := testpkg.CreateTestActivityInstance(t, db, today, room.ID,
+		testpkg.ActivityInstanceOpts{
+			ActivityGroupID: &activityGroup.ID,
+			StartHHMM:       "09:30",
+			EndHHMM:         "10:30",
+		})
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances",
+		completedToday.ID, plannedToday.ID)
+
+	completedRow := testpkg.CreateTestInstanceStudent(t, db, completedToday.ID, student.ID,
+		scheduleModel.AttendanceStatusAbsent, testpkg.InstanceStudentOpts{ManualStatusAt: &manualAt})
+	manualPlannedRow := testpkg.CreateTestInstanceStudent(t, db, plannedToday.ID, student.ID,
+		scheduleModel.AttendanceStatusAbsent, testpkg.InstanceStudentOpts{ManualStatusAt: &manualAt})
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students",
+		completedRow.ID, manualPlannedRow.ID)
+
+	countRow := func(instanceID int64) int {
+		n, cErr := db.NewSelect().
+			TableExpr(`schedule.instance_students`).
+			Where("instance_id = ?", instanceID).
+			Where("student_id = ?", student.ID).
+			Count(ctx)
+		require.NoError(t, cErr)
+		return n
+	}
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	_, err := service.Apply(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, countRow(completedToday.ID),
+		"attendance on a completed block is history the revert cannot restore — it must never be deleted")
+	assert.Equal(t, 1, countRow(plannedToday.ID),
+		"a status a supervisor finalized by hand is a record, not a plan")
+}
+
+// TestGradeTransitionService_Revert_FillsBackdatedInstance covers the P1 fix:
+// the revert must decide "materialized during the alumnus window" from an
+// ordering marker, not from created_at. A materialization transaction that
+// started before the apply committed and then waited on the tenant lock stamps
+// its rows with a pre-apply created_at although it inserted them afterwards;
+// classifying those as pre-transition leaves the restored child off their
+// rosters with no archive row to repair it.
+func TestGradeTransitionService_Revert_FillsBackdatedInstance(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := newRosterReconcilingTransitionService(t, db)
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-roster-backdated@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	gradClass := fmt.Sprintf("4backd-%s", suffix)
+
+	activityGroup := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("AG-%s", suffix))
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Room-%s", suffix))
+	student := testpkg.CreateTestStudent(t, db, "Backdated", "Child", gradClass)
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, activityGroup.ID, room.ID)
+
+	today := timezone.TodayDate()
+
+	enrollment := &activitiesModel.StudentEnrollment{
+		StudentID:       student.ID,
+		ActivityGroupID: activityGroup.ID,
+		ValidFrom:       today.AddDays(-30),
+	}
+	enrollment.SetTenantID(1)
+	_, err := db.NewInsert().Model(enrollment).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
+	require.NoError(t, err)
+	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	_, err = service.Apply(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	// The blocked materializer commits AFTER the apply, but with the created_at
+	// its transaction started with — an hour before the apply.
+	lateInstance := testpkg.CreateTestActivityInstance(t, db, today.AddDays(3), room.ID,
+		testpkg.ActivityInstanceOpts{ActivityGroupID: &activityGroup.ID})
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", lateInstance.ID)
+
+	_, err = db.NewUpdate().
+		TableExpr(`schedule.activity_instances`).
+		Set("created_at = ?", time.Now().Add(-time.Hour)).
+		Where("id = ?", lateInstance.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	countRow := func(instanceID int64) int {
+		n, cErr := db.NewSelect().
+			TableExpr(`schedule.instance_students`).
+			Where("instance_id = ?", instanceID).
+			Where("student_id = ?", student.ID).
+			Count(ctx)
+		require.NoError(t, cErr)
+		return n
+	}
+	require.Equal(t, 0, countRow(lateInstance.ID))
+
+	_, err = service.Revert(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, countRow(lateInstance.ID),
+		"an instance inserted after the apply must be filled even when its created_at predates the apply")
+
+	var createdID int64
+	require.NoError(t, db.NewSelect().
+		TableExpr(`schedule.instance_students`).
+		Column("id").
+		Where("instance_id = ?", lateInstance.ID).
+		Where("student_id = ?", student.ID).
+		Scan(ctx, &createdID))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", createdID)
+}

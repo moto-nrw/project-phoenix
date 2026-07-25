@@ -898,3 +898,7 @@ func (f *fakeInstanceRepo) FindByIDs(context.Context, []int64) ([]*scheduleModel
 func (f *fakeInstanceRepo) FindPlannedTemplateBackedFrom(context.Context, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
+
+func (f *fakeInstanceRepo) MaxID(context.Context) (int64, error) {
+	return 0, nil
+}

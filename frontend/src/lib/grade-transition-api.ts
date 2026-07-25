@@ -58,6 +58,10 @@ export interface BackendTransitionPreview {
   by_mapping: BackendMappingPreview[];
   unmapped_classes?: BackendUnmappedClass[] | null;
   warnings?: string[] | null;
+  /** Digest of the exact cohort this preview describes (mappings + affected
+   * children + their classes). Sent back on apply so the backend can refuse a
+   * confirmation that no longer matches what was shown (#405). */
+  fingerprint?: string | null;
 }
 
 export interface BackendTransitionResult {
@@ -135,6 +139,8 @@ export interface TransitionPreview {
   byMapping: MappingPreview[];
   unmappedClasses: UnmappedClass[];
   warnings: string[];
+  /** @see BackendTransitionPreview.fingerprint */
+  fingerprint: string;
 }
 
 export interface TransitionResult {
@@ -228,6 +234,7 @@ export function mapPreview(data: BackendTransitionPreview): TransitionPreview {
       studentCount: u.student_count,
     })),
     warnings: data.warnings ?? [],
+    fingerprint: data.fingerprint ?? "",
   };
 }
 
@@ -299,6 +306,14 @@ export const GRADUATES_CHECKED_IN_CODE = "graduates_checked_in";
  * code the Go handler sets via ErrorConflictWithCode (#405).
  */
 export const NOT_LATEST_TRANSITION_CODE = "not_latest_transition";
+
+/**
+ * Stable backend error code returned (409) when an apply is refused because the
+ * previewed cohort has changed since the preview was rendered — another admin
+ * edited the mappings or moved a child between classes. The UI must reload the
+ * preview and ask for a fresh confirmation instead of retrying blindly (#405).
+ */
+export const PREVIEW_STALE_CODE = "preview_stale";
 
 /**
  * Error thrown by {@link applyGradeTransition} and {@link revertGradeTransition}
@@ -434,13 +449,21 @@ async function readResultOrThrow(
   return mapResult(data);
 }
 
+/**
+ * Applies a transition. `expectedFingerprint` binds the call to the preview the
+ * admin confirmed: the backend refuses with {@link PREVIEW_STALE_CODE} when the
+ * affected children or mappings have changed since (#405).
+ */
 export async function applyGradeTransition(
   id: string,
+  expectedFingerprint?: string,
 ): Promise<TransitionResult> {
   const response = await fetch(`${BASE}/${encodeURIComponent(id)}/apply`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}),
+    body: JSON.stringify(
+      expectedFingerprint ? { expected_fingerprint: expectedFingerprint } : {},
+    ),
   });
   return readResultOrThrow(response);
 }

@@ -109,6 +109,7 @@ const preview: TransitionPreview = {
   ],
   unmappedClasses: [{ className: "3c", studentCount: 15 }],
   warnings: [],
+  fingerprint: "preview-fingerprint",
 };
 
 beforeEach(() => {
@@ -207,7 +208,12 @@ describe("GradeTransitionsManager", () => {
     fireEvent.click(screen.getByRole("button", { name: /Ja, anwenden/i }));
 
     await waitFor(() => {
-      expect(api.applyGradeTransition).toHaveBeenCalledWith("7");
+      // The confirmation carries the previewed cohort's fingerprint, so the
+      // backend can refuse an apply for data that changed underneath (#405).
+      expect(api.applyGradeTransition).toHaveBeenCalledWith(
+        "7",
+        "preview-fingerprint",
+      );
     });
     expect(toastSuccess).toHaveBeenCalled();
   });

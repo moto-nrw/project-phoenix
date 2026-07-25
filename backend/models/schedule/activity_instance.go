@@ -180,6 +180,17 @@ type ActivityInstanceRepository interface {
 	// already started or finished are excluded by the planned-status filter.
 	FindPlannedTemplateBackedFrom(ctx context.Context, from timezone.Date) ([]*ActivityInstance, error)
 
+	// MaxID returns the highest instance id currently visible to this tenant, or
+	// 0 when it has none. It is an ORDERING MARKER, not a count: a grade
+	// transition records it while applying so its revert can tell instances that
+	// already existed from instances materialized afterwards, during the alumnus
+	// window. created_at cannot answer that — it defaults to the transaction
+	// start time, so a materialization that started earlier and then blocked on
+	// the tenant transition lock backdates rows it inserts after the apply
+	// commits. Sequence ids are assigned at INSERT and do reflect that order
+	// (#405 review).
+	MaxID(ctx context.Context) (int64, error)
+
 	// MarkCompleted updates only lifecycle columns. Do not use a full-row
 	// Update for DB-loaded instances because SQL TIME columns do not round-trip
 	// safely through Bun.

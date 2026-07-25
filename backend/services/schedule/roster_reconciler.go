@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"log/slog"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -31,7 +30,7 @@ import (
 //     the deletion — a child a supervisor had removed from one occurrence by
 //     hand would come back, and a child hand-added to one occurrence without a
 //     matching enrollment could never be recreated (#405 review).
-//   - Only instances materialized DURING the alumnus window (created after the
+//   - Only instances materialized DURING the alumnus window (inserted after the
 //     transition was applied) are filled from enrollments, because those are
 //     precisely the instances the materializer skipped the child on and for
 //     which no archive entry can exist.
@@ -93,6 +92,28 @@ func (s *RosterReconciler) RemoveStudentsFromFutureRosters(ctx context.Context, 
 	return nil
 }
 
+// CurrentRosterBaseline returns the ordering marker an apply must record so its
+// revert can tell instances that already existed from instances the materializer
+// created afterwards, while the children were alumni. It is the highest instance
+// id visible to the tenant inside the apply's transaction.
+//
+// A timestamp cannot serve as that marker: activity_instances.created_at
+// defaults to current_timestamp, i.e. the TRANSACTION START time. A
+// materialization transaction that began before the apply committed and then
+// waited on the tenant grade-transition lock stamps rows it inserts afterwards
+// with a pre-apply timestamp — and a created_at comparison would file exactly
+// those instances under "existed before the transition", where neither the
+// archive replay (no ledger row exists) nor the enrollment fill (excluded) puts
+// the restored child back. Sequence ids are drawn at INSERT, after the lock is
+// granted, so they order correctly (#405 review).
+func (s *RosterReconciler) CurrentRosterBaseline(ctx context.Context) (int64, error) {
+	maxID, err := s.instanceRepo.MaxID(ctx)
+	if err != nil {
+		return 0, &ScheduleError{Op: "reconcile roster: read instance baseline", Err: err}
+	}
+	return maxID, nil
+}
+
 // RestoreStudentsToFutureRosters undoes the apply's roster reconciliation for
 // the given (now reactivated) students:
 //
@@ -107,19 +128,23 @@ func (s *RosterReconciler) RemoveStudentsFromFutureRosters(ctx context.Context, 
 //     attendance is frozen history now, and re-inserting an expected/absent
 //     child into it would rewrite a day nobody can still observe (#405 review).
 //
-//  2. Instances materialized DURING the alumnus window (created after
-//     materializedAfter) get the enrollment-valid rows the materializer skipped
-//     while the child was an alumnus, reusing the same validity predicate the
-//     materializer applies. Those rows go in as 'expected' and are then handed
-//     to ApplyActiveStatusDaysForInstance exactly as the materializer does after
-//     copying enrollments, so a child whose date already carries an active
-//     sickness / excusal / class-trip status day comes back as absent for that
-//     date rather than expected (#405 review).
+//  2. Instances materialized DURING the alumnus window (inserted after
+//     baselineInstanceID, the apply's marker) get the enrollment-valid rows the
+//     materializer skipped while the child was an alumnus, reusing the same
+//     validity predicate the materializer applies. Those rows go in as
+//     'expected' and are then handed to ApplyActiveStatusDaysForInstance exactly
+//     as the materializer does after copying enrollments, so a child whose date
+//     already carries an active sickness / excusal / class-trip status day comes
+//     back as absent for that date rather than expected (#405 review).
 //
 // Instances that already existed when the transition was applied are NEVER
 // reconstructed from enrollments — step 1 owns them.
+//
+// A nil baselineInstanceID means the apply recorded no marker (a transition
+// applied before the column existed). Step 2 is then skipped entirely rather
+// than guessed at: those applies removed nothing, so there is nothing to refill.
 func (s *RosterReconciler) RestoreStudentsToFutureRosters(
-	ctx context.Context, transitionID int64, studentIDs []int64, materializedAfter time.Time,
+	ctx context.Context, transitionID int64, studentIDs []int64, baselineInstanceID *int64,
 ) error {
 	if len(studentIDs) == 0 {
 		return nil
@@ -135,9 +160,12 @@ func (s *RosterReconciler) RestoreStudentsToFutureRosters(
 		return &ScheduleError{Op: "reconcile roster: replay archived rows", Err: err}
 	}
 
-	restored, statusApplied, err := s.fillInstancesMaterializedDuringAlumnusWindow(ctx, studentIDs, from, materializedAfter)
-	if err != nil {
-		return err
+	restored, statusApplied := 0, 0
+	if baselineInstanceID != nil {
+		restored, statusApplied, err = s.fillInstancesMaterializedDuringAlumnusWindow(ctx, studentIDs, from, *baselineInstanceID)
+		if err != nil {
+			return err
+		}
 	}
 
 	s.getLogger().Info("reconciled rosters after revert",
@@ -151,19 +179,19 @@ func (s *RosterReconciler) RestoreStudentsToFutureRosters(
 }
 
 // fillInstancesMaterializedDuringAlumnusWindow adds enrollment-valid rows for
-// the planned template-backed instances dated on or after `from` that were
-// created after materializedAfter, i.e. the instances the materializer built
-// while the students were alumni and therefore skipped. Existing rows are never
-// duplicated (the UNIQUE (instance_id, student_id) constraint and the in-memory
-// dedup both guard it). Returns the rows created and the status-day rows
-// subsequently stamped.
+// the planned template-backed instances dated on or after `from` whose id is
+// above baselineInstanceID, i.e. the instances the materializer built while the
+// students were alumni and therefore skipped. Existing rows are never duplicated
+// (the UNIQUE (instance_id, student_id) constraint and the in-memory dedup both
+// guard it). Returns the rows created and the status-day rows subsequently
+// stamped.
 //
 // `from` is today, inclusively: an instance materialized after the apply and
 // dated today has no archive entry to replay, so excluding the boundary date
 // would leave a same-day apply-then-revert child off today's roster with nothing
 // left to put them back (#405 review).
 func (s *RosterReconciler) fillInstancesMaterializedDuringAlumnusWindow(
-	ctx context.Context, studentIDs []int64, from timezone.Date, materializedAfter time.Time,
+	ctx context.Context, studentIDs []int64, from timezone.Date, baselineInstanceID int64,
 ) (int, int, error) {
 	all, err := s.instanceRepo.FindPlannedTemplateBackedFrom(ctx, from)
 	if err != nil {
@@ -176,7 +204,7 @@ func (s *RosterReconciler) fillInstancesMaterializedDuringAlumnusWindow(
 		if inst.ActivityGroupID == nil {
 			continue // defensive: the query already excludes NULL group IDs
 		}
-		if !inst.CreatedAt.After(materializedAfter) {
+		if inst.ID <= baselineInstanceID {
 			// Existed before the transition was applied — the archive owns it.
 			continue
 		}

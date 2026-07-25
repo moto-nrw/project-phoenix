@@ -3,13 +3,16 @@ package shared_test
 import (
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/go-chi/render"
 	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestErrorMessageConstants(t *testing.T) {
@@ -116,3 +119,26 @@ func TestErrorRenderer_UnknownError(t *testing.T) {
 }
 
 // Test Capacity Error Response Render
+
+// TestErrorRenderer_StudentGraduatedUsesContractString covers the #405 review
+// fix: when a graduation commits between the kiosk's student lookup and the
+// attendance/visit write, the wrapped ActiveError carries "student has graduated
+// and cannot check in" — a string PyrePortal has no mapping for. The response
+// must be the documented 404 "person is not a student" instead, which the kiosk
+// already renders in German.
+func TestErrorRenderer_StudentGraduatedUsesContractString(t *testing.T) {
+	renderer := shared.ErrorRenderer(&activeSvc.ActiveError{
+		Op:  "create visit",
+		Err: activeSvc.ErrStudentGraduated,
+	})
+	require.NotNil(t, renderer)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/iot/checkin", nil)
+	require.NoError(t, render.Render(rec, req, renderer))
+
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+	assert.Contains(t, rec.Body.String(), shared.ErrMsgPersonNotStudent)
+	assert.NotContains(t, rec.Body.String(), "graduated",
+		"the kiosk contract string must not leak the internal graduation wording")
+}

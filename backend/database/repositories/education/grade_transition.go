@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -276,6 +277,23 @@ func (r *GradeTransitionRepository) LockTenantTransitions(ctx context.Context) e
 	if err := base.AcquireXactLock(ctx, r.db, key); err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "lock tenant grade transitions",
+			Err: err,
+		}
+	}
+	return nil
+}
+
+// LockTenantRecurrenceWrites takes the tenant-wide recurrence gate that guards
+// re-planning and materialization, using the SAME key services/schedule uses.
+// Apply and Revert take it before LockTenantTransitions because they mutate
+// instance_students — recurrence-derived state a concurrent re-plan may already
+// hold row locks on while it waits for the transition gate. Acquiring the two
+// gates in the opposite order is a textbook deadlock (#405 review).
+func (r *GradeTransitionRepository) LockTenantRecurrenceWrites(ctx context.Context) error {
+	key := scheduleModels.TenantRecurrenceLockKey(tenant.FromContext(ctx))
+	if err := base.AcquireXactLock(ctx, r.db, key); err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "lock tenant recurrence writes",
 			Err: err,
 		}
 	}

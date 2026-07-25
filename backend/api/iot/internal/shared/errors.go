@@ -89,6 +89,16 @@ func handleIoTErrorTypes(iotErr *iotSvc.IoTError) render.Renderer {
 
 // handleActiveServiceError maps Active service errors to HTTP responses
 func handleActiveServiceError(activeErr *activeSvc.ActiveError) render.Renderer {
+	// A graduation committing between the kiosk's student lookup and the
+	// attendance/visit write surfaces here as ErrStudentGraduated. It is a 404
+	// like an unknown student — but the MESSAGE is what PyrePortal maps, and the
+	// wrapped ActiveError renders "student has graduated and cannot check in",
+	// a string the kiosk knows nothing about (it would show a generic error).
+	// Render the documented contract string instead (#405 review).
+	if errors.Is(activeErr.Err, activeSvc.ErrStudentGraduated) {
+		return common.ErrorNotFound(errors.New(ErrMsgPersonNotStudent))
+	}
+
 	// Check for conflict errors (409)
 	if isActiveConflictError(activeErr.Err) {
 		return common.ErrorConflict(activeErr)
@@ -132,10 +142,10 @@ func isActiveNotFoundError(err error) bool {
 		errors.Is(err, activeSvc.ErrCombinedGroupNotFound) ||
 		errors.Is(err, activeSvc.ErrGroupMappingNotFound) ||
 		errors.Is(err, activeSvc.ErrNoActiveSession) ||
-		errors.Is(err, activeSvc.ErrStaffNotFound) ||
-		// A graduated student is treated like an unknown/absent student: the
-		// rare race-loser at the check-in write path (#405).
-		errors.Is(err, activeSvc.ErrStudentGraduated)
+		errors.Is(err, activeSvc.ErrStaffNotFound)
+	// ErrStudentGraduated is deliberately absent: it is also a 404, but
+	// handleActiveServiceError renders it earlier with the PyrePortal contract
+	// string rather than the wrapped error text (#405 review).
 }
 
 // isActiveValidationError checks if error is a validation error

@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -36,8 +37,7 @@ func lockTenantRecurrenceWrites(ctx context.Context, db *bun.DB) error {
 	if _, ok := modelBase.TxFromContext(ctx); !ok {
 		return errors.New("template recurrence lock requires a transaction")
 	}
-	key := fmt.Sprintf("template-recurrence:%d", tenantID)
-	if err := base.AcquireXactLock(ctx, db, key); err != nil {
+	if err := base.AcquireXactLock(ctx, db, schedule.TenantRecurrenceLockKey(tenantID)); err != nil {
 		return fmt.Errorf("lock template recurrence writes: %w", err)
 	}
 	return nil

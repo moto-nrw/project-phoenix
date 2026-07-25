@@ -96,7 +96,16 @@ func (s *Service) UpdateGroupEnrollments(ctx context.Context, groupID int64, stu
 
 	currentStudentIDs, newStudentIDs := s.buildEnrollmentMaps(enrollments, studentIDs)
 
-	if err := s.removeUnwantedEnrollmentsInTx(ctx, s, currentStudentIDs, newStudentIDs); err != nil {
+	// Alumni are invisible to GetEnrolledStudents, so the roster a caller reads
+	// via GET /api/activities/{id}/students never contains them and the PUT that
+	// replaces it never lists them either. Deleting "everything not submitted"
+	// would therefore silently drop exactly the enrollments a grade transition
+	// deliberately preserved — the rows the revert and future materialization
+	// still need. A hidden row cannot be removed by an edit that could not show
+	// it (#405 review).
+	preserved := hiddenAlumnusEnrollments(enrollments)
+
+	if err := s.removeUnwantedEnrollmentsInTx(ctx, s, currentStudentIDs, newStudentIDs, preserved); err != nil {
 		return &ActivityError{Op: "update group enrollments", Err: err}
 	}
 
@@ -122,10 +131,27 @@ func (s *Service) buildEnrollmentMaps(enrollments []*activities.StudentEnrollmen
 	return currentStudentIDs, newStudentIDs
 }
 
-// removeUnwantedEnrollmentsInTx removes students that are no longer enrolled
-func (s *Service) removeUnwantedEnrollmentsInTx(ctx context.Context, txService ActivityService, currentStudentIDs map[int64]int64, newStudentIDs map[int64]bool) error {
+// hiddenAlumnusEnrollments returns the student IDs whose enrollment must survive
+// a replacement update because the read side hides them: a graduated child is
+// omitted from GetEnrolledStudents, so their absence from the submitted ID list
+// carries no intent (#405 review). A row whose Student relation did not load is
+// NOT preserved — an unknown status must not silently make enrollments
+// undeletable.
+func hiddenAlumnusEnrollments(enrollments []*activities.StudentEnrollment) map[int64]bool {
+	hidden := make(map[int64]bool)
+	for _, enrollment := range enrollments {
+		if enrollment.Student != nil && enrollment.Student.Status == users.StudentStatusAlumnus {
+			hidden[enrollment.StudentID] = true
+		}
+	}
+	return hidden
+}
+
+// removeUnwantedEnrollmentsInTx removes students that are no longer enrolled,
+// except the ones the caller could not have seen (preserved).
+func (s *Service) removeUnwantedEnrollmentsInTx(ctx context.Context, txService ActivityService, currentStudentIDs map[int64]int64, newStudentIDs, preserved map[int64]bool) error {
 	for studentID, enrollmentID := range currentStudentIDs {
-		if !newStudentIDs[studentID] {
+		if !newStudentIDs[studentID] && !preserved[studentID] {
 			if err := txService.(*Service).enrollmentRepo.Delete(ctx, enrollmentID); err != nil {
 				return &ActivityError{Op: "delete enrollment", Err: err}
 			}

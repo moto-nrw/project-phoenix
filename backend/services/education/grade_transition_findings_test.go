@@ -292,3 +292,69 @@ func TestGradeTransitionService_SuggestMappings_MarksAmbiguous(t *testing.T) {
 	assert.True(t, foundAmbiguous, "expected a suggestion for %s", ambiguousClass)
 	assert.True(t, foundNumeric, "expected a suggestion for %s", numericClass)
 }
+
+// TestGradeTransitionService_ApplyChecked_RejectsStalePreview covers the P1 fix:
+// the admin's confirmation is bound to the preview they reviewed. If another
+// admin moves a child into a graduating class after the preview was rendered,
+// applying the confirmed preview would graduate a child nobody approved — so the
+// apply must be refused (409 → ErrPreviewStale) until the preview is reloaded.
+func TestGradeTransitionService_ApplyChecked_RejectsStalePreview(t *testing.T) {
+	service, db, cleanup := setupGradeTransitionServiceTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-stale-preview@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	gradClass := fmt.Sprintf("4stale-%s", suffix)
+	otherClass := fmt.Sprintf("3stale-%s", suffix)
+
+	reviewed := testpkg.CreateTestStudent(t, db, "Reviewed", "Child", gradClass)
+	latecomer := testpkg.CreateTestStudent(t, db, "Late", "Child", otherClass)
+	defer testpkg.CleanupActivityFixtures(t, db, reviewed.ID, latecomer.ID)
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	preview, err := service.Preview(ctx, transition.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, preview.Fingerprint, "preview must expose a fingerprint to confirm against")
+	require.Equal(t, 1, preview.ToGraduate)
+
+	// Another admin moves a second child into the graduating class.
+	_, err = db.NewUpdate().
+		TableExpr(`users.students`).
+		Set("school_class = ?", gradClass).
+		Where("id = ?", latecomer.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = service.ApplyChecked(ctx, transition.ID, account.ID, preview.Fingerprint)
+	require.ErrorIs(t, err, educationService.ErrPreviewStale)
+
+	// Nothing was applied: both children keep their status and the transition
+	// stays a draft.
+	assertStudentStatus := func(studentID int64, expected users.StudentStatus) {
+		var status string
+		require.NoError(t, db.NewSelect().TableExpr(`users.students`).Column("status").
+			Where("id = ?", studentID).Scan(ctx, &status))
+		assert.Equal(t, string(expected), status)
+	}
+	assertStudentStatus(reviewed.ID, users.StudentStatusActive)
+	assertStudentStatus(latecomer.ID, users.StudentStatusActive)
+
+	// Reloading the preview shows the new reality and unblocks the apply.
+	fresh, err := service.Preview(ctx, transition.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 2, fresh.ToGraduate, "the reloaded preview includes the child that was moved in")
+	assert.NotEqual(t, preview.Fingerprint, fresh.Fingerprint)
+
+	_, err = service.ApplyChecked(ctx, transition.ID, account.ID, fresh.Fingerprint)
+	require.NoError(t, err)
+	assertStudentStatus(reviewed.ID, users.StudentStatusAlumnus)
+	assertStudentStatus(latecomer.ID, users.StudentStatusAlumnus)
+}

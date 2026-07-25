@@ -264,6 +264,10 @@ func (r *autoStartInstanceRepo) FindByIDs(context.Context, []int64) ([]*schedule
 func (r *autoStartInstanceRepo) FindPlannedTemplateBackedFrom(context.Context, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
+
+func (r *autoStartInstanceRepo) MaxID(context.Context) (int64, error) {
+	return 0, nil
+}
 func (r *autoStartInstanceRepo) MarkCompleted(context.Context, int64, time.Time) error {
 	return nil
 }

@@ -769,9 +769,18 @@ func (r *InstanceStudentRepository) DeleteByInstanceID(ctx context.Context, inst
 // (planned sickness, excusal, class trip) rewrites the row to 'absent' with a
 // student_status_day_id, and a graduated child left on such a row stays visible
 // and counted in slot-list Plan/Abgleich reads and future exports, which load
-// every instance row regardless of status. So the predicate excludes only rows
-// that record something that actually HAPPENED — an observed presence or a
-// stamped check-in/checkout (#405 review).
+// every instance row regardless of status. So the predicate excludes every row
+// that records something that actually HAPPENED — an observed presence, a
+// stamped check-in/checkout, a status a supervisor finalized BY HAND
+// (manual_status_at), or any row on an instance that has already run to
+// completion (#405 review).
+//
+// The last two exclusions are not cosmetic. The revert deliberately refuses to
+// replay archived rows into completed or past instances (that attendance is
+// frozen history), while consuming their ledger entries — so anything this
+// statement deletes there is gone for good. A hand-finalized absence on today's
+// completed block is exactly such a row: recorded attendance, not a plan.
+// Deleting it would erase a supervisor's observation permanently.
 //
 // The date bound is INCLUSIVE of `from` (today, for a graduation): slot-list
 // eligibleOn decides visibility from the enrollment interval, not from alumnus
@@ -800,8 +809,9 @@ func (r *InstanceStudentRepository) ArchivePlannedByStudentIDsFrom(
 			  AND s.status <> ?
 			  AND s.checked_in_at IS NULL
 			  AND s.checked_out_at IS NULL
+			  AND s.manual_status_at IS NULL
 			  AND ai.date >= ?
-			  AND ai.status <> ?
+			  AND ai.status NOT IN (?, ?)
 			  AND s.tenant_id = ?
 			RETURNING s.*
 		)
@@ -830,6 +840,7 @@ func (r *InstanceStudentRepository) ArchivePlannedByStudentIDsFrom(
 		bun.List(studentIDs),
 		schedule.AttendanceStatusPresent,
 		from,
+		schedule.InstanceStatusCompleted,
 		schedule.InstanceStatusCancelled,
 		tenant.FromContext(ctx),
 		transitionID,

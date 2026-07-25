@@ -189,6 +189,27 @@ func (r *ActivityInstanceRepository) FindPlannedTemplateBackedFrom(ctx context.C
 	return instances, nil
 }
 
+// MaxID returns the highest instance id visible to the current tenant, or 0 if
+// the tenant has none. See the interface doc for why the grade transition uses
+// an id high-water mark instead of created_at (#405 review).
+func (r *ActivityInstanceRepository) MaxID(ctx context.Context) (int64, error) {
+	var maxID sql.NullInt64
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model((*schedule.ActivityInstance)(nil)).
+		ModelTableExpr(modelTblActivityInstance).
+		ColumnExpr(`MAX("activity_instance".id)`)
+
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
+
+	if err := query.Scan(ctx, &maxID); err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "get max activity instance id",
+			Err: err,
+		}
+	}
+	return maxID.Int64, nil
+}
+
 // FindByTenantAndDateRange returns instances within an inclusive date range.
 func (r *ActivityInstanceRepository) FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*schedule.ActivityInstance, error) {
 	var instances []*schedule.ActivityInstance

@@ -2,11 +2,14 @@ package education
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -30,6 +33,14 @@ var ErrGraduatesCheckedIn = errors.New("graduating students are still checked in
 // It is a client-recoverable condition (refresh and revert the latest first), so
 // handlers map it to 409 Conflict, never a 500 (#405).
 var ErrNotLatestApplied = errors.New("only the most recently applied transition can be reverted")
+
+// ErrPreviewStale is returned by ApplyChecked when the caller's previewed cohort
+// no longer matches the one resolved under the locks — another admin changed the
+// mappings or moved a child between classes after the preview was rendered.
+// Applying anyway would perform a destructive bulk change the admin never saw,
+// so the request is refused and the UI reloads the preview for a fresh
+// confirmation. Client-recoverable, hence 409 Conflict, never a 500 (#405).
+var ErrPreviewStale = errors.New("the preview is out of date: the affected classes or children have changed")
 
 // CreateTransitionRequest contains data for creating a new transition
 type CreateTransitionRequest struct {
@@ -62,6 +73,12 @@ type TransitionPreview struct {
 	ByMapping       []MappingPreview    `json:"by_mapping"`
 	UnmappedClasses []UnmappedClassInfo `json:"unmapped_classes"`
 	Warnings        []string            `json:"warnings"`
+	// Fingerprint identifies the exact cohort this preview describes: the
+	// mappings plus every affected child and the class they are in. Apply
+	// accepts it back as expected_fingerprint and refuses (ErrPreviewStale) when
+	// the data has changed since, so an admin can never confirm one set of
+	// children and graduate another (#405 review).
+	Fingerprint string `json:"fingerprint"`
 }
 
 // MappingPreview shows the impact of a single mapping
@@ -117,10 +134,14 @@ type RosterReconciler interface {
 	// transitionID so the revert can replay exactly those rows.
 	RemoveStudentsFromFutureRosters(ctx context.Context, transitionID int64, studentIDs []int64) error
 	// RestoreStudentsToFutureRosters replays the archived rows and additionally
-	// fills instances materialized after materializedAfter (the apply timestamp)
-	// from enrollments — those are the instances the materializer skipped while
-	// the children were alumni.
-	RestoreStudentsToFutureRosters(ctx context.Context, transitionID int64, studentIDs []int64, materializedAfter time.Time) error
+	// fills instances inserted after baselineInstanceID (the marker the apply
+	// recorded) from enrollments — those are the instances the materializer
+	// skipped while the children were alumni. A nil marker skips that fill.
+	RestoreStudentsToFutureRosters(ctx context.Context, transitionID int64, studentIDs []int64, baselineInstanceID *int64) error
+	// CurrentRosterBaseline returns the marker to record while applying, so the
+	// revert can tell pre-existing instances from ones materialized during the
+	// alumnus window.
+	CurrentRosterBaseline(ctx context.Context) (int64, error)
 }
 
 // GradeTransitionService manages grade transitions: CRUD, preview/apply,
@@ -381,9 +402,80 @@ func (s *GradeTransitionService) Preview(ctx context.Context, id int64) (*Transi
 		return nil, err
 	}
 
+	fingerprint, err := s.cohortFingerprint(ctx, transition.Mappings, mappedClasses)
+	if err != nil {
+		return nil, err
+	}
+	preview.Fingerprint = fingerprint
+
 	s.addPreviewWarnings(preview)
 
 	return preview, nil
+}
+
+// cohortFingerprint hashes what a preview promises: the mappings, plus every
+// affected child together with the class that decides their fate. Apply
+// recomputes it from the cohort it actually locked and refuses when the two
+// differ, so a mapping edit or a class change committed by another admin
+// between "here is what will happen" and "yes, do it" cannot silently graduate
+// or promote different children than the modal displayed (#405 review).
+func (s *GradeTransitionService) cohortFingerprint(
+	ctx context.Context,
+	mappings []*education.GradeTransitionMapping,
+	mappedClasses map[string]bool,
+) (string, error) {
+	classes := make([]string, 0, len(mappedClasses))
+	for class := range mappedClasses {
+		classes = append(classes, class)
+	}
+
+	students, err := s.transitionRepo.GetStudentsByClasses(ctx, classes)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve preview cohort: %w", err)
+	}
+
+	return fingerprintOf(mappings, students), nil
+}
+
+// ensureFingerprintMatches compares the caller's previewed cohort against the
+// one resolved under the locks. An empty expectation means the caller has no
+// preview to be stale (CLI, direct API use) and skips the check.
+func ensureFingerprintMatches(
+	expected string,
+	mappings []*education.GradeTransitionMapping,
+	promotions, graduates []*education.StudentClassInfo,
+) error {
+	if expected == "" {
+		return nil
+	}
+	current := make([]*education.StudentClassInfo, 0, len(promotions)+len(graduates))
+	current = append(current, promotions...)
+	current = append(current, graduates...)
+
+	if fingerprintOf(mappings, current) != expected {
+		return ErrPreviewStale
+	}
+	return nil
+}
+
+// fingerprintOf builds the stable digest both Preview and Apply compute. The
+// inputs are sorted, so neither query's row order can change the result.
+func fingerprintOf(mappings []*education.GradeTransitionMapping, students []*education.StudentClassInfo) string {
+	parts := make([]string, 0, len(mappings)+len(students))
+	for _, m := range mappings {
+		target := "graduate"
+		if m.ToClass != nil {
+			target = *m.ToClass
+		}
+		parts = append(parts, fmt.Sprintf("m|%s|%s", m.FromClass, target))
+	}
+	for _, st := range students {
+		parts = append(parts, fmt.Sprintf("s|%d|%s", st.StudentID, st.SchoolClass))
+	}
+	sort.Strings(parts)
+
+	sum := sha256.Sum256([]byte(strings.Join(parts, "\n")))
+	return hex.EncodeToString(sum[:])
 }
 
 // buildMappingPreviews populates preview with mapping details and returns mapped class names.
@@ -473,8 +565,19 @@ func (s *GradeTransitionService) addPreviewWarnings(preview *TransitionPreview) 
 	}
 }
 
-// Apply executes the grade transition
+// Apply executes the grade transition without a staleness check. Kept for
+// callers that have no preview in hand (CLI/tests); the HTTP layer uses
+// ApplyChecked so the admin's confirmation is bound to what they were shown.
 func (s *GradeTransitionService) Apply(ctx context.Context, id int64, accountID int64) (*TransitionResult, error) {
+	return s.ApplyChecked(ctx, id, accountID, "")
+}
+
+// ApplyChecked executes the grade transition, refusing with ErrPreviewStale when
+// expectedFingerprint is set and no longer matches the cohort resolved under the
+// locks. An empty fingerprint skips the check (see Apply).
+func (s *GradeTransitionService) ApplyChecked(
+	ctx context.Context, id int64, accountID int64, expectedFingerprint string,
+) (*TransitionResult, error) {
 	// Serialize against a concurrent apply/revert for this tenant BEFORE reading
 	// anything: the class snapshots and student locks taken below must not be
 	// invalidated by an interleaved revert that rewrites the same classes and
@@ -482,8 +585,8 @@ func (s *GradeTransitionService) Apply(ctx context.Context, id int64, accountID 
 	// materializer, so a materialization pass can neither insert an upcoming
 	// roster row for a child this apply is about to graduate (from an enrollment
 	// it read while they were still active) nor race the reconciliation below.
-	// The lock releases at COMMIT/ROLLBACK.
-	if err := s.transitionRepo.LockTenantTransitions(ctx); err != nil {
+	// Both locks release at COMMIT/ROLLBACK.
+	if err := s.lockRecurrenceThenTransitions(ctx); err != nil {
 		return nil, err
 	}
 
@@ -501,12 +604,35 @@ func (s *GradeTransitionService) Apply(ctx context.Context, id int64, accountID 
 		Warnings:     make([]string, 0),
 	}
 
-	if err := s.executeApply(ctx, transition, accountID, result); err != nil {
+	if err := s.executeApply(ctx, transition, accountID, expectedFingerprint, result); err != nil {
 		return nil, err
 	}
 
 	finalizeApplyResult(result)
 	return result, nil
+}
+
+// lockRecurrenceThenTransitions takes both tenant-wide gates an apply/revert
+// needs, in the project-wide order: the recurrence gate FIRST, the grade
+// transition gate second.
+//
+// Order matters because both operations mutate recurrence-derived roster state.
+// A re-plan (services/schedule.ReplanWeek) holds the recurrence gate, deletes
+// planned instances — locking their instance_students rows — and only then asks
+// for the transition gate. If an apply held the transition gate and then waited
+// on one of those very rows during its archive pass, PostgreSQL would detect a
+// deadlock and abort one administrator's request. Taking the recurrence gate up
+// front makes the acquisition order acyclic (#405 review).
+//
+// Both gates are taken through the repository, which owns the shared key
+// strings (models/schedule.TenantRecurrenceLockKey and
+// education.TenantTransitionsLockKey) — services/schedule cannot be imported
+// here without an import cycle.
+func (s *GradeTransitionService) lockRecurrenceThenTransitions(ctx context.Context) error {
+	if err := s.transitionRepo.LockTenantRecurrenceWrites(ctx); err != nil {
+		return err
+	}
+	return s.transitionRepo.LockTenantTransitions(ctx)
 }
 
 // validateCanApply checks if a transition can be applied.
@@ -528,6 +654,7 @@ func (s *GradeTransitionService) executeApply(
 	ctx context.Context,
 	transition *education.GradeTransition,
 	accountID int64,
+	expectedFingerprint string,
 	result *TransitionResult,
 ) error {
 	promoteClasses, graduateClasses := categorizeMappings(transition.Mappings)
@@ -540,6 +667,14 @@ func (s *GradeTransitionService) executeApply(
 	// guards, and never promoted without a history row to revert (#405 review).
 	promotions, graduates, err := s.lockTransitionCohorts(ctx, promoteClasses, graduateClasses)
 	if err != nil {
+		return err
+	}
+
+	// The admin confirmed a specific preview. Refuse if the locked cohort is no
+	// longer the one that preview described — another admin editing mappings or
+	// moving a child between classes in the meantime must not turn a reviewed
+	// confirmation into a different, destructive outcome (#405 review).
+	if err := ensureFingerprintMatches(expectedFingerprint, transition.Mappings, promotions, graduates); err != nil {
 		return err
 	}
 
@@ -573,6 +708,13 @@ func (s *GradeTransitionService) executeApply(
 	// counting on today's and future timetables and staffing ratios, archiving
 	// each removed row so the revert can replay it (#405 review).
 	if err := s.reconcileGraduatedRosters(ctx, transition.ID, graduates); err != nil {
+		return err
+	}
+
+	// Record which instances already existed, AFTER the archive pass and while
+	// the locks still exclude every materializer. Everything inserted above this
+	// marker is built during the alumnus window and is the revert's to refill.
+	if err := s.recordRosterBaseline(ctx, transition); err != nil {
 		return err
 	}
 
@@ -703,6 +845,26 @@ func (s *GradeTransitionService) reconcileGraduatedRosters(
 	if err := s.rosterReconciler.RemoveStudentsFromFutureRosters(ctx, transitionID, studentIDsOf(graduates)); err != nil {
 		return fmt.Errorf("failed to reconcile graduated rosters: %w", err)
 	}
+	return nil
+}
+
+// recordRosterBaseline stamps the transition with the ordering marker its revert
+// needs to separate instances that already existed from instances the
+// materializer creates while the graduates are alumni. No-op when no reconciler
+// is wired — the revert then skips the enrollment fill, matching an apply that
+// archived nothing.
+func (s *GradeTransitionService) recordRosterBaseline(
+	ctx context.Context,
+	transition *education.GradeTransition,
+) error {
+	if s.rosterReconciler == nil {
+		return nil
+	}
+	baseline, err := s.rosterReconciler.CurrentRosterBaseline(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to record roster baseline: %w", err)
+	}
+	transition.RosterBaselineInstanceID = &baseline
 	return nil
 }
 
@@ -962,8 +1124,8 @@ func (s *GradeTransitionService) Revert(ctx context.Context, id int64, accountID
 	// a newer draft (#405 review). It equally excludes a concurrent
 	// materialization pass, which takes the same gate — otherwise the
 	// materializer could insert rows between the reactivation and the roster
-	// reconciliation below. The lock releases at COMMIT/ROLLBACK.
-	if err := s.transitionRepo.LockTenantTransitions(ctx); err != nil {
+	// reconciliation below. Both locks release at COMMIT/ROLLBACK.
+	if err := s.lockRecurrenceThenTransitions(ctx); err != nil {
 		return nil, err
 	}
 
@@ -1064,18 +1226,17 @@ func (s *GradeTransitionService) reconcileRestoredRosters(
 		ids = append(ids, h.StudentID)
 	}
 
-	// Everything materialized after the apply is what the materializer built
+	// Everything inserted above the apply's marker is what the materializer built
 	// while these children were alumni — only those instances may be filled from
-	// enrollments; older ones are owned by the archive replay. A transition
-	// without an applied_at (impossible for an applied row, but the column is
-	// nullable) falls back to "now", which fills nothing rather than risking a
-	// reconstruction over hand-edited rosters.
-	materializedAfter := time.Now()
-	if transition.AppliedAt != nil {
-		materializedAfter = *transition.AppliedAt
-	}
-
-	if err := s.rosterReconciler.RestoreStudentsToFutureRosters(ctx, transition.ID, ids, materializedAfter); err != nil {
+	// enrollments; older ones are owned by the archive replay. The marker is an
+	// instance id, not a timestamp: created_at carries the transaction START
+	// time, so a materialization that waited on the transition lock backdates
+	// rows it inserted after the apply and would be misfiled as pre-transition
+	// (#405 review). A transition applied before the marker existed carries NULL
+	// and fills nothing rather than reconstructing over hand-edited rosters.
+	if err := s.rosterReconciler.RestoreStudentsToFutureRosters(
+		ctx, transition.ID, ids, transition.RosterBaselineInstanceID,
+	); err != nil {
 		return fmt.Errorf("failed to reconcile restored rosters: %w", err)
 	}
 	return nil

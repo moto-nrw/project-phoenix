@@ -12,6 +12,7 @@ import { createLogger } from "~/lib/logger";
 import {
   applyGradeTransition,
   GRADUATES_CHECKED_IN_CODE,
+  PREVIEW_STALE_CODE,
   TransitionRequestError,
   previewGradeTransition,
   type GradeTransition,
@@ -67,11 +68,33 @@ export function TransitionPreviewModal({
     };
   }, [transition.id]);
 
+  // Reloads the preview after the backend refused a stale confirmation, so the
+  // admin decides again on what is true NOW instead of on the numbers that were
+  // rendered before someone else changed the classes or mappings (#405).
+  const reloadPreview = async () => {
+    try {
+      setPreview(await previewGradeTransition(transition.id));
+    } catch (error) {
+      logger.error("preview_reload_failed", {
+        transition_id: transition.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      setLoadError("Vorschau konnte nicht geladen werden.");
+    }
+  };
+
   const handleApply = async () => {
+    if (!preview) return;
     setApplying(true);
     setApplyError(null);
     try {
-      const result = await applyGradeTransition(transition.id);
+      // Bind the apply to exactly the cohort this modal displayed: the backend
+      // refuses it if the affected children or mappings changed in between,
+      // rather than silently graduating a different set (#405).
+      const result = await applyGradeTransition(
+        transition.id,
+        preview.fingerprint,
+      );
       onApplied(result);
     } catch (error) {
       logger.error("apply_failed", {
@@ -87,6 +110,14 @@ export function TransitionPreviewModal({
         setApplyError(
           "Es sind noch Abgangs-Kinder eingecheckt. Bitte zuerst alle betroffenen Kinder auschecken (nach Hause buchen) und den Jahrgangswechsel danach erneut anwenden.",
         );
+      } else if (
+        error instanceof TransitionRequestError &&
+        error.code === PREVIEW_STALE_CODE
+      ) {
+        setApplyError(
+          "Die Daten haben sich seit dem Öffnen dieser Vorschau geändert (Klassen oder Zuordnungen). Die Vorschau wurde neu geladen. Bitte erneut prüfen und dann bestätigen.",
+        );
+        await reloadPreview();
       } else {
         setApplyError(
           "Der Jahrgangswechsel konnte nicht angewendet werden. Bitte erneut versuchen.",
