@@ -49,6 +49,7 @@ vi.mock("~/lib/staff-api", () => ({
 }));
 
 vi.mock("~/lib/staff-helpers", () => ({
+  employmentTypeLabels: { full_time: "Vollzeit" },
   getStaffDisplayType: () => "",
   getStaffLocationStatus: () => ({
     badgeColor: "",

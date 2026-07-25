@@ -51,6 +51,22 @@ func parseOverviewFilters(r *http.Request) (activeSvc.OverviewFilters, error) {
 	default:
 		return filters, errors.New("order must be asc or desc")
 	}
+	// year/month are optional and only meaningful together: a bare ?month=3
+	// would silently mean March of whatever year today happens to be, which
+	// reads as a working filter and is not one.
+	rawYear, rawMonth := query.Get("year"), query.Get("month")
+	if (rawYear == "") != (rawMonth == "") {
+		return filters, errors.New("year and month must be given together")
+	}
+	if rawYear != "" {
+		var err error
+		if filters.Year, err = strconv.Atoi(rawYear); err != nil {
+			return filters, errors.New("year must be an integer")
+		}
+		if filters.Month, err = strconv.Atoi(rawMonth); err != nil {
+			return filters, errors.New("month must be an integer")
+		}
+	}
 	for _, bound := range []struct {
 		name   string
 		target **int

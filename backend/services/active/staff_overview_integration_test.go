@@ -497,6 +497,50 @@ func TestTimeTrackingOverview_RejectsBadFilters(t *testing.T) {
 	require.ErrorIs(t, err, active.ErrOverviewInvalid)
 }
 
+// TestTimeTrackingOverview_ExplicitMonth pins the ?year=&month= selection
+// against the per-staff Monatskarte for the SAME month — the anti-drift
+// guarantee has to survive the month becoming a parameter.
+func TestTimeTrackingOverview_ExplicitMonth(t *testing.T) {
+	f := newOverviewFixture(t, 1)
+	previous := f.today.AddDays(-int(f.today.Day) - 5) // safely inside last month
+
+	overview, err := f.svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{
+		Year: previous.Year, Month: int(previous.Month),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, previous.Year, overview.Year)
+	assert.Equal(t, int(previous.Month), overview.Month)
+	require.Len(t, overview.Rows, 1)
+
+	expected, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff[0].ID, previous.Year, int(previous.Month))
+	require.NoError(t, err)
+	assert.Equal(t, expected.TargetMinutesToDate, overview.Rows[0].SollMinutes)
+	assert.Equal(t, expected.ActualMinutes, overview.Rows[0].IstMinutes)
+	assert.Equal(t, expected.ClosingBalanceMinutes, overview.Rows[0].BalanceMinutes)
+
+	// Omitting both still means the current month.
+	current, err := f.svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{})
+	require.NoError(t, err)
+	assert.Equal(t, f.today.Year, current.Year)
+	assert.Equal(t, int(f.today.Month), current.Month)
+}
+
+// TestTimeTrackingOverview_RejectsFutureMonth — a future month would report the
+// full month Soll against zero Ist, i.e. a large minus for work nobody has
+// missed yet.
+func TestTimeTrackingOverview_RejectsFutureMonth(t *testing.T) {
+	f := newOverviewFixture(t, 1)
+	next := f.today.AddDays(40)
+
+	_, err := f.svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{
+		Year: next.Year, Month: int(next.Month),
+	})
+	require.ErrorIs(t, err, active.ErrOverviewInvalid)
+
+	_, err = f.svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{Year: f.today.Year, Month: 13})
+	require.ErrorIs(t, err, active.ErrOverviewInvalid)
+}
+
 // TestTimeTrackingOverview_SortIsStable — ListAllWithPerson has no ORDER BY, so
 // without an explicit staff-ID tiebreak equal balances would swap places
 // between identical requests.

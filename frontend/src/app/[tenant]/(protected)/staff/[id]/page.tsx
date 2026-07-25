@@ -9,6 +9,7 @@ import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { staffService } from "~/lib/staff-api";
 import type { Staff } from "~/lib/staff-api";
 import {
+  employmentTypeLabels,
   getStaffDisplayType,
   getStaffLocationStatus,
 } from "~/lib/staff-helpers";
@@ -24,12 +25,6 @@ import { staffAbsenceService } from "~/lib/staff-api";
 import { StaffDetailSkeleton } from "./page-skeleton";
 
 // ─── Labels & constants ──────────────────────────────────────────────────────
-
-const employmentTypeLabels: Record<string, string> = {
-  full_time: "Vollzeit",
-  part_time: "Teilzeit",
-  minijob: "Minijob",
-};
 
 // ─── Rich Header ─────────────────────────────────────────────────────────────
 

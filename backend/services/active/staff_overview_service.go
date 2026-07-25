@@ -90,12 +90,18 @@ type TimeTrackingOverview struct {
 // OUTPUTS of the computation and can only be applied afterwards — the saldo
 // does not exist until the carry chain has run. They therefore reduce payload
 // size, never query cost.
+// Year/Month select the month to compute. Both zero means the current month.
+// A future month is rejected rather than served: its Soll would be the full
+// month against zero Ist, i.e. a minus balance for work that has not been
+// missed yet — the same reason a running month cannot be closed.
 type OverviewFilters struct {
 	EmploymentType string
 	SaldoMin       *int
 	SaldoMax       *int
 	SortBy         string
 	Descending     bool
+	Year           int
+	Month          int
 }
 
 // Sort keys accepted by the overview.
@@ -360,7 +366,10 @@ func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filt
 	}
 
 	today := s.today()
-	key := monthOf(today)
+	key, err := resolveOverviewMonth(filters, today)
+	if err != nil {
+		return nil, err
+	}
 	overview := &TimeTrackingOverview{
 		Year:  key.Year,
 		Month: key.Month,
@@ -390,7 +399,9 @@ func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filt
 	for _, staff := range staffMembers {
 		staffIDs = append(staffIDs, staff.ID)
 	}
-	quotas, err := s.quotaRepo.GetByStaffIDsAndYear(ctx, staffIDs, today.Year)
+	// Resturlaub is counted in the year of the SELECTED month, not of today:
+	// a December view opened in January must not show the new year's quota.
+	quotas, err := s.quotaRepo.GetByStaffIDsAndYear(ctx, staffIDs, key.Year)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prefetch vacation quotas: %w", err)
 	}
@@ -399,8 +410,8 @@ func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filt
 	// January 1st, and Resturlaub counted over a shorter year would differ
 	// from GET /staff/{id}/vacation/quota. One extra query, constant in N.
 	yearAbsences, err := s.absenceRepo.GetByStaffIDsAndDateRange(ctx, staffIDs,
-		timezone.NewDate(today.Year, time.January, 1),
-		timezone.NewDate(today.Year, time.December, 31),
+		timezone.NewDate(key.Year, time.January, 1),
+		timezone.NewDate(key.Year, time.December, 31),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prefetch vacation absences: %w", err)
@@ -418,7 +429,7 @@ func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filt
 			SollMinutes:           summary.TargetMinutesToDate,
 			IstMinutes:            summary.ActualMinutes,
 			BalanceMinutes:        summary.ClosingBalanceMinutes,
-			RemainingVacationDays: s.remainingVacationDays(staff.ID, today.Year, quotas[staff.ID], yearAbsences[staff.ID]),
+			RemainingVacationDays: s.remainingVacationDays(staff.ID, key.Year, quotas[staff.ID], yearAbsences[staff.ID]),
 		}
 		if staff.EmploymentType != nil {
 			row.EmploymentType = *staff.EmploymentType
@@ -455,6 +466,22 @@ func (s *staffOverviewService) remainingVacationDays(
 		entitled, carryover = quota.EntitledDays, quota.CarryoverDays
 	}
 	return computeVacationQuotaSummary(staffID, year, entitled, carryover, absences).RemainingDays
+}
+
+// resolveOverviewMonth turns the requested year/month into the month to
+// compute. Both zero means "current month" so the parameter stays optional.
+func resolveOverviewMonth(filters OverviewFilters, today timezone.Date) (monthKey, error) {
+	if filters.Year == 0 && filters.Month == 0 {
+		return monthOf(today), nil
+	}
+	if filters.Year < 2000 || filters.Year > 2100 || filters.Month < 1 || filters.Month > 12 {
+		return monthKey{}, fmt.Errorf("%w: year/month out of range", ErrOverviewInvalid)
+	}
+	key := monthKey{Year: filters.Year, Month: filters.Month}
+	if monthOf(today).before(key) {
+		return monthKey{}, fmt.Errorf("%w: month %04d-%02d lies in the future", ErrOverviewInvalid, key.Year, key.Month)
+	}
+	return key, nil
 }
 
 // sortOverviewRows sorts by the requested key with an explicit staff-ID
