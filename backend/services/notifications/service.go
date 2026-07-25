@@ -140,7 +140,9 @@ func validate(event Event) error {
 	default:
 		return fmt.Errorf("unknown audience scope %q", event.Audience.Scope)
 	}
-	if event.DeepLink != "" && (!strings.HasPrefix(event.DeepLink, "/") || strings.HasPrefix(event.DeepLink, "//")) {
+	if event.DeepLink != "" && (!strings.HasPrefix(event.DeepLink, "/") ||
+		strings.HasPrefix(event.DeepLink, "//") ||
+		strings.Contains(event.DeepLink, `\`)) {
 		return errors.New("deep link must be an app-relative path")
 	}
 	switch event.Priority {
