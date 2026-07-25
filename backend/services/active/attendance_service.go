@@ -160,7 +160,7 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 
 	// A staff member marking a student's attendance is working right now —
 	// auto-open their work session so they show as "Anwesend" (issue #1439).
-	s.ensureStaffPresence(ctx, authorizedStaffID, attendanceStampSource(ctx))
+	s.ensureStaffPresenceForAttendanceResult(ctx, authorizedStaffID, result)
 
 	return result, nil
 }
@@ -172,6 +172,17 @@ func attendanceStampSource(ctx context.Context) string {
 		return active.WorkSessionSourceNFC
 	}
 	return active.WorkSessionSourceApp
+}
+
+func (s *service) ensureStaffPresenceForAttendanceResult(
+	ctx context.Context,
+	staffID int64,
+	result *AttendanceResult,
+) {
+	if result == nil || (result.Action == "checked_out" && result.AttendanceID == 0) {
+		return
+	}
+	s.ensureStaffPresence(ctx, staffID, attendanceStampSource(ctx))
 }
 
 // ensureStaffPresence best-effort-opens today's work session for the staff
@@ -221,7 +232,7 @@ func (s *service) CheckInStudent(ctx context.Context, studentID, staffID, device
 	}
 	// Marking a student present marks the acting staff member present too
 	// (issue #1439) — this is the binary-mode web check-in path.
-	s.ensureStaffPresence(ctx, authorizedStaffID, attendanceStampSource(ctx))
+	s.ensureStaffPresenceForAttendanceResult(ctx, authorizedStaffID, result)
 	return result, nil
 }
 
@@ -244,8 +255,9 @@ func (s *service) CheckOutStudent(ctx context.Context, studentID, staffID int64,
 	if err != nil {
 		return nil, err
 	}
-	// Checking a student out is equally an on-duty action (issue #1439).
-	s.ensureStaffPresence(ctx, authorizedStaffID, attendanceStampSource(ctx))
+	// A real checkout is an on-duty action. Idempotent retries must not create
+	// a work session when they did not mutate attendance.
+	s.ensureStaffPresenceForAttendanceResult(ctx, authorizedStaffID, result)
 	return result, nil
 }
 

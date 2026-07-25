@@ -49,6 +49,7 @@ func (r *staffPINAccountRepository) ResetPINAttempts(context.Context, int64) err
 func newStaffPINAuthService(
 	t *testing.T,
 	account *authModel.Account,
+	mappingStatus string,
 ) (*Service, *staffPINAccountRepository, sqlmock.Sqlmock, func()) {
 	t.Helper()
 
@@ -59,6 +60,12 @@ func newStaffPINAuthService(
 	accountRepo := &staffPINAccountRepository{
 		stubAccountRepository: newStubAccountRepository(account),
 	}
+	accountTenantRepo := newStubAccountTenantRepository()
+	require.NoError(t, accountTenantRepo.Create(context.Background(), &authModel.AccountTenant{
+		AccountID: account.ID,
+		TenantID:  7,
+		Status:    mappingStatus,
+	}))
 	personRepo := newStubPersonRepository()
 	accountID := account.ID
 	require.NoError(t, personRepo.Create(context.Background(), &userModel.Person{
@@ -83,9 +90,10 @@ func newStaffPINAuthService(
 
 	service := &Service{
 		repos: &repositories.Factory{
-			Account: accountRepo,
-			Person:  personRepo,
-			Staff:   staffRepo,
+			Account:       accountRepo,
+			AccountTenant: accountTenantRepo,
+			Person:        personRepo,
+			Staff:         staffRepo,
 		},
 		db:     bunDB,
 		logger: slog.New(slog.DiscardHandler),
@@ -111,7 +119,7 @@ func TestAuthenticateStaffPINAcceptsMatchingAccountPIN(t *testing.T) {
 		Active: true,
 	}
 	require.NoError(t, account.HashPIN("2468"))
-	service, accountRepo, mock, cleanup := newStaffPINAuthService(t, account)
+	service, accountRepo, mock, cleanup := newStaffPINAuthService(t, account, authModel.AccountTenantStatusActive)
 	defer cleanup()
 	expectStaffPINAuthTenantTx(mock)
 
@@ -130,7 +138,7 @@ func TestAuthenticateStaffPINCommitsFailedAttemptForWrongPIN(t *testing.T) {
 		Active: true,
 	}
 	require.NoError(t, account.HashPIN("2468"))
-	service, accountRepo, mock, cleanup := newStaffPINAuthService(t, account)
+	service, accountRepo, mock, cleanup := newStaffPINAuthService(t, account, authModel.AccountTenantStatusActive)
 	defer cleanup()
 	expectStaffPINAuthTenantTx(mock)
 
@@ -150,7 +158,7 @@ func TestAuthenticateStaffPINRejectsLockedAccount(t *testing.T) {
 		PINLockedUntil: &lockedUntil,
 	}
 	require.NoError(t, account.HashPIN("2468"))
-	service, accountRepo, mock, cleanup := newStaffPINAuthService(t, account)
+	service, accountRepo, mock, cleanup := newStaffPINAuthService(t, account, authModel.AccountTenantStatusActive)
 	defer cleanup()
 	expectStaffPINAuthTenantTx(mock)
 
@@ -160,4 +168,29 @@ func TestAuthenticateStaffPINRejectsLockedAccount(t *testing.T) {
 	assert.ErrorIs(t, err, ErrStaffPINLocked)
 	assert.Zero(t, accountRepo.failedAttempts)
 	assert.Zero(t, accountRepo.resets)
+}
+
+func TestAuthenticateStaffPINRejectsNonActiveTenantMapping(t *testing.T) {
+	for _, status := range []string{
+		authModel.AccountTenantStatusPending,
+		authModel.AccountTenantStatusInactive,
+	} {
+		t.Run(status, func(t *testing.T) {
+			account := &authModel.Account{
+				Model:  base.Model{ID: 10},
+				Active: true,
+			}
+			require.NoError(t, account.HashPIN("2468"))
+			service, accountRepo, mock, cleanup := newStaffPINAuthService(t, account, status)
+			defer cleanup()
+			expectStaffPINAuthTenantTx(mock)
+
+			staff, err := service.AuthenticateStaffPIN(context.Background(), 7, 42, "2468")
+
+			assert.Nil(t, staff)
+			assert.ErrorIs(t, err, ErrInvalidStaffPINCredentials)
+			assert.Zero(t, accountRepo.failedAttempts)
+			assert.Zero(t, accountRepo.resets)
+		})
+	}
 }

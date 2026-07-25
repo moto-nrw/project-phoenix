@@ -92,19 +92,20 @@ func TestDeviceAuthenticatorSetsCredentialBoundStaffContext(t *testing.T) {
 	assert.Equal(t, "personal-pin", authenticator.pin)
 }
 
-func TestDeviceAuthenticatorRejectsStaffIDWithoutCredential(t *testing.T) {
+func TestDeviceAuthenticatorIgnoresLegacyStaffIDWithoutCredential(t *testing.T) {
 	authenticator := &stubStaffPINAuthenticator{}
 	handlerCalled := false
-	router, apiKey := newStaffPINTestRouter(t, authenticator, func(w http.ResponseWriter, _ *http.Request) {
+	router, apiKey := newStaffPINTestRouter(t, authenticator, func(w http.ResponseWriter, r *http.Request) {
 		handlerCalled = true
+		assert.Nil(t, StaffFromCtx(r.Context()))
 		w.WriteHeader(http.StatusOK)
 	})
 
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, newStaffPINTestRequest(apiKey, ""))
 
-	assert.Equal(t, http.StatusUnauthorized, recorder.Code)
-	assert.False(t, handlerCalled)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.True(t, handlerCalled)
 	assert.Zero(t, authenticator.calls)
 }
 

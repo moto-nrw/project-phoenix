@@ -275,7 +275,12 @@ func authenticateStaffContext(
 	if staffIDHeader == "" && staffPIN == "" {
 		return nil, nil
 	}
-	if staffIDHeader == "" || staffPIN == "" || authenticator == nil {
+	// Deployed PyrePortal versions send X-Staff-ID without a personal PIN.
+	// Keep those requests working, but do not trust or expose the ID.
+	if staffPIN == "" {
+		return nil, nil
+	}
+	if staffIDHeader == "" || authenticator == nil {
 		slog.Warn("device staff authentication failed: incomplete credentials",
 			slog.String("device_id", device.DeviceID),
 		)

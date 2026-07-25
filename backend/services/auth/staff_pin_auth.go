@@ -89,6 +89,13 @@ func (s *Service) loadStaffPINAccount(
 	if account == nil || !account.Active || !account.HasPIN() {
 		return nil, nil, ErrInvalidStaffPINCredentials
 	}
+	hasTenantAccess, err := s.repos.AccountTenant.ExistsByAccountAndTenant(ctx, account.ID, tenantID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !hasTenantAccess {
+		return nil, nil, ErrInvalidStaffPINCredentials
+	}
 	return staff, account, nil
 }
 

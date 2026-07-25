@@ -49,6 +49,47 @@ func TestEnsureStaffPresenceAcceptsClosedSessionSkip(t *testing.T) {
 	assert.True(t, called)
 }
 
+func TestEnsureStaffPresenceForAttendanceResultSkipsIdempotentCheckout(t *testing.T) {
+	called := false
+	workSessions := &workSessionServiceForSessionUnitTest{
+		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
+			called = true
+			return nil, nil
+		},
+	}
+	svc := &service{ServiceDependencies: ServiceDependencies{
+		WorkSessionService: workSessions,
+		Logger:             slog.New(slog.DiscardHandler),
+	}}
+
+	svc.ensureStaffPresenceForAttendanceResult(context.Background(), 42, &AttendanceResult{
+		Action: "checked_out",
+	})
+
+	assert.False(t, called)
+}
+
+func TestEnsureStaffPresenceForAttendanceResultStampsMutatingCheckout(t *testing.T) {
+	called := false
+	workSessions := &workSessionServiceForSessionUnitTest{
+		ensureCheckedInFunc: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
+			called = true
+			return nil, nil
+		},
+	}
+	svc := &service{ServiceDependencies: ServiceDependencies{
+		WorkSessionService: workSessions,
+		Logger:             slog.New(slog.DiscardHandler),
+	}}
+
+	svc.ensureStaffPresenceForAttendanceResult(context.Background(), 42, &AttendanceResult{
+		Action:       "checked_out",
+		AttendanceID: 101,
+	})
+
+	assert.True(t, called)
+}
+
 func TestEnsureStaffPresenceRollsBackFailedCheckInToSavepoint(t *testing.T) {
 	ctx := context.Background()
 	db, mock := newSessionSQLMockDB(t)
