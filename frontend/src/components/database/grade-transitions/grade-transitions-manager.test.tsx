@@ -291,6 +291,48 @@ describe("GradeTransitionsManager", () => {
     });
   });
 
+  // The ids are backend int64s. Two rows whose ids differ only past
+  // Number.MAX_SAFE_INTEGER collapse to the same double, so a Number()-based
+  // tiebreak sees them as equal, keeps the first, and offers a target the
+  // backend answers with 409 — the same unbreakable loop as an unordered tie
+  // (#405 review).
+  it("breaks an applied_at tie exactly for ids past Number.MAX_SAFE_INTEGER", async () => {
+    const earlier: GradeTransition = {
+      ...appliedTransition,
+      id: "9007199254740992",
+      academicYear: "2025-2026",
+    };
+    const later: GradeTransition = {
+      ...appliedTransition,
+      id: "9007199254740993",
+      academicYear: "2026-2027",
+    };
+    // Both ids round to the same double — the comparison must not go through it.
+    expect(Number(earlier.id)).toBe(Number(later.id));
+    api.listGradeTransitions.mockResolvedValue([earlier, later]);
+    api.revertGradeTransition.mockResolvedValue({
+      transitionId: later.id,
+      status: "reverted",
+      studentsPromoted: 20,
+      studentsGraduated: 10,
+      canRevert: false,
+      warnings: [],
+    });
+    render(<GradeTransitionsManager />);
+
+    await screen.findByText("2026-2027");
+    const buttons = screen.getAllByRole("button", { name: /Zurücksetzen/i });
+    expect(buttons).toHaveLength(1);
+
+    fireEvent.click(buttons[0]!);
+    await screen.findByText(/wirklich zurücksetzen/i);
+    fireEvent.click(screen.getByRole("button", { name: /Ja, zurücksetzen/i }));
+
+    await waitFor(() => {
+      expect(api.revertGradeTransition).toHaveBeenCalledWith(later.id);
+    });
+  });
+
   it("reports a partial revert instead of claiming full success", async () => {
     api.listGradeTransitions.mockResolvedValue([appliedTransition]);
     api.revertGradeTransition.mockResolvedValue({

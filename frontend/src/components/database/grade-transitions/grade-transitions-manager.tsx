@@ -108,6 +108,26 @@ function describeMappings(transition: GradeTransition): string {
 // as the database column and lexically ordered. The id tiebreak below therefore
 // only decides genuinely equal timestamps — legacy rows applied before the
 // column carried one.
+// Exact ordering for the backend's int64 ids, which cross the wire as decimal
+// strings. `Number()` would round anything past 2^53, silently making two
+// distinct transitions compare equal and re-opening the 409 loop described
+// above; a plain lexical compare would order "9" above "10". For non-negative
+// digit strings, longer means larger and equal lengths compare lexically —
+// exact over the whole int64 range and, unlike `BigInt()`, unable to throw on a
+// malformed id mid-render. Anything not digits-only falls back to a numeric
+// compare rather than crashing the manager.
+function compareTransitionIDs(a: string, b: string): number {
+  if (/^\d+$/.test(a) && /^\d+$/.test(b)) {
+    const trimmedA = a.replace(/^0+(?=\d)/, "");
+    const trimmedB = b.replace(/^0+(?=\d)/, "");
+    if (trimmedA.length !== trimmedB.length) {
+      return trimmedA.length - trimmedB.length;
+    }
+    return trimmedA < trimmedB ? -1 : trimmedA > trimmedB ? 1 : 0;
+  }
+  return Number(a) - Number(b);
+}
+
 function isMoreRecentlyApplied(
   candidate: GradeTransition,
   current: GradeTransition,
@@ -116,10 +136,8 @@ function isMoreRecentlyApplied(
   const a = candidate.appliedAt ?? "";
   const b = current.appliedAt ?? "";
   if (a !== b) return a > b;
-  // Tie (identical timestamps, or both untimestamped) — id DESC, numerically.
-  // The ids are backend int64s rendered as strings, so a lexical compare would
-  // order "9" above "10".
-  return Number(candidate.id) > Number(current.id);
+  // Tie (identical timestamps, or both untimestamped) — id DESC.
+  return compareTransitionIDs(candidate.id, current.id) > 0;
 }
 
 function pickLatestRevertable(

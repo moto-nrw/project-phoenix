@@ -80,6 +80,20 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// Alumni (graduated, soft-deleted) are removed from every kiosk and staff
+	// workflow, so a feedback submission that arrives after the graduation
+	// commits — a kiosk holding a stale roster, or a scan queued before the
+	// apply — must not write a new row against them. Answered with the same
+	// "student not found" 404 the unknown-student branch above returns, so
+	// PyrePortal needs no new error mapping (#405).
+	if student.IsAlumnus() {
+		slog.Default().InfoContext(r.Context(), "feedback rejected: student graduated",
+			slog.Int64("student_id", req.StudentID),
+		)
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
+		return
+	}
+
 	slog.Default().DebugContext(r.Context(), "student validated",
 		slog.Int64("student_id", student.ID),
 	)
