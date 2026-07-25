@@ -1319,6 +1319,7 @@ function FullAccessView({
             studentId={studentId}
             attendanceLogEnabled={attendanceLogEnabled}
             feedbackEnabled={feedbackEnabled}
+            canViewChangeHistory={hasWriteAccess}
             onNavigate={(path) => historyRouter.push(path)}
           />
         </TabsContent>

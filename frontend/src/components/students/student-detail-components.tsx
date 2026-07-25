@@ -902,6 +902,7 @@ interface StudentHistorySectionProps {
   attendanceLogEnabled: boolean;
   feedbackEnabled: boolean;
   readOnly?: boolean;
+  canViewChangeHistory?: boolean;
   onNavigate: (path: string) => void;
 }
 
@@ -916,10 +917,12 @@ export function StudentHistorySection({
   attendanceLogEnabled,
   feedbackEnabled,
   readOnly = false,
+  canViewChangeHistory = true,
   onNavigate,
 }: Readonly<StudentHistorySectionProps>) {
   const attendanceDisabled = readOnly || !attendanceLogEnabled;
   const feedbackDisabled = readOnly || !feedbackEnabled;
+  const changeHistoryDisabled = readOnly || !canViewChangeHistory;
 
   return (
     <InfoCard title="Historien" icon={<ClockIcon />}>
@@ -971,12 +974,14 @@ export function StudentHistorySection({
           icon={<Pencil className="h-4 w-4 text-white" />}
           title="Änderungsverlauf"
           description={
-            readOnly ? "Nur für Gruppenbetreuer" : "Wer hat was geändert"
+            changeHistoryDisabled
+              ? "Nur für Gruppenbetreuer"
+              : "Wer hat was geändert"
           }
           bgColor="bg-[#7C3AED]"
-          disabled={readOnly}
+          disabled={changeHistoryDisabled}
           onClick={
-            !readOnly
+            !changeHistoryDisabled
               ? () => onNavigate(`/students/${studentId}/change-history`)
               : undefined
           }

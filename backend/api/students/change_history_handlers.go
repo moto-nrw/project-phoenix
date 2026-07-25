@@ -55,6 +55,13 @@ func (rs *Resource) recordStudentChanges(ctx context.Context, before, after *use
 	return nil
 }
 
+func normalizeDeparturePlanForAudit(student *users.Student) {
+	if student == nil {
+		return
+	}
+	student.DepartureDays = users.DepartureDaysFromLegacy(student.BusDays, student.PickupDays)
+}
+
 // getStudentChangeHistory returns the per-child change history. Gated on full
 // access (admin / group supervisor) so it reads as a support tool for the OGS
 // office, not general staff surveillance.

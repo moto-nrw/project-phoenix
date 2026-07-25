@@ -1372,6 +1372,15 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 
+		if req.DepartureDays != nil || req.PickupStatus != nil ||
+			req.PickupDays != nil || req.Bus != nil || req.BusDays != nil {
+			// Audit the effective unified plan even when a legacy client changed
+			// only bus_days/pickup_days. The concrete repository currently writes
+			// its resolved plan back into fresh, but the service contract does not
+			// promise that mutation.
+			normalizeDeparturePlanForAudit(fresh)
+		}
+
 		// Record the per-child change history (#1455). The audit write runs on
 		// this same tx, so a failure must propagate: swallowing it would still
 		// poison the tx and fail the COMMIT, losing the edit behind a 500. A

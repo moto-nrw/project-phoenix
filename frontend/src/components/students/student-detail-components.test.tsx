@@ -886,6 +886,19 @@ describe("StudentHistorySection", () => {
     expect(screen.getByText("Mensaverlauf").closest("button")).toBeDisabled();
   });
 
+  it("disables change history without supervisor access", () => {
+    render(
+      <StudentHistorySection {...defaultProps} canViewChangeHistory={false} />,
+    );
+
+    expect(
+      screen.getByText("Änderungsverlauf").closest("button"),
+    ).toBeDisabled();
+    expect(
+      screen.getByText("Anwesenheitsprotokoll").closest("button"),
+    ).not.toBeDisabled();
+  });
+
   it("raumverlauf button navigates on click when enabled", () => {
     const onNavigate = vi.fn();
     render(
