@@ -19,6 +19,28 @@ import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 type CalendarLayout = "overlay" | "inline" | "popover";
 
 /**
+ * Trigger height. The picker replaced native inputs that sat next to kit
+ * `Input`s, so it has to be able to match their two sizes — a 38px trigger
+ * beside a 48px input reads as a broken row.
+ *
+ * - "sm"  (default) the picker's original compact trigger, used by the filter
+ *         bars and dropdowns that adopted it first
+ * - "md"  matches `Input controlSize="compact"` (h-10)
+ * - "lg"  matches the default `Input` (px-4 py-3 text-base)
+ */
+type ControlSize = "sm" | "md" | "lg";
+
+// "lg" is py-[11px] rather than py-3: the kit Input draws its outline with
+// border-0 plus an inset ring, which costs no layout height, while this trigger
+// uses a real 1px border. Matching py-3 would leave it 2px taller than the
+// input next to it.
+const TRIGGER_SIZE_CLASS: Record<ControlSize, string> = {
+  sm: "px-3 py-2 text-sm",
+  md: "h-10 px-3 py-2 text-sm",
+  lg: "px-4 py-[11px] text-base",
+};
+
+/**
  * Control labels. The defaults are German because the staff and operator
  * portals are German-only; the parent portal and public enrollment form pass
  * translated strings alongside a matching `locale`.
@@ -108,6 +130,8 @@ type DatePickerProps =
       readonly ariaLabel?: string;
       readonly ariaDescribedBy?: string;
       readonly invalid?: boolean;
+      /** Trigger height. Match the kit Input next to it — see ControlSize. */
+      readonly controlSize?: ControlSize;
       // Calendar language. Defaults to German — the staff and operator portals
       // are German-only; the parent-facing surfaces pass their resolved locale.
       readonly locale?: Locale;
@@ -160,7 +184,10 @@ export function DatePicker({
   const displayValue = isMultiple
     ? formatMultipleDateLabel(props.values, labels.selectedDays)
     : props.value
-      ? format(props.value, "dd.MM.yyyy", { locale })
+      ? // Deliberately a fixed German pattern, not the locale's own: the
+        // calendar body is translated, but the trigger text stays dd.MM.yyyy
+        // everywhere. Switching it to "P" is a separate, test-pinned decision.
+        format(props.value, "dd.MM.yyyy", { locale })
       : null;
 
   // Portals only exist client-side; render nothing on the server pass.
@@ -269,7 +296,11 @@ export function DatePicker({
         aria-describedby={isMultiple ? undefined : props.ariaDescribedBy}
         disabled={isDisabled}
         onClick={toggleOpen}
-        className={`flex w-full items-center justify-between rounded-lg border bg-white px-3 py-2 text-sm transition-all ${
+        className={`flex w-full items-center justify-between rounded-lg border bg-white transition-all ${
+          TRIGGER_SIZE_CLASS[
+            (isMultiple ? undefined : props.controlSize) ?? "sm"
+          ]
+        } ${
           !isMultiple && props.invalid ? "border-[#FF3130]" : "border-gray-200"
         } ${
           isDisabled
@@ -533,6 +564,7 @@ export function ISODatePicker({
   readonly ariaLabel?: string;
   readonly ariaDescribedBy?: string;
   readonly invalid?: boolean;
+  readonly controlSize?: ControlSize;
   readonly locale?: Locale;
   readonly labels?: DatePickerLabels;
 }) {

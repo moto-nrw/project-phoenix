@@ -145,6 +145,7 @@ export function ClosingDayModal({
             </label>
             <ISODatePicker
               id="closing-day-start"
+              controlSize="lg"
               value={startDate}
               onChange={setStartDate}
               calendarLayout="popover"
@@ -159,6 +160,7 @@ export function ClosingDayModal({
             </label>
             <ISODatePicker
               id="closing-day-end"
+              controlSize="lg"
               value={endDate}
               min={startDate || undefined}
               onChange={setEndDate}

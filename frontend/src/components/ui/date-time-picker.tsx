@@ -7,6 +7,13 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 // helpers (toLocalInputValue / fromLocalInputValue) work unchanged.
 const DATE_LENGTH = 10;
 
+// Mirrors the date half's trigger heights so the two never look stepped.
+const TIME_SIZE_CLASS: Record<"sm" | "md" | "lg", string> = {
+  sm: "px-3 py-2 text-sm",
+  md: "h-10 px-3 py-2 text-sm",
+  lg: "px-4 py-3 text-base",
+};
+
 function splitLocal(value: string): { day: string; time: string } {
   if (!value) return { day: "", time: "" };
   return {
@@ -39,6 +46,7 @@ export function DateTimePicker({
   defaultTime = "00:00",
   calendarLayout = "popover",
   hideClearButton = false,
+  controlSize = "sm",
 }: {
   /** "YYYY-MM-DDTHH:mm" in local time, or "" when unset. */
   readonly value: string;
@@ -56,6 +64,8 @@ export function DateTimePicker({
   readonly calendarLayout?: "overlay" | "inline" | "popover";
   /** Hide the clear control. Use when the value is required. */
   readonly hideClearButton?: boolean;
+  /** Height of both halves. Match the kit Input next to it. */
+  readonly controlSize?: "sm" | "md" | "lg";
 }) {
   const { day, time } = splitLocal(value);
   const minParts = splitLocal(min ?? "");
@@ -75,6 +85,7 @@ export function DateTimePicker({
         }}
         disabled={disabled}
         hideClearButton={hideClearButton}
+        controlSize={controlSize}
         calendarLayout={calendarLayout}
         ariaLabel={dateAriaLabel}
         invalid={invalid}
@@ -94,7 +105,7 @@ export function DateTimePicker({
           if (!day) return;
           onChange(nextTime ? `${day}T${nextTime}` : `${day}T${defaultTime}`);
         }}
-        className="w-[7.5rem] shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 transition-colors hover:bg-gray-50 focus:border-gray-300 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+        className={`w-[7.5rem] shrink-0 rounded-lg border border-gray-200 bg-white text-gray-900 ${TIME_SIZE_CLASS[controlSize]} transition-colors hover:bg-gray-50 focus:border-gray-300 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400`}
       />
     </div>
   );

@@ -679,6 +679,7 @@ export default function StaffCalendarPage() {
             <ISODatePicker
               label="Startdatum"
               id="calendar-start-date"
+              controlSize="lg"
               value={startDate}
               onChange={(next) => {
                 setStartDate(next);
@@ -694,6 +695,7 @@ export default function StaffCalendarPage() {
             <ISODatePicker
               label="Enddatum"
               id="calendar-end-date"
+              controlSize="lg"
               value={endDate}
               min={startDate}
               onChange={setEndDate}
@@ -947,6 +949,7 @@ export default function StaffCalendarPage() {
             <ISODatePicker
               label="Endet am"
               id="calendar-recurrence-end"
+              controlSize="lg"
               value={endsOn}
               min={startDate}
               onChange={setEndsOn}

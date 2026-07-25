@@ -543,6 +543,7 @@ export function TimetableEventModal({
               >
                 <ISODatePicker
                   id="series_delete_effective_date"
+                  controlSize="md"
                   value={deleteEffectiveDate}
                   min={berlinTodayISO()}
                   invalid={Boolean(deleteError)}

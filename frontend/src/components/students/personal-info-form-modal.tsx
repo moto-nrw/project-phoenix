@@ -672,6 +672,7 @@ function DateInput({ id, label, value, onChange }: Readonly<DateInputProps>) {
       </label>
       <ISODatePicker
         id={id}
+        controlSize="md"
         // The API returns the birthday as a full timestamp here; ISODatePicker
         // takes the calendar day off it, which is what displayValue did.
         value={value ?? ""}

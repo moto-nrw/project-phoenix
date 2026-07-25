@@ -3338,6 +3338,7 @@ function CustomFieldInput({
         <ISODatePicker
           {...datePicker}
           id={dateId}
+          controlSize="md"
           value={valueStr}
           onChange={onChange}
           invalid={Boolean(error)}

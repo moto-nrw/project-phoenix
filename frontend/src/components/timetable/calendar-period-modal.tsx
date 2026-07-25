@@ -423,6 +423,7 @@ export function CalendarPeriodModal({
           <Field label="Startdatum" htmlFor="start_date" required>
             <ISODatePicker
               id="start_date"
+              controlSize="md"
               value={form.startDate}
               onChange={(next) => update("startDate", next)}
               calendarLayout="popover"
@@ -431,6 +432,7 @@ export function CalendarPeriodModal({
           <Field label="Enddatum" htmlFor="end_date" required>
             <ISODatePicker
               id="end_date"
+              controlSize="md"
               value={form.endDate}
               onChange={(next) => update("endDate", next)}
               calendarLayout="popover"
@@ -460,6 +462,7 @@ export function CalendarPeriodModal({
           >
             <ISODatePicker
               id="cycle_anchor"
+              controlSize="md"
               value={form.weekCycleAnchor}
               onChange={(next) => update("weekCycleAnchor", next)}
               disabled={cycleLength <= 1}

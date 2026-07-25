@@ -1314,6 +1314,7 @@ function PhaseForm(props: PhaseFormProps) {
             </label>
             <ISODatePicker
               id="service_start_date"
+              controlSize="md"
               ariaLabel="Beginn"
               value={draft.service_start_date}
               className="mt-1"
@@ -1342,6 +1343,7 @@ function PhaseForm(props: PhaseFormProps) {
             </label>
             <ISODatePicker
               id="service_end_date"
+              controlSize="md"
               ariaLabel="Ende"
               min={draft.service_start_date || undefined}
               value={draft.service_end_date}
@@ -1372,6 +1374,7 @@ function PhaseForm(props: PhaseFormProps) {
             </label>
             <DateTimePicker
               id="enrollment_open_at"
+              controlSize="md"
               dateAriaLabel="Öffnung"
               timeAriaLabel="Öffnung Uhrzeit"
               className="mt-1"
@@ -1404,6 +1407,7 @@ function PhaseForm(props: PhaseFormProps) {
             </label>
             <DateTimePicker
               id="enrollment_close_at"
+              controlSize="md"
               dateAriaLabel="Schließung"
               timeAriaLabel="Schließung Uhrzeit"
               className="mt-1"

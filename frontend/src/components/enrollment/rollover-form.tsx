@@ -204,6 +204,7 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
             </label>
             <ISODatePicker
               id="rollover-service-start"
+              controlSize="md"
               ariaLabel="Betreuung von"
               value={draft.service_start_date}
               onChange={(next) => update("service_start_date", next)}
@@ -224,6 +225,7 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
             </label>
             <ISODatePicker
               id="rollover-service-end"
+              controlSize="md"
               ariaLabel="Betreuung bis"
               min={draft.service_start_date || undefined}
               value={draft.service_end_date}
@@ -279,6 +281,7 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
             </label>
             <DateTimePicker
               id="rollover-deadline"
+              controlSize="md"
               dateAriaLabel="Frist für die Eltern-Antwort"
               timeAriaLabel="Frist Uhrzeit"
               className="mt-1"

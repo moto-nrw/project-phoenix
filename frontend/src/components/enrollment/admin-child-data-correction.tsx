@@ -172,6 +172,7 @@ export function AdminChildDataCorrection({
           </div>
           <ISODatePicker
             id="correction-date-of-birth"
+            controlSize="lg"
             label="Geburtsdatum"
             value={dateOfBirth}
             onChange={setDateOfBirth}

@@ -891,6 +891,7 @@ function RequestField({
             monthYearNavigation
             max={todayISO()}
             calendarLayout="popover"
+            controlSize="lg"
           />
         ) : (
           <Input
