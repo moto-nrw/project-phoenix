@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -219,12 +220,56 @@ type SchoolLookup interface {
 	GetSchoolByID(ctx context.Context, id int64) (*platform.School, error)
 }
 
+// StaffLookup is the narrow staff read used to resolve the optional
+// X-Staff-ID header into an authenticated staff context (issue #1439).
+// Satisfied by services/users.PersonService.
+type StaffLookup interface {
+	GetStaffByID(ctx context.Context, id int64) (*users.Staff, error)
+}
+
+// resolveStaffContext resolves the optional X-Staff-ID header into a staff
+// entity scoped to the device's tenant. Kiosks identify the acting staff
+// member client-side (teacher selection after PIN entry), so the header is
+// advisory: it attributes actions (attendance CheckedInBy/CheckedOutBy,
+// staff presence) but grants no additional authority beyond the device
+// API key + OGS PIN already validated. Invalid or cross-tenant values are
+// logged and ignored — handlers that require staff identity (binary-mode
+// checkin) reject the request themselves.
+func resolveStaffContext(ctx context.Context, staffLookup StaffLookup, dev *iot.Device, header string) *users.Staff {
+	if header == "" || staffLookup == nil {
+		return nil
+	}
+	staffID, err := strconv.ParseInt(header, 10, 64)
+	if err != nil || staffID <= 0 {
+		slog.Warn("device auth: invalid X-Staff-ID header ignored",
+			slog.String("device_id", dev.DeviceID),
+		)
+		return nil
+	}
+	staff, err := staffLookup.GetStaffByID(ctx, staffID)
+	if err != nil || staff == nil {
+		slog.Warn("device auth: X-Staff-ID does not resolve to a staff member",
+			slog.Int64("staff_id", staffID),
+			slog.String("device_id", dev.DeviceID),
+		)
+		return nil
+	}
+	if staff.GetTenantID() != dev.TenantID {
+		slog.Warn("device auth: X-Staff-ID belongs to a different tenant, ignored",
+			slog.Int64("staff_id", staffID),
+			slog.String("device_id", dev.DeviceID),
+		)
+		return nil
+	}
+	return staff
+}
+
 // DeviceAuthenticator is a middleware that validates device API keys and the global OGS PIN.
 // It requires both Authorization: Bearer <api_key> and X-Staff-PIN: <pin> headers.
 // The middleware sets device context for downstream handlers.
 // Rejects requests for devices belonging to soft-deleted schools.
 // pinResolver is optional — if nil, falls back to OGS_DEVICE_PIN env var.
-func DeviceAuthenticator(iotService iotSvc.Service, schools SchoolLookup, pinResolver PINResolver) func(http.Handler) http.Handler {
+func DeviceAuthenticator(iotService iotSvc.Service, schools SchoolLookup, staffLookup StaffLookup, pinResolver PINResolver) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Validate API key and get device
@@ -293,6 +338,13 @@ func DeviceAuthenticator(iotService iotSvc.Service, schools SchoolLookup, pinRes
 			// Device-auth routes don't use jwt.TenantMiddleware.
 			if device.TenantID > 0 {
 				ctx = tenant.WithTenantID(ctx, device.TenantID)
+			}
+
+			// Resolve the optional X-Staff-ID header into staff context so
+			// downstream handlers can attribute kiosk actions to the acting
+			// staff member (issue #1439).
+			if staff := resolveStaffContext(ctx, staffLookup, device, r.Header.Get("X-Staff-ID")); staff != nil {
+				ctx = context.WithValue(ctx, CtxStaff, staff)
 			}
 
 			slog.Debug("device authentication successful",

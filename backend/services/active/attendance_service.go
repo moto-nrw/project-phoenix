@@ -148,11 +148,49 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 	// "on_yard" is a sub-state of "checked_in" (still on premises) — toggling
 	// from either should perform a checkout. Only "not_checked_in" and
 	// "checked_out" start a fresh check-in.
+	var result *AttendanceResult
 	if currentStatus.Status == "not_checked_in" || currentStatus.Status == "checked_out" {
-		return s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
+		result, err = s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
+	} else {
+		result, err = s.performCheckOut(ctx, studentID, authorizedStaffID, now, checkoutTypeToggle)
+	}
+	if err != nil {
+		return nil, err
 	}
 
-	return s.performCheckOut(ctx, studentID, authorizedStaffID, now, checkoutTypeToggle)
+	// A staff member handling a kiosk-driven attendance toggle is physically
+	// on site — auto-open their work session so they show as "Anwesend"
+	// (issue #1439). Web-side toggles are excluded: staff may act remotely.
+	if device.IsIoTDeviceRequest(ctx) {
+		s.ensureStaffPresence(ctx, authorizedStaffID, active.WorkSessionSourceNFC)
+	}
+
+	return result, nil
+}
+
+// ensureStaffPresence best-effort-opens today's work session for the staff
+// member so the triggering action marks them present (issue #1439). Mirrors
+// the auto-stamp on kiosk session start (assignMultipleSupervisorsNonCritical):
+// failures are logged, never returned, and an already-closed session for
+// today is left untouched (EnsureCheckedIn returns nil, nil).
+func (s *service) ensureStaffPresence(ctx context.Context, staffID int64, source string) {
+	if staffID <= 0 || s.WorkSessionService == nil {
+		return
+	}
+	session, err := s.WorkSessionService.EnsureCheckedIn(ctx, staffID, source)
+	if err != nil {
+		s.getLogger().WarnContext(ctx, "auto work-session check-in failed",
+			slog.Int64("staff_id", staffID),
+			slog.String("source", source),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	if session == nil {
+		s.getLogger().DebugContext(ctx, "staff already checked out today, presence auto-stamp skipped",
+			slog.Int64("staff_id", staffID),
+		)
+	}
 }
 
 // CheckInStudent applies "in" unconditionally. Concurrency-safe: the

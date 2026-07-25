@@ -207,7 +207,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.SchoolService, nil))
+		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.SchoolService, nil, nil))
 		r.Use(tenant.TenantTxMiddleware(rs.DB))
 
 		// RFID tag assignment endpoint

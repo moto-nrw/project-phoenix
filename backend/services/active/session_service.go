@@ -13,6 +13,7 @@ import (
 
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -639,6 +640,17 @@ func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupI
 
 	if err := s.replaceSupervisorsInTransaction(ctx, activeGroupID, uniqueSupervisors); err != nil {
 		return nil, &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: err}
+	}
+
+	// Supervisor takeover/handover means these staff members are on site —
+	// auto-open their work sessions so they show as "Anwesend" (issue #1439).
+	// Same best-effort semantics as the session-start auto-stamp.
+	source := active.WorkSessionSourceApp
+	if device.IsIoTDeviceRequest(ctx) {
+		source = active.WorkSessionSourceNFC
+	}
+	for staffID := range uniqueSupervisors {
+		s.ensureStaffPresence(ctx, staffID, source)
 	}
 
 	updatedGroup, err := s.GroupRepo.FindWithSupervisors(ctx, activeGroupID)

@@ -1147,6 +1147,18 @@ func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrDatabaseOperation}
 	}
 
+	// Taking over a supervision that starts today means the staff member is
+	// working right now — auto-open their work session so they show as
+	// "Anwesend" (issue #1439). Kiosk-driven session starts already do this
+	// in assignMultipleSupervisorsNonCritical; this covers the web app path.
+	if supervisor.StartDate == timezone.TodayDate() {
+		source := active.WorkSessionSourceApp
+		if device.IsIoTDeviceRequest(ctx) {
+			source = active.WorkSessionSourceNFC
+		}
+		s.ensureStaffPresence(ctx, supervisor.StaffID, source)
+	}
+
 	return nil
 }
 
