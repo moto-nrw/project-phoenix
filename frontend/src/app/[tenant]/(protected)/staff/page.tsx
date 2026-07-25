@@ -8,8 +8,11 @@ import type {
   FilterConfig,
   ActiveFilter,
 } from "~/components/ui/page-header/types";
-import { staffService } from "~/lib/staff-api";
-import type { Staff } from "~/lib/staff-api";
+import {
+  staffMonthCloseService,
+  staffService,
+  type Staff,
+} from "~/lib/staff-api";
 import {
   getStaffDisplayType,
   getStaffCardInfo,
@@ -32,7 +35,6 @@ import {
 } from "~/components/staff/staff-time-accounts-table";
 import { MonthCloseReasonModal } from "~/components/staff/month-close-modal";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { staffMonthCloseService } from "~/lib/staff-api";
 import { useSWRConfig } from "swr";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { staffOverviewService } from "~/lib/staff-overview-api";
