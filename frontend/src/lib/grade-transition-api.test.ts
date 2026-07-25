@@ -1,8 +1,9 @@
 // grade-transition-api.test.ts
 // Mapper tests for the Jahrgangsstufenwechsel admin API client (#405)
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
+  listGradeTransitions,
   mapTransition,
   mapPreview,
   mapResult,
@@ -182,5 +183,69 @@ describe("mapHistoryEntry", () => {
       action: "graduated",
       createdAt: "2026-08-01T06:00:00Z",
     });
+  });
+});
+
+describe("listGradeTransitions", () => {
+  const makeRow = (id: number): BackendGradeTransition => ({
+    id,
+    academic_year: "2026-2027",
+    status: "applied",
+    created_at: "2026-07-24T09:00:00Z",
+    created_by: 1,
+    can_modify: false,
+    can_apply: false,
+    can_revert: true,
+  });
+
+  const page = (from: number, count: number) =>
+    Array.from({ length: count }, (_, i) => makeRow(from + i));
+
+  const stubFetch = (pages: BackendGradeTransition[][]) => {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        urls.push(url);
+        const requested = Number(/[?&]page=(\d+)/.exec(url)?.[1] ?? "1");
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ data: pages[requested - 1] ?? [] }),
+        } as unknown as Response);
+      }),
+    );
+    return urls;
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("stops after a short page", async () => {
+    const urls = stubFetch([page(1, 3)]);
+    const result = await listGradeTransitions();
+    expect(result.map((t) => t.id)).toEqual(["1", "2", "3"]);
+    expect(urls).toHaveLength(1);
+  });
+
+  it("keeps fetching while pages come back full", async () => {
+    // 100 + 100 + 1: the last applied transition sits on page three and would be
+    // invisible to a single-page fetch — the revert dialog would then target a
+    // stale row and 409 forever (#405 review).
+    const urls = stubFetch([page(1, 100), page(101, 100), page(201, 1)]);
+    const result = await listGradeTransitions();
+    expect(result).toHaveLength(201);
+    expect(result.at(-1)?.id).toBe("201");
+    expect(urls).toHaveLength(3);
+  });
+
+  it("dedupes rows that shift across page boundaries", async () => {
+    // A concurrent insert pushes rows down under created_at DESC, so the same id
+    // can appear on two pages.
+    const urls = stubFetch([page(1, 100), [makeRow(100), ...page(101, 2)]]);
+    const result = await listGradeTransitions();
+    expect(result).toHaveLength(102);
+    expect(new Set(result.map((t) => t.id)).size).toBe(102);
+    expect(urls).toHaveLength(2);
   });
 });

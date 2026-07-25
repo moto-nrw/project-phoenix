@@ -160,3 +160,39 @@ func TestStudentRepository_AlumniExcludedFromSchoolClasses(t *testing.T) {
 	assert.NotContains(t, classes, alumniOnlyClass, "class with only alumni must disappear")
 	assert.Contains(t, classes, mixedClass, "class with remaining active students must stay")
 }
+
+// Import duplicate detection must not see alumni either. Before graduation
+// became a soft delete the row was gone, so a graduate could not collide with a
+// new child; with the row retained, an unfiltered lookup rejects that import as
+// already_exists (#405 review).
+func TestStudentRepository_FindByNameAndClassExcludesAlumni(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	class := fmt.Sprintf("1na-%s", suffix)
+	firstName := fmt.Sprintf("Namensvetter%s", suffix)
+
+	graduate := testpkg.CreateTestStudent(t, db, firstName, "Kid", class)
+	defer testpkg.CleanupActivityFixtures(t, db, graduate.ID)
+	setLifecycle(t, db, graduate.ID, users.StudentStatusAlumnus, nil, nil)
+
+	t.Run("graduate does not block a same-name import", func(t *testing.T) {
+		students, err := repos.Student.FindByNameAndClass(ctx, firstName, "Kid", class)
+		require.NoError(t, err)
+		assert.Empty(t, students, "alumnus must not surface as an import duplicate")
+	})
+
+	t.Run("an active namesake is still detected", func(t *testing.T) {
+		active := testpkg.CreateTestStudent(t, db, firstName, "Kid", class)
+		defer testpkg.CleanupActivityFixtures(t, db, active.ID)
+
+		students, err := repos.Student.FindByNameAndClass(ctx, firstName, "Kid", class)
+		require.NoError(t, err)
+		require.Len(t, students, 1)
+		assert.Equal(t, active.ID, students[0].ID)
+	})
+}

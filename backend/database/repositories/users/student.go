@@ -1716,6 +1716,12 @@ func (r *StudentRepository) PurgeAllPhotos(ctx context.Context) ([]string, error
 }
 
 // FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection)
+//
+// Alumni are excluded, matching the soft-delete default in List: graduation
+// keeps the student row around, and a graduate must not block the import of a
+// new child who happens to share their name and class. Before graduation became
+// a soft delete the row was gone and could not collide; leaving it visible here
+// would reject that import as already_exists (#405 review).
 func (r *StudentRepository) FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*users.Student, error) {
 	var students []*users.Student
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -1724,7 +1730,8 @@ func (r *StudentRepository) FindByNameAndClass(ctx context.Context, firstName, l
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
 		Where(`LOWER("person".first_name) = LOWER(?)`, firstName).
 		Where(`LOWER("person".last_name) = LOWER(?)`, lastName).
-		Where(`LOWER("student".school_class) = LOWER(?)`, schoolClass)
+		Where(`LOWER("student".school_class) = LOWER(?)`, schoolClass).
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
 
 	query = base.WithTenantFilter(ctx, query, "student")
 

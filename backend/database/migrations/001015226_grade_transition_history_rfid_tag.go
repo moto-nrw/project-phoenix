@@ -7,7 +7,10 @@ import (
 )
 
 const (
-	gradeTransitionHistoryRFIDTagVersion     = "1.15.225"
+	// 1.15.225 is taken on development (audit append-only grants), so this
+	// column lands on the next free version — a duplicate would panic
+	// SafeMigrationMap.Register at init and stop the binary from booting.
+	gradeTransitionHistoryRFIDTagVersion     = "1.15.226"
 	gradeTransitionHistoryRFIDTagDescription = "Ledger the RFID tag a graduate was holding so graduation can release it and a revert can hand it back"
 )
 

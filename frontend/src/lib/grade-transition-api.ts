@@ -363,12 +363,37 @@ async function readJSON<T>(response: Response): Promise<T> {
 // API calls
 // ---------------------------------------------------------------------------
 
+const LIST_PAGE_SIZE = 100;
+
+// Safety bound against a backend that ignores `page` and would loop forever —
+// 100 pages is 10.000 transitions, far past anything a school can produce, so
+// it never truncates in practice.
+const LIST_PAGE_LIMIT = 100;
+
+// Fetches every transition, not just the first page. The list feeds both the
+// table and the revert-target picker, and reverts must unwind newest-first: with
+// more than one page of rows, a single created_at DESC window can hide the only
+// revertable transition, or point the dialog at an applied row that is not the
+// latest — which 409s, refreshes the same truncated window, and re-picks the
+// same dead target (#405 review).
 export async function listGradeTransitions(): Promise<GradeTransition[]> {
-  const response = await fetch(`${BASE}?page_size=100`, {
-    cache: "no-store",
-  });
-  const data = await readJSON<BackendGradeTransition[]>(response);
-  return (data ?? []).map(mapTransition);
+  // created_at DESC: a row inserted between page fetches shifts the rows behind
+  // it, so pages can overlap. Keyed by id rather than concatenated.
+  const byID = new Map<number, BackendGradeTransition>();
+
+  for (let page = 1; page <= LIST_PAGE_LIMIT; page++) {
+    const response = await fetch(
+      `${BASE}?page=${page}&page_size=${LIST_PAGE_SIZE}`,
+      { cache: "no-store" },
+    );
+    const data = (await readJSON<BackendGradeTransition[]>(response)) ?? [];
+    for (const transition of data) {
+      byID.set(transition.id, transition);
+    }
+    if (data.length < LIST_PAGE_SIZE) break;
+  }
+
+  return Array.from(byID.values()).map(mapTransition);
 }
 
 export async function getGradeTransition(id: string): Promise<GradeTransition> {

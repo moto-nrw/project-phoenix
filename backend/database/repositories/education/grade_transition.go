@@ -20,6 +20,15 @@ const (
 	tableGradeTransitionHistory  = "education.grade_transition_history"
 	orderByCreatedAtDesc         = "created_at DESC"
 	whereTransitionID            = "transition_id = ?"
+
+	// UNIQUE (tenant_id, tag_id) on users.persons, created by migration
+	// 1.14.3. RestoreStudentTag matches 23505 against this name to tell the
+	// "somebody else holds the tag" race apart from a real failure.
+	personsTenantTagUniqueIndex = "idx_persons_tenant_tag"
+	// Savepoint guarding that single UPDATE. Reverts restore tags one student
+	// at a time and each savepoint is released before the next is taken, so
+	// reusing one name is safe.
+	restoreStudentTagSavepoint = "restore_student_tag"
 )
 
 // GradeTransitionRepository implements education.GradeTransitionRepository interface
@@ -958,12 +967,29 @@ func (r *GradeTransitionRepository) ReleaseStudentTagsByIDs(ctx context.Context,
 // somebody else — the bracelet was reissued while they were gone, and the
 // current holder wins (users.persons carries UNIQUE (tenant_id, tag_id), so
 // overwriting is not even an option).
+//
+// The NOT EXISTS holder check reads the statement snapshot, so a tag handed out
+// after that read but before this UPDATE reaches the unique index arrives as a
+// 23505 rather than a zero-row result. That is the same "current holder wins"
+// outcome and must not fail the revert — but a raw 23505 aborts the surrounding
+// transaction, so the write runs inside a savepoint that is rolled back on
+// exactly that violation (#405 review).
 func (r *GradeTransitionRepository) RestoreStudentTag(ctx context.Context, studentID int64, tagID string) (bool, error) {
 	if tagID == "" {
 		return false, nil
 	}
 
 	tenantID := tenant.FromContext(ctx)
+
+	tx, inTx := modelBase.TxFromContext(ctx)
+	if inTx {
+		if _, err := tx.ExecContext(ctx, "SAVEPOINT "+restoreStudentTagSavepoint); err != nil {
+			return false, &modelBase.DatabaseError{
+				Op:  "restore student rfid tag savepoint",
+				Err: err,
+			}
+		}
+	}
 
 	updQuery := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*struct{})(nil)).
@@ -980,9 +1006,31 @@ func (r *GradeTransitionRepository) RestoreStudentTag(ctx context.Context, stude
 
 	result, err := updQuery.Exec(ctx)
 	if err != nil {
+		if modelBase.IsUniqueViolationOn(err, personsTenantTagUniqueIndex) {
+			// Somebody claimed the tag in the gap. Undo the failed statement so
+			// the revert transaction stays usable, and report "not re-linked".
+			if inTx {
+				if _, rbErr := tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT "+restoreStudentTagSavepoint); rbErr != nil {
+					return false, &modelBase.DatabaseError{
+						Op:  "restore student rfid tag rollback to savepoint",
+						Err: rbErr,
+					}
+				}
+			}
+			return false, nil
+		}
 		return false, &modelBase.DatabaseError{
 			Op:  "restore student rfid tag",
 			Err: err,
+		}
+	}
+
+	if inTx {
+		if _, err := tx.ExecContext(ctx, "RELEASE SAVEPOINT "+restoreStudentTagSavepoint); err != nil {
+			return false, &modelBase.DatabaseError{
+				Op:  "restore student rfid tag release savepoint",
+				Err: err,
+			}
 		}
 	}
 

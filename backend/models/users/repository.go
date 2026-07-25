@@ -120,7 +120,9 @@ type StudentRepository interface {
 	// FindAllWithGroups retrieves all students with their group names (LEFT JOIN for students without groups)
 	FindAllWithGroups(ctx context.Context) ([]*StudentWithGroupInfo, error)
 
-	// FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection)
+	// FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection).
+	// Alumni are excluded: a graduate is soft-deleted and must not block the
+	// import of a new child sharing their name and class.
 	FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*Student, error)
 
 	// UpdateStatus changes a student's lifecycle status. Tenant-scoped via context.
