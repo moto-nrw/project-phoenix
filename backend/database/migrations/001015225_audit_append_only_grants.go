@@ -71,8 +71,13 @@ func auditAppendOnlyGrantsUp(ctx context.Context, db *bun.DB) error {
 	//   work_session_edits   — time-tracking edit trail; rows disappear only
 	//                          through the ON DELETE CASCADE from
 	//                          active.work_sessions during retention cleanup.
+	//
+	// TRUNCATE is revoked alongside them. The 1.14.1 default ACL never handed
+	// it out, so this is a no-op today — but a table nobody may DELETE from is
+	// not append-only while it can still be emptied in one statement, and
+	// stating it here makes the guarantee explicit rather than accidental.
 	if _, err := db.NewRaw(`
-		REVOKE UPDATE, DELETE ON
+		REVOKE UPDATE, DELETE, TRUNCATE ON
 			audit.auth_events,
 			audit.data_access_log,
 			audit.data_deletions,
@@ -81,7 +86,7 @@ func auditAppendOnlyGrantsUp(ctx context.Context, db *bun.DB) error {
 			audit.work_session_edits
 		FROM phoenix_tenant;
 	`).Exec(ctx); err != nil {
-		return fmt.Errorf("failed revoking tenant UPDATE/DELETE on append-only audit tables: %w", err)
+		return fmt.Errorf("failed revoking tenant UPDATE/DELETE/TRUNCATE on append-only audit tables: %w", err)
 	}
 
 	// Append-only plus tenant-scoped retention: DELETE must stay.
@@ -95,13 +100,17 @@ func auditAppendOnlyGrantsUp(ctx context.Context, db *bun.DB) error {
 	//                            Resolve(), is an operator-portal action and runs
 	//                            under phoenix_admin (operator requests carry no
 	//                            tenant, so TenantTxMiddleware opens no tenant tx).
+	//
+	// The retention jobs delete row by row (DeleteOlderThan with a date
+	// predicate), so TRUNCATE goes here too — wiping the whole table is never
+	// a legitimate tenant operation.
 	if _, err := db.NewRaw(`
-		REVOKE UPDATE ON
+		REVOKE UPDATE, TRUNCATE ON
 			audit.deviation_events,
 			audit.unregistered_tag_scans
 		FROM phoenix_tenant;
 	`).Exec(ctx); err != nil {
-		return fmt.Errorf("failed revoking tenant UPDATE on retention-cleaned audit tables: %w", err)
+		return fmt.Errorf("failed revoking tenant UPDATE/TRUNCATE on retention-cleaned audit tables: %w", err)
 	}
 
 	// One-off migration backups (1.15.45 room colours, 1.15.48 WC aliases).
@@ -122,10 +131,11 @@ func auditAppendOnlyGrantsUp(ctx context.Context, db *bun.DB) error {
 	// Root cause: stop the schema-wide default ACL from handing UPDATE/DELETE
 	// to every future audit table. New tables now start append-only and a
 	// migration that genuinely needs more has to grant it explicitly — which
-	// is exactly the decision a reviewer should see.
+	// is exactly the decision a reviewer should see. TRUNCATE is included so
+	// the default cannot start handing it out either.
 	if _, err := db.NewRaw(`
 		ALTER DEFAULT PRIVILEGES IN SCHEMA audit
-			REVOKE UPDATE, DELETE ON TABLES FROM phoenix_tenant;
+			REVOKE UPDATE, DELETE, TRUNCATE ON TABLES FROM phoenix_tenant;
 	`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed narrowing default privileges on schema audit: %w", err)
 	}
@@ -136,6 +146,10 @@ func auditAppendOnlyGrantsUp(ctx context.Context, db *bun.DB) error {
 
 func auditAppendOnlyGrantsDown(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Rolling back migration 1.15.225: Restoring tenant UPDATE/DELETE on the audit schema...")
+
+	// TRUNCATE is deliberately NOT restored anywhere below: the 1.14.1 default
+	// ACL never granted it, so re-granting would leave the database in a state
+	// it was never in before this migration.
 
 	if _, err := db.NewRaw(`
 		ALTER DEFAULT PRIVILEGES IN SCHEMA audit

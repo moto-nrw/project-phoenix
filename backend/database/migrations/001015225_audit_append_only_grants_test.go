@@ -33,6 +33,15 @@ var auditDeleteAllowlist = map[string]string{
 // actions run with the table owner's privileges.
 var auditUpdateAllowlist = map[string]string{}
 
+// allTablePrivileges is the complete PostgreSQL 17 table privilege set. Checking
+// only SELECT/INSERT/UPDATE/DELETE would let a lone TRUNCATE (or REFERENCES,
+// TRIGGER, MAINTAIN) grant slip through an assertion that claims "no privilege
+// at all".
+var allTablePrivileges = []string{
+	"SELECT", "INSERT", "UPDATE", "DELETE",
+	"TRUNCATE", "REFERENCES", "TRIGGER", "MAINTAIN",
+}
+
 func auditSchemaTables(t *testing.T, db *bun.DB) []string {
 	t.Helper()
 	var tables []string
@@ -44,6 +53,23 @@ func auditSchemaTables(t *testing.T, db *bun.DB) []string {
 		ORDER BY c.relname
 	`).Scan(context.Background(), &tables))
 	return tables
+}
+
+// tenantACLEntries returns the raw aclitem strings granted to phoenix_tenant on
+// an audit table, e.g. "phoenix_tenant=arD/postgres". Empty means the role holds
+// no directly granted privilege of any kind.
+func tenantACLEntries(t *testing.T, db *bun.DB, table string) []string {
+	t.Helper()
+	var entries []string
+	require.NoError(t, db.NewRaw(`
+		SELECT acl::text
+		FROM pg_class c
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		CROSS JOIN LATERAL unnest(COALESCE(c.relacl, '{}'::aclitem[])) AS acl
+		WHERE n.nspname = 'audit' AND c.relname = ?
+		  AND acl::text LIKE 'phoenix_tenant=%'
+	`, table).Scan(context.Background(), &entries))
+	return entries
 }
 
 func tenantHasPrivilege(t *testing.T, db *bun.DB, relation, privilege string) bool {
@@ -75,22 +101,46 @@ func TestAuditSchemaAppendOnlyForTenantRole(t *testing.T) {
 					"granted it explicitly.", relation)
 		}
 
-		if _, allowed := auditDeleteAllowlist[table]; !allowed {
+		if reason, allowed := auditDeleteAllowlist[table]; allowed {
+			// The allowlist is a requirement, not an exemption: revoking DELETE
+			// from one of these breaks the nightly retention job with
+			// "permission denied" — a failure that surfaces in production logs
+			// at 02:00, not in CI. Assert the privilege is actually there.
+			assert.Truef(t, tenantHasPrivilege(t, db, relation, "DELETE"),
+				"%s: phoenix_tenant MUST hold DELETE — %s. Without it the job fails under "+
+					"phoenix_tenant. Drop the allowlist entry only together with the job.", relation, reason)
+		} else {
 			assert.Falsef(t, tenantHasPrivilege(t, db, relation, "DELETE"),
 				"%s: phoenix_tenant must not hold DELETE. If a retention job needs it, add the "+
 					"table to auditDeleteAllowlist with a reason; if rows expire through an "+
 					"ON DELETE CASCADE, no privilege is required.", relation)
 		}
+
+		// TRUNCATE has no allowlist: the retention jobs delete row by row with a
+		// date predicate, so nothing legitimately empties an audit table under
+		// the tenant role — and an append-only table that can be truncated in
+		// one statement is not append-only.
+		assert.Falsef(t, tenantHasPrivilege(t, db, relation, "TRUNCATE"),
+			"%s: phoenix_tenant must not hold TRUNCATE — it erases the whole audit table "+
+				"in one statement, DELETE-allowlist or not.", relation)
 	}
 
 	// The one-off migration backups carry no RLS, so any tenant-role access
 	// would cross tenant borders. Restores run as phoenix_admin/superuser.
+	// Check the COMPLETE PostgreSQL table privilege set, not just the four
+	// obvious ones: TRUNCATE alone would let the tenant role erase the
+	// cross-tenant backup contents.
 	for _, table := range []string{"room_color_migration_backup", "wc_alias_migration_backup"} {
 		relation := "audit." + table
-		for _, privilege := range []string{"SELECT", "INSERT", "UPDATE", "DELETE"} {
+		for _, privilege := range allTablePrivileges {
 			assert.Falsef(t, tenantHasPrivilege(t, db, relation, privilege),
 				"%s: phoenix_tenant must hold no %s — the table has no RLS policy", relation, privilege)
 		}
+		// Belt and braces against a privilege type a future PostgreSQL adds and
+		// allTablePrivileges does not know about yet: the table ACL must carry
+		// no phoenix_tenant entry whatsoever.
+		assert.Emptyf(t, tenantACLEntries(t, db, table), //nolint:testifylint // Empty reads better than Len(…, 0) here
+			"audit.%s: table ACL still carries a phoenix_tenant grant", table)
 	}
 }
 
@@ -116,11 +166,12 @@ func TestAuditSchemaDefaultACLIsAppendOnly(t *testing.T) {
 			continue
 		}
 		privileges, _, _ := strings.Cut(rest, "/")
-		assert.NotContainsf(t, privileges, "w",
-			"default ACL on schema audit still grants phoenix_tenant UPDATE (%s) — "+
-				"every future audit table would start mutable", item)
-		assert.NotContainsf(t, privileges, "d",
-			"default ACL on schema audit still grants phoenix_tenant DELETE (%s) — "+
-				"every future audit table would start deletable", item)
+		// aclitem privilege letters (case-sensitive): w=UPDATE, d=DELETE,
+		// D=TRUNCATE. r=SELECT and a=INSERT are what an audit table needs.
+		for letter, privilege := range map[string]string{"w": "UPDATE", "d": "DELETE", "D": "TRUNCATE"} {
+			assert.NotContainsf(t, privileges, letter,
+				"default ACL on schema audit still grants phoenix_tenant %s (%s) — "+
+					"every future audit table would start with it", privilege, item)
+		}
 	}
 }
