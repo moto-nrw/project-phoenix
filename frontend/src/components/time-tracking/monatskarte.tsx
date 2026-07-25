@@ -301,7 +301,7 @@ export function Monatskarte({
           </p>
           <p className="mt-1">
             Zwei Wege zur Korrektur: die Differenz im offenen Monat als Buchung
-            im Stundenkonto erfassen (Übersicht-Tab, empfohlen) — oder den Monat
+            im Stundenkonto erfassen (Übersicht-Tab, empfohlen), oder den Monat
             wieder öffnen, wenn der Abschluss selbst falsch war.
           </p>
         </div>

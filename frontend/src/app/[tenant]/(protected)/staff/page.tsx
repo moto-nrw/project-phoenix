@@ -524,6 +524,10 @@ function StaffPageContent() {
                 Übertrag stehen; die Abweichung wird auf der Monatskarte der
                 Person angezeigt.
               </p>
+              <p>
+                Bereits abgeschlossene Konten bleiben unverändert; nur offene
+                Konten werden eingefroren.
+              </p>
             </>
           }
           submitLabel="Monat abschließen"

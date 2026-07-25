@@ -286,12 +286,27 @@ export function StaffTimeAccountsTable({
               Monat abschließen
             </Button>
           )}
+          {/* Nach dem Reopen einer einzelnen Person gilt der Monat weiter als
+              abgeschlossen (aktive Snapshots der übrigen). Ohne diesen Weg
+              ließe sich das wieder geöffnete Konto nie erneut einfrieren; der
+              Backend-Abschluss ist idempotent und überspringt bereits
+              abgeschlossene Konten. */}
+          {monthClose !== null && monthClose.closed && monthIsOver && (
+            <Button
+              type="button"
+              size="compact"
+              variant="ghost"
+              onClick={onCloseMonth}
+            >
+              Erneut abschließen
+            </Button>
+          )}
         </div>
       </div>
       {monthClose !== null && !monthClose.closed && !monthIsOver && (
         <p className="text-xs text-gray-500">
           Der Abschluss friert den Stand zum Monatsende ein. Für den laufenden
-          Monat gibt es diesen Stand noch nicht — abschließen geht ab dem 1. des
+          Monat gibt es diesen Stand noch nicht; abschließen geht ab dem 1. des
           Folgemonats.
         </p>
       )}

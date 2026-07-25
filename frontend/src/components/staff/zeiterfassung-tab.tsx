@@ -304,7 +304,7 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
                 <p>
                   Nur nötig, wenn der Abschluss selbst falsch war. Für eine
                   einzelne Nachkorrektur ist eine Buchung im offenen Monat
-                  (Übersicht-Tab, Stundenkonto) meist der bessere Weg — der
+                  (Übersicht-Tab, Stundenkonto) meist der bessere Weg; der
                   Abschluss bleibt dann bestehen.
                 </p>
               </>
