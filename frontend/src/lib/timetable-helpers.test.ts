@@ -15,6 +15,7 @@ import {
   getActivityTypeBadge,
   getCurrentTimeOffset,
   getEventBlockPosition,
+  getGermanWeekdayAdverb,
   getGermanWeekdayLong,
   getGermanWeekdayShort,
   getMonthDays,
@@ -215,6 +216,19 @@ describe("date and range helpers", () => {
     expect(formatYearLabel(monday)).toBe("2026");
     expect(getGermanWeekdayLong(monday)).toBe("Montag");
     expect(getGermanWeekdayShort(monday)).toBe("Mo");
+  });
+
+  it.each([
+    ["Montag", "montags"],
+    ["Dienstag", "dienstags"],
+    ["Mittwoch", "mittwochs"],
+    ["Donnerstag", "donnerstags"],
+    ["Freitag", "freitags"],
+    ["Samstag", "samstags"],
+    ["Sonntag", "sonntags"],
+    ["", ""],
+  ])("formats %j as the recurring weekday adverb %j", (weekday, expected) => {
+    expect(getGermanWeekdayAdverb(weekday)).toBe(expected);
   });
 });
 
