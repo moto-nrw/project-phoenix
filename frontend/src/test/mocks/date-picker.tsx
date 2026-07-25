@@ -42,6 +42,9 @@ export function isoDatePickerMock() {
         <input
           type="date"
           id={id}
+          // The native inputs these replaced carried a name; tests that query
+          // by it keep working when the stub mirrors the id.
+          name={id}
           aria-label={ariaLabel}
           value={value}
           min={min}

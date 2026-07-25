@@ -6,6 +6,19 @@ import "@testing-library/jest-dom/vitest";
 // Mocks
 // ============================================================================
 
+// The date and datetime fields moved from native inputs to the kit pickers;
+// these stubs keep them settable via fireEvent.change. Imported inside the
+// factories because vi.mock is hoisted above the imports.
+vi.mock("~/components/ui/date-picker", async (importOriginal) => {
+  const { isoDatePickerMock } = await import("~/test/mocks/date-picker");
+  return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
+});
+
+vi.mock("~/components/ui/date-time-picker", async (importOriginal) => {
+  const { dateTimePickerMock } = await import("~/test/mocks/date-time-picker");
+  return { ...(await importOriginal<object>()), ...dateTimePickerMock() };
+});
+
 const { mockCreateRollover } = vi.hoisted(() => ({
   mockCreateRollover: vi.fn(),
 }));

@@ -12,6 +12,8 @@ import {
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { ISODatePicker } from "~/components/ui/date-picker";
+import { DateTimePicker } from "~/components/ui/date-time-picker";
 
 const logger = createLogger({ component: "RolloverForm" });
 
@@ -193,32 +195,44 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
           Betreuungszeitraum
         </legend>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="block text-xs font-semibold text-gray-700">
+          <div className="block">
+            <label
+              htmlFor="rollover-service-start"
+              className="block text-xs font-semibold text-gray-700"
+            >
               Betreuung von
-            </span>
-            <input
+            </label>
+            <ISODatePicker
               id="rollover-service-start"
-              type="date"
-              required
+              ariaLabel="Betreuung von"
               value={draft.service_start_date}
-              onChange={(e) => update("service_start_date", e.target.value)}
-              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              onChange={(next) => update("service_start_date", next)}
+              className="mt-1"
+              calendarLayout="popover"
+              // handleSubmit never validated these itself, it relied on the
+              // native `required`. All three fields arrive prefilled from the
+              // source phase and can no longer be cleared, so they stay set.
+              hideClearButton
             />
-          </label>
-          <label className="block">
-            <span className="block text-xs font-semibold text-gray-700">
+          </div>
+          <div className="block">
+            <label
+              htmlFor="rollover-service-end"
+              className="block text-xs font-semibold text-gray-700"
+            >
               Betreuung bis
-            </span>
-            <input
+            </label>
+            <ISODatePicker
               id="rollover-service-end"
-              type="date"
-              required
+              ariaLabel="Betreuung bis"
+              min={draft.service_start_date || undefined}
               value={draft.service_end_date}
-              onChange={(e) => update("service_end_date", e.target.value)}
-              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              onChange={(next) => update("service_end_date", next)}
+              className="mt-1"
+              calendarLayout="popover"
+              hideClearButton
             />
-          </label>
+          </div>
         </div>
       </fieldset>
 
@@ -256,19 +270,26 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
                 : "Eltern müssen aktiv bestätigen. Ohne Bestätigung bis zur Frist wird die Anmeldung zurückgezogen."}
             </p>
           </label>
-          <label className="block">
-            <span className="block text-xs font-semibold text-gray-700">
+          <div className="block">
+            <label
+              htmlFor="rollover-deadline"
+              className="block text-xs font-semibold text-gray-700"
+            >
               Frist für die Eltern-Antwort
-            </span>
-            <input
+            </label>
+            <DateTimePicker
               id="rollover-deadline"
-              type="datetime-local"
-              required
+              dateAriaLabel="Frist für die Eltern-Antwort"
+              timeAriaLabel="Frist Uhrzeit"
+              className="mt-1"
               value={deadlineLocal}
-              onChange={(e) => setDeadlineLocal(e.target.value)}
-              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              onChange={setDeadlineLocal}
+              // A deadline without an explicit time should run to the end of the
+              // chosen day, not expire at midnight.
+              defaultTime="23:59"
+              hideClearButton
             />
-          </label>
+          </div>
         </div>
       </fieldset>
 

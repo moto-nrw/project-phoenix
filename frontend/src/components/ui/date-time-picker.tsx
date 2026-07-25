@@ -38,6 +38,7 @@ export function DateTimePicker({
   // caller decides rather than silently getting midnight.
   defaultTime = "00:00",
   calendarLayout = "popover",
+  hideClearButton = false,
 }: {
   /** "YYYY-MM-DDTHH:mm" in local time, or "" when unset. */
   readonly value: string;
@@ -53,6 +54,8 @@ export function DateTimePicker({
   readonly invalid?: boolean;
   readonly defaultTime?: string;
   readonly calendarLayout?: "overlay" | "inline" | "popover";
+  /** Hide the clear control. Use when the value is required. */
+  readonly hideClearButton?: boolean;
 }) {
   const { day, time } = splitLocal(value);
   const minParts = splitLocal(min ?? "");
@@ -71,6 +74,7 @@ export function DateTimePicker({
           onChange(`${nextDay}T${time || defaultTime}`);
         }}
         disabled={disabled}
+        hideClearButton={hideClearButton}
         calendarLayout={calendarLayout}
         ariaLabel={dateAriaLabel}
         invalid={invalid}
