@@ -1211,9 +1211,10 @@ function PhaseForm(props: PhaseFormProps) {
           />
         </label>
 
-        <label className="block" htmlFor="phase-kind">
+        <label className="block" htmlFor="phase-kind" id="phase-kind-label">
           <span className="text-xs font-medium text-gray-700">Typ</span>
           <CustomSelect
+            ariaLabelledBy="phase-kind-label"
             id="phase-kind"
             value={draft.kind}
             onChange={(value) => update({ kind: value as PhaseKind })}
@@ -1232,11 +1233,16 @@ function PhaseForm(props: PhaseFormProps) {
           Betreuungszeitraum
         </legend>
         {periods.length > 0 && (
-          <label className="mb-3 block" htmlFor="phase-calendar-period">
+          <label
+            className="mb-3 block"
+            htmlFor="phase-calendar-period"
+            id="phase-calendar-period-label"
+          >
             <span className="text-xs text-gray-600">
               Kalenderzeitraum (optional)
             </span>
             <CustomSelect
+              ariaLabelledBy="phase-calendar-period-label"
               id="phase-calendar-period"
               value={draft.calendar_period_id ?? ""}
               onChange={(value) => {
@@ -1478,11 +1484,16 @@ function PhaseForm(props: PhaseFormProps) {
       </fieldset>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block" htmlFor="phase-care-selection-mode">
+        <label
+          className="block"
+          htmlFor="phase-care-selection-mode"
+          id="phase-care-selection-mode-label"
+        >
           <span className="text-xs font-medium text-gray-700">
             Betreuungsauswahl
           </span>
           <CustomSelect
+            ariaLabelledBy="phase-care-selection-mode-label"
             id="phase-care-selection-mode"
             value={draft.care_offering_selection_mode}
             onChange={(value) =>
@@ -1509,11 +1520,16 @@ function PhaseForm(props: PhaseFormProps) {
           </span>
         </label>
 
-        <label className="block" htmlFor="phase-care-overflow-mode">
+        <label
+          className="block"
+          htmlFor="phase-care-overflow-mode"
+          id="phase-care-overflow-mode-label"
+        >
           <span className="text-xs font-medium text-gray-700">
             Verhalten bei voller Betreuung
           </span>
           <CustomSelect
+            ariaLabelledBy="phase-care-overflow-mode-label"
             id="phase-care-overflow-mode"
             value={draft.care_overflow_mode}
             onChange={(value) =>

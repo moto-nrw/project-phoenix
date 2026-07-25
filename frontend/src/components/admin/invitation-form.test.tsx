@@ -128,9 +128,17 @@ describe("InvitationForm", () => {
     render(<InvitationForm />);
 
     await waitFor(() => {
-      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+      expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
-    expect(screen.queryByText("Lehrkraft")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("Rolle"));
+
+    expect(
+      screen.getByRole("option", { name: "Betreuer" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "Lehrkraft" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders position input with placeholder", async () => {
@@ -180,7 +188,7 @@ describe("InvitationForm", () => {
 
     // Wait for roles to load
     await waitFor(() => {
-      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+      expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
     const submitButton = screen.getByText("Einladung senden");
@@ -214,14 +222,15 @@ describe("InvitationForm", () => {
 
     // Wait for roles to load first
     await waitFor(() => {
-      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+      expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
     const emailInput = screen.getByTestId("invitation-email");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const roleSelect = screen.getByLabelText("Rolle");
-    fireEvent.change(roleSelect, { target: { value: "1" } });
+    fireEvent.click(roleSelect);
+    fireEvent.click(screen.getByRole("option", { name: "Betreuer" }));
 
     const submitButton = screen.getByText("Einladung senden");
     fireEvent.click(submitButton);
@@ -241,14 +250,15 @@ describe("InvitationForm", () => {
 
     // Wait for roles to load first
     await waitFor(() => {
-      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+      expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
     const emailInput = screen.getByTestId("invitation-email");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const roleSelect = screen.getByLabelText("Rolle");
-    fireEvent.change(roleSelect, { target: { value: "1" } });
+    fireEvent.click(roleSelect);
+    fireEvent.click(screen.getByRole("option", { name: "Betreuer" }));
 
     const firstNameInput = screen.getByTestId("invitation-first-name");
     fireEvent.change(firstNameInput, { target: { value: "John" } });
@@ -280,14 +290,15 @@ describe("InvitationForm", () => {
 
     // Wait for roles to load first
     await waitFor(() => {
-      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+      expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
     const emailInput = screen.getByTestId("invitation-email");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const roleSelect = screen.getByLabelText("Rolle");
-    fireEvent.change(roleSelect, { target: { value: "1" } });
+    fireEvent.click(roleSelect);
+    fireEvent.click(screen.getByRole("option", { name: "Betreuer" }));
 
     const submitButton = screen.getByText("Einladung senden");
     fireEvent.click(submitButton);
@@ -302,14 +313,15 @@ describe("InvitationForm", () => {
 
     // Wait for roles to load first
     await waitFor(() => {
-      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+      expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
     const emailInput = screen.getByTestId("invitation-email");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const roleSelect = screen.getByLabelText("Rolle");
-    fireEvent.change(roleSelect, { target: { value: "1" } });
+    fireEvent.click(roleSelect);
+    fireEvent.click(screen.getByRole("option", { name: "Betreuer" }));
 
     const submitButton = screen.getByText("Einladung senden");
     fireEvent.click(submitButton);
@@ -326,14 +338,15 @@ describe("InvitationForm", () => {
 
     // Wait for roles to load first
     await waitFor(() => {
-      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+      expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
     const emailInput = screen.getByTestId("invitation-email");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const roleSelect = screen.getByLabelText("Rolle");
-    fireEvent.change(roleSelect, { target: { value: "1" } });
+    fireEvent.click(roleSelect);
+    fireEvent.click(screen.getByRole("option", { name: "Betreuer" }));
 
     const submitButton = screen.getByText("Einladung senden");
     fireEvent.click(submitButton);
@@ -357,14 +370,15 @@ describe("InvitationForm", () => {
     render(<InvitationForm />);
 
     await waitFor(() => {
-      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+      expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
     const emailInput = screen.getByTestId("invitation-email");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const roleSelect = screen.getByLabelText("Rolle");
-    fireEvent.change(roleSelect, { target: { value: "1" } });
+    fireEvent.click(roleSelect);
+    fireEvent.click(screen.getByRole("option", { name: "Betreuer" }));
 
     const submitButton = screen.getByText("Einladung senden");
     fireEvent.click(submitButton);
@@ -388,14 +402,15 @@ describe("InvitationForm", () => {
 
     // Wait for roles to load first
     await waitFor(() => {
-      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+      expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
     const emailInput = screen.getByTestId("invitation-email");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const roleSelect = screen.getByLabelText("Rolle");
-    fireEvent.change(roleSelect, { target: { value: "1" } });
+    fireEvent.click(roleSelect);
+    fireEvent.click(screen.getByRole("option", { name: "Betreuer" }));
 
     const submitButton = screen.getByText("Einladung senden");
     fireEvent.click(submitButton);
@@ -416,14 +431,15 @@ describe("InvitationForm", () => {
 
     // Wait for roles to load first
     await waitFor(() => {
-      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+      expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
     const emailInput = screen.getByTestId("invitation-email");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const roleSelect = screen.getByLabelText("Rolle");
-    fireEvent.change(roleSelect, { target: { value: "1" } });
+    fireEvent.click(roleSelect);
+    fireEvent.click(screen.getByRole("option", { name: "Betreuer" }));
 
     const submitButton = screen.getByText("Einladung senden");
     fireEvent.click(submitButton);
@@ -443,14 +459,15 @@ describe("InvitationForm", () => {
 
     // Wait for roles to load first
     await waitFor(() => {
-      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+      expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
     });
 
     const emailInput = screen.getByTestId("invitation-email");
     fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const roleSelect = screen.getByLabelText("Rolle");
-    fireEvent.change(roleSelect, { target: { value: "1" } });
+    fireEvent.click(roleSelect);
+    fireEvent.click(screen.getByRole("option", { name: "Betreuer" }));
 
     const submitButton = screen.getByText("Einladung senden");
     fireEvent.click(submitButton);
@@ -470,7 +487,7 @@ describe("InvitationForm", () => {
 
       // Wait for roles to load
       await waitFor(() => {
-        expect(screen.getByText("Betreuer")).toBeInTheDocument();
+        expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
       });
 
       const submitButton = screen.getByText("Einladung senden");
@@ -495,7 +512,7 @@ describe("InvitationForm", () => {
 
       // Wait for roles to load
       await waitFor(() => {
-        expect(screen.getByText("Betreuer")).toBeInTheDocument();
+        expect(screen.getByLabelText("Rolle")).not.toBeDisabled();
       });
 
       // Fill email but leave role empty

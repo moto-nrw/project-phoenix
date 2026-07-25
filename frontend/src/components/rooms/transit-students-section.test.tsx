@@ -236,9 +236,10 @@ describe("TransitStudentsSection", () => {
     expect(screen.getByText("Kinder ohne Raum")).toBeInTheDocument();
     expect(screen.getByText("Mila Sommer")).toBeInTheDocument();
     expect(screen.getByText("Noah Winter")).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Aula · Gruppe A" })).toHaveValue(
-      "101",
-    );
+    fireEvent.click(screen.getByLabelText("Zielraum"));
+    expect(
+      screen.getByRole("option", { name: "Aula · Gruppe A" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("option", { name: "Musikraum · Gruppe B" }),
     ).not.toBeInTheDocument();
@@ -270,12 +271,13 @@ describe("TransitStudentsSection", () => {
 
     render(<TransitStudentsSection />);
 
+    fireEvent.click(screen.getByLabelText("Zielraum"));
     expect(
       screen.queryByRole("option", { name: "Aula · Gruppe A" }),
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("option", { name: "Werkraum · Gruppe C" }),
-    ).toHaveValue("103");
+    ).toBeInTheDocument();
   });
 
   it("keeps all active target rooms visible for admins", () => {
@@ -311,12 +313,13 @@ describe("TransitStudentsSection", () => {
 
     render(<TransitStudentsSection />);
 
-    expect(screen.getByRole("option", { name: "Aula · Gruppe A" })).toHaveValue(
-      "101",
-    );
+    fireEvent.click(screen.getByLabelText("Zielraum"));
+    expect(
+      screen.getByRole("option", { name: "Aula · Gruppe A" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("option", { name: "Werkraum · Gruppe C" }),
-    ).toHaveValue("103");
+    ).toBeInTheDocument();
   });
 
   it("keeps all active target rooms visible in open-care mode", () => {
@@ -337,6 +340,7 @@ describe("TransitStudentsSection", () => {
 
     render(<TransitStudentsSection />);
 
+    fireEvent.click(screen.getByLabelText("Zielraum"));
     expect(
       screen.getByRole("option", { name: "Aula · Gruppe A" }),
     ).toBeInTheDocument();
@@ -361,9 +365,8 @@ describe("TransitStudentsSection", () => {
     render(<TransitStudentsSection />);
 
     fireEvent.click(screen.getByLabelText("Mila Sommer auswählen"));
-    fireEvent.change(screen.getByLabelText("Zielraum"), {
-      target: { value: "101" },
-    });
+    fireEvent.click(screen.getByLabelText("Zielraum"));
+    fireEvent.click(screen.getByRole("option", { name: "Aula · Gruppe A" }));
     fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
 
     await waitFor(() => {
@@ -445,9 +448,9 @@ describe("TransitStudentsSection", () => {
       screen.getByText("Aktuell keine Kinder unterwegs."),
     ).toBeInTheDocument();
     expect(screen.getByRole("combobox")).toBeDisabled();
-    expect(
-      screen.getByRole("option", { name: "Keine aktiven Räume" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toHaveTextContent(
+      "Keine aktiven Räume",
+    );
   });
 
   it("starts collapsed with a summary header when collapsible", () => {

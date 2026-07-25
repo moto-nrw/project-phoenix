@@ -503,7 +503,7 @@ describe("OperatorSchoolsPage", () => {
     });
 
     const orgSelect = screen.getByLabelText(/Träger/);
-    expect((orgSelect as HTMLSelectElement).value).toBe("1");
+    expect(orgSelect).toHaveTextContent("Test Org");
   });
 
   it("navigates to the school detail page when a row is clicked", () => {

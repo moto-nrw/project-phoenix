@@ -211,9 +211,12 @@ describe("StaffImportPage", () => {
     render(<StaffImportPage />);
 
     const select = screen.getByRole("combobox");
-    expect(select).toHaveValue("xlsx");
-    fireEvent.change(select, { target: { value: "csv" } });
-    expect(select).toHaveValue("csv");
+    expect(select).toHaveTextContent("Excel (.xlsx)");
+    fireEvent.click(select);
+    fireEvent.click(
+      screen.getByRole("option", { name: "CSV (Komma-getrennt)" }),
+    );
+    expect(select).toHaveTextContent("CSV (Komma-getrennt)");
   });
 
   it("calls the teacher template endpoint on download", async () => {

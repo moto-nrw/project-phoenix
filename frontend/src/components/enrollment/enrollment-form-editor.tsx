@@ -3433,6 +3433,7 @@ function FieldEditorRow({
                     ) : null}
                   </span>
                   <CustomSelect
+                    ariaLabel="Typ"
                     value={field.type}
                     onChange={(value) =>
                       onChange({ type: value as FormFieldType })
@@ -3727,11 +3728,16 @@ function ConditionEditor({
 
       {condition ? (
         <div className="mt-3 space-y-2">
-          <label className="block" htmlFor={`condition-${index}-source`}>
+          <label
+            className="block"
+            htmlFor={`condition-${index}-source`}
+            id={`condition-${index}-source-label`}
+          >
             <span className="text-xs font-medium text-gray-700">
               Sichtbar wenn
             </span>
             <CustomSelect
+              ariaLabelledBy={`condition-${index}-source-label`}
               id={`condition-${index}-source`}
               value={condition.source}
               onChange={(value) =>
@@ -3821,9 +3827,14 @@ function ConditionFieldControls({
 
   return (
     <>
-      <label className="block" htmlFor={`${idPrefix}-question`}>
+      <label
+        className="block"
+        htmlFor={`${idPrefix}-question`}
+        id={`${idPrefix}-question-label`}
+      >
         <span className="text-xs font-medium text-gray-700">Frage</span>
         <CustomSelect
+          ariaLabelledBy={`${idPrefix}-question-label`}
           id={`${idPrefix}-question`}
           value={condition.field ?? ""}
           onChange={changeController}
@@ -3836,9 +3847,14 @@ function ConditionFieldControls({
         />
       </label>
 
-      <label className="block" htmlFor={`${idPrefix}-operator`}>
+      <label
+        className="block"
+        htmlFor={`${idPrefix}-operator`}
+        id={`${idPrefix}-operator-label`}
+      >
         <span className="text-xs font-medium text-gray-700">Vergleich</span>
         <CustomSelect
+          ariaLabelledBy={`${idPrefix}-operator-label`}
           id={`${idPrefix}-operator`}
           value={condition.operator}
           onChange={(value) => changeOperator(value as ConditionOperator)}
@@ -3852,10 +3868,15 @@ function ConditionFieldControls({
       </label>
 
       {condition.operator !== "not_empty" && controller ? (
-        <label className="block" htmlFor={`${idPrefix}-value`}>
+        <label
+          className="block"
+          htmlFor={`${idPrefix}-value`}
+          id={`${idPrefix}-value-label`}
+        >
           <span className="text-xs font-medium text-gray-700">Wert</span>
           {controller.type === "boolean" ? (
             <CustomSelect
+              ariaLabelledBy={`${idPrefix}-value-label`}
               id={`${idPrefix}-value`}
               value={condition.value === true ? "true" : "false"}
               onChange={(value) => onPatch({ value: value === "true" })}
@@ -3868,6 +3889,7 @@ function ConditionFieldControls({
             />
           ) : (
             <CustomSelect
+              ariaLabelledBy={`${idPrefix}-value-label`}
               id={`${idPrefix}-value`}
               value={String(condition.value ?? "")}
               onChange={(value) => onPatch({ value })}
@@ -3898,9 +3920,14 @@ function ConditionGradeControls({
 }>) {
   return (
     <>
-      <label className="block" htmlFor={`${idPrefix}-operator`}>
+      <label
+        className="block"
+        htmlFor={`${idPrefix}-operator`}
+        id={`${idPrefix}-operator-label`}
+      >
         <span className="text-xs font-medium text-gray-700">Vergleich</span>
         <CustomSelect
+          ariaLabelledBy={`${idPrefix}-operator-label`}
           id={`${idPrefix}-operator`}
           value={condition.operator}
           onChange={(value) =>

@@ -357,7 +357,6 @@ export function TransitStudentsSection({
                     value: group.id,
                     label: buildSessionLabel(group),
                   }))}
-                  focusRingColor="focus:ring-gray-300"
                   className="bg-white text-sm md:text-sm"
                 />
                 <Button

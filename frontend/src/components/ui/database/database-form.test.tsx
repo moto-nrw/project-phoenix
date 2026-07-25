@@ -756,8 +756,13 @@ describe("DatabaseForm", () => {
 
     const select = screen.getByRole("combobox");
     expect(select).toBeInTheDocument();
-    expect(screen.getByText("Administrator")).toBeInTheDocument();
-    expect(screen.getByText("Benutzer")).toBeInTheDocument();
+    fireEvent.click(select);
+    expect(
+      screen.getByRole("option", { name: "Administrator" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Benutzer" }),
+    ).toBeInTheDocument();
   });
 
   it("renders textarea fields", () => {

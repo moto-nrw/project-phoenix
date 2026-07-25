@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { CustomSelect } from "~/components/ui/custom-select";
 import { Modal } from "~/components/ui/modal";
 import { createLogger } from "~/lib/logger";
 import type { StaffHistorySession } from "~/lib/staff-api";
@@ -223,35 +224,15 @@ export function AdminSessionEditModal({
             />
           </Field>
           <Field label="Status">
-            <div className="relative">
-              <select
-                value={status}
-                onChange={(e) =>
-                  setStatus(e.target.value as "present" | "home_office")
-                }
-                className="w-full appearance-none rounded-md border border-gray-200 px-3 py-2 pr-10 focus:border-[#83CD2D] focus:outline-none"
-              >
-                <option value="present">Vor Ort</option>
-                <option value="home_office">Homeoffice</option>
-              </select>
-              {/* Custom chevron — the native select arrow renders far to the
-                  right on macOS/Webkit, especially on wide controls. We hide
-                  it via appearance-none and draw our own at a sane offset.
-                  Matches the pattern in components/ui/database/database-form. */}
-              <svg
-                className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </div>
+            <CustomSelect
+              ariaLabel="Status"
+              value={status}
+              onChange={(next) => setStatus(next as "present" | "home_office")}
+              options={[
+                { value: "present", label: "Vor Ort" },
+                { value: "home_office", label: "Homeoffice" },
+              ]}
+            />
           </Field>
         </div>
         <Field label="Begründung *">

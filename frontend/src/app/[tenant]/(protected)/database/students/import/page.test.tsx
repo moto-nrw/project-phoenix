@@ -186,10 +186,13 @@ describe("StudentImportPage", () => {
     render(<StudentImportPage />);
 
     const select = screen.getByRole("combobox");
-    expect(select).toHaveValue("xlsx");
+    expect(select).toHaveTextContent("Excel (.xlsx)");
 
-    fireEvent.change(select, { target: { value: "csv" } });
-    expect(select).toHaveValue("csv");
+    fireEvent.click(select);
+    fireEvent.click(
+      screen.getByRole("option", { name: "CSV (Komma-getrennt)" }),
+    );
+    expect(select).toHaveTextContent("CSV (Komma-getrennt)");
   });
 
   it("calls API when download button is clicked", async () => {

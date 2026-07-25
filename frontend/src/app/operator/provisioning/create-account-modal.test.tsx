@@ -53,6 +53,14 @@ vi.mock("~/lib/logger", () => ({
 
 import { CreateAccountModal } from "./create-account-modal";
 
+function selectCustomOption(
+  labelMatcher: RegExp | string,
+  optionName: RegExp | string,
+) {
+  fireEvent.click(screen.getByLabelText(labelMatcher));
+  fireEvent.click(screen.getByRole("option", { name: optionName }));
+}
+
 const defaultRoles = [
   { id: "1", name: "admin" },
   { id: "2", name: "user" },
@@ -114,9 +122,7 @@ async function fillForm(overrides: Record<string, string> = {}) {
   await waitFor(() => {
     expect(screen.getByLabelText(/System-Rolle/)).not.toBeDisabled();
   });
-  fireEvent.change(screen.getByLabelText(/System-Rolle/), {
-    target: { value: "1" },
-  });
+  selectCustomOption(/System-Rolle/, "admin");
 }
 
 describe("CreateAccountModal", () => {
@@ -145,20 +151,29 @@ describe("CreateAccountModal", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("admin")).toBeInTheDocument();
-      expect(screen.getByText("user")).toBeInTheDocument();
+      expect(screen.getByLabelText(/System-Rolle/)).not.toBeDisabled();
     });
+    fireEvent.click(screen.getByLabelText(/System-Rolle/));
+
+    expect(screen.getByRole("option", { name: "admin" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "user" })).toBeInTheDocument();
   });
 
   it("filters out unsupported legacy roles from options", async () => {
     renderModal();
 
     await waitFor(() => {
-      expect(screen.getByText("admin")).toBeInTheDocument();
+      expect(screen.getByLabelText(/System-Rolle/)).not.toBeDisabled();
     });
+    fireEvent.click(screen.getByLabelText(/System-Rolle/));
 
-    expect(screen.queryByText("teacher")).not.toBeInTheDocument();
-    expect(screen.queryByText("guardian")).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "admin" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "teacher" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "guardian" }),
+    ).not.toBeInTheDocument();
   });
 
   it("handles role loading failure gracefully", async () => {
@@ -195,9 +210,7 @@ describe("CreateAccountModal", () => {
     await waitFor(() => {
       expect(screen.getByLabelText(/System-Rolle/)).not.toBeDisabled();
     });
-    fireEvent.change(screen.getByLabelText(/System-Rolle/), {
-      target: { value: "1" },
-    });
+    selectCustomOption(/System-Rolle/, "admin");
 
     expect(screen.getByText("Auch als Betreuer einsetzen")).toBeInTheDocument();
     expect(
@@ -351,9 +364,7 @@ describe("CreateAccountModal", () => {
     renderModal();
 
     await fillForm();
-    fireEvent.change(screen.getByLabelText(/Position/), {
-      target: { value: "OGS-Büro" },
-    });
+    selectCustomOption(/Position/, "OGS-Büro");
     fireEvent.click(screen.getByText("Konto erstellen"));
 
     await waitFor(() => {
