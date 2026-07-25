@@ -49,12 +49,39 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (parentService.Servi
 		PersonRepo:          repos.Person,
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
+		GuardianInviteRepo:  repos.GuardianInvitation,
+		OutboxCanceller:     repos.EmailOutbox,
 		Settings:            masterDataSettings(editEnabled, false, true),
 		Broadcaster:         testpkg.NewRecordingBroadcaster(),
 		DB:                  db,
 		Logger:              slog.Default(),
 	})
 	return svc, db
+}
+
+func TestUpdateMasterDataField_EmailChangeRevokesInvitationAndCancelsQueuedMail(t *testing.T) {
+	svc, db := buildMasterDataService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	invitation, cleanupInvitation := seedOpenGuardianInvitationAndOutbox(t, db, chain.GuardianProfileID, chain.AccountID)
+	defer cleanupInvitation()
+
+	_, err := svc.UpdateMasterDataField(
+		context.Background(), chain.AccountID, chain.StudentID,
+		usersModels.DataChangeTargetGuardianProfile, "email",
+		json.RawMessage(`"corrected.parent@example.test"`),
+	)
+	require.NoError(t, err)
+
+	repos := repositories.NewFactory(db)
+	stored, err := repos.GuardianInvitation.FindByID(context.Background(), invitation.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.RevokedAt)
+	rows, err := repos.EmailOutbox.FindByRelatedEntity(testpkg.TenantContext(1),
+		"guardian_invitation", invitation.ID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "failed", rows[0].Status)
 }
 
 func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *testing.T) {

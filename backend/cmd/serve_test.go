@@ -77,6 +77,21 @@ func TestValidateServeConfig_MissingEmailWebhookSigningSecretFails(t *testing.T)
 	assert.Contains(t, err.Error(), "EMAIL_WEBHOOK_SIGNING_SECRET")
 }
 
+func TestValidateServeConfig_MessageIDDomainIsRequiredAndValidated(t *testing.T) {
+	for _, domain := range []string{"", "mail_domain.example", "-mail.example", "mail.example:25"} {
+		t.Run(domain, func(t *testing.T) {
+			resetServeConfig(t)
+			setValidServeConfig()
+			viper.Set("email_message_id_domain", domain)
+
+			err := validateServeConfig()
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "EMAIL_MESSAGE_ID_DOMAIN")
+		})
+	}
+}
+
 func TestValidateServeConfig_MissingDatabaseDSNFails(t *testing.T) {
 	resetServeConfig(t)
 	setValidServeConfig()
@@ -197,5 +212,6 @@ func setValidServeConfig() {
 	viper.Set("parents_url", "http://parents.localhost:3000")
 	viper.Set("phoenix_auth_password", "phoenix_auth_dev")
 	viper.Set("email_webhook_signing_secret", "webhook-test-secret")
+	viper.Set("email_message_id_domain", "mail.example.test")
 	viper.Set("db_dsn", "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable")
 }

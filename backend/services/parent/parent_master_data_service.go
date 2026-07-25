@@ -272,6 +272,7 @@ func (s *service) applyGuardianProfileEdit(ctx context.Context, guardianProfileI
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
+	oldEmail := normalizeParentGuardianEmail(profile.Email)
 	var oldRaw json.RawMessage
 	switch fieldKey {
 	case "email":
@@ -326,6 +327,11 @@ func (s *service) applyGuardianProfileEdit(ctx context.Context, guardianProfileI
 			return nil, nil, nil, false, ErrGuardianEmailConflict
 		}
 		return nil, nil, nil, false, err
+	}
+	if fieldKey == "email" {
+		if err := s.revokeInvitationsAfterEmailChange(ctx, profile.ID, oldEmail, normalizeParentGuardianEmail(profile.Email)); err != nil {
+			return nil, nil, nil, false, err
+		}
 	}
 	ref := profile.ID
 	return oldRaw, newRaw, &ref, true, nil

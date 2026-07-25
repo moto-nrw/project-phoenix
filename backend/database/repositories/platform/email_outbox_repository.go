@@ -13,7 +13,10 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const tableExprAlias = `platform.email_outbox AS "email_outbox"`
+const (
+	tableExprAlias            = `platform.email_outbox AS "email_outbox"`
+	dispatchAttemptTableAlias = `platform.email_dispatch_attempts AS "email_dispatch_attempt"`
+)
 
 // EmailOutboxRepository implements platform.EmailOutboxRepository with bun.
 type EmailOutboxRepository struct {
@@ -241,6 +244,71 @@ func (r *EmailOutboxRepository) FindByProviderMessageID(ctx context.Context, pro
 	return r.findByIdentifier(ctx, "provider_message_id", providerMessageID)
 }
 
+func (r *EmailOutboxRepository) CreateDispatchAttempt(ctx context.Context, attempt *platform.EmailDispatchAttempt) error {
+	if err := attempt.Validate(); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+	base.EnsureTenantID(ctx, attempt)
+	_, err := base.GetDB(ctx, r.db).NewInsert().
+		Model(attempt).
+		ModelTableExpr(dispatchAttemptTableAlias).
+		Returning("*").
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to create email dispatch attempt: %w", err)
+	}
+	return nil
+}
+
+func (r *EmailOutboxRepository) SetDispatchAttemptProviderMessageID(ctx context.Context, attemptID int64, providerMessageID string) error {
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*platform.EmailDispatchAttempt)(nil)).
+		ModelTableExpr(dispatchAttemptTableAlias).
+		Set("provider_message_id = ?", strings.TrimSpace(providerMessageID)).
+		Set("updated_at = NOW()").
+		Where(`"email_dispatch_attempt".id = ?`, attemptID).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to set dispatch attempt provider message id: %w", err)
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("email dispatch attempt %d not found", attemptID)
+	}
+	return nil
+}
+
+func (r *EmailOutboxRepository) FindDispatchAttemptByMessageID(ctx context.Context, messageID string) (*platform.EmailDispatchAttempt, error) {
+	return r.findDispatchAttempt(ctx, "message_id", strings.Trim(strings.TrimSpace(messageID), "<>"))
+}
+
+func (r *EmailOutboxRepository) FindDispatchAttemptByProviderMessageID(ctx context.Context, providerMessageID string) (*platform.EmailDispatchAttempt, error) {
+	return r.findDispatchAttempt(ctx, "provider_message_id", strings.TrimSpace(providerMessageID))
+}
+
+func (r *EmailOutboxRepository) FindDispatchAttemptByCorrelationToken(ctx context.Context, correlationToken string) (*platform.EmailDispatchAttempt, error) {
+	return r.findDispatchAttempt(ctx, "correlation_token", strings.TrimSpace(correlationToken))
+}
+
+func (r *EmailOutboxRepository) findDispatchAttempt(ctx context.Context, column, value string) (*platform.EmailDispatchAttempt, error) {
+	if value == "" {
+		return nil, nil
+	}
+	attempt := new(platform.EmailDispatchAttempt)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(attempt).
+		ModelTableExpr(dispatchAttemptTableAlias).
+		Where(`"email_dispatch_attempt".`+column+` = ?`, value).
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find email dispatch attempt by %s: %w", column, err)
+	}
+	return attempt, nil
+}
+
 func (r *EmailOutboxRepository) findByIdentifier(ctx context.Context, column, value string) (*platform.EmailOutbox, error) {
 	if value == "" {
 		return nil, nil
@@ -263,14 +331,21 @@ func (r *EmailOutboxRepository) findByIdentifier(ctx context.Context, column, va
 // SetDispatchIdentifiers stores the correlation identifiers for a message the
 // worker is about to hand to the transport.
 func (r *EmailOutboxRepository) SetDispatchIdentifiers(ctx context.Context, id int64, messageID string, providerMessageID *string) error {
+	providerID := sql.NullString{}
+	if providerMessageID != nil && strings.TrimSpace(*providerMessageID) != "" {
+		providerID = sql.NullString{String: strings.TrimSpace(*providerMessageID), Valid: true}
+	}
 	q := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*platform.EmailOutbox)(nil)).
 		ModelTableExpr(tableExprAlias).
+		Set("delivery_status = CASE WHEN message_id IS DISTINCT FROM ? THEN ? ELSE delivery_status END",
+			messageID, platform.EmailDeliveryStatusUnknown).
+		Set("delivery_status_rank = CASE WHEN message_id IS DISTINCT FROM ? THEN 0 ELSE delivery_status_rank END", messageID).
+		Set("delivery_status_at = CASE WHEN message_id IS DISTINCT FROM ? THEN NULL ELSE delivery_status_at END", messageID).
+		Set("delivery_detail = CASE WHEN message_id IS DISTINCT FROM ? THEN NULL ELSE delivery_detail END", messageID).
 		Set("message_id = ?", messageID).
+		Set("provider_message_id = ?", providerID).
 		Where(`"email_outbox".id = ?`, id)
-	if providerMessageID != nil && *providerMessageID != "" {
-		q = q.Set("provider_message_id = ?", *providerMessageID)
-	}
 	res, err := q.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to set dispatch identifiers: %w", err)

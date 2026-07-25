@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofrs/uuid"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -33,8 +34,25 @@ func seedOutboxRow(t *testing.T, db *bun.DB, tenantID int64, messageID string) *
 	require.NoError(t, err)
 
 	repo := platformRepo.NewEmailOutboxRepository(db)
+	attempt := &platformModels.EmailDispatchAttempt{
+		OutboxID:         row.ID,
+		AttemptNumber:    1,
+		CorrelationToken: uuid.Must(uuid.NewV4()).String(),
+		MessageID:        messageID,
+	}
+	attempt.SetTenantID(tenantID)
+	require.NoError(t, repo.CreateDispatchAttempt(context.Background(), attempt))
 	require.NoError(t, repo.SetDispatchIdentifiers(context.Background(), row.ID, messageID, nil))
 	return row
+}
+
+func dispatchAttemptID(t *testing.T, db *bun.DB, messageID string) int64 {
+	t.Helper()
+	attempt, err := platformRepo.NewEmailOutboxRepository(db).
+		FindDispatchAttemptByMessageID(context.Background(), messageID)
+	require.NoError(t, err)
+	require.NotNil(t, attempt)
+	return attempt.ID
 }
 
 // TestApplyDeliveryStatus_IsMonotone walks the precedence lattice against the
@@ -175,17 +193,20 @@ func TestCreateIfNew_RejectsDuplicateProviderEvent(t *testing.T) {
 	scope := NewTenantScope(t, db)
 	defer CleanupTenantTestData(t, db, scope.TenantID)
 
-	row := seedOutboxRow(t, db, scope.TenantID, fmt.Sprintf("ob.%d.dup.uuid@test.local", scope.TenantID))
+	messageID := fmt.Sprintf("ob.%d.dup.uuid@test.local", scope.TenantID)
+	row := seedOutboxRow(t, db, scope.TenantID, messageID)
+	attemptID := dispatchAttemptID(t, db, messageID)
 	repo := platformRepo.NewEmailDeliveryEventRepository(db)
 	ctx := context.Background()
 
 	build := func() *platformModels.EmailDeliveryEvent {
 		event := &platformModels.EmailDeliveryEvent{
-			OutboxID:        row.ID,
-			Provider:        "generic",
-			ProviderEventID: "evt_duplicate_1",
-			EventType:       platformModels.DeliveryEventDelivered,
-			OccurredAt:      time.Now(),
+			OutboxID:          row.ID,
+			DispatchAttemptID: attemptID,
+			Provider:          "generic",
+			ProviderEventID:   "evt_duplicate_1",
+			EventType:         platformModels.DeliveryEventDelivered,
+			OccurredAt:        time.Now(),
 		}
 		event.SetTenantID(scope.TenantID)
 		return event
@@ -260,27 +281,31 @@ func TestDeliveryEventRepository_ListAndRetention(t *testing.T) {
 	scope := NewTenantScope(t, db)
 	defer CleanupTenantTestData(t, db, scope.TenantID)
 
-	row := seedOutboxRow(t, db, scope.TenantID, fmt.Sprintf("ob.%d.retention.uuid@test.local", scope.TenantID))
+	messageID := fmt.Sprintf("ob.%d.retention.uuid@test.local", scope.TenantID)
+	row := seedOutboxRow(t, db, scope.TenantID, messageID)
+	attemptID := dispatchAttemptID(t, db, messageID)
 	repo := platformRepo.NewEmailDeliveryEventRepository(db)
 	ctx := context.Background()
 
 	recent := &platformModels.EmailDeliveryEvent{
-		OutboxID:        row.ID,
-		Provider:        "generic",
-		ProviderEventID: fmt.Sprintf("evt_recent_%d", row.ID),
-		EventType:       platformModels.DeliveryEventDelivered,
-		OccurredAt:      time.Now(),
-		ReceivedAt:      time.Now(),
+		OutboxID:          row.ID,
+		DispatchAttemptID: attemptID,
+		Provider:          "generic",
+		ProviderEventID:   fmt.Sprintf("evt_recent_%d", row.ID),
+		EventType:         platformModels.DeliveryEventDelivered,
+		OccurredAt:        time.Now(),
+		ReceivedAt:        time.Now(),
 	}
 	recent.SetTenantID(scope.TenantID)
 
 	old := &platformModels.EmailDeliveryEvent{
-		OutboxID:        row.ID,
-		Provider:        "generic",
-		ProviderEventID: fmt.Sprintf("evt_old_%d", row.ID),
-		EventType:       platformModels.DeliveryEventDeferred,
-		OccurredAt:      time.Now().AddDate(0, 0, -200),
-		ReceivedAt:      time.Now().AddDate(0, 0, -200),
+		OutboxID:          row.ID,
+		DispatchAttemptID: attemptID,
+		Provider:          "generic",
+		ProviderEventID:   fmt.Sprintf("evt_old_%d", row.ID),
+		EventType:         platformModels.DeliveryEventDeferred,
+		OccurredAt:        time.Now().AddDate(0, 0, -200),
+		ReceivedAt:        time.Now().AddDate(0, 0, -200),
 	}
 	old.SetTenantID(scope.TenantID)
 

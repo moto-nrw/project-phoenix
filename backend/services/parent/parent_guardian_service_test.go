@@ -18,6 +18,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -44,6 +45,7 @@ func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (parentService.
 		},
 		GuardianInvites:         &stubInvites{},
 		GuardianInviteRepo:      repos.GuardianInvitation,
+		OutboxCanceller:         repos.EmailOutbox,
 		StudentGuardianRepo:     repos.StudentGuardian,
 		GuardianProfileRepo:     repos.GuardianProfile,
 		GuardianPhoneRepo:       repos.GuardianPhoneNumber,
@@ -52,6 +54,38 @@ func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (parentService.
 		Logger:                  slog.Default(),
 	})
 	return svc, db
+}
+
+func seedOpenGuardianInvitationAndOutbox(t *testing.T, db *bun.DB, guardianProfileID, createdBy int64) (*authModels.GuardianInvitation, func()) {
+	t.Helper()
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+	invitation := &authModels.GuardianInvitation{
+		Token:             fmt.Sprintf("parent-email-change-%d", guardianProfileID),
+		GuardianProfileID: guardianProfileID,
+		CreatedBy:         createdBy,
+		ExpiresAt:         time.Now().Add(time.Hour),
+	}
+	invitation.SetTenantID(1)
+	require.NoError(t, repos.GuardianInvitation.Create(ctx, invitation))
+
+	relatedType := platformModels.EmailRelatedTypeGuardianInvitation
+	relatedID := invitation.ID
+	outbox := &platformModels.EmailOutbox{
+		Kind:              platformModels.EmailKindGuardianInvitation,
+		Payload:           map[string]any{},
+		Status:            platformModels.EmailOutboxStatusPending,
+		NextRetryAt:       time.Now(),
+		RelatedEntityType: &relatedType,
+		RelatedEntityID:   &relatedID,
+	}
+	outbox.SetTenantID(1)
+	require.NoError(t, repos.EmailOutbox.Create(ctx, outbox))
+	cleanup := func() {
+		_, _ = db.NewDelete().TableExpr("platform.email_outbox").Where("id = ?", outbox.ID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("id = ?", invitation.ID).Exec(context.Background())
+	}
+	return invitation, cleanup
 }
 
 // linkContactOnlyGuardian creates a contact-only guardian profile (no portal
@@ -152,6 +186,36 @@ func TestUpdateGuardianContact_EditsContactOnlyGuardian(t *testing.T) {
 	require.NotNil(t, found)
 	assert.Equal(t, "Helga", found.FirstName)
 	require.Len(t, found.Phones, 1)
+}
+
+func TestUpdateGuardianContact_EmailChangeRevokesInvitationAndCancelsQueuedMail(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "revoked-parent-contact")
+	defer cleanup()
+	invitation, cleanupInvitation := seedOpenGuardianInvitationAndOutbox(t, db, contactID, chain.AccountID)
+	defer cleanupInvitation()
+
+	email := "corrected.contact@example.test"
+	_, err := svc.UpdateGuardianContact(context.Background(), chain.AccountID, chain.StudentID, contactID, parentService.GuardianContactInput{
+		FirstName: "Helga",
+		LastName:  "Schneider",
+		Email:     &email,
+	})
+	require.NoError(t, err)
+
+	repos := repositories.NewFactory(db)
+	stored, err := repos.GuardianInvitation.FindByID(context.Background(), invitation.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.RevokedAt)
+	rows, err := repos.EmailOutbox.FindByRelatedEntity(testpkg.TenantContext(1),
+		platformModels.EmailRelatedTypeGuardianInvitation, invitation.ID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, platformModels.EmailOutboxStatusFailed, rows[0].Status)
 }
 
 func TestUpdateGuardianContact_PromotesFirstPhoneWhenNoPrimarySubmitted(t *testing.T) {

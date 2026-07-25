@@ -96,12 +96,14 @@ func TestIsTerminalFailure(t *testing.T) {
 func TestParseOutboxRef(t *testing.T) {
 	wantTenant := int64(time.Now().UnixNano() % 100000)
 	wantOutbox := wantTenant + 1
-	messageID := fmt.Sprintf("ob.%d.%d.9f3c1e2a@mail.example.de", wantTenant, wantOutbox)
+	token := "11111111-1111-4111-8111-111111111111"
+	messageID := fmt.Sprintf("ob.%d.%d.%s@mail.example.de", wantTenant, wantOutbox, token)
 
-	tenantID, outboxID, ok := parseOutboxRef(messageID)
+	tenantID, outboxID, correlationToken, ok := parseOutboxRef(messageID)
 	assert.True(t, ok)
 	assert.Equal(t, wantTenant, tenantID)
 	assert.Equal(t, wantOutbox, outboxID)
+	assert.Equal(t, token, correlationToken)
 
 	for _, bad := range []string{
 		"",
@@ -112,7 +114,7 @@ func TestParseOutboxRef(t *testing.T) {
 		"ob.0.4821.uuid@example.de",
 		"ob.7.0.uuid@example.de",
 	} {
-		_, _, parsed := parseOutboxRef(bad)
+		_, _, _, parsed := parseOutboxRef(bad)
 		assert.False(t, parsed, "%q must not parse", bad)
 	}
 }

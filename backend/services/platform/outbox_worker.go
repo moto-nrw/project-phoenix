@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"strings"
 	"time"
 
@@ -50,12 +49,13 @@ func pickBackoff(attempts int) time.Duration {
 // running multiple workers in parallel is safe. We currently run one
 // per process — see scheduler.go for the polling loop.
 type OutboxWorker struct {
-	repo        platformModels.EmailOutboxRepository
-	registry    *TemplateRegistry
-	mailer      email.Mailer
-	maxAttempts int
-	logger      *slog.Logger
-	db          *bun.DB
+	repo            platformModels.EmailOutboxRepository
+	registry        *TemplateRegistry
+	mailer          email.Mailer
+	maxAttempts     int
+	messageIDDomain string
+	logger          *slog.Logger
+	db              *bun.DB
 }
 
 // OutboxWorkerConfig is the dep-injection bundle for NewOutboxWorker.
@@ -64,12 +64,13 @@ type OutboxWorker struct {
 // pickup in a phoenix_admin transaction (cross-tenant) and per-row
 // renders in the matching tenant transaction.
 type OutboxWorkerConfig struct {
-	Repo        platformModels.EmailOutboxRepository
-	Registry    *TemplateRegistry
-	Mailer      email.Mailer
-	MaxAttempts int
-	Logger      *slog.Logger
-	DB          *bun.DB
+	Repo            platformModels.EmailOutboxRepository
+	Registry        *TemplateRegistry
+	Mailer          email.Mailer
+	MaxAttempts     int
+	MessageIDDomain string
+	Logger          *slog.Logger
+	DB              *bun.DB
 }
 
 // NewOutboxWorker constructs a worker. A nil logger falls back to
@@ -84,12 +85,13 @@ func NewOutboxWorker(cfg OutboxWorkerConfig) *OutboxWorker {
 		maxAttempts = len(defaultBackoff)
 	}
 	return &OutboxWorker{
-		repo:        cfg.Repo,
-		registry:    cfg.Registry,
-		mailer:      cfg.Mailer,
-		maxAttempts: maxAttempts,
-		logger:      logger,
-		db:          cfg.DB,
+		repo:            cfg.Repo,
+		registry:        cfg.Registry,
+		mailer:          cfg.Mailer,
+		maxAttempts:     maxAttempts,
+		messageIDDomain: strings.TrimSpace(cfg.MessageIDDomain),
+		logger:          logger,
+		db:              cfg.DB,
 	}
 }
 
@@ -134,6 +136,9 @@ func (w *OutboxWorker) RunOnce(ctx context.Context, batchSize int) (int, error) 
 	}
 	if w.db == nil {
 		return 0, fmt.Errorf("outbox worker not wired (missing db)")
+	}
+	if w.messageIDDomain == "" {
+		return 0, fmt.Errorf("outbox worker not wired (missing message id domain)")
 	}
 
 	now := time.Now()
@@ -185,8 +190,16 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 	// outbox id as a last-resort fallback when a relay rewrites the header —
 	// the ingest path re-verifies both against the stored row before trusting
 	// it, because this string travels through hostile territory.
-	messageID := fmt.Sprintf("ob.%d.%d.%s@%s", row.GetTenantID(), row.ID, uuid.Must(uuid.NewV4()).String(), w.messageIDDomain())
+	correlationToken := uuid.Must(uuid.NewV4()).String()
+	messageID := fmt.Sprintf("ob.%d.%d.%s@%s", row.GetTenantID(), row.ID, correlationToken, w.messageIDDomain)
 	msg.MessageID = messageID
+	dispatchAttempt := &platformModels.EmailDispatchAttempt{
+		OutboxID:         row.ID,
+		AttemptNumber:    row.Attempts + 1,
+		CorrelationToken: correlationToken,
+		MessageID:        messageID,
+	}
+	dispatchAttempt.SetTenantID(row.GetTenantID())
 
 	var cancelled bool
 	if err := tenant.WithAdminTx(ctx, w.db, func(adminCtx context.Context, _ bun.Tx) error {
@@ -197,6 +210,9 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 		if !stillClaimed {
 			cancelled = true
 			return nil
+		}
+		if createErr := w.repo.CreateDispatchAttempt(adminCtx, dispatchAttempt); createErr != nil {
+			return createErr
 		}
 		return w.repo.SetDispatchIdentifiers(adminCtx, row.ID, messageID, nil)
 	}); err != nil {
@@ -229,6 +245,9 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 			return nil
 		}
 		if providerMessageID != nil {
+			if idErr := w.repo.SetDispatchAttemptProviderMessageID(adminCtx, dispatchAttempt.ID, *providerMessageID); idErr != nil {
+				return idErr
+			}
 			if idErr := w.repo.SetDispatchIdentifiers(adminCtx, row.ID, messageID, providerMessageID); idErr != nil {
 				return idErr
 			}
@@ -280,20 +299,6 @@ func (w *OutboxWorker) send(msg email.Message) (*string, error) {
 		return nil, err
 	}
 	return nil, nil
-}
-
-// messageIDDomain is the right-hand side of the minted Message-ID. It only has
-// to be stable and syntactically valid — nothing resolves it — so the sender
-// address's domain is the natural choice.
-func (w *OutboxWorker) messageIDDomain() string {
-	if domain := strings.TrimSpace(os.Getenv("EMAIL_MESSAGE_ID_DOMAIN")); domain != "" {
-		return domain
-	}
-	from := os.Getenv("EMAIL_FROM_ADDRESS")
-	if at := strings.LastIndex(from, "@"); at >= 0 && at < len(from)-1 {
-		return from[at+1:]
-	}
-	return "phoenix.local"
 }
 
 // recordFailure increments attempts and decides retry vs terminal.

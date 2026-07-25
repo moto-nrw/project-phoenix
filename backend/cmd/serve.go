@@ -125,6 +125,7 @@ func validateServeConfig() error {
 		"parents_url",
 		"phoenix_auth_password",
 		"email_webhook_signing_secret",
+		"email_message_id_domain",
 	}
 
 	var missing []string
@@ -162,6 +163,30 @@ func validateServeConfig() error {
 	if viper.GetDuration("auth_jwt_refresh_expiry") <= 0 {
 		return fmt.Errorf("AUTH_JWT_REFRESH_EXPIRY must be a positive duration")
 	}
+	if domain := strings.TrimSpace(viper.GetString("email_message_id_domain")); !validMessageIDDomain(domain) {
+		return fmt.Errorf("EMAIL_MESSAGE_ID_DOMAIN must be a valid DNS domain")
+	}
 
 	return nil
+}
+
+func validMessageIDDomain(domain string) bool {
+	if domain == "" || len(domain) > 253 {
+		return false
+	}
+	for _, label := range strings.Split(domain, ".") {
+		if len(label) == 0 || len(label) > 63 || !isDomainAlphaNumeric(label[0]) || !isDomainAlphaNumeric(label[len(label)-1]) {
+			return false
+		}
+		for i := 1; i < len(label)-1; i++ {
+			if !isDomainAlphaNumeric(label[i]) && label[i] != '-' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func isDomainAlphaNumeric(ch byte) bool {
+	return ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9'
 }

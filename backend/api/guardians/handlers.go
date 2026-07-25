@@ -988,6 +988,10 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 		})
 		return txErr
 	}); err != nil {
+		if errors.Is(err, authSvc.ErrGuardianInvitationPending) {
+			common.RenderError(w, r, common.ErrorConflictMessage("Für diese Person ist bereits eine Einladung offen"))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}

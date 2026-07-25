@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gofrs/uuid"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -156,9 +157,9 @@ func (s *EmailDeliveryService) IngestEvent(ctx context.Context, ev DeliveryEvent
 			outcome = IngestUnmatched
 			return nil
 		}
-		row = resolved
+		row = resolved.Outbox
 
-		event := buildEvent(row, ev, status)
+		event := buildEvent(row, resolved.Attempt, ev, status)
 		inserted, err := s.EventRepo.CreateIfNew(adminCtx, event)
 		if err != nil {
 			return err
@@ -168,6 +169,10 @@ func (s *EmailDeliveryService) IngestEvent(ctx context.Context, ev DeliveryEvent
 			// keeps the whole operation idempotent — the status was already
 			// applied (or rejected) when the event first arrived.
 			outcome = IngestDuplicate
+			return nil
+		}
+		if !resolved.Current {
+			outcome = IngestStale
 			return nil
 		}
 
@@ -203,28 +208,43 @@ func (s *EmailDeliveryService) IngestEvent(ctx context.Context, ev DeliveryEvent
 	return outcome, nil
 }
 
+type resolvedDispatch struct {
+	Outbox  *platformModels.EmailOutbox
+	Attempt *platformModels.EmailDispatchAttempt
+	Current bool
+}
+
 // resolveOutbox finds the outbox row an event refers to, in decreasing order
 // of trustworthiness.
-func (s *EmailDeliveryService) resolveOutbox(ctx context.Context, ev DeliveryEvent) (*platformModels.EmailOutbox, error) {
+func (s *EmailDeliveryService) resolveOutbox(ctx context.Context, ev DeliveryEvent) (*resolvedDispatch, error) {
 	if id := normalizeMessageID(ev.MessageID); id != "" {
-		row, err := s.OutboxRepo.FindByMessageID(ctx, id)
+		attempt, err := s.OutboxRepo.FindDispatchAttemptByMessageID(ctx, id)
 		if err != nil {
 			return nil, err
 		}
-		if row != nil {
-			return row, nil
+		if attempt != nil {
+			return s.loadResolvedDispatch(ctx, attempt)
 		}
 	}
 	if ev.ProviderMessageID != "" {
-		row, err := s.OutboxRepo.FindByProviderMessageID(ctx, ev.ProviderMessageID)
+		attempt, err := s.OutboxRepo.FindDispatchAttemptByProviderMessageID(ctx, ev.ProviderMessageID)
 		if err != nil {
 			return nil, err
 		}
-		if row != nil {
-			return row, nil
+		if attempt != nil {
+			return s.loadResolvedDispatch(ctx, attempt)
 		}
 	}
 	return s.resolveByLocalPart(ctx, ev)
+}
+
+func (s *EmailDeliveryService) loadResolvedDispatch(ctx context.Context, attempt *platformModels.EmailDispatchAttempt) (*resolvedDispatch, error) {
+	row, err := s.OutboxRepo.FindByID(ctx, attempt.OutboxID)
+	if err != nil {
+		return nil, err
+	}
+	current := row.MessageID != nil && normalizeMessageID(*row.MessageID) == attempt.MessageID
+	return &resolvedDispatch{Outbox: row, Attempt: attempt, Current: current}, nil
 }
 
 // resolveByLocalPart is the last-resort fallback for relays that rewrite the
@@ -234,21 +254,19 @@ func (s *EmailDeliveryService) resolveOutbox(ctx context.Context, ev DeliveryEve
 // lookup hint: the row is fetched by id and then re-checked against the parsed
 // tenant AND against having actually been dispatched. Without those checks,
 // anyone who can reach the webhook could aim an event at an arbitrary row.
-func (s *EmailDeliveryService) resolveByLocalPart(ctx context.Context, ev DeliveryEvent) (*platformModels.EmailOutbox, error) {
-	tenantID, outboxID, ok := parseOutboxRef(normalizeMessageID(ev.MessageID))
+func (s *EmailDeliveryService) resolveByLocalPart(ctx context.Context, ev DeliveryEvent) (*resolvedDispatch, error) {
+	tenantID, outboxID, correlationToken, ok := parseOutboxRef(normalizeMessageID(ev.MessageID))
 	if !ok {
 		return nil, nil
 	}
-	row, err := s.OutboxRepo.FindByID(ctx, outboxID)
-	if err != nil || row == nil {
-		// FindByID reports "not found" as an error; an unmatched event is not
-		// an error condition here.
-		return nil, nil //nolint:nilerr // a missing row means unmatched, not failure
+	attempt, err := s.OutboxRepo.FindDispatchAttemptByCorrelationToken(ctx, correlationToken)
+	if err != nil {
+		return nil, err
 	}
-	if row.GetTenantID() != tenantID || row.MessageID == nil {
+	if attempt == nil || attempt.OutboxID != outboxID || attempt.GetTenantID() != tenantID {
 		return nil, nil
 	}
-	return row, nil
+	return s.loadResolvedDispatch(ctx, attempt)
 }
 
 func (s *EmailDeliveryService) recordMetrics(ev DeliveryEvent, outcome IngestOutcome, applied bool, status string) {
@@ -351,15 +369,16 @@ func (s *EmailDeliveryService) CleanupExpiredDeliveryEvents(ctx context.Context,
 // when the setting cannot be resolved at all.
 const defaultDeliveryRetentionDays = 90
 
-func buildEvent(row *platformModels.EmailOutbox, ev DeliveryEvent, _ string) *platformModels.EmailDeliveryEvent {
+func buildEvent(row *platformModels.EmailOutbox, attempt *platformModels.EmailDispatchAttempt, ev DeliveryEvent, _ string) *platformModels.EmailDeliveryEvent {
 	event := &platformModels.EmailDeliveryEvent{
-		OutboxID:        row.ID,
-		Provider:        ev.Provider,
-		ProviderEventID: ev.EventID,
-		EventType:       ev.Type,
-		OccurredAt:      ev.OccurredAt,
-		ReceivedAt:      time.Now(),
-		Raw:             ev.Raw,
+		OutboxID:          row.ID,
+		DispatchAttemptID: attempt.ID,
+		Provider:          ev.Provider,
+		ProviderEventID:   ev.EventID,
+		EventType:         ev.Type,
+		OccurredAt:        ev.OccurredAt,
+		ReceivedAt:        time.Now(),
+		Raw:               ev.Raw,
 	}
 	event.SetTenantID(row.GetTenantID())
 	event.ProviderMessageID = optionalString(ev.ProviderMessageID)
@@ -397,24 +416,28 @@ func normalizeMessageID(id string) string {
 
 // parseOutboxRef extracts tenant and outbox id from a minted Message-ID local
 // part of the form "ob.{tenantID}.{outboxID}.{uuid}@{domain}".
-func parseOutboxRef(messageID string) (tenantID, outboxID int64, ok bool) {
+func parseOutboxRef(messageID string) (tenantID, outboxID int64, correlationToken string, ok bool) {
 	local, _, found := strings.Cut(messageID, "@")
 	if !found {
 		local = messageID
 	}
 	parts := strings.SplitN(local, ".", 4)
 	if len(parts) < 4 || parts[0] != "ob" {
-		return 0, 0, false
+		return 0, 0, "", false
 	}
 	tenantID, err := strconv.ParseInt(parts[1], 10, 64)
 	if err != nil || tenantID <= 0 {
-		return 0, 0, false
+		return 0, 0, "", false
 	}
 	outboxID, err = strconv.ParseInt(parts[2], 10, 64)
 	if err != nil || outboxID <= 0 {
-		return 0, 0, false
+		return 0, 0, "", false
 	}
-	return tenantID, outboxID, true
+	correlationToken = parts[3]
+	if _, err := uuid.FromString(correlationToken); err != nil {
+		return 0, 0, "", false
+	}
+	return tenantID, outboxID, correlationToken, true
 }
 
 func splitEmails(raw string) []string {

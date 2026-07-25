@@ -152,43 +152,66 @@ func (s *guardianInvitationService) Create(ctx context.Context, req GuardianInvi
 		return nil, &AuthError{Op: opGuardianInviteCreate, Err: fmt.Errorf("created_by is required")}
 	}
 
-	profile, err := s.GuardianProfileRepo.FindByID(ctx, req.GuardianProfileID)
-	if err != nil {
-		if isNotFoundError(err) {
-			return nil, &AuthError{Op: opGuardianInviteCreate, Err: fmt.Errorf("guardian profile not found")}
+	var invitation *authModels.GuardianInvitation
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		if lockErr := s.GuardianProfileRepo.LockByIDForUpdate(txCtx, req.GuardianProfileID); lockErr != nil {
+			if isNotFoundError(lockErr) {
+				return &AuthError{Op: opGuardianInviteCreate, Err: fmt.Errorf("guardian profile not found")}
+			}
+			return &AuthError{Op: opGuardianInviteCreate, Err: lockErr}
 		}
-		return nil, &AuthError{Op: opGuardianInviteCreate, Err: err}
-	}
-	if profile == nil || profile.Email == nil || strings.TrimSpace(*profile.Email) == "" {
-		return nil, &AuthError{Op: opGuardianInviteCreate, Err: fmt.Errorf("guardian has no email on file")}
-	}
-	if profile.HasAccount {
-		return nil, &AuthError{Op: opGuardianInviteCreate, Err: fmt.Errorf("guardian already has an account")}
-	}
+		profile, findErr := s.GuardianProfileRepo.FindByID(txCtx, req.GuardianProfileID)
+		if findErr != nil {
+			if isNotFoundError(findErr) {
+				return &AuthError{Op: opGuardianInviteCreate, Err: fmt.Errorf("guardian profile not found")}
+			}
+			return &AuthError{Op: opGuardianInviteCreate, Err: findErr}
+		}
+		if profile == nil || profile.Email == nil || strings.TrimSpace(*profile.Email) == "" {
+			return &AuthError{Op: opGuardianInviteCreate, Err: fmt.Errorf("guardian has no email on file")}
+		}
+		if profile.HasAccount {
+			return &AuthError{Op: opGuardianInviteCreate, Err: fmt.Errorf("guardian already has an account")}
+		}
 
-	invitation := &authModels.GuardianInvitation{
-		Token:             uuid.Must(uuid.NewV4()).String(),
-		GuardianProfileID: profile.ID,
-		CreatedBy:         req.CreatedBy,
-		ExpiresAt:         time.Now().Add(s.resolveTokenExpiry(ctx)),
-	}
-	invitation.SetTenantID(tenant.FromContext(ctx))
+		existing, findErr := s.InvitationRepo.FindByGuardianProfileID(txCtx, profile.ID)
+		if findErr != nil {
+			return &AuthError{Op: opGuardianInviteCreate, Err: findErr}
+		}
+		now := time.Now()
+		for _, candidate := range existing {
+			if GuardianInvitationValid(candidate, now) && guardianInvitationTokenConsumable(candidate) {
+				return &AuthError{Op: opGuardianInviteCreate, Err: ErrGuardianInvitationPending}
+			}
+		}
 
-	if err := s.InvitationRepo.Create(ctx, invitation); err != nil {
-		return nil, &AuthError{Op: opGuardianInviteCreate, Err: err}
+		invitation = &authModels.GuardianInvitation{
+			Token:             uuid.Must(uuid.NewV4()).String(),
+			GuardianProfileID: profile.ID,
+			CreatedBy:         req.CreatedBy,
+			ExpiresAt:         now.Add(s.resolveTokenExpiry(txCtx)),
+		}
+		invitation.SetTenantID(tenant.FromContext(txCtx))
+
+		if createErr := s.InvitationRepo.Create(txCtx, invitation); createErr != nil {
+			return &AuthError{Op: opGuardianInviteCreate, Err: createErr}
+		}
+
+		schoolName := s.lookupSchoolName(txCtx, invitation.TenantID)
+		if enqueueErr := s.enqueueEmail(txCtx, invitation, profile, schoolName); enqueueErr != nil {
+			return &AuthError{Op: opGuardianInviteCreate, Err: enqueueErr}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	s.getLogger().Info("guardian invitation created",
 		slog.Int64("invitation_id", invitation.ID),
-		slog.Int64("guardian_profile_id", profile.ID),
+		slog.Int64("guardian_profile_id", invitation.GuardianProfileID),
 		slog.Int64("created_by", req.CreatedBy),
 	)
-
-	schoolName := s.lookupSchoolName(ctx, invitation.TenantID)
-	if err := s.enqueueEmail(ctx, invitation, profile, schoolName); err != nil {
-		return nil, &AuthError{Op: opGuardianInviteCreate, Err: err}
-	}
-
 	return invitation, nil
 }
 

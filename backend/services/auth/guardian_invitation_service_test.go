@@ -149,6 +149,32 @@ func TestGuardianInvitationService_Create_TokenAndExpiry(t *testing.T) {
 	assert.Nil(t, invitation.AcceptedAt, "fresh invitation must not be accepted")
 }
 
+func TestGuardianInvitationService_Create_RejectsDuplicateActiveInvitation(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "duplicate-active")
+	creatorID := env.inviterAccountID(t)
+	ctx := testpkg.TenantContext(1)
+
+	first, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.NoError(t, err)
+	defer env.cleanupInvitation(t, first.ID, profile.ID)
+
+	_, err = env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+
+	require.ErrorIs(t, err, authService.ErrGuardianInvitationPending)
+	invitations, findErr := env.repos.GuardianInvitation.FindByGuardianProfileID(ctx, profile.ID)
+	require.NoError(t, findErr)
+	assert.Len(t, invitations, 1)
+}
+
 func TestGuardianInvitationService_Create_RejectsProfileWithoutEmail(t *testing.T) {
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()

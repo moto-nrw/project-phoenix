@@ -41,6 +41,7 @@ type EmailDeliveryEvent struct {
 	base.Model `bun:"schema:platform,table:email_delivery_events"`
 	base.TenantModel
 	OutboxID          int64     `bun:"outbox_id,notnull" json:"outbox_id"`
+	DispatchAttemptID int64     `bun:"dispatch_attempt_id,notnull" json:"-"`
 	Provider          string    `bun:"provider,notnull" json:"provider"`
 	ProviderEventID   string    `bun:"provider_event_id,notnull" json:"provider_event_id"`
 	ProviderMessageID *string   `bun:"provider_message_id" json:"-"`
@@ -70,6 +71,9 @@ func (e *EmailDeliveryEvent) Validate() error {
 	}
 	if e.OutboxID == 0 {
 		return errors.New("delivery event outbox_id is required")
+	}
+	if e.DispatchAttemptID == 0 {
+		return errors.New("delivery event dispatch_attempt_id is required")
 	}
 	switch e.EventType {
 	case DeliveryEventQueued, DeliveryEventDelivered, DeliveryEventDeferred,

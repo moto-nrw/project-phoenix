@@ -205,6 +205,20 @@ type EmailOutboxRepository interface {
 	// identifier, for providers that rewrite our Message-ID.
 	FindByProviderMessageID(ctx context.Context, providerMessageID string) (*EmailOutbox, error)
 
+	// CreateDispatchAttempt persists a correlation record before the worker
+	// submits the message to the transport.
+	CreateDispatchAttempt(ctx context.Context, attempt *EmailDispatchAttempt) error
+
+	// SetDispatchAttemptProviderMessageID adds the transport's identifier to
+	// the already-committed attempt after a successful submission.
+	SetDispatchAttemptProviderMessageID(ctx context.Context, attemptID int64, providerMessageID string) error
+
+	// Dispatch-attempt lookups preserve correlation across retries. All are
+	// admin-scoped because the webhook has no tenant before correlation.
+	FindDispatchAttemptByMessageID(ctx context.Context, messageID string) (*EmailDispatchAttempt, error)
+	FindDispatchAttemptByProviderMessageID(ctx context.Context, providerMessageID string) (*EmailDispatchAttempt, error)
+	FindDispatchAttemptByCorrelationToken(ctx context.Context, correlationToken string) (*EmailDispatchAttempt, error)
+
 	// SetDispatchIdentifiers stores the Message-ID before transport submission
 	// so immediate webhooks can correlate it. The worker calls it again inside
 	// the send transaction when the mailer reports a provider identifier.

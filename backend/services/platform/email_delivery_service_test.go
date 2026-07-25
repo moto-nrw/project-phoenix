@@ -27,6 +27,9 @@ type deliveryOutboxRepo struct {
 	byMessageID         map[string]*platformModels.EmailOutbox
 	byProviderMessageID map[string]*platformModels.EmailOutbox
 	byID                map[int64]*platformModels.EmailOutbox
+	attemptByMessageID  map[string]*platformModels.EmailDispatchAttempt
+	attemptByProviderID map[string]*platformModels.EmailDispatchAttempt
+	attemptByToken      map[string]*platformModels.EmailDispatchAttempt
 
 	applied     []platformModels.DeliveryTransition
 	applyResult bool
@@ -51,6 +54,21 @@ func (r *deliveryOutboxRepo) FindByID(_ context.Context, id int64) (*platformMod
 		return nil, fmt.Errorf("email outbox row %d not found", id)
 	}
 	return row, nil
+}
+
+func (r *deliveryOutboxRepo) FindDispatchAttemptByMessageID(_ context.Context, id string) (*platformModels.EmailDispatchAttempt, error) {
+	if r.lookupErr != nil {
+		return nil, r.lookupErr
+	}
+	return r.attemptByMessageID[id], nil
+}
+
+func (r *deliveryOutboxRepo) FindDispatchAttemptByProviderMessageID(_ context.Context, id string) (*platformModels.EmailDispatchAttempt, error) {
+	return r.attemptByProviderID[id], nil
+}
+
+func (r *deliveryOutboxRepo) FindDispatchAttemptByCorrelationToken(_ context.Context, token string) (*platformModels.EmailDispatchAttempt, error) {
+	return r.attemptByToken[token], nil
 }
 
 func (r *deliveryOutboxRepo) ApplyDeliveryStatus(_ context.Context, _ int64, t platformModels.DeliveryTransition) (bool, error) {
@@ -142,7 +160,10 @@ func (m *recordingMetrics) RecordDeliveryStatus(status string) {
 // Helpers
 // -----------------------------------------------------------------------------
 
-const testMessageID = "ob.7.4321.abcd@mail.test"
+const (
+	testCorrelationToken = "11111111-1111-4111-8111-111111111111"
+	testMessageID        = "ob.7.4321." + testCorrelationToken + "@mail.test"
+)
 
 func dispatchedRow(tenantID, id int64, kind string) *platformModels.EmailOutbox {
 	messageID := testMessageID
@@ -162,11 +183,26 @@ func dispatchedRow(tenantID, id int64, kind string) *platformModels.EmailOutbox 
 }
 
 func repoWithRow(row *platformModels.EmailOutbox) *deliveryOutboxRepo {
+	attempt := dispatchedAttempt(row, testCorrelationToken, *row.MessageID)
 	return &deliveryOutboxRepo{
-		byMessageID: map[string]*platformModels.EmailOutbox{*row.MessageID: row},
-		byID:        map[int64]*platformModels.EmailOutbox{row.ID: row},
-		applyResult: true,
+		byMessageID:        map[string]*platformModels.EmailOutbox{*row.MessageID: row},
+		byID:               map[int64]*platformModels.EmailOutbox{row.ID: row},
+		attemptByMessageID: map[string]*platformModels.EmailDispatchAttempt{attempt.MessageID: attempt},
+		attemptByToken:     map[string]*platformModels.EmailDispatchAttempt{attempt.CorrelationToken: attempt},
+		applyResult:        true,
 	}
+}
+
+func dispatchedAttempt(row *platformModels.EmailOutbox, token, messageID string) *platformModels.EmailDispatchAttempt {
+	attempt := &platformModels.EmailDispatchAttempt{
+		OutboxID:         row.ID,
+		AttemptNumber:    1,
+		CorrelationToken: token,
+		MessageID:        messageID,
+	}
+	attempt.ID = 81
+	attempt.SetTenantID(row.GetTenantID())
+	return attempt
 }
 
 func deliveryEvent(eventID, eventType, messageID string) DeliveryEvent {
@@ -270,6 +306,36 @@ func TestIngestEvent_StaleTransitionStillStoresEvent(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestIngestEvent_PreviousDispatchAttemptCannotOverwriteCurrentStatus(t *testing.T) {
+	db, mock, cleanup := newAdminTxDB(t)
+	defer cleanup()
+	expectAdminTx(mock)
+
+	row := dispatchedRow(7, 4321, platformModels.EmailKindGuardianInvitation)
+	currentMessageID := "ob.7.4321.33333333-3333-4333-8333-333333333333@mail.test"
+	row.MessageID = &currentMessageID
+	oldAttempt := dispatchedAttempt(row, testCorrelationToken, testMessageID)
+	outboxRepo := &deliveryOutboxRepo{
+		byID:               map[int64]*platformModels.EmailOutbox{row.ID: row},
+		attemptByMessageID: map[string]*platformModels.EmailDispatchAttempt{testMessageID: oldAttempt},
+		applyResult:        true,
+	}
+	eventRepo := &deliveryEventRepo{}
+	svc := NewEmailDeliveryService(EmailDeliveryServiceConfig{
+		OutboxRepo: outboxRepo, EventRepo: eventRepo, DB: db,
+	})
+
+	outcome, err := svc.IngestEvent(context.Background(),
+		deliveryEvent("evt_old_attempt", platformModels.DeliveryEventBounced, testMessageID))
+
+	require.NoError(t, err)
+	assert.Equal(t, IngestStale, outcome)
+	require.Len(t, eventRepo.created, 1)
+	assert.Equal(t, oldAttempt.ID, eventRepo.created[0].DispatchAttemptID)
+	assert.Empty(t, outboxRepo.applied, "a delayed callback for an old attempt must not change the current summary")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 // Events about mail we never sent are normal on a shared provider account.
 // They must not be stored and must not error.
 func TestIngestEvent_UnmatchedMessageIsNotStored(t *testing.T) {
@@ -304,9 +370,11 @@ func TestIngestEvent_ForgedLocalPartTenantIsRejected(t *testing.T) {
 	expectAdminTx(mock)
 
 	row := dispatchedRow(7, 4321, platformModels.EmailKindGuardianInvitation)
+	attempt := dispatchedAttempt(row, testCorrelationToken, testMessageID)
 	outboxRepo := &deliveryOutboxRepo{
-		byID:        map[int64]*platformModels.EmailOutbox{row.ID: row},
-		applyResult: true,
+		byID:           map[int64]*platformModels.EmailOutbox{row.ID: row},
+		attemptByToken: map[string]*platformModels.EmailDispatchAttempt{testCorrelationToken: attempt},
+		applyResult:    true,
 	}
 	eventRepo := &deliveryEventRepo{}
 
@@ -316,7 +384,8 @@ func TestIngestEvent_ForgedLocalPartTenantIsRejected(t *testing.T) {
 
 	// Correct outbox id, WRONG tenant in the local part.
 	outcome, err := svc.IngestEvent(context.Background(),
-		deliveryEvent("evt_forged", platformModels.DeliveryEventDelivered, "ob.999.4321.forged@mail.test"))
+		deliveryEvent("evt_forged", platformModels.DeliveryEventDelivered,
+			"ob.999.4321."+testCorrelationToken+"@mail.test"))
 
 	require.NoError(t, err)
 	assert.Equal(t, IngestUnmatched, outcome)
@@ -332,9 +401,11 @@ func TestIngestEvent_LocalPartFallbackResolves(t *testing.T) {
 	expectAdminTx(mock)
 
 	row := dispatchedRow(7, 4321, platformModels.EmailKindGuardianInvitation)
+	attempt := dispatchedAttempt(row, testCorrelationToken, testMessageID)
 	outboxRepo := &deliveryOutboxRepo{
-		byID:        map[int64]*platformModels.EmailOutbox{row.ID: row},
-		applyResult: true,
+		byID:           map[int64]*platformModels.EmailOutbox{row.ID: row},
+		attemptByToken: map[string]*platformModels.EmailDispatchAttempt{testCorrelationToken: attempt},
+		applyResult:    true,
 	}
 	eventRepo := &deliveryEventRepo{}
 
@@ -343,11 +414,39 @@ func TestIngestEvent_LocalPartFallbackResolves(t *testing.T) {
 	})
 
 	outcome, err := svc.IngestEvent(context.Background(),
-		deliveryEvent("evt_fallback", platformModels.DeliveryEventDelivered, "<ob.7.4321.rewritten@relay.test>"))
+		deliveryEvent("evt_fallback", platformModels.DeliveryEventDelivered,
+			"<ob.7.4321."+testCorrelationToken+"@relay.test>"))
 
 	require.NoError(t, err)
 	assert.Equal(t, IngestApplied, outcome)
 	assert.Len(t, eventRepo.created, 1)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestIngestEvent_AlteredFallbackTokenIsRejected(t *testing.T) {
+	db, mock, cleanup := newAdminTxDB(t)
+	defer cleanup()
+	expectAdminTx(mock)
+
+	row := dispatchedRow(7, 4321, platformModels.EmailKindGuardianInvitation)
+	attempt := dispatchedAttempt(row, testCorrelationToken, testMessageID)
+	outboxRepo := &deliveryOutboxRepo{
+		byID:           map[int64]*platformModels.EmailOutbox{row.ID: row},
+		attemptByToken: map[string]*platformModels.EmailDispatchAttempt{testCorrelationToken: attempt},
+		applyResult:    true,
+	}
+	eventRepo := &deliveryEventRepo{}
+	svc := NewEmailDeliveryService(EmailDeliveryServiceConfig{
+		OutboxRepo: outboxRepo, EventRepo: eventRepo, DB: db,
+	})
+
+	outcome, err := svc.IngestEvent(context.Background(),
+		deliveryEvent("evt_altered", platformModels.DeliveryEventDelivered,
+			"ob.7.4321.22222222-2222-4222-8222-222222222222@relay.test"))
+
+	require.NoError(t, err)
+	assert.Equal(t, IngestUnmatched, outcome)
+	assert.Empty(t, eventRepo.created)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

@@ -955,12 +955,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	emailTemplateRegistry := platform.NewTemplateRegistry()
 	emailOutboxService := platform.NewOutboxService(repos.EmailOutbox)
 	emailOutboxWorker := platform.NewOutboxWorker(platform.OutboxWorkerConfig{
-		Repo:        repos.EmailOutbox,
-		Registry:    emailTemplateRegistry,
-		Mailer:      mailer,
-		MaxAttempts: 6, // pushed by scheduler from settings each tick
-		Logger:      logger.With("service", "outbox"),
-		DB:          db,
+		Repo:            repos.EmailOutbox,
+		Registry:        emailTemplateRegistry,
+		Mailer:          mailer,
+		MaxAttempts:     6, // pushed by scheduler from settings each tick
+		MessageIDDomain: viper.GetString("email_message_id_domain"),
+		Logger:          logger.With("service", "outbox"),
+		DB:              db,
 	})
 
 	// Provider delivery-event ingest (#1937). Runs entirely under
@@ -1547,6 +1548,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AnnouncementRepo:        repos.ParentAnnouncement,
 		GuardianInvites:         guardianInvitationService,
 		GuardianInviteRepo:      repos.GuardianInvitation,
+		OutboxCanceller:         emailOutboxService,
 		StudentGuardianRepo:     repos.StudentGuardian,
 		GuardianPhoneRepo:       repos.GuardianPhoneNumber,
 		GuardianChangeAuditRepo: repos.GuardianChange,

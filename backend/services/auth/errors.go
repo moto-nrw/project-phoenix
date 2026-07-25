@@ -73,6 +73,7 @@ var (
 	ErrInvitationNotFound            = errors.New("invitation not found")
 	ErrInvitationExpired             = errors.New("invitation has expired")
 	ErrInvitationUsed                = errors.New("invitation has already been used")
+	ErrGuardianInvitationPending     = errors.New("guardian already has an active invitation")
 	ErrInvitationTenantDeleted       = errors.New("the school for this invitation has been deleted")
 	ErrInvitationNameRequired        = errors.New("first name and last name are required")
 	ErrAccountAlreadyHasTenantAccess = errors.New("account already has access to tenant")

@@ -24,6 +24,7 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -373,6 +374,7 @@ type ServiceConfig struct {
 	// parents portal). The invitation service runs the shared resolve logic.
 	GuardianInvites     authService.GuardianInvitationService
 	GuardianInviteRepo  authModels.GuardianInvitationRepository
+	OutboxCanceller     platformModels.OutboxCanceller
 	StudentGuardianRepo usersModels.StudentGuardianRepository
 
 	// Stammdaten view + change flow (Track A direct edit, Track B requests).

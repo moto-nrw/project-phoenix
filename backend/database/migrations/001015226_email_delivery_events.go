@@ -79,6 +79,49 @@ func emailDeliveryEventsUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed creating message-id indexes: %w", err)
 	}
 
+	fmt.Println("Migration 1.15.226: Creating platform.email_dispatch_attempts...")
+
+	if _, err := db.NewRaw(`
+		CREATE TABLE IF NOT EXISTS platform.email_dispatch_attempts (
+			id                  BIGSERIAL PRIMARY KEY,
+			tenant_id           BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
+			outbox_id           BIGINT NOT NULL REFERENCES platform.email_outbox(id) ON DELETE CASCADE,
+			attempt_number      INTEGER NOT NULL CHECK (attempt_number > 0),
+			correlation_token   UUID NOT NULL,
+			message_id          TEXT NOT NULL,
+			provider_message_id TEXT,
+			created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE (outbox_id, attempt_number)
+		);
+
+		CREATE UNIQUE INDEX IF NOT EXISTS uq_email_dispatch_attempts_message_id
+			ON platform.email_dispatch_attempts (message_id);
+		CREATE UNIQUE INDEX IF NOT EXISTS uq_email_dispatch_attempts_provider_message_id
+			ON platform.email_dispatch_attempts (provider_message_id)
+			WHERE provider_message_id IS NOT NULL;
+		CREATE UNIQUE INDEX IF NOT EXISTS uq_email_dispatch_attempts_correlation_token
+			ON platform.email_dispatch_attempts (correlation_token);
+		CREATE INDEX IF NOT EXISTS idx_email_dispatch_attempts_outbox
+			ON platform.email_dispatch_attempts (outbox_id, attempt_number DESC);
+	`).Exec(ctx); err != nil {
+		return fmt.Errorf("failed creating platform.email_dispatch_attempts: %w", err)
+	}
+
+	if _, err := db.NewRaw(`
+		ALTER TABLE platform.email_dispatch_attempts ENABLE ROW LEVEL SECURITY;
+		ALTER TABLE platform.email_dispatch_attempts FORCE ROW LEVEL SECURITY;
+		DROP POLICY IF EXISTS tenant_isolation_platform_email_dispatch_attempts
+			ON platform.email_dispatch_attempts;
+		CREATE POLICY tenant_isolation_platform_email_dispatch_attempts
+			ON platform.email_dispatch_attempts
+			FOR ALL
+			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
+			WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
+	`).Exec(ctx); err != nil {
+		return fmt.Errorf("failed enabling RLS on email_dispatch_attempts: %w", err)
+	}
+
 	fmt.Println("Migration 1.15.226: Creating platform.email_delivery_events...")
 
 	// outbox_id is NOT NULL by design: it makes tenant_id derivable and
@@ -90,6 +133,7 @@ func emailDeliveryEventsUp(ctx context.Context, db *bun.DB) error {
 			id                  BIGSERIAL PRIMARY KEY,
 			tenant_id           BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
 			outbox_id           BIGINT NOT NULL REFERENCES platform.email_outbox(id) ON DELETE CASCADE,
+			dispatch_attempt_id BIGINT NOT NULL REFERENCES platform.email_dispatch_attempts(id) ON DELETE CASCADE,
 			provider            TEXT NOT NULL,
 			provider_event_id   TEXT NOT NULL,
 			provider_message_id TEXT,
@@ -120,6 +164,8 @@ func emailDeliveryEventsUp(ctx context.Context, db *bun.DB) error {
 		-- Tenant read API: "events for these outbox rows, newest first".
 		CREATE INDEX IF NOT EXISTS idx_email_delivery_events_outbox
 			ON platform.email_delivery_events (outbox_id, occurred_at DESC);
+		CREATE INDEX IF NOT EXISTS idx_email_delivery_events_dispatch_attempt
+			ON platform.email_delivery_events (dispatch_attempt_id, occurred_at DESC);
 
 		-- Ops triage / dashboards.
 		CREATE INDEX IF NOT EXISTS idx_email_delivery_events_tenant_type
@@ -164,6 +210,9 @@ func emailDeliveryEventsDown(ctx context.Context, db *bun.DB) error {
 
 	if _, err := db.NewRaw(`DROP TABLE IF EXISTS platform.email_delivery_events CASCADE;`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed dropping platform.email_delivery_events: %w", err)
+	}
+	if _, err := db.NewRaw(`DROP TABLE IF EXISTS platform.email_dispatch_attempts CASCADE;`).Exec(ctx); err != nil {
+		return fmt.Errorf("failed dropping platform.email_dispatch_attempts: %w", err)
 	}
 
 	if _, err := db.NewRaw(`

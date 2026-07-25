@@ -359,6 +359,7 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 			return err
 		}
 		before := snapshotGuardianContact(profile, oldPhones)
+		oldEmail := normalizeParentGuardianEmail(profile.Email)
 
 		// Reject an email already owned by a DIFFERENT guardian profile before we
 		// write, returning a friendly ErrGuardianEmailConflict. The
@@ -393,6 +394,9 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 
 		applyContactInput(profile, &input)
 		if err := s.GuardianProfileRepo.Update(txCtx, profile); err != nil {
+			return err
+		}
+		if err := s.revokeInvitationsAfterEmailChange(txCtx, profile.ID, oldEmail, normalizeParentGuardianEmail(profile.Email)); err != nil {
 			return err
 		}
 		if err := s.replaceGuardianPhones(txCtx, profile, input.Phones); err != nil {

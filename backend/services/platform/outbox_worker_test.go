@@ -34,8 +34,9 @@ type stubOutboxRepo struct {
 	locked       []int64
 
 	// Delivery-tracking capture (#1937).
-	dispatchIDs   map[int64]dispatchIdentifiers
-	dispatchIDErr error
+	dispatchIDs      map[int64]dispatchIdentifiers
+	dispatchAttempts []*platformModels.EmailDispatchAttempt
+	dispatchIDErr    error
 }
 
 type dispatchIdentifiers struct {
@@ -55,6 +56,8 @@ type failEntry struct {
 	Attempts int
 	Err      string
 }
+
+const testWorkerMessageIDDomain = "mail.example.test"
 
 func (s *stubOutboxRepo) Create(_ context.Context, _ *platformModels.EmailOutbox) error {
 	return errors.New("not implemented in stub")
@@ -122,6 +125,38 @@ func (s *stubOutboxRepo) FindByMessageID(_ context.Context, _ string) (*platform
 }
 
 func (s *stubOutboxRepo) FindByProviderMessageID(_ context.Context, _ string) (*platformModels.EmailOutbox, error) {
+	return nil, errors.New("not implemented in stub")
+}
+
+func (s *stubOutboxRepo) CreateDispatchAttempt(_ context.Context, attempt *platformModels.EmailDispatchAttempt) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	attempt.ID = int64(len(s.dispatchAttempts) + 1)
+	s.dispatchAttempts = append(s.dispatchAttempts, attempt)
+	return nil
+}
+
+func (s *stubOutboxRepo) SetDispatchAttemptProviderMessageID(_ context.Context, attemptID int64, providerMessageID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, attempt := range s.dispatchAttempts {
+		if attempt.ID == attemptID {
+			attempt.ProviderMessageID = &providerMessageID
+			return nil
+		}
+	}
+	return fmt.Errorf("dispatch attempt %d not found", attemptID)
+}
+
+func (s *stubOutboxRepo) FindDispatchAttemptByMessageID(_ context.Context, _ string) (*platformModels.EmailDispatchAttempt, error) {
+	return nil, errors.New("not implemented in stub")
+}
+
+func (s *stubOutboxRepo) FindDispatchAttemptByProviderMessageID(_ context.Context, _ string) (*platformModels.EmailDispatchAttempt, error) {
+	return nil, errors.New("not implemented in stub")
+}
+
+func (s *stubOutboxRepo) FindDispatchAttemptByCorrelationToken(_ context.Context, _ string) (*platformModels.EmailDispatchAttempt, error) {
 	return nil, errors.New("not implemented in stub")
 }
 
@@ -259,7 +294,7 @@ func TestOutboxWorker_RunOnce_NoRows(t *testing.T) {
 	repo := &stubOutboxRepo{}
 	mailer := &stubMailer{}
 	w := NewOutboxWorker(OutboxWorkerConfig{
-		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3,
+		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3, MessageIDDomain: testWorkerMessageIDDomain,
 	})
 
 	n, err := w.RunOnce(context.Background(), 10)
@@ -290,7 +325,7 @@ func TestOutboxWorker_RunOnce_HappyPath_SendsAndMarksSent(t *testing.T) {
 	mailer := &stubMailer{}
 
 	w := NewOutboxWorker(OutboxWorkerConfig{
-		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3,
+		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3, MessageIDDomain: testWorkerMessageIDDomain,
 	})
 
 	n, err := w.RunOnce(context.Background(), 10)
@@ -327,7 +362,7 @@ func TestOutboxWorker_RunOnce_RowCancelledAfterClaim_SkipsSend(t *testing.T) {
 	}
 	mailer := &stubMailer{}
 	w := NewOutboxWorker(OutboxWorkerConfig{
-		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3,
+		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3, MessageIDDomain: testWorkerMessageIDDomain,
 	})
 
 	n, err := w.RunOnce(context.Background(), 10)
@@ -361,7 +396,7 @@ func TestOutboxWorker_RunOnce_RenderError_SchedulesRetry(t *testing.T) {
 	mailer := &stubMailer{}
 
 	w := NewOutboxWorker(OutboxWorkerConfig{
-		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3,
+		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3, MessageIDDomain: testWorkerMessageIDDomain,
 	})
 
 	n, err := w.RunOnce(context.Background(), 10)
@@ -399,7 +434,7 @@ func TestOutboxWorker_RunOnce_SendError_SchedulesRetry(t *testing.T) {
 	mailer := &stubMailer{err: errors.New("smtp timeout")}
 
 	w := NewOutboxWorker(OutboxWorkerConfig{
-		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 5,
+		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 5, MessageIDDomain: testWorkerMessageIDDomain,
 	})
 
 	n, err := w.RunOnce(context.Background(), 10)
@@ -434,7 +469,7 @@ func TestOutboxWorker_RunOnce_ExhaustedAttempts_MarksFailed(t *testing.T) {
 	mailer := &stubMailer{err: errors.New("still broken")}
 
 	w := NewOutboxWorker(OutboxWorkerConfig{
-		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3,
+		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3, MessageIDDomain: testWorkerMessageIDDomain,
 	})
 
 	n, err := w.RunOnce(context.Background(), 10)
@@ -464,7 +499,7 @@ func TestOutboxWorker_RunOnce_UnknownKind_MarksFailedImmediately(t *testing.T) {
 	mailer := &stubMailer{}
 
 	w := NewOutboxWorker(OutboxWorkerConfig{
-		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 10,
+		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 10, MessageIDDomain: testWorkerMessageIDDomain,
 	})
 
 	n, err := w.RunOnce(context.Background(), 10)
@@ -491,7 +526,7 @@ func TestOutboxWorker_RunOnce_ClaimError_Bubbles(t *testing.T) {
 	repo := &stubOutboxRepo{claimErr: errors.New("db down")}
 	mailer := &stubMailer{}
 	w := NewOutboxWorker(OutboxWorkerConfig{
-		Repo: repo, Registry: NewTemplateRegistry(), Mailer: mailer, DB: db, MaxAttempts: 3,
+		Repo: repo, Registry: NewTemplateRegistry(), Mailer: mailer, DB: db, MaxAttempts: 3, MessageIDDomain: testWorkerMessageIDDomain,
 	})
 
 	n, err := w.RunOnce(context.Background(), 10)
@@ -528,7 +563,7 @@ func TestOutboxWorker_RunOnce_MultipleRows_OneBadDoesNotStallBatch(t *testing.T)
 	repo := &stubOutboxRepo{due: []*platformModels.EmailOutbox{good1, bad, good2}}
 	mailer := &stubMailer{}
 	w := NewOutboxWorker(OutboxWorkerConfig{
-		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3,
+		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3, MessageIDDomain: testWorkerMessageIDDomain,
 	})
 
 	n, err := w.RunOnce(context.Background(), 10)
@@ -556,6 +591,7 @@ func TestOutboxWorker_RunOnce_MissingDependencies_Errors(t *testing.T) {
 		{"missing registry", OutboxWorkerConfig{Repo: &stubOutboxRepo{}, Mailer: &stubMailer{}, DB: db}, "missing registry"},
 		{"missing mailer", OutboxWorkerConfig{Repo: &stubOutboxRepo{}, Registry: NewTemplateRegistry(), DB: db}, "missing mailer"},
 		{"missing db", OutboxWorkerConfig{Repo: &stubOutboxRepo{}, Registry: NewTemplateRegistry(), Mailer: &stubMailer{}}, "missing db"},
+		{"missing message id domain", OutboxWorkerConfig{Repo: &stubOutboxRepo{}, Registry: NewTemplateRegistry(), Mailer: &stubMailer{}, DB: db}, "missing message id domain"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -616,11 +652,12 @@ func TestOutboxWorker_StampsMessageIDAndPersistsIt(t *testing.T) {
 			persisted, ok := repo.dispatchIDs[row.ID]
 			require.True(t, ok, "Message-ID must commit before transport submission")
 			require.NotEmpty(t, persisted.MessageID)
+			require.Len(t, repo.dispatchAttempts, 1, "the attempt correlation must commit before transport submission")
 		},
 	}
 
 	w := NewOutboxWorker(OutboxWorkerConfig{
-		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3,
+		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3, MessageIDDomain: testWorkerMessageIDDomain,
 	})
 
 	n, err := w.RunOnce(context.Background(), 10)
@@ -641,7 +678,51 @@ func TestOutboxWorker_StampsMessageIDAndPersistsIt(t *testing.T) {
 	assert.Equal(t, stamped, persisted.MessageID)
 	require.NotNil(t, persisted.ProviderMessageID)
 	assert.Equal(t, "provider-abc-123", *persisted.ProviderMessageID)
+	require.Len(t, repo.dispatchAttempts, 1)
+	assert.Equal(t, stamped, repo.dispatchAttempts[0].MessageID)
+	require.NotNil(t, repo.dispatchAttempts[0].ProviderMessageID)
+	assert.Equal(t, "provider-abc-123", *repo.dispatchAttempts[0].ProviderMessageID)
 	assert.Contains(t, repo.sent, row.ID)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestOutboxWorker_RetryPreservesBothDispatchAttempts(t *testing.T) {
+	db, mock, cleanup := newAdminTxDB(t)
+	defer cleanup()
+
+	expectAdminTx(mock) // first claim
+	expectAdminTx(mock) // first attempt correlation
+	expectAdminTx(mock) // first send
+	expectAdminTx(mock) // mark retry
+	expectAdminTx(mock) // retry claim
+	expectAdminTx(mock) // second attempt correlation
+	expectAdminTx(mock) // second send + sent
+
+	registry := NewTemplateRegistry()
+	registry.Register("welcome", RendererFunc(func(_ context.Context, _ *platformModels.EmailOutbox) (*email.Message, error) {
+		return &email.Message{Subject: "Welcome"}, nil
+	}))
+	row := makeRow(777, 7, "welcome", 0)
+	repo := &stubOutboxRepo{due: []*platformModels.EmailOutbox{row}}
+
+	firstWorker := NewOutboxWorker(OutboxWorkerConfig{
+		Repo: repo, Registry: registry, Mailer: &stubMailer{err: errors.New("temporary failure")}, DB: db, MaxAttempts: 3, MessageIDDomain: testWorkerMessageIDDomain,
+	})
+	_, err := firstWorker.RunOnce(context.Background(), 1)
+	require.NoError(t, err)
+
+	row.Attempts = 1
+	repo.due = []*platformModels.EmailOutbox{row}
+	secondWorker := NewOutboxWorker(OutboxWorkerConfig{
+		Repo: repo, Registry: registry, Mailer: &stubMailer{}, DB: db, MaxAttempts: 3, MessageIDDomain: testWorkerMessageIDDomain,
+	})
+	_, err = secondWorker.RunOnce(context.Background(), 1)
+	require.NoError(t, err)
+
+	require.Len(t, repo.dispatchAttempts, 2)
+	assert.Equal(t, 1, repo.dispatchAttempts[0].AttemptNumber)
+	assert.Equal(t, 2, repo.dispatchAttempts[1].AttemptNumber)
+	assert.NotEqual(t, repo.dispatchAttempts[0].MessageID, repo.dispatchAttempts[1].MessageID)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -665,7 +746,7 @@ func TestOutboxWorker_StampsMessageIDWithoutProviderReporter(t *testing.T) {
 	mailer := &stubMailer{}
 
 	w := NewOutboxWorker(OutboxWorkerConfig{
-		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3,
+		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3, MessageIDDomain: testWorkerMessageIDDomain,
 	})
 
 	_, err := w.RunOnce(context.Background(), 10)

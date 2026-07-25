@@ -10,11 +10,12 @@ import (
 
 func validEvent() *EmailDeliveryEvent {
 	return &EmailDeliveryEvent{
-		OutboxID:        42,
-		Provider:        "generic",
-		ProviderEventID: "evt_1",
-		EventType:       DeliveryEventDelivered,
-		OccurredAt:      time.Now(),
+		OutboxID:          42,
+		DispatchAttemptID: 17,
+		Provider:          "generic",
+		ProviderEventID:   "evt_1",
+		EventType:         DeliveryEventDelivered,
+		OccurredAt:        time.Now(),
 	}
 }
 
@@ -36,6 +37,7 @@ func TestEmailDeliveryEvent_ValidateRejectsBadInput(t *testing.T) {
 		{"missing provider", func(e *EmailDeliveryEvent) { e.Provider = "  " }},
 		{"missing provider event id", func(e *EmailDeliveryEvent) { e.ProviderEventID = "" }},
 		{"missing outbox id", func(e *EmailDeliveryEvent) { e.OutboxID = 0 }},
+		{"missing dispatch attempt id", func(e *EmailDeliveryEvent) { e.DispatchAttemptID = 0 }},
 		{"unknown event type", func(e *EmailDeliveryEvent) { e.EventType = "teleported" }},
 		{"missing occurred_at", func(e *EmailDeliveryEvent) { e.OccurredAt = time.Time{} }},
 		{"bad bounce class", func(e *EmailDeliveryEvent) {
