@@ -262,6 +262,30 @@ func TestTimeTrackingOverview_MatchesMonthSummary(t *testing.T) {
 	}
 }
 
+func TestTimeTrackingOverview_AccountStartAfterRequestedMonthMatchesDetail(t *testing.T) {
+	f := newOverviewFixture(t, 1)
+	settings := wtmIntSettings{accountStart: f.today.AddDays(40).String()}
+	svc := f.newOverviewService(settings)
+	monthSvc := active.NewWorkTimeMonthService(
+		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.StaffAbsence, f.repos.Staff,
+		f.repos.StaffWorkSchedule, f.repos.WorkTimeModel, f.repos.StaffShift,
+		settings, nil,
+	)
+	monthSvc.SetAdjustmentReader(f.repos.StaffBalanceAdjust)
+	monthSvc.SetSnapshotReader(f.repos.StaffMonthSnapshot)
+
+	overview, err := svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{})
+	require.NoError(t, err)
+	require.Len(t, overview.Rows, 1)
+	expected, err := monthSvc.GetMonthSummary(f.ctx, f.staff[0].ID, f.today.Year, int(f.today.Month))
+	require.NoError(t, err)
+
+	assert.Equal(t, expected.TargetMinutesToDate, overview.Rows[0].SollMinutes)
+	assert.Equal(t, expected.ActualMinutes, overview.Rows[0].IstMinutes)
+	assert.Equal(t, expected.ClosingBalanceMinutes, overview.Rows[0].BalanceMinutes)
+	assert.Equal(t, 4*60, overview.Rows[0].IstMinutes, "the standalone month must retain its worked session")
+}
+
 // TestTimeTrackingOverview_VacationMatchesQuotaEndpoint pins Resturlaub against
 // the per-staff endpoint it mirrors.
 func TestTimeTrackingOverview_VacationMatchesQuotaEndpoint(t *testing.T) {

@@ -221,6 +221,12 @@ func (s *staffOverviewService) buildPrefetch(
 		return nil, err
 	}
 	from, to := anchor, through.lastDay()
+	// getMonthSummaryThrough summarizes a month before the configured account
+	// start as a standalone month. Prefetch the same month instead of querying
+	// the future anchor through an earlier month end.
+	if through.before(monthOf(anchor)) {
+		from = through.firstDay()
+	}
 	if lower != nil && lower.Before(from) {
 		from = *lower
 	}
