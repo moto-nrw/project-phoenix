@@ -63,7 +63,7 @@ function saldoClass(minutes: number): string {
 /** Abschluss-Zustand des angezeigten Monats (#1417). `null` solange der
  *  Status lädt — dann erscheint weder Badge noch Button, statt kurz falsch
  *  "offen" zu behaupten. */
-export interface MonthCloseState {
+interface MonthCloseState {
   readonly closed: boolean;
   /** Zeitstempel des Abschlusses (erste Snapshot-Zeile), "" wenn offen. */
   readonly closedAt: string;
