@@ -146,6 +146,67 @@ func TestLoadPublicPhaseWithLateInvite_LookupFailurePropagatesOnClosedPhase(t *t
 	require.NotErrorIs(t, err, ErrEnrollmentWindowClosed)
 }
 
+// A valid late invite is a per-recipient eligibility override: Submit skips
+// validateChildGradeEligibility for it via AllowClosedPhase, so an admin can
+// invite a child from outside the restricted grade. The form-load response must
+// therefore drop the restriction too — otherwise the grade select offers only
+// the phase's grades and the recipient cannot declare the very grade the invite
+// exists for. Mirrors the class-list override, which keeps the full offered list
+// for a late invite (#1663).
+func TestLoadPublicPhaseWithLateInvite_ValidInviteClearsGradeRestriction(t *testing.T) {
+	phase := linkedParentsPhaseOpenWindow()
+	phase.Audience = enrollmentModels.PhaseAudienceOpen
+	phase.EligibleGradeLevels = []int{3}
+
+	svc := audienceTestService(&enrollmentModels.LateInvite{}, nil, phase)
+
+	loaded, err := svc.LoadPublicPhaseWithLateInvite(context.Background(), 4242, time.Now(), "valid-token")
+	require.NoError(t, err)
+	require.Empty(t, loaded.EligibleGradeLevels,
+		"a late-invite recipient must be able to pick any grade the submit path would accept")
+}
+
+// The enrollee (parents-portal) gate runs through the same override, so the
+// embedded form behaves identically.
+func TestLoadEnrolleePhaseWithLateInvite_ValidInviteClearsGradeRestriction(t *testing.T) {
+	phase := linkedParentsPhaseOpenWindow()
+	phase.EligibleGradeLevels = []int{3}
+
+	svc := audienceTestService(&enrollmentModels.LateInvite{}, nil, phase)
+
+	loaded, err := svc.LoadEnrolleePhaseWithLateInvite(context.Background(), 4242, time.Now(), "valid-token")
+	require.NoError(t, err)
+	require.Empty(t, loaded.EligibleGradeLevels)
+}
+
+// Without a valid invite the restriction stays: a normal self-service load must
+// keep narrowing the grade select to the grades submit will accept.
+func TestLoadPublicPhaseWithLateInvite_NoInviteKeepsGradeRestriction(t *testing.T) {
+	phase := linkedParentsPhaseOpenWindow()
+	phase.Audience = enrollmentModels.PhaseAudienceOpen
+	phase.EligibleGradeLevels = []int{3}
+
+	svc := audienceTestService(nil, enrollmentModels.ErrLateInviteNotFound, phase)
+
+	loaded, err := svc.LoadPublicPhaseWithLateInvite(context.Background(), 4242, time.Now(), "")
+	require.NoError(t, err)
+	require.Equal(t, []int{3}, loaded.EligibleGradeLevels)
+}
+
+// An invalid/expired token is not an override either — the restriction must
+// survive it exactly as the audience and window gates do.
+func TestLoadPublicPhaseWithLateInvite_InvalidInviteKeepsGradeRestriction(t *testing.T) {
+	phase := linkedParentsPhaseOpenWindow()
+	phase.Audience = enrollmentModels.PhaseAudienceOpen
+	phase.EligibleGradeLevels = []int{3}
+
+	svc := audienceTestService(nil, enrollmentModels.ErrLateInviteNotFound, phase)
+
+	loaded, err := svc.LoadPublicPhaseWithLateInvite(context.Background(), 4242, time.Now(), "bad-token")
+	require.NoError(t, err)
+	require.Equal(t, []int{3}, loaded.EligibleGradeLevels)
+}
+
 // The authenticated enrollee gate keeps loading restricted phases without any
 // invite — the guardian is already authorized.
 func TestLoadEnrolleePhaseWithLateInvite_AllowsRestrictedWithoutInvite(t *testing.T) {

@@ -40,6 +40,13 @@ type settingsService struct {
 	// blocked by it (#1663). Optional in the same way; injected via
 	// SetGradeRestrictionGuard.
 	gradeRestrictionGuard func(ctx context.Context) (bool, error)
+	// gradeCapGuard reports the highest grade any active phase restricts
+	// itself to (0 when none does). It gates LOWERING
+	// enrollment.grade_level_max: the public form only offers grades up to the
+	// cap and the submit path re-checks it, so a cap below a live restriction
+	// leaves that phase unable to accept any submission (#1663). Optional in
+	// the same way as the two probes above; injected via SetGradeCapGuard.
+	gradeCapGuard func(ctx context.Context) (int, error)
 }
 
 // SetClassRestrictionGuard wires the enrollment class-restriction probe used
@@ -55,6 +62,13 @@ func (s *settingsService) SetClassRestrictionGuard(fn func(ctx context.Context) 
 // convention as SetClassRestrictionGuard (#1663).
 func (s *settingsService) SetGradeRestrictionGuard(fn func(ctx context.Context) (bool, error)) {
 	s.gradeRestrictionGuard = fn
+}
+
+// SetGradeCapGuard wires the enrollment highest-restricted-grade probe used by
+// the grade-level-cap guard, following the same off-constructor convention as
+// SetClassRestrictionGuard (#1663).
+func (s *settingsService) SetGradeCapGuard(fn func(ctx context.Context) (int, error)) {
+	s.gradeCapGuard = fn
 }
 
 // NewSettingsService creates a new SettingsService.
@@ -515,6 +529,53 @@ func (s *settingsService) validateCrossField(ctx context.Context, key string, va
 		return s.validateSlotListCutoffPair(ctx, key, value)
 	case config.KeyEnrollmentCollectGradeLevel, config.KeyEnrollmentCollectSchoolClass:
 		return s.validateClassCollectionGuard(ctx, key, value)
+	case config.KeyEnrollmentGradeLevelMax:
+		return s.validateGradeLevelCapGuard(ctx, key, value)
+	}
+	return nil
+}
+
+// validateGradeLevelCapGuard blocks lowering enrollment.grade_level_max below
+// a grade an active phase already restricts itself to. The public form offers
+// grades 1..cap and the submit path re-checks the cap, so such a phase would
+// end up unable to accept any submission: the parent cannot pick the eligible
+// grade, and a hand-crafted submission carrying it is rejected by the cap.
+// This is the inverse of the phase-side ensureEligibleGradeLevelsWithinTenantCap
+// check — together they keep the pair consistent from either edit direction,
+// including via ResetValue, which restores the registry default 4 (#1663).
+//
+// Takes the same per-tenant lock as the class/grade collection guards so a
+// concurrent phase write and a cap change cannot both pass on a stale read.
+// Best-effort: a nil guard skips the check.
+func (s *settingsService) validateGradeLevelCapGuard(ctx context.Context, key string, value any) error {
+	if s.gradeCapGuard == nil {
+		return nil
+	}
+	num, ok := toFloat64(value)
+	if !ok {
+		// A non-numeric value is already rejected by validateValue; nothing to
+		// compare here.
+		return nil
+	}
+	newMax := int(num)
+	if err := s.LockClassCollectionPair(ctx); err != nil {
+		return err
+	}
+	highest, err := s.gradeCapGuard(ctx)
+	if err != nil {
+		// Operational failure stays a plain error → 500, not a "your value is
+		// invalid" 400.
+		return fmt.Errorf("check grade-restricted phases: %w", err)
+	}
+	if highest > newMax {
+		return &InvalidValueError{
+			Key: key,
+			Reason: fmt.Sprintf(
+				"Die höchste Klassenstufe kann nicht auf %d gesenkt werden, solange eine aktive Anmeldephase auf Klassenstufe %d beschränkt ist. Entfernen Sie zuerst die Klassenstufenbeschränkung der betroffenen Phase.",
+				newMax,
+				highest,
+			),
+		}
 	}
 	return nil
 }

@@ -54,7 +54,7 @@ type PhaseResponse struct {
 	// must satisfy.
 	Audience              string   `json:"audience"`
 	EligibleSchoolClasses []string `json:"eligible_school_classes"`
-	// EligibleGradeLevels (migration 1.15.225) restricts the phase to whole
+	// EligibleGradeLevels (migration 1.15.226) restricts the phase to whole
 	// grades — the case a concrete-class list cannot express.
 	EligibleGradeLevels []int  `json:"eligible_grade_levels"`
 	CreatedAt           string `json:"created_at"`

@@ -210,6 +210,29 @@ func (r *PhaseRepository) ExistsActiveWithEligibleGradeLevels(ctx context.Contex
 	return exists, nil
 }
 
+// MaxActiveEligibleGradeLevel returns the highest grade any active phase of
+// the tenant (via the RLS tx in context) restricts itself to, or 0 when no
+// active phase carries a grade restriction. Backs the settings guard that
+// refuses to lower enrollment.grade_level_max below a restriction that is
+// already live — the form would then offer no eligible grade at all and every
+// submission to that phase would fail (#1663). Grades are stored as JSON
+// numbers written only through Phase.Validate, so the text-extract cast is
+// safe.
+func (r *PhaseRepository) MaxActiveEligibleGradeLevel(ctx context.Context) (int, error) {
+	var highest int
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*enrollment.Phase)(nil)).
+		ModelTableExpr(phaseTableExpr).
+		ColumnExpr(`COALESCE(MAX((grade.value #>> '{}')::int), 0)`).
+		Join(`CROSS JOIN LATERAL jsonb_array_elements("phase".eligible_grade_levels) AS grade(value)`).
+		Where(`"phase".is_active = TRUE`).
+		Scan(ctx, &highest)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read highest active eligible grade level: %w", err)
+	}
+	return highest, nil
+}
+
 // ExistsByFormSchemaID is the safety check the schema-delete path needs.
 // Returns true if any phase still references the given schema id.
 func (r *PhaseRepository) ExistsByFormSchemaID(ctx context.Context, schemaID int64) (bool, error) {

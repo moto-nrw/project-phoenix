@@ -2994,10 +2994,32 @@ func (s *requestService) loadEditablePhaseWithLateInvite(ctx context.Context, ph
 	// Only offer classes the submit-time eligibility gate will actually accept.
 	// A valid late invite bypasses that gate (AllowClosedPhase), so its recipient
 	// keeps the full offered list; everyone else sees the eligible subset (#1663).
-	if !hasValidLateInvite {
+	if hasValidLateInvite {
+		clearGradeRestrictionForLateInviteForm(phase)
+	} else {
 		narrowOfferedClassesToEligibleForForm(phase)
 	}
 	return phase, nil
+}
+
+// clearGradeRestrictionForLateInviteForm drops the phase's grade restriction
+// from a form-load response served to a valid late-invite recipient. The invite
+// is a deliberate per-recipient eligibility override — Submit honors it via
+// AllowClosedPhase, which skips validateChildGradeEligibility entirely — so an
+// admin can invite a child from outside the restricted grade and the submission
+// is accepted. Leaving the restriction in the response would still narrow the
+// form's grade select to it, making the recipient unable to declare the very
+// grade the invite exists for. This is the grade-level mirror of the class
+// handling above, where a late invite skips narrowOfferedClassesToEligibleForForm
+// and keeps the full offered class list (#1663).
+//
+// Mutates a phase already cleared for a form load; Submit reloads the phase
+// independently (loadPhaseForSubmission), so this never reaches validation.
+func clearGradeRestrictionForLateInviteForm(phase *enrollmentModels.Phase) {
+	if phase == nil {
+		return
+	}
+	phase.EligibleGradeLevels = []int{}
 }
 
 // narrowOfferedClassesToEligibleForForm restricts the phase's offered concrete

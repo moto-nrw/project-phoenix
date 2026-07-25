@@ -199,7 +199,7 @@ type Phase struct {
 	Audience              string   `bun:"audience,notnull,default:'open'" json:"audience"`
 	EligibleSchoolClasses []string `bun:"eligible_school_classes,type:jsonb,notnull" json:"eligible_school_classes"`
 
-	// EligibleGradeLevels (migration 1.15.225, issue #1663) is the
+	// EligibleGradeLevels (migration 1.15.226, issue #1663) is the
 	// grade-level counterpart of EligibleSchoolClasses: when non-empty,
 	// every submitted child must declare one of the listed grades. It is
 	// the representation for a phase aimed at a whole grade ("alle
@@ -430,4 +430,13 @@ type PhaseRepository interface {
 	// child's declared grade and reject every submission to such a phase
 	// with grade_not_eligible (#1663).
 	ExistsActiveWithEligibleGradeLevels(ctx context.Context) (bool, error)
+
+	// MaxActiveEligibleGradeLevel returns the highest grade any active phase
+	// restricts itself to (0 when none does). The settings guard consults it
+	// to refuse LOWERING enrollment.grade_level_max below a live restriction:
+	// the form only offers grades up to the cap and the submit path re-checks
+	// it, so a phase pinned to a grade above the new cap would accept no
+	// submission at all (#1663). Counterpart of the phase-side
+	// ensureEligibleGradeLevelsWithinTenantCap check.
+	MaxActiveEligibleGradeLevel(ctx context.Context) (int, error)
 }

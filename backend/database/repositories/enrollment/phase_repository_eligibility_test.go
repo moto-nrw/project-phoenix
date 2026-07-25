@@ -182,3 +182,60 @@ func TestPhaseRepository_ExistsActiveWithEligibleGradeLevels(t *testing.T) {
 	}))
 	assert.True(t, exists, "an active grade-restricted phase must block the toggle")
 }
+
+// Backs the settings guard that refuses to LOWER enrollment.grade_level_max
+// below a grade an active phase already restricts itself to (#1663).
+func TestPhaseRepository_MaxActiveEligibleGradeLevel(t *testing.T) {
+	db, repo, tenantID := setupPhaseRepoTest(t)
+	unrestrictedName := uniquePhaseName("gradeCapUnrestricted")
+	inactiveName := uniquePhaseName("gradeCapInactive")
+	activeName := uniquePhaseName("gradeCapActive")
+	lowerName := uniquePhaseName("gradeCapLower")
+	defer wipePhases(db, tenantID, unrestrictedName, inactiveName, activeName, lowerName)
+
+	unrestricted := makeValidPhase(unrestrictedName)
+	unrestricted.IsActive = true
+
+	// An inactive phase restricted to a HIGH grade must not pin the cap — only
+	// live phases can be broken by lowering it.
+	inactive := makeValidPhase(inactiveName)
+	inactive.IsActive = false
+	inactive.EligibleGradeLevels = []int{9}
+
+	for _, p := range []*enrollmentModels.Phase{unrestricted, inactive} {
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			return repo.Create(ctx, p)
+		}))
+	}
+
+	var highest int
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var mErr error
+		highest, mErr = repo.MaxActiveEligibleGradeLevel(ctx)
+		return mErr
+	}))
+	assert.Equal(t, 0, highest, "no active restriction means the cap is unconstrained")
+
+	// Two active restricted phases: the MAX across both (and across each list's
+	// entries) is what the guard must see.
+	active := makeValidPhase(activeName)
+	active.IsActive = true
+	active.EligibleGradeLevels = []int{2, 4}
+
+	lower := makeValidPhase(lowerName)
+	lower.IsActive = true
+	lower.EligibleGradeLevels = []int{3}
+
+	for _, p := range []*enrollmentModels.Phase{active, lower} {
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			return repo.Create(ctx, p)
+		}))
+	}
+
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var mErr error
+		highest, mErr = repo.MaxActiveEligibleGradeLevel(ctx)
+		return mErr
+	}))
+	assert.Equal(t, 4, highest, "the guard needs the highest grade across every active phase")
+}

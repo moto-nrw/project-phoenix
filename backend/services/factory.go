@@ -319,6 +319,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			return repos.Phase.ExistsActiveWithEligibleGradeLevels(ctx)
 		})
 	}
+	// And the cap probe, so enrollment.grade_level_max cannot be lowered below
+	// a grade an active phase already restricts itself to — which would leave
+	// that phase with no selectable eligible grade at all (#1663).
+	if guarded, ok := settingsService.(interface {
+		SetGradeCapGuard(func(context.Context) (int, error))
+	}); ok {
+		guarded.SetGradeCapGuard(func(ctx context.Context) (int, error) {
+			return repos.Phase.MaxActiveEligibleGradeLevel(ctx)
+		})
+	}
 
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{

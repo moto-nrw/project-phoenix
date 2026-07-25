@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -19,13 +20,16 @@ import (
 
 // PhaseSettingsResolver is the narrow slice of the settings service the
 // phase service needs: the two toggles that decide whether the enrollment
-// form collects a concrete school class. A class-based eligibility
-// restriction (eligible_school_classes) is uncheckable — and every
-// submission is rejected — when the class is never collected, so
-// Create/Update reject that configuration up front. Optional: when nil
+// form collects a concrete school class, plus the tenant's grade-level cap.
+// A class-based eligibility restriction (eligible_school_classes) is
+// uncheckable — and every submission is rejected — when the class is never
+// collected, and a grade restriction above enrollment.grade_level_max is
+// unsatisfiable for the same reason (the form never offers that grade), so
+// Create/Update reject both configurations up front. Optional: when nil
 // (unit tests with mocks) the collectability guard is skipped.
 type PhaseSettingsResolver interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveInt(ctx context.Context, key string) (int, error)
 }
 
 // PhaseService sentinel errors. The HTTP layer maps these to status
@@ -138,10 +142,12 @@ func NewPhaseService(cfg PhaseServiceConfig) PhaseService {
 }
 
 // classCollectionResolver is the minimal settings surface the collectability
-// guard reads. The concrete settings service additionally satisfies the
+// guard reads: the two collection toggles plus enrollment.grade_level_max for
+// the grade-cap check. The concrete settings service additionally satisfies the
 // optional LockClassCollectionPair interface the guard type-asserts for.
 type classCollectionResolver interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveInt(ctx context.Context, key string) (int, error)
 }
 
 // ensureEligibleClassesCollectable rejects a class-based eligibility
@@ -216,6 +222,50 @@ func ensureEligibleGradeLevelsCollectable(ctx context.Context, settings classCol
 	}
 	if !collectGrade {
 		return fmt.Errorf("%w: eligible_grade_levels requires the grade-level collection setting (Klassenstufen-Abfrage) to be active", ErrInvalidPhase)
+	}
+	return ensureEligibleGradeLevelsWithinTenantCap(ctx, settings, eligible)
+}
+
+// ensureEligibleGradeLevelsWithinTenantCap rejects a grade restriction the
+// tenant's own form can never satisfy. The public form offers grades
+// 1..enrollment.grade_level_max and the submit path re-checks the same cap, so
+// a phase restricted to a grade ABOVE it is unsatisfiable from both ends: the
+// select never offers the grade, and a hand-crafted submission carrying it is
+// rejected by the cap before eligibility is even consulted. Without this check
+// an admin can save eligible_grade_levels [5] under a cap of 4 and end up with
+// an active phase that accepts no submission at all (#1663).
+//
+// Runs under the lock the caller already holds, which the settings side takes
+// too — so lowering the cap and adding an above-cap restriction cannot both
+// pass on a stale read. Values below MinGradeLevel are already rejected by
+// Phase.Validate's normalizeGradeLevelList; the cap is the tenant-specific half
+// it cannot know about.
+func ensureEligibleGradeLevelsWithinTenantCap(ctx context.Context, settings classCollectionResolver, eligible []int) error {
+	gradeMax, err := settings.ResolveInt(ctx, configModel.KeyEnrollmentGradeLevelMax)
+	if err != nil {
+		return fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentGradeLevelMax, err)
+	}
+	// A corrupt or out-of-range cap must stop the write rather than silently
+	// pick a substitute bound — the same fail-closed reasoning as
+	// requestService.resolveGradeMax and rolloverService.resolveMaxGrade.
+	if gradeMax < schoolclass.MinGradeLevel || gradeMax > schoolclass.MaxGradeLevel {
+		return fmt.Errorf(
+			"resolve %s: value %d is outside %d..%d",
+			configModel.KeyEnrollmentGradeLevelMax,
+			gradeMax,
+			schoolclass.MinGradeLevel,
+			schoolclass.MaxGradeLevel,
+		)
+	}
+	for _, level := range eligible {
+		if level > gradeMax {
+			return fmt.Errorf(
+				"%w: eligible_grade_levels contains grade %d above the tenant maximum %d (Höchste Klassenstufe im Formular); the form never offers that grade, so every submission would be rejected",
+				ErrInvalidPhase,
+				level,
+				gradeMax,
+			)
+		}
 	}
 	return nil
 }
