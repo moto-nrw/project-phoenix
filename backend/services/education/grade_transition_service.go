@@ -660,9 +660,16 @@ func (s *GradeTransitionService) ApplyChecked(
 	return result, nil
 }
 
-// lockRecurrenceThenTransitions takes both tenant-wide gates an apply/revert
-// needs, in the project-wide order: the recurrence gate FIRST, the grade
-// transition gate second.
+// lockRecurrenceThenTransitions takes the three tenant-wide gates an
+// apply/revert needs, in the project-wide order: the student class-writes gate
+// FIRST, then the recurrence gate, then the grade transition gate.
+//
+// The class-writes gate comes first because it is the one an ordinary request
+// can also hold: a create-student request takes it (shared, inside the student
+// repository) and may afterwards touch recurrence-derived state, so an apply
+// holding the recurrence gate and then asking for the class-writes gate would
+// close the cycle. Taking it up front keeps the order acyclic in both
+// directions.
 //
 // Order matters because both operations mutate recurrence-derived roster state.
 // A re-plan (services/schedule.ReplanWeek) holds the recurrence gate, deletes
@@ -677,6 +684,23 @@ func (s *GradeTransitionService) ApplyChecked(
 // education.TenantTransitionsLockKey) — services/schedule cannot be imported
 // here without an import cycle.
 func (s *GradeTransitionService) lockRecurrenceThenTransitions(ctx context.Context) error {
+	// Shuts the one window the row locks below cannot reach: a child CREATED in
+	// a mapped class, or moved in from an unmapped one, has no row to lock, so
+	// ensureNoLateArrivals can only catch arrivals that committed before its
+	// re-read. Holding this gate for the rest of the transaction means an
+	// arrival either lands before the re-read (and is refused with
+	// ErrPreviewStale, so the admin re-previews the complete cohort) or waits
+	// until the transition has committed — never in between, where it would be
+	// skipped by writes that only touch the locked ids while the transition
+	// still reports success (#405 review).
+	//
+	// Nil only in pure unit tests that wire no student repository; those take no
+	// row locks either, so there is no window to close.
+	if s.studentRepo != nil {
+		if err := s.studentRepo.LockStudentClassWrites(ctx); err != nil {
+			return err
+		}
+	}
 	if err := s.transitionRepo.LockTenantRecurrenceWrites(ctx); err != nil {
 		return err
 	}
@@ -887,7 +911,10 @@ func (s *GradeTransitionService) ensureNoLateArrivals(
 	}
 
 	// Re-read UNDER the locks. In READ COMMITTED this statement sees every
-	// concurrent commit that landed since the snapshot query.
+	// concurrent commit that landed since the snapshot query — and the
+	// class-writes gate the caller took before any of this (see
+	// lockRecurrenceThenTransitions) means no further arrival can commit behind
+	// it, so this re-read is the complete cohort for the rest of the apply.
 	current, err := s.transitionRepo.GetStudentsByClasses(ctx, classes)
 	if err != nil {
 		return fmt.Errorf("failed to re-check transition students: %w", err)

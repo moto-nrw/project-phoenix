@@ -36,6 +36,37 @@ import (
 // separate Unlock method to forget.
 const studentPhotoFeatureLockClass int32 = 0x70686F74
 
+// studentClassWritesLockClass is the pg_advisory_xact_lock class id ("clas" in
+// ASCII) that serializes a grade transition apply/revert against every write
+// which could put a child INTO one of the classes it is transitioning.
+//
+// Row locks cannot express that: a student created in a mapped class — or moved
+// in from an unmapped one — has no row the transition could have locked. The
+// apply's post-lock re-read (services/education.ensureNoLateArrivals) therefore
+// only sees arrivals that COMMITTED before it ran; one committing after that
+// statement but before the apply commits was silently left behind in a class the
+// transition had just emptied, while the transition reported success and wrote
+// no history row a revert could undo it with (#405 review).
+//
+// Writers take the gate SHARED — shared holders never conflict with each other,
+// so the normal path costs one in-memory advisory-lock round-trip and never
+// blocks. Apply/revert take it EXCLUSIVE for their whole transaction, which is
+// the only time a writer waits. Both forms are transaction-scoped: they release
+// at COMMIT/ROLLBACK (no Unlock to forget), and re-acquiring a lock the same
+// transaction already holds never waits — the transition's own student reads and
+// writes below pass straight through its exclusive hold.
+//
+// LOCK ORDER (must stay acyclic):
+//
+//  1. this gate, BEFORE the tenant recurrence gate and the grade-transition gate
+//     (services/education.lockRecurrenceThenTransitions takes all three in that
+//     order), and
+//  2. BEFORE any users.students row lock — every acquisition below sits in front
+//     of the row lock taken by the same method, so no transaction can hold a
+//     student row and then queue for the gate while the gate holder waits for
+//     that row.
+const studentClassWritesLockClass int32 = 0x636C6173
+
 // Table name constants (S1192 - avoid duplicate string literals)
 const (
 	tableUsersStudents              = "users.students"
@@ -287,6 +318,13 @@ func (r *StudentRepository) Create(ctx context.Context, student *users.Student) 
 		return fmt.Errorf("student cannot be nil")
 	}
 
+	// A brand-new row is exactly the arrival a grade transition cannot row-lock
+	// against; the shared gate makes the insert wait out a running apply/revert
+	// instead of landing in a class it has already emptied (#405 review).
+	if err := r.lockClassWritesShared(ctx); err != nil {
+		return err
+	}
+
 	// Validate student
 	if err := student.Validate(); err != nil {
 		return err
@@ -302,6 +340,15 @@ func (r *StudentRepository) Create(ctx context.Context, student *users.Student) 
 func (r *StudentRepository) Update(ctx context.Context, student *users.Student) error {
 	if student == nil {
 		return fmt.Errorf("student cannot be nil")
+	}
+
+	// A full-row update rewrites school_class, so it can move a child into a
+	// class a concurrent grade transition is mid-way through emptying. Take the
+	// shared gate FIRST — before the row lock below and before any row lock the
+	// caller took through FindByIDForUpdate, which takes the same gate — so the
+	// acquisition order is gate-then-rows everywhere (#405 review).
+	if err := r.lockClassWritesShared(ctx); err != nil {
+		return err
 	}
 
 	// Take the subject's row lock BEFORE reading its stored departure plan or its
@@ -1441,6 +1488,52 @@ func (r *StudentRepository) LockPhotoFeature(ctx context.Context) error {
 	return nil
 }
 
+// LockStudentClassWrites takes the EXCLUSIVE per-tenant class-writes gate, so
+// no student can be created in — or moved into — a class while the caller runs.
+// Only the grade transition apply/revert takes it; every ordinary student write
+// takes the shared form (see studentClassWritesLockClass for the race, the lock
+// order, and why row locks cannot cover it).
+//
+// Transaction-scoped: releases at COMMIT/ROLLBACK, so the caller must already be
+// inside the tenant transaction.
+func (r *StudentRepository) LockStudentClassWrites(ctx context.Context) error {
+	return r.lockClassWrites(ctx, false)
+}
+
+// lockClassWritesShared takes the SHARED per-tenant class-writes gate. Called at
+// the top of every repository method that inserts a student, updates one, or
+// takes a student row lock the caller will update under — always BEFORE that
+// method's own row lock, which is what keeps the acquisition order acyclic.
+func (r *StudentRepository) lockClassWritesShared(ctx context.Context) error {
+	return r.lockClassWrites(ctx, true)
+}
+
+func (r *StudentRepository) lockClassWrites(ctx context.Context, shared bool) error {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		// No tenant in context: the CLI / migration / seeding paths that run
+		// outside the tenant transaction as superuser. There is no per-tenant
+		// gate to take there, and a grade transition (a tenant-scoped HTTP
+		// request) can never be one of those callers.
+		return nil
+	}
+	if tenantID > 0x7fffffff {
+		return fmt.Errorf("lockClassWrites: tenant_id %d exceeds advisory-lock obj id range", tenantID)
+	}
+
+	lockFn, op := "pg_advisory_xact_lock", "lock_student_class_writes"
+	if shared {
+		lockFn, op = "pg_advisory_xact_lock_shared", "lock_student_class_writes_shared"
+	}
+
+	if _, err := base.GetDB(ctx, r.db).
+		NewRaw("SELECT "+lockFn+"(?, ?)", studentClassWritesLockClass, int32(tenantID)).
+		Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: op, Err: err}
+	}
+	return nil
+}
+
 // FindByIDForUpdate fetches a student row with a SELECT … FOR UPDATE so
 // the caller can re-validate state (consent, photo_path, …) under the
 // same row lock the subsequent UPDATE will use. Used by the photo upload
@@ -1472,6 +1565,16 @@ func (r *StudentRepository) FindByIDForUpdateNoWait(ctx context.Context, id int6
 }
 
 func (r *StudentRepository) findByIDForUpdate(ctx context.Context, id int64, noWait bool) (*users.Student, error) {
+	// Callers of this method lock the row in order to update it, so the gate has
+	// to be taken here rather than only in Update — otherwise such a caller would
+	// hold a student row and THEN queue behind a grade transition that is waiting
+	// for exactly that row. noWait keeps its meaning for the ROW lock (55P03
+	// instead of waiting, which is what the companion lock protocol relies on);
+	// the gate itself is uncontended except while an apply/revert runs.
+	if err := r.lockClassWritesShared(ctx); err != nil {
+		return nil, err
+	}
+
 	lockClause := "UPDATE"
 	op := "find_by_id_for_update"
 	if noWait {

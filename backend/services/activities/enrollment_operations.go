@@ -103,11 +103,25 @@ func (s *Service) UpdateGroupEnrollments(ctx context.Context, groupID int64, stu
 
 	currentStudentIDs, newStudentIDs := s.buildEnrollmentMaps(enrollments, studentIDs)
 
+	added := newEnrollmentStudentIDs(currentStudentIDs, studentIDs)
+
+	// Lock EVERY student this call reasons about — the ones it would insert AND
+	// the ones already enrolled — in one ascending-id pass, and decide from the
+	// LOCKED rows. Locking only the additions was not enough: a transition can
+	// graduate an already-enrolled child right after `enrollments` was read, so
+	// the preserved set below would be computed from a stale "active" relation
+	// and would delete the very enrollment the graduation must keep for the
+	// revert and for future materialization (#405 review).
+	statuses, err := s.lockEnrollmentStudents(ctx, enrollments, added)
+	if err != nil {
+		return &ActivityError{Op: "update group enrollments", Err: err}
+	}
+
 	// Only the IDs this call would newly insert are validated. A graduated
 	// child's existing row is deliberately kept (see `preserved` below), so
 	// re-submitting a roster that still carries them must not fail — but a
 	// caller must not be able to ADD one either (#405 review).
-	if err := s.rejectAlumni(ctx, newEnrollmentStudentIDs(currentStudentIDs, studentIDs)); err != nil {
+	if err := rejectAlumniFrom(statuses, added); err != nil {
 		return &ActivityError{Op: "update group enrollments", Err: err}
 	}
 
@@ -118,7 +132,7 @@ func (s *Service) UpdateGroupEnrollments(ctx context.Context, groupID int64, stu
 	// deliberately preserved — the rows the revert and future materialization
 	// still need. A hidden row cannot be removed by an edit that could not show
 	// it (#405 review).
-	preserved := hiddenAlumnusEnrollments(enrollments)
+	preserved := hiddenAlumnusEnrollments(enrollments, statuses)
 
 	if err := s.removeUnwantedEnrollmentsInTx(ctx, s, currentStudentIDs, newStudentIDs, preserved); err != nil {
 		return &ActivityError{Op: "update group enrollments", Err: err}
@@ -149,12 +163,26 @@ func (s *Service) buildEnrollmentMaps(enrollments []*activities.StudentEnrollmen
 // hiddenAlumnusEnrollments returns the student IDs whose enrollment must survive
 // a replacement update because the read side hides them: a graduated child is
 // omitted from GetEnrolledStudents, so their absence from the submitted ID list
-// carries no intent (#405 review). A row whose Student relation did not load is
-// NOT preserved — an unknown status must not silently make enrollments
-// undeletable.
-func hiddenAlumnusEnrollments(enrollments []*activities.StudentEnrollment) map[int64]bool {
+// carries no intent (#405 review).
+//
+// The LOCKED status wins where we have one: it is the row a concurrent
+// graduation had to commit before, whereas the Student relation on `enrollments`
+// was loaded before the lock and can already be stale. Where no locked status is
+// available (no student repository wired, or the row vanished) the loaded
+// relation is the fallback, and a row with neither is NOT preserved — an unknown
+// status must not silently make enrollments undeletable.
+func hiddenAlumnusEnrollments(
+	enrollments []*activities.StudentEnrollment,
+	statuses map[int64]users.StudentStatus,
+) map[int64]bool {
 	hidden := make(map[int64]bool)
 	for _, enrollment := range enrollments {
+		if status, ok := statuses[enrollment.StudentID]; ok {
+			if status == users.StudentStatusAlumnus {
+				hidden[enrollment.StudentID] = true
+			}
+			continue
+		}
 		if enrollment.Student != nil && enrollment.Student.Status == users.StudentStatusAlumnus {
 			hidden[enrollment.StudentID] = true
 		}
@@ -188,43 +216,92 @@ func newEnrollmentStudentIDs(currentStudentIDs map[int64]int64, studentIDs []int
 // one later. Enrollment writes therefore refuse alumni up front instead of
 // creating a row nobody can see or delete (#405 review).
 //
-// The status is read UNDER a FOR UPDATE lock on the student row, in ascending
-// id order (the project-wide student lock order — see
-// users.LockStudentsForUpdate). An unlocked read is not enough: a grade
-// transition apply locks exactly these rows, flips them to alumnus and
-// reconciles their rosters, so an enrollment that checked the status just
-// before that commit would insert a row for a child who is an alumnus by the
-// time it lands — the hidden, undeletable row this check exists to prevent.
-// With the lock the two transactions serialize: either graduation commits
-// first and we observe the alumnus status, or we hold the row and graduation
-// waits until our enrollment is committed and visible to its own pass
-// (#405 review).
+// The status is read UNDER a FOR UPDATE lock on the student row — see
+// lockStudentStatuses for why an unlocked read is not enough.
 func (s *Service) rejectAlumni(ctx context.Context, studentIDs []int64) error {
-	if len(studentIDs) == 0 {
-		return nil
+	statuses, err := s.lockStudentStatuses(ctx, studentIDs)
+	if err != nil {
+		return err
+	}
+	return rejectAlumniFrom(statuses, studentIDs)
+}
+
+// rejectAlumniFrom applies the alumni refusal to statuses already read under
+// their row locks by lockStudentStatuses. IDs with no entry are left to the
+// foreign key, which is where a non-existent student has always been rejected.
+func rejectAlumniFrom(statuses map[int64]users.StudentStatus, studentIDs []int64) error {
+	for _, studentID := range studentIDs {
+		if statuses[studentID] == users.StudentStatusAlumnus {
+			return ErrStudentIsAlumnus
+		}
+	}
+	return nil
+}
+
+// lockEnrollmentStudents locks — and reads the status of — every student a
+// roster replacement decides about: the ones it would insert plus the ones
+// already enrolled, whose rows the preservation decision depends on just as
+// much. One ascending-id pass over the union keeps the project-wide student lock
+// order and takes each row only once.
+func (s *Service) lockEnrollmentStudents(
+	ctx context.Context,
+	enrollments []*activities.StudentEnrollment,
+	added []int64,
+) (map[int64]users.StudentStatus, error) {
+	ids := make([]int64, 0, len(enrollments)+len(added))
+	for _, enrollment := range enrollments {
+		ids = append(ids, enrollment.StudentID)
+	}
+	ids = append(ids, added...)
+
+	statuses, err := s.lockStudentStatuses(ctx, ids)
+	if err == nil {
+		return statuses, nil
+	}
+	// Without a student repository the enrolled rows simply stay unlocked and
+	// the preservation decision falls back to the loaded relation (the behaviour
+	// before this pass existed). An ADD, however, still has to fail closed.
+	if errors.Is(err, errStudentRepoMissing) && len(added) == 0 {
+		return nil, nil
+	}
+	return nil, err
+}
+
+// lockStudentStatuses takes a FOR UPDATE lock on each given student row, in
+// ascending id order (the project-wide student lock order — see
+// users.LockStudentsForUpdate), and returns the status read UNDER that lock.
+// Rows that no longer exist are absent from the result.
+//
+// An unlocked read is not enough: a grade transition apply locks exactly these
+// rows, flips them to alumnus and reconciles their rosters, so a status checked
+// just before that commit is already obsolete when the enrollment write lands.
+// With the lock the two transactions serialize: either graduation commits first
+// and we observe the alumnus status, or we hold the rows and graduation waits
+// until our write is committed and visible to its own pass (#405 review).
+func (s *Service) lockStudentStatuses(ctx context.Context, studentIDs []int64) (map[int64]users.StudentStatus, error) {
+	ordered := ascendingUniqueIDs(studentIDs)
+	if len(ordered) == 0 {
+		return nil, nil
 	}
 	if s.studentRepo == nil {
 		// Wired in services.NewFactory; a nil repo means the caller built the
 		// service without the dependency this check needs. Failing is the only
 		// safe answer — silently skipping would reopen the gap above.
-		return errors.New("student repository not configured")
+		return nil, errStudentRepoMissing
 	}
 
-	for _, studentID := range ascendingUniqueIDs(studentIDs) {
+	statuses := make(map[int64]users.StudentStatus, len(ordered))
+	for _, studentID := range ordered {
 		student, err := s.studentRepo.FindByIDForUpdate(ctx, studentID)
 		if err != nil {
-			// Unknown IDs are left to the foreign key, which is where a
-			// non-existent student has always been rejected.
 			if errors.Is(err, sql.ErrNoRows) {
 				continue
 			}
-			return err
+			return nil, err
 		}
-		if student.Status == users.StudentStatusAlumnus {
-			return ErrStudentIsAlumnus
-		}
+		statuses[studentID] = student.Status
 	}
-	return nil
+	return statuses, nil
 }
 
 // ascendingUniqueIDs normalizes a set of student ids for locking: duplicates

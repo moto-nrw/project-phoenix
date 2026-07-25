@@ -167,6 +167,19 @@ type StudentRepository interface {
 	// rationale.
 	LockPhotoFeature(ctx context.Context) error
 
+	// LockStudentClassWrites acquires the per-tenant advisory gate that keeps
+	// students from being created in — or moved into — a class while the caller
+	// runs. Taken EXCLUSIVELY by the grade transition apply/revert; every
+	// ordinary student write takes the shared form inside the repository, so no
+	// caller has to remember it. Row locks cannot cover this case: a child who
+	// arrives in a mapped class during an apply has no row the apply could have
+	// locked, and would otherwise be left behind in a class the transition just
+	// emptied while the transition reported success (#405 review).
+	//
+	// Must be called inside a tenant tx; releases on commit/rollback. Take it
+	// BEFORE the recurrence and grade-transition gates.
+	LockStudentClassWrites(ctx context.Context) error
+
 	// FindByIDForUpdate retrieves a student by id with SELECT … FOR
 	// UPDATE so the caller can re-validate state under the same row
 	// lock the next UPDATE on the row will use. Used by the photo

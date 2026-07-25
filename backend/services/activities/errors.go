@@ -38,6 +38,12 @@ var (
 	// new one could neither be seen nor removed (#405 review).
 	ErrStudentIsAlumnus = errors.New("student has graduated and cannot be enrolled")
 
+	// errStudentRepoMissing marks the internal "cannot check graduation status"
+	// condition: the service was built without a student repository. An
+	// enrollment write must fail closed on it; a read-only decision that has a
+	// safe fallback may catch it instead (see lockEnrollmentStudents).
+	errStudentRepoMissing = errors.New("student repository not configured")
+
 	// ErrInvalidAttendanceStatus returned for an invalid attendance status
 	ErrInvalidAttendanceStatus = errors.New("invalid attendance status")
 
