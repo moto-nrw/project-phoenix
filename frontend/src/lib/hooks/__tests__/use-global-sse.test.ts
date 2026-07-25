@@ -1211,5 +1211,69 @@ describe("useGlobalSSE", () => {
       expect(dispatched).toHaveLength(1);
       expect(dispatched[0]?.detail).toEqual({ source: null });
     });
+
+    it("dispatches the complete display-safe notification payload", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+      const listener = vi.fn();
+      window.addEventListener("phoenix:notification", listener);
+
+      try {
+        onMessage?.({
+          type: "notification",
+          active_group_id: "",
+          data: {
+            title: "Abholzeit geändert",
+            body: "Die neue Abholzeit ist verfügbar.",
+            deep_link: "/reminders",
+            priority: "high",
+            notification_type: "pickup_changed",
+          },
+          timestamp: new Date().toISOString(),
+        });
+
+        expect(listener).toHaveBeenCalledOnce();
+        const dispatchedEvent = listener.mock.calls[0]?.[0] as CustomEvent;
+        expect(dispatchedEvent.detail).toEqual({
+          title: "Abholzeit geändert",
+          body: "Die neue Abholzeit ist verfügbar.",
+          deepLink: "/reminders",
+          priority: "high",
+          notificationType: "pickup_changed",
+        });
+      } finally {
+        window.removeEventListener("phoenix:notification", listener);
+      }
+    });
+
+    it("uses null for omitted optional notification fields", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+      const listener = vi.fn();
+      window.addEventListener("phoenix:notification", listener);
+
+      try {
+        onMessage?.({
+          type: "notification",
+          active_group_id: "",
+          data: {},
+          timestamp: new Date().toISOString(),
+        });
+
+        expect(listener).toHaveBeenCalledOnce();
+        const dispatchedEvent = listener.mock.calls[0]?.[0] as CustomEvent;
+        expect(dispatchedEvent.detail).toEqual({
+          title: null,
+          body: null,
+          deepLink: null,
+          priority: null,
+          notificationType: null,
+        });
+      } finally {
+        window.removeEventListener("phoenix:notification", listener);
+      }
+    });
   });
 });

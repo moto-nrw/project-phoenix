@@ -1,7 +1,10 @@
 package notifications_test
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,6 +16,21 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/notifications"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+type recordingChannel struct {
+	name   string
+	err    error
+	events []notifications.Event
+}
+
+func (c *recordingChannel) Name() string {
+	return c.name
+}
+
+func (c *recordingChannel) Deliver(_ context.Context, event notifications.Event) error {
+	c.events = append(c.events, event)
+	return c.err
+}
 
 // enabledSettings returns a settings mock with the dispatch flag set as given.
 func enabledSettings(enabled bool) *configtest.Mock {
@@ -91,6 +109,10 @@ func TestNotifyValidation(t *testing.T) {
 	svc := notifications.NewService(enabledSettings(true), nil)
 	ctx := context.Background()
 
+	missingType := tenantEvent(41)
+	missingType.Type = ""
+	assert.EqualError(t, svc.Notify(ctx, missingType), "notification event requires a type")
+
 	missingTitle := tenantEvent(41)
 	missingTitle.Title = ""
 	assert.Error(t, svc.Notify(ctx, missingTitle))
@@ -105,6 +127,10 @@ func TestNotifyValidation(t *testing.T) {
 	guardianWithoutAccount := tenantEvent(41)
 	guardianWithoutAccount.Audience.Scope = notifications.ScopeGuardian
 	assert.Error(t, svc.Notify(ctx, guardianWithoutAccount))
+
+	groupWithoutID := tenantEvent(41)
+	groupWithoutID.Audience.Scope = notifications.ScopeGroup
+	assert.EqualError(t, svc.Notify(ctx, groupWithoutID), "group-scoped notification requires an active group id")
 
 	externalLink := tenantEvent(41)
 	externalLink.DeepLink = "https://example.com/phish"
@@ -126,4 +152,66 @@ func TestNotifyChannelErrorDoesNotPropagate(t *testing.T) {
 
 	assert.NoError(t, svc.Notify(context.Background(), tenantEvent(41)),
 		"channel failures are fire-and-forget and must not reach the caller")
+}
+
+func TestNotifyConfigurationErrors(t *testing.T) {
+	ctx := context.Background()
+
+	withoutSettings := notifications.NewService(nil, nil)
+	assert.EqualError(t, withoutSettings.Notify(ctx, tenantEvent(41)),
+		"notifications service has no settings service configured")
+
+	settingsErr := errors.New("settings unavailable")
+	failingSettings := &configtest.Mock{
+		ResolveBoolForTenantFn: func(_ context.Context, _ int64, _ string) (bool, error) {
+			return false, settingsErr
+		},
+	}
+	svc := notifications.NewService(failingSettings, nil)
+	err := svc.Notify(ctx, tenantEvent(41))
+	require.ErrorContains(t, err, "resolving notification feature flag")
+	require.ErrorIs(t, err, settingsErr)
+}
+
+func TestNotifyContinuesAfterChannelFailureAndLogs(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	failing := &recordingChannel{name: "failing", err: assert.AnError}
+	succeeding := &recordingChannel{name: "succeeding"}
+	svc := notifications.NewService(enabledSettings(true), logger, failing, succeeding)
+
+	event := tenantEvent(41)
+	event.Priority = notifications.PriorityHigh
+	require.NoError(t, svc.Notify(context.Background(), event))
+
+	require.Len(t, failing.events, 1)
+	require.Len(t, succeeding.events, 1, "one failed channel must not block later channels")
+	assert.Equal(t, notifications.PriorityHigh, succeeding.events[0].Priority)
+	assert.Contains(t, logs.String(), "notification channel delivery failed")
+	assert.Contains(t, logs.String(), "channel=failing")
+}
+
+func TestSSEChannelRejectsUnknownAudienceScope(t *testing.T) {
+	channel := notifications.NewSSEChannel(testpkg.NewRecordingBroadcaster())
+	event := tenantEvent(41)
+	event.Audience.Scope = "unknown"
+
+	err := channel.Deliver(context.Background(), event)
+	require.EqualError(t, err, `sse channel cannot route audience scope "unknown" (tenant 41)`)
+}
+
+func TestWebPushChannelStub(t *testing.T) {
+	event := tenantEvent(41)
+
+	defaultLoggerChannel := notifications.NewWebPushChannel(nil)
+	assert.Equal(t, "web_push", defaultLoggerChannel.Name())
+	require.NoError(t, defaultLoggerChannel.Deliver(context.Background(), event))
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	channel := notifications.NewWebPushChannel(logger)
+	require.NoError(t, channel.Deliver(context.Background(), event))
+	assert.Contains(t, logs.String(), "web push channel not yet activated")
+	assert.Contains(t, logs.String(), "notification_type=test")
+	assert.Contains(t, logs.String(), "tenant_id=41")
 }
