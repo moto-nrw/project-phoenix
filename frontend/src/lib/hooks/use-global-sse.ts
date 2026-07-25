@@ -661,6 +661,28 @@ export function useGlobalSSE(): SSEHookState {
           break;
         }
 
+        case "notification": {
+          // Notification abstraction (#1624): the payload is display-safe by
+          // backend contract and rendered directly. This hook runs above
+          // ToastProvider consumers, so hand the event to the notification
+          // bridge (mounted under Providers) via a window event — mirroring
+          // the reminders/tenant-settings decoupling above.
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("phoenix:notification", {
+                detail: {
+                  title: event.data.title ?? null,
+                  body: event.data.body ?? null,
+                  deepLink: event.data.deep_link ?? null,
+                  priority: event.data.priority ?? null,
+                  notificationType: event.data.notification_type ?? null,
+                },
+              }),
+            );
+          }
+          break;
+        }
+
         // A counterpart read a conversation. Handled identically to a new
         // message on the staff side: the sidebar badge must refresh (a staff
         // member reading in another tab dropped the count) and any open

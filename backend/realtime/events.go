@@ -145,6 +145,15 @@ const (
 	// must NOT touch any unread badge or thread list; it carries only student_id so
 	// the affected child's view refetches while others skip. Trigger only.
 	EventParentChildUpdated EventType = "parent_child_updated"
+
+	// EventNotification carries a user-facing notification from the
+	// notification abstraction (services/notifications, #1624) over the SSE
+	// channel. Unlike every other event type it is NOT a cache-invalidation
+	// trigger: clients render Title/Body directly (toast/bell). The payload is
+	// display-safe by contract — the notifications service only accepts
+	// non-sensitive title/body text and an app-relative deep link; sensitive
+	// details are loaded authenticated after following the link (GDPR).
+	EventNotification EventType = "notification"
 )
 
 // Event represents a Server-Sent Event that will be broadcast to clients
@@ -209,6 +218,15 @@ type EventData struct {
 
 	// Reason tracking for generic refresh events.
 	Reason *string `json:"reason,omitempty"`
+
+	// Notification fields (notification events only, #1624). Display-safe by
+	// contract: the notifications service validates that no sensitive student
+	// data travels here — clients render these directly instead of refetching.
+	Title            *string `json:"title,omitempty"`
+	Body             *string `json:"body,omitempty"`
+	DeepLink         *string `json:"deep_link,omitempty"` // app-relative path, e.g. "/reminders"
+	Priority         *string `json:"priority,omitempty"`  // "low" | "normal" | "high"
+	NotificationType *string `json:"notification_type,omitempty"`
 }
 
 // staffSafeParentMessage returns a copy of a parent-message event with every

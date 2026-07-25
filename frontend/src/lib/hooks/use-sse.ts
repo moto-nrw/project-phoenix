@@ -185,6 +185,9 @@ export function useSSE(
           // remount (the #1694 bus it drives never fired).
           "staffing_deviation_changed",
           "student_companions_changed",
+          // Notification abstraction (#1624): rendered directly as a toast by
+          // NotificationBridge via useGlobalSSE — not a cache trigger.
+          "notification",
         ];
 
         for (const eventType of eventTypes) {

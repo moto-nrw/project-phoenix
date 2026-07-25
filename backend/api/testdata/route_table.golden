@@ -552,6 +552,7 @@ POST /api/me/profile/avatar
 POST /api/messages/threads
 POST /api/messages/threads/open
 POST /api/messages/threads/{threadId}
+POST /api/notifications/test
 POST /api/parent-announcements/
 POST /api/parent-announcements/{announcementId}/publish
 POST /api/parent-announcements/{announcementId}/unpublish

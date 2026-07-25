@@ -160,6 +160,10 @@ const (
 	// KeyNotificationsAbsenceApprovalEmail toggles the absence-request email
 	// notifications (request received / approved / declined / Rückfrage, #1419).
 	KeyNotificationsAbsenceApprovalEmail = "notifications.absence_approval_email"
+	// KeyNotificationsDispatchEnabled is the feature flag for the notification
+	// abstraction (#1624). When off (the default), Notify(ctx, event) is a
+	// no-op and no channel delivers anything.
+	KeyNotificationsDispatchEnabled = "notifications.dispatch_enabled"
 )
 
 // PresenceMode option values for KeyPresenceMode.

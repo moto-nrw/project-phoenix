@@ -44,6 +44,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/mealplan"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
+	"github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/platform"
@@ -116,6 +117,7 @@ type Factory struct {
 	Emergency                *emergency.Service
 	SlotLists                slotlists.Service
 	Reminders                reminders.Service
+	Notifications            notifications.Service
 	RealtimeHub              *realtime.Hub     // SSE event hub (shared by services and API)
 	Tracker                  analytics.Tracker // Product analytics (PostHog; no-op without POSTHOG_API_KEY)
 	Mailer                   email.Mailer
@@ -1584,6 +1586,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:              logger.With("service", "slot_lists"),
 	})
 
+	notificationsService := notifications.NewService(
+		settingsService,
+		logger.With("service", "notifications"),
+		notifications.NewSSEChannel(realtimeHub),
+		notifications.NewWebPushChannel(logger.With("channel", "web_push")),
+	)
+
 	remindersService := reminders.NewService(reminders.Dependencies{
 		Settings:    settingsService,
 		Attendance:  repos.Attendance,
@@ -1656,6 +1665,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Emergency:                emergencyService,
 		SlotLists:                slotListsService,
 		Reminders:                remindersService,
+		Notifications:            notificationsService,
 		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
 		Tracker:                  tracker,     // Product analytics (PostHog)
 		Invitation:               invitationService,

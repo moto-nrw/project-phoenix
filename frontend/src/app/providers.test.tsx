@@ -13,6 +13,15 @@ vi.mock("~/contexts/ToastContext", () => ({
   ToastProvider: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="toast-provider">{children}</div>
   ),
+  // NotificationBridge (rendered inside Providers since #1624) consumes
+  // useToast; the module mock must provide it.
+  useToast: () => ({
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    remove: vi.fn(),
+  }),
 }));
 
 describe("Providers", () => {
