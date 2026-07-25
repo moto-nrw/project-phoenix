@@ -1559,8 +1559,28 @@ export function EnrollmentForm({
                 const newSlot: ChildDraft = blankChild(requiredOfferingIDs);
                 newSlot.first_name = child.first_name;
                 newSlot.last_name = child.last_name;
-                newSlot.target_grade_level =
+                // The phase may restrict eligible grades (#1663), and the
+                // grade select offers exactly those. Adopting a child whose
+                // stored grade falls outside the restriction would prefill a
+                // value the parent can neither see nor change, pass the
+                // client-side "grade is set" check, and only fail at submit
+                // with grade_not_eligible for the whole form. Drop the
+                // ineligible prefill so the required-field check forces a
+                // grade the phase accepts. Grades are not collected at all
+                // when collect_grade_level is off — the phase-side
+                // collectability guard keeps that pair from carrying a
+                // restriction — so the prefill stays untouched there and
+                // keeps driving the care-offering filter.
+                const reusedGrade =
                   child.grade_level != null ? String(child.grade_level) : "";
+                newSlot.target_grade_level =
+                  !collectGradeLevel ||
+                  selectableGradeLevels(
+                    gradeLevelMax,
+                    eligibleGradeLevels,
+                  ).includes(Number(reusedGrade))
+                    ? reusedGrade
+                    : "";
                 for (const offering of availableCareOfferings(
                   offerings,
                   newSlot.target_grade_level,
@@ -2671,14 +2691,7 @@ function GradeLevelSelect({
   readonly error?: string;
   readonly tr: EnrollmentFormTranslator;
 }) {
-  const everyGrade = Array.from({ length: max }, (_, n) => n + 1);
-  const eligible = everyGrade.filter((grade) => allowedGrades.includes(grade));
-  // A restriction naming only grades above the tenant cap is broken config
-  // (the cap was lowered after the phase was set up). Fall back to the full
-  // range rather than rendering an empty select; the server still rejects
-  // the submission with the authoritative error.
-  const grades =
-    allowedGrades.length > 0 && eligible.length > 0 ? eligible : everyGrade;
+  const grades = selectableGradeLevels(max, allowedGrades);
   return (
     <label className="block" htmlFor={id}>
       <span className="block text-sm font-semibold text-gray-700">
@@ -2702,6 +2715,25 @@ function GradeLevelSelect({
       {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
     </label>
   );
+}
+
+// selectableGradeLevels is the list of grades the grade select actually
+// offers: every grade up to the tenant cap, narrowed by the phase's
+// restriction (#1663). Callers that PREFILL a grade must check against this
+// list too — a value the select does not offer is invisible in the UI yet
+// still submitted, and the backend then rejects the whole form with
+// grade_not_eligible.
+//
+// A restriction naming only grades above the tenant cap is broken config (the
+// cap was lowered after the phase was set up). Fall back to the full range
+// rather than rendering an empty select; the server still rejects the
+// submission with the authoritative error.
+function selectableGradeLevels(max: number, allowedGrades: number[]): number[] {
+  const everyGrade = Array.from({ length: max }, (_, n) => n + 1);
+  const eligible = everyGrade.filter((grade) => allowedGrades.includes(grade));
+  return allowedGrades.length > 0 && eligible.length > 0
+    ? eligible
+    : everyGrade;
 }
 
 // schoolClassGradePrefix returns the first run of digits in a school class

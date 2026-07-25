@@ -29,9 +29,21 @@ import (
 // narrows reads to that tenant — a parent who has no profile in this
 // school just gets claims-derived guardian fields and an empty
 // children list.
+//
+// Hidden-school gate (#1663): this is the third direct enrollment route, so it
+// applies the SAME enrollmentSchoolReachable check as bootstrap and submit.
+// Without it the hidden flag leaks twice over: the 200/404 split alone tells a
+// caller that a guessed subdomain is a live, active school the picker refuses
+// to list, and where stale guardian rows survive a deactivated mapping the
+// response body returns that family's child names and ids to an account with
+// no active tenant mapping there.
 func (rs *Resource) getEnrollmentProfile(w http.ResponseWriter, r *http.Request) {
 	if rs.GuardianProfileLoader == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent enrollment profile not wired")))
+		return
+	}
+	if rs.ParentService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent enrollment profile: parent service missing")))
 		return
 	}
 
@@ -54,6 +66,20 @@ func (rs *Resource) getEnrollmentProfile(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	schoolID := school.ID
+
+	// Same account-dependent half of the reachability gate the bootstrap and
+	// submit routes apply. A status lookup failure is a server fault (DB or
+	// repository outage), so it renders as 500 — folding it into the resolve
+	// 404 would tell the client its school is gone and stop it retrying.
+	status, statusErr := rs.ParentService.GetEnrollmentSubmitStatus(r.Context(), accountID, schoolID)
+	if statusErr != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(statusErr))
+		return
+	}
+	if !enrollmentSchoolReachable(school, status) {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("tenant not found")))
+		return
+	}
 
 	loaded, err := rs.GuardianProfileLoader.LoadForTenant(r.Context(), accountID, schoolID)
 	if err != nil {

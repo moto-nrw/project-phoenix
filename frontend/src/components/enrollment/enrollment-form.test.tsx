@@ -1241,6 +1241,35 @@ describe("EnrollmentForm", () => {
     );
   });
 
+  it("drops an adopted child's grade when the phase does not accept it", async () => {
+    // The reused child sits in grade 2 but the phase is restricted to grade 3
+    // (#1663). Keeping the prefill would put a value in the draft that the
+    // select never offers: invisible to the parent, accepted by the
+    // client-side "grade is set" check, and rejected at submit with
+    // grade_not_eligible for the whole form. It has to fall back to empty so
+    // the required-field check forces an eligible grade.
+    renderForm({
+      prefetchedData: {
+        schema: schema(),
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts(),
+        profile: profile(),
+        audience: "existing_students",
+        eligibleGradeLevels: [3],
+      },
+    });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Übernehmen" }));
+
+    expect(screen.getAllByDisplayValue("Lina")[0]).toBeInTheDocument();
+    const gradeSelect = screen.getByLabelText("Klassenstufe *");
+    expect(gradeSelect).not.toHaveTextContent("2. Klasse");
+    expect(gradeSelect).toHaveTextContent("Bitte wählen");
+  });
+
   it("hides a linked child the guardian may not enroll (no submit permission)", async () => {
     // Portal visibility is not enrollment-submit permission (#1663): a child
     // whose relationship lacks parent_portal.enrollment.submit must not be
