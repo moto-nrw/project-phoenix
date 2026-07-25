@@ -11,6 +11,7 @@ import type {
 } from "~/components/ui/page-header/types";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { Alert } from "~/components/ui/alert";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { substitutionService } from "~/lib/substitution-api";
 import { groupService } from "~/lib/api";
 import type { Group } from "~/lib/api";
@@ -866,40 +867,26 @@ function SubstitutionPageContent() {
           {/* Group selection */}
           <div>
             <label
+              id="substitution-group-select-label"
               htmlFor="substitution-group-select"
               className="mb-2 block text-sm font-medium text-gray-700"
             >
               OGS-Gruppe auswählen
             </label>
-            <div className="relative">
-              <select
-                id="substitution-group-select"
-                value={selectedGroup}
-                onChange={(e) => setSelectedGroup(e.target.value)}
-                className="moto-content-surface block w-full cursor-pointer appearance-none rounded-lg border py-3 pr-10 pl-4 text-lg text-gray-900 transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
-              >
-                <option value="">Gruppe auswählen...</option>
-                {groups.map((group) => (
-                  <option key={group.id} value={group.name}>
-                    {group.name}
-                  </option>
-                ))}
-              </select>
-              {/* Custom dropdown arrow */}
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                <svg
-                  className="h-5 w-5 text-gray-400"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </div>
-            </div>
+            <CustomSelect
+              id="substitution-group-select"
+              ariaLabelledBy="substitution-group-select-label"
+              value={selectedGroup}
+              onChange={setSelectedGroup}
+              placeholder="Gruppe auswählen..."
+              options={[
+                { value: "", label: "Gruppe auswählen..." },
+                ...groups.map((group) => ({
+                  value: group.name,
+                  label: group.name,
+                })),
+              ]}
+            />
           </div>
 
           {/* Days selection with stepper */}

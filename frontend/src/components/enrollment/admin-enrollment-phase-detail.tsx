@@ -670,6 +670,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             <SelectField label="Status" id="enrollment-status-filter">
               <CustomSelect
                 id="enrollment-status-filter"
+                ariaLabel="Status"
                 value={statusFilter}
                 onChange={(value) =>
                   setStatusFilter(value as EnrollmentReportStatus)
@@ -713,6 +714,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             >
               <CustomSelect
                 id="enrollment-day-count-filter"
+                ariaLabel="Anzahl Betreuungstage"
                 value={dayCount}
                 onChange={setDayCount}
                 options={[
@@ -727,6 +729,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             <SelectField label="Zielklasse" id="enrollment-grade-filter">
               <CustomSelect
                 id="enrollment-grade-filter"
+                ariaLabel="Zielklasse"
                 value={gradeLevel}
                 onChange={setGradeLevel}
                 options={[
@@ -743,6 +746,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             <SelectField label="Wochentag" id="enrollment-weekday-filter">
               <CustomSelect
                 id="enrollment-weekday-filter"
+                ariaLabel="Wochentag"
                 value={weekday}
                 onChange={setWeekday}
                 options={[
@@ -757,6 +761,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             <SelectField label="Gehzeit" id="enrollment-pickup-time-filter">
               <CustomSelect
                 id="enrollment-pickup-time-filter"
+                ariaLabel="Gehzeit"
                 value={pickupTime}
                 onChange={setPickupTime}
                 options={[
@@ -883,6 +888,7 @@ function ClassRosterExportPanel({
           >
             <CustomSelect
               id="phase-class-roster-class"
+              ariaLabel="Klasse für Klassenliste"
               value={selectedSchoolClass}
               onChange={onSelectedSchoolClassChange}
               options={[

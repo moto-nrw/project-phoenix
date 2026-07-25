@@ -8,6 +8,7 @@ import { Bus } from "lucide-react";
 import type { Student } from "@/lib/api";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { Checkbox } from "~/components/ui/checkbox";
+import { CustomSelect } from "~/components/ui/custom-select";
 import {
   BUS_WEEKDAYS,
   busDaysHaveAny,
@@ -209,40 +210,19 @@ function SelectInput({
   return (
     <div>
       <label
+        id={`${selectId}-label`}
         htmlFor={selectId}
         className="mb-1 block text-xs font-medium text-gray-700"
       >
         {label}
       </label>
-      <div className="relative">
-        <select
-          id={selectId}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="moto-content-surface block w-full appearance-none rounded-lg border px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
-        >
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
-        </div>
-      </div>
+      <CustomSelect
+        id={selectId}
+        ariaLabelledBy={`${selectId}-label`}
+        value={value}
+        options={options}
+        onChange={onChange}
+      />
     </div>
   );
 }

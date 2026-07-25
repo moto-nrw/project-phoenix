@@ -144,6 +144,8 @@ describe("RoleManagementModal", () => {
       expect(mockGetAccountRoles).toHaveBeenCalledWith("42");
     });
     expect(screen.getAllByText("Betreuer").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByLabelText("Neue Rolle"));
     expect(
       screen.getByRole("option", { name: "Administrator" }),
     ).toBeInTheDocument();
@@ -169,9 +171,8 @@ describe("RoleManagementModal", () => {
       expect(mockGetAccountRoles).toHaveBeenCalledWith("42");
     });
 
-    fireEvent.change(screen.getByLabelText("Neue Rolle"), {
-      target: { value: "1" },
-    });
+    fireEvent.click(screen.getByLabelText("Neue Rolle"));
+    fireEvent.click(screen.getByRole("option", { name: "Administrator" }));
     fireEvent.click(screen.getByText("Speichern"));
 
     await waitFor(() => {
@@ -223,9 +224,8 @@ describe("RoleManagementModal", () => {
       expect(mockGetAccountRoles).toHaveBeenCalledWith("42");
     });
 
-    fireEvent.change(screen.getByLabelText("Neue Rolle"), {
-      target: { value: "1" },
-    });
+    fireEvent.click(screen.getByLabelText("Neue Rolle"));
+    fireEvent.click(screen.getByRole("option", { name: "Administrator" }));
     fireEvent.click(screen.getByText("Speichern"));
 
     await waitFor(() => {

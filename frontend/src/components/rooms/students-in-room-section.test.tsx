@@ -562,9 +562,8 @@ describe("StudentsInRoomSection", () => {
       fireEvent.click(
         screen.getByRole("checkbox", { name: /Ben Schulz auswählen/ }),
       );
-      fireEvent.change(screen.getByLabelText("Zielraum"), {
-        target: { value: "900" },
-      });
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+      fireEvent.click(screen.getByRole("option", { name: "Raum 6" }));
       fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
 
       await waitFor(() => {
@@ -615,9 +614,8 @@ describe("StudentsInRoomSection", () => {
       fireEvent.click(
         screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
       );
-      fireEvent.change(screen.getByLabelText("Zielraum"), {
-        target: { value: "900" },
-      });
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+      fireEvent.click(screen.getByRole("option", { name: "Raum 6" }));
       fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
 
       await waitFor(() => {
@@ -661,9 +659,8 @@ describe("StudentsInRoomSection", () => {
       fireEvent.click(
         screen.getByRole("checkbox", { name: /Ben Schulz auswählen/ }),
       );
-      fireEvent.change(screen.getByLabelText("Zielraum"), {
-        target: { value: "900" },
-      });
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+      fireEvent.click(screen.getByRole("option", { name: "Raum 6" }));
       fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
 
       await waitFor(() => {
@@ -730,6 +727,7 @@ describe("StudentsInRoomSection", () => {
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
+      fireEvent.click(screen.getByLabelText("Zielraum"));
       expect(screen.queryByRole("option", { name: "OGS-Raum 1" })).toBeNull();
       expect(
         screen.getByRole("option", { name: "Raum 6" }),
@@ -772,6 +770,7 @@ describe("StudentsInRoomSection", () => {
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
+      fireEvent.click(screen.getByLabelText("Zielraum"));
       expect(screen.queryByRole("option", { name: "Aula" })).toBeNull();
       expect(
         screen.getByRole("option", { name: "Raum 6" }),
@@ -806,6 +805,7 @@ describe("StudentsInRoomSection", () => {
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
+      fireEvent.click(screen.getByLabelText("Zielraum"));
       expect(
         screen.getByRole("option", { name: "Raum 6" }),
       ).toBeInTheDocument();
@@ -831,6 +831,7 @@ describe("StudentsInRoomSection", () => {
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
+      fireEvent.click(screen.getByLabelText("Zielraum"));
       expect(
         screen.queryByRole("option", { name: "Raum mit Konflikt" }),
       ).toBeNull();

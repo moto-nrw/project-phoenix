@@ -9,6 +9,7 @@ import {
   type FilterOption,
   type FilterSection,
 } from "./types";
+import { CustomSelect } from "../custom-select";
 import { InfoSection } from "../detail-modal-components";
 
 // Viewport Y just below the sticky app topbar — the line the panel docks to.
@@ -303,25 +304,25 @@ export function FilterPanel({
           );
         }
         return (
-          <select
+          <CustomSelect
             id={`mobile-filter-${filter.id}`}
-            data-testid={`filter-${filter.id}`}
+            ariaLabel={filter.label}
+            testId={`filter-${filter.id}`}
             value={filter.value as string}
-            onChange={(event) => filter.onChange(event.target.value)}
-            className={
+            onChange={(next) => filter.onChange(next)}
+            triggerClassName={
               isQuiet
-                ? "moto-select moto-content-surface h-10 w-full rounded-lg border px-3 text-sm font-medium text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                : "h-10 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm font-medium text-gray-900"
+                ? "moto-content-surface h-10 w-full font-medium hover:border-gray-300"
+                : "h-10 w-full border-gray-200 bg-gray-50 font-medium"
             }
-          >
-            {filter.options.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.count !== undefined
+            options={filter.options.map((option) => ({
+              value: option.value,
+              label:
+                option.count !== undefined
                   ? `${option.label} (${option.count})`
-                  : option.label}
-              </option>
-            ))}
-          </select>
+                  : option.label,
+            }))}
+          />
         );
 
       default:

@@ -250,9 +250,8 @@ describe("StaffCalendarPage", () => {
       screen.getByText("Mitarbeitende: Anna Mitarbeiterin"),
     ).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Wiederholung"), {
-      target: { value: "weekly" },
-    });
+    fireEvent.click(screen.getByLabelText("Wiederholung"));
+    fireEvent.click(screen.getByRole("option", { name: "Wöchentlich" }));
     fireEvent.click(screen.getByLabelText("Mo"));
     fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
 

@@ -80,12 +80,12 @@ describe("RootPage", () => {
       expect(screen.getByRole("combobox")).toBeInTheDocument();
     });
 
-    const select = screen.getByRole("combobox");
-    const options = select.querySelectorAll("option");
+    fireEvent.click(screen.getByRole("combobox"));
+    const options = screen.getAllByRole("option");
     // Placeholder + 2 tenants
     expect(options).toHaveLength(3);
-    expect(options[1]?.textContent).toBe("Testschule A");
-    expect(options[2]?.textContent).toBe("Testschule B");
+    expect(options[1]).toHaveTextContent("Testschule A");
+    expect(options[2]).toHaveTextContent("Testschule B");
   });
 
   it("disables button when no tenant is selected", async () => {
@@ -136,9 +136,8 @@ describe("RootPage", () => {
       expect(screen.getByRole("combobox")).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByRole("combobox"), {
-      target: { value: "school-a" },
-    });
+    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByRole("option", { name: "School A" }));
 
     const button = screen.getByRole("button", { name: "Weiter" });
     expect(button).toBeEnabled();
@@ -166,9 +165,8 @@ describe("RootPage", () => {
       expect(screen.getByRole("combobox")).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByRole("combobox"), {
-      target: { value: "school-a" },
-    });
+    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByRole("option", { name: "School A" }));
 
     // Mock window.location.href setter
     const hrefSpy = vi.spyOn(window.location, "href", "set");

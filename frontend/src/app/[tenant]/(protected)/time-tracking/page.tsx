@@ -29,6 +29,7 @@ import {
   ChartTooltipContent,
 } from "~/components/ui/chart";
 import { Alert } from "~/components/ui/alert";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { Modal } from "~/components/ui/modal";
 import { OriginChip } from "~/components/ui/origin-chip";
 import {
@@ -2573,40 +2574,24 @@ function EditSessionModal({
                           <span className="w-12 shrink-0 text-xs text-gray-500 tabular-nums">
                             {formatTime(brk.startedAt)}
                           </span>
-                          <div className="relative flex-1">
-                            <select
-                              aria-label={`Pausendauer ab ${formatTime(brk.startedAt)}`}
+                          <div className="flex-1">
+                            <CustomSelect
+                              ariaLabel={`Pausendauer ab ${formatTime(brk.startedAt)}`}
                               value={(
                                 breakDurations.get(brk.id) ??
                                 brk.durationMinutes
                               ).toString()}
-                              onChange={(e) =>
+                              onChange={(next) =>
                                 handleBreakDurationChange(
                                   brk.id,
-                                  Number.parseInt(e.target.value, 10),
+                                  Number.parseInt(next, 10),
                                 )
                               }
-                              className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-1.5 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                            >
-                              {BREAK_DURATION_OPTIONS.map((m) => (
-                                <option key={m} value={m.toString()}>
-                                  {m} min
-                                </option>
-                              ))}
-                            </select>
-                            <svg
-                              className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 9l-7 7-7-7"
-                              />
-                            </svg>
+                              options={BREAK_DURATION_OPTIONS.map((m) => ({
+                                value: m.toString(),
+                                label: `${m} min`,
+                              }))}
+                            />
                           </div>
                         </div>
                       ))}
@@ -2623,72 +2608,43 @@ function EditSessionModal({
                 ) : (
                   <div>
                     <label
+                      id="edit-break-label"
                       htmlFor="edit-break"
                       className="mb-1 block text-sm font-medium text-gray-700"
                     >
                       Pause (Min)
                     </label>
-                    <div className="relative">
-                      <select
-                        id="edit-break"
-                        value={breakMins}
-                        onChange={(e) => setBreakMins(e.target.value)}
-                        className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                      >
-                        {[0, 15, 30, 45, 60].map((m) => (
-                          <option key={m} value={m.toString()}>
-                            {m} min
-                          </option>
-                        ))}
-                      </select>
-                      <svg
-                        className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 9l-7 7-7-7"
-                        />
-                      </svg>
-                    </div>
+                    <CustomSelect
+                      id="edit-break"
+                      ariaLabelledBy="edit-break-label"
+                      value={breakMins}
+                      onChange={setBreakMins}
+                      options={[0, 15, 30, 45, 60].map((m) => ({
+                        value: m.toString(),
+                        label: `${m} min`,
+                      }))}
+                    />
                   </div>
                 )}
               </div>
               <div>
                 <label
+                  id="edit-status-label"
                   htmlFor="edit-status"
                   className="mb-1 block text-sm font-medium text-gray-700"
                 >
                   Ort
                 </label>
-                <div className="relative">
-                  <select
-                    id="edit-status"
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as SessionStatus)}
-                    className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                  >
-                    <option value="present">In der OGS</option>
-                    <option value="home_office">Homeoffice</option>
-                  </select>
-                  <svg
-                    className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                </div>
+                <CustomSelect
+                  id="edit-status"
+                  ariaLabelledBy="edit-status-label"
+                  value={status}
+                  onChange={(next) => setStatus(next as SessionStatus)}
+                  options={[
+                    { value: "present", label: "In der OGS" },
+                    { value: "home_office", label: "Homeoffice" },
+                  ]}
+                />
               </div>
             </div>
 
@@ -2779,40 +2735,19 @@ function EditSessionModal({
                 {/* Absence type */}
                 <div>
                   <label
+                    id="edit-abs-type-label"
                     htmlFor="edit-abs-type"
                     className="mb-1 block text-sm font-medium text-gray-700"
                   >
                     Art der Abwesenheit
                   </label>
-                  <div className="relative">
-                    <select
-                      id="edit-abs-type"
-                      value={absType}
-                      onChange={(e) =>
-                        setAbsType(e.target.value as AbsenceType)
-                      }
-                      className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                    >
-                      {ABSENCE_TYPE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                    <svg
-                      className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </div>
+                  <CustomSelect
+                    id="edit-abs-type"
+                    ariaLabelledBy="edit-abs-type-label"
+                    value={absType}
+                    onChange={(next) => setAbsType(next as AbsenceType)}
+                    options={ABSENCE_TYPE_OPTIONS}
+                  />
                 </div>
 
                 {/* Date range */}
@@ -3010,38 +2945,19 @@ function CreateAbsenceModal({
         {/* Absence type */}
         <div>
           <label
+            id="absence-type-label"
             htmlFor="absence-type"
             className="mb-1 block text-sm font-medium text-gray-700"
           >
             Art der Abwesenheit
           </label>
-          <div className="relative">
-            <select
-              id="absence-type"
-              value={absenceType}
-              onChange={(e) => setAbsenceType(e.target.value as AbsenceType)}
-              className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-            >
-              {ABSENCE_TYPE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            <svg
-              className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
-          </div>
+          <CustomSelect
+            id="absence-type"
+            ariaLabelledBy="absence-type-label"
+            value={absenceType}
+            onChange={(next) => setAbsenceType(next as AbsenceType)}
+            options={ABSENCE_TYPE_OPTIONS}
+          />
         </div>
 
         {/* Date range */}

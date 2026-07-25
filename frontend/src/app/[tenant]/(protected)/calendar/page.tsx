@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { FormEvent, SelectHTMLAttributes } from "react";
-import { CalendarPlus, ChevronDown, Trash2 } from "lucide-react";
+import type { FormEvent } from "react";
+import { CalendarPlus, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 
 import {
@@ -12,6 +12,7 @@ import {
 } from "~/components/calendar/personal-calendar";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
@@ -83,31 +84,6 @@ const weekdays = [
   { value: "saturday", label: "Sa" },
   { value: "sunday", label: "So" },
 ];
-
-// Native <select> styled to match the default Input control (same height,
-// radius, ring). appearance-none drops the browser arrow so we can place our
-// own chevron with controlled spacing (see ModalSelect); pr-10 keeps long
-// option text clear of it.
-const selectClassName =
-  "block w-full appearance-none rounded-lg border-0 bg-white px-4 py-3 pr-10 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500";
-
-// A kit-styled native select with a custom, consistently-placed chevron.
-function ModalSelect({
-  children,
-  ...props
-}: SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <div className="relative">
-      <select className={selectClassName} {...props}>
-        {children}
-      </select>
-      <ChevronDown
-        className="pointer-events-none absolute top-1/2 right-3.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-        aria-hidden
-      />
-    </div>
-  );
-}
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -788,45 +764,49 @@ export default function StaffCalendarPage() {
 
           <div className={`grid gap-4 ${editingId ? "" : "md:grid-cols-2"}`}>
             {!editingId ? (
-              <label className="block" htmlFor="calendar-delivery-mode">
+              <label htmlFor="calendar-delivery-mode" className="block">
                 <span className="mb-2 block text-sm font-medium text-gray-700">
                   Antwortregel
                 </span>
-                <ModalSelect
+                <CustomSelect
                   id="calendar-delivery-mode"
+                  ariaLabel="Antwortregel"
                   value={deliveryMode}
-                  onChange={(event) =>
-                    setDeliveryMode(event.target.value as CalendarDeliveryMode)
+                  onChange={(next) =>
+                    setDeliveryMode(next as CalendarDeliveryMode)
                   }
                   disabled={submitting}
-                >
-                  <option value="rsvp_required">
-                    Antwort erforderlich: Zusage oder Absage
-                  </option>
-                  <option value="informational">
-                    Nur informieren: ohne Rückmeldung eintragen
-                  </option>
-                </ModalSelect>
+                  options={[
+                    {
+                      value: "rsvp_required",
+                      label: "Antwort erforderlich: Zusage oder Absage",
+                    },
+                    {
+                      value: "informational",
+                      label: "Nur informieren: ohne Rückmeldung eintragen",
+                    },
+                  ]}
+                />
               </label>
             ) : null}
-            <label className="block" htmlFor="calendar-overview-visibility">
+            <label htmlFor="calendar-overview-visibility" className="block">
               <span className="mb-2 block text-sm font-medium text-gray-700">
                 Teilnehmerübersicht
               </span>
-              <ModalSelect
+              <CustomSelect
                 id="calendar-overview-visibility"
+                ariaLabel="Teilnehmerübersicht"
                 value={overviewVisibility}
-                onChange={(event) =>
-                  setOverviewVisibility(
-                    event.target.value as CalendarOverviewVisibility,
-                  )
+                onChange={(next) =>
+                  setOverviewVisibility(next as CalendarOverviewVisibility)
                 }
                 disabled={submitting}
-              >
-                <option value="organizer">Nur ich</option>
-                <option value="staff">Mitarbeitende mit Termin</option>
-                <option value="all">Alle Eingeladenen</option>
-              </ModalSelect>
+                options={[
+                  { value: "organizer", label: "Nur ich" },
+                  { value: "staff", label: "Mitarbeitende mit Termin" },
+                  { value: "all", label: "Alle Eingeladenen" },
+                ]}
+              />
             </label>
           </div>
 
@@ -931,24 +911,24 @@ export default function StaffCalendarPage() {
           ) : null}
 
           <div className="grid gap-4 md:grid-cols-3">
-            <label className="block" htmlFor="calendar-recurrence-frequency">
+            <label htmlFor="calendar-frequency" className="block">
               <span className="mb-2 block text-sm font-medium text-gray-700">
                 Wiederholung
               </span>
-              <ModalSelect
-                id="calendar-recurrence-frequency"
+              <CustomSelect
+                id="calendar-frequency"
+                ariaLabel="Wiederholung"
                 value={frequency}
-                onChange={(event) =>
-                  setFrequency(event.target.value as RecurrenceFrequency)
-                }
+                onChange={(next) => setFrequency(next as RecurrenceFrequency)}
                 disabled={submitting}
-              >
-                <option value="none">Keine</option>
-                <option value="daily">Täglich</option>
-                <option value="weekly">Wöchentlich</option>
-                <option value="monthly">Monatlich</option>
-                <option value="yearly">Jährlich</option>
-              </ModalSelect>
+                options={[
+                  { value: "none", label: "Keine" },
+                  { value: "daily", label: "Täglich" },
+                  { value: "weekly", label: "Wöchentlich" },
+                  { value: "monthly", label: "Monatlich" },
+                  { value: "yearly", label: "Jährlich" },
+                ]}
+              />
             </label>
             <Input
               label="Intervall"

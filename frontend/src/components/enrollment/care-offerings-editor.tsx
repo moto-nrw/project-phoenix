@@ -893,6 +893,7 @@ function CareOfferingToolbar({
             <span className="font-medium text-gray-700">Anmeldephase</span>
             <CustomSelect
               id="care-offerings-phase"
+              ariaLabel="Anmeldephase"
               value={selectedPhaseId}
               onChange={onPhaseChange}
               className="h-9 min-w-60"
@@ -1426,6 +1427,7 @@ function CareOfferingTemplateField({
         <span className="text-xs font-medium text-gray-700">Regeltermin</span>
         <CustomSelect
           id="care-offering-template"
+          ariaLabel="Regeltermin"
           value={linkedTemplateID}
           onChange={(value) =>
             onChange({ activity_group_id: value ? Number(value) : null })
@@ -1743,6 +1745,7 @@ function CareOfferingAvailabilityFields({
               </span>
               <CustomSelect
                 id="care-offering-availability-match"
+                ariaLabel="Mehrere Bedingungen"
                 value={rule.match}
                 onChange={(value) =>
                   onChange({
@@ -1823,6 +1826,7 @@ function CareOfferingAvailabilityFields({
                   </span>
                   <CustomSelect
                     id={`availability-source-${index}`}
+                    ariaLabel="Bedingungsquelle"
                     value="grade_level"
                     onChange={() => undefined}
                     options={[
@@ -1843,6 +1847,7 @@ function CareOfferingAvailabilityFields({
                   </span>
                   <CustomSelect
                     id={`availability-operator-${index}`}
+                    ariaLabel="Operator"
                     value={condition.operator}
                     onChange={(value) =>
                       updateCondition(index, {
@@ -2146,6 +2151,7 @@ function CareOfferingForm({
           </span>
           <CustomSelect
             id="care-offering-form-phase"
+            ariaLabel="Anmeldephase"
             value={draft.phase_id?.toString() ?? ""}
             onChange={(value) => {
               const phaseID = value ? Number(value) : 0;
@@ -2239,6 +2245,7 @@ function CareOfferingForm({
             <span className="text-xs font-medium text-gray-700">Regel</span>
             <CustomSelect
               id="care-offering-selection-rule"
+              ariaLabel="Regel"
               value={draft.selection_rule ?? "optional"}
               onChange={(value) =>
                 update({
@@ -2386,6 +2393,7 @@ function CloneOfferingForm({
         <span className="text-xs font-medium text-gray-700">Zielphase</span>
         <CustomSelect
           id="care-offering-clone-target-phase"
+          ariaLabel="Zielphase"
           value={targetPhaseId}
           onChange={setTargetPhaseId}
           className="mt-1"

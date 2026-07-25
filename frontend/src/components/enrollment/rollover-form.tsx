@@ -167,9 +167,14 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
             </p>
           )}
         </label>
-        <label className="block" htmlFor="rollover-kind">
+        <label
+          className="block"
+          htmlFor="rollover-kind"
+          id="rollover-kind-label"
+        >
           <span className="block text-xs font-semibold text-gray-700">Typ</span>
           <CustomSelect
+            ariaLabelledBy="rollover-kind-label"
             id="rollover-kind"
             value={draft.kind}
             onChange={(value) => update("kind", value as RolloverInput["kind"])}
