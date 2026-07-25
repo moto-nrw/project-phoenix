@@ -81,6 +81,20 @@ channel is activated, per the issue.
 - Unlike all other SSE events, `notification` events are rendered directly,
   not used as refetch triggers.
 
+## First consumer: reminder notifications
+
+The scheduler task `reminder-notifications`
+(`services/scheduler/reminder_notifications.go`) is the first real producer.
+Every minute, per tenant, it computes the #1457 reminder list (pickups,
+activity starts, overdue variants) and dispatches ONE aggregated event
+(`Type: "reminders_due"`) for occurrences that newly became due — priority
+`high` when something is overdue, deep link `/reminders`. Double gate:
+`notifications.dispatch_enabled` AND at least one `reminders.*` type enabled.
+The notification carries counts only, never student names (GDPR); a once-per-
+day in-memory guard (rotated at midnight, refires once after a restart)
+prevents repeats. The producer only builds an Event and calls `Notify` — new
+channels apply to it automatically.
+
 ## Verifying a tenant's setup
 
 `POST /api/notifications/test` (tenant JWT, `config:update`) dispatches a

@@ -23,6 +23,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/services/notifications"
+	"github.com/moto-nrw/project-phoenix/services/reminders"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -156,6 +158,16 @@ type Scheduler struct {
 	// Rollover deadline resolver (phase rollover slice 1). Wired via
 	// SetRolloverDeadlineRunner. Nil → task does not register.
 	rolloverDeadlineRunner RolloverDeadlineRunner
+
+	// Reminder → notification bridge (#1624 follow-up). Wired via
+	// SetReminderNotificationDeps; either nil → task does not register.
+	// reminderNotified is the once-per-day re-fire guard, rotated on
+	// civil-date rollover like overdueEmitted.
+	reminderComputer      reminders.Service
+	reminderNotifier      notifications.Service
+	reminderNotified      sync.Map // reminderNotificationKey → time.Time
+	reminderNotifiedDay   timezone.Date
+	reminderNotifiedDayMu sync.Mutex
 }
 
 // OutboxWorkerRunner is the narrow contract the scheduler needs from the
@@ -398,6 +410,7 @@ func (s *Scheduler) Start() {
 
 	// Schedule minute-polled overdue instance tick (WP-B9)
 	s.scheduleInstanceOverdueTask()
+	s.scheduleReminderNotificationTask()
 
 	// Schedule minute-polled automatic starts for planned instances.
 	s.scheduleAutoStartTask()
