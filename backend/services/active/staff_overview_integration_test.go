@@ -30,6 +30,19 @@ func (h *countingQueryHook) BeforeQuery(ctx context.Context, _ *bun.QueryEvent) 
 
 func (h *countingQueryHook) AfterQuery(context.Context, *bun.QueryEvent) {}
 
+type recordingAbsenceRepository struct {
+	activeModels.StaffAbsenceRepository
+	requestedDate timezone.Date
+}
+
+func (r *recordingAbsenceRepository) GetAbsenceMapForDate(
+	ctx context.Context,
+	date timezone.Date,
+) (map[int64]string, error) {
+	r.requestedDate = date
+	return r.StaffAbsenceRepository.GetAbsenceMapForDate(ctx, date)
+}
+
 // overviewFixture arranges a tenant with N staff members, each with a contract
 // on every weekday, a worked session today, and (optionally) a planned shift.
 type overviewFixture struct {
@@ -324,6 +337,24 @@ func TestDashboardSummary_KPIs(t *testing.T) {
 	assert.Equal(t, 1, summary.CurrentlyClockedIn, "only staff[0] has an open session")
 	assert.Equal(t, 1, summary.ExpectedClockedIn, "only staff[0] has a shift covering now")
 	assert.Equal(t, 1, summary.PendingRequestsCount)
+}
+
+func TestDashboardSummary_AbsenceKPIsUseBerlinToday(t *testing.T) {
+	f := newOverviewFixture(t, 1)
+	absenceRepo := &recordingAbsenceRepository{StaffAbsenceRepository: f.repos.StaffAbsence}
+	settings := wtmIntSettings{
+		accountStart: timezone.NewDate(f.today.Year, f.today.Month, 1).String(),
+	}
+	svc := active.NewStaffOverviewService(
+		f.repos.Staff, f.repos.WorkSession, f.repos.WorkSessionBreak, absenceRepo,
+		f.repos.StaffBalanceAdjust, f.repos.StaffVacationQuota, f.repos.StaffMonthSnapshot,
+		f.repos.StaffWorkSchedule, f.repos.WorkTimeModel, f.repos.StaffShift,
+		settings, nil,
+	)
+
+	_, err := svc.GetDashboardSummary(f.ctx, active.OverviewPeriodMonth)
+	require.NoError(t, err)
+	assert.Equal(t, f.today, absenceRepo.requestedDate)
 }
 
 // TestDashboardSummary_WeekVsMonth — the saldo is an account balance and must

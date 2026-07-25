@@ -135,7 +135,7 @@ type StaffAbsenceService interface {
 
 // GetTodayAbsenceMap returns staff ID -> absence type for today.
 func (s *staffAbsenceService) GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error) {
-	return s.absenceRepo.GetTodayAbsenceMap(ctx)
+	return s.absenceRepo.GetAbsenceMapForDate(ctx, timezone.TodayDate())
 }
 
 // staffAbsenceService implements StaffAbsenceService

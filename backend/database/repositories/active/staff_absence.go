@@ -119,16 +119,16 @@ func (r *StaffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID 
 	return absence, nil
 }
 
-// GetTodayAbsenceMap returns a map of staff IDs to their absence type for today.
+// GetAbsenceMapForDate returns a map of staff IDs to their absence type for the given date.
 // Priority order when multiple absences exist:
 // sick > training > vacation > comp_time > other.
-func (r *StaffAbsenceRepository) GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error) {
+func (r *StaffAbsenceRepository) GetAbsenceMapForDate(ctx context.Context, date timezone.Date) (map[int64]string, error) {
 	var absences []*active.StaffAbsence
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&absences).
 		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
-		Where(`"staff_absence".date_start <= CURRENT_DATE`).
-		Where(`"staff_absence".date_end >= CURRENT_DATE`).
+		Where(`"staff_absence".date_start <= ?`, date).
+		Where(`"staff_absence".date_end >= ?`, date).
 		Where(`"staff_absence".status IN (?)`, bun.List(effectiveStaffAbsenceStatuses))
 
 	query = base.WithTenantFilter(ctx, query, "staff_absence")
@@ -136,7 +136,7 @@ func (r *StaffAbsenceRepository) GetTodayAbsenceMap(ctx context.Context) (map[in
 	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "get today absence map",
+			Op:  "get absence map for date",
 			Err: err,
 		}
 	}

@@ -362,10 +362,10 @@ type StaffAbsenceRepository interface {
 	// GetByStaffAndDate returns an absence for a staff member on a specific date, or nil
 	GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*StaffAbsence, error)
 
-	// GetTodayAbsenceMap returns a map of staff IDs to their absence type for today
+	// GetAbsenceMapForDate returns a map of staff IDs to their absence type for the given date.
 	// Priority order when multiple absences exist:
 	// sick > training > vacation > comp_time > other.
-	GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error)
+	GetAbsenceMapForDate(ctx context.Context, date timezone.Date) (map[int64]string, error)
 
 	// ListByStatuses returns all absences whose status is in the given set,
 	// ordered by requested_at (used for the /staff inbox: requested + question)

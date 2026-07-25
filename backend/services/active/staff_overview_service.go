@@ -626,7 +626,7 @@ func (s *staffOverviewService) addTodayCounters(
 	}
 	summary.CurrentlyClockedIn = len(clockedIn)
 
-	absences, err := s.absenceRepo.GetTodayAbsenceMap(ctx)
+	absences, err := s.absenceRepo.GetAbsenceMapForDate(ctx, today)
 	if err != nil {
 		return fmt.Errorf("failed to load absence map: %w", err)
 	}

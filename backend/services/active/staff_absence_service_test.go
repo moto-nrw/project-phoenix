@@ -32,7 +32,7 @@ type absStaffAbsenceRepoMock struct {
 	getByStaffAndDateRangeFunc func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffAbsence, error)
 	getByStaffAndDateFunc      func(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.StaffAbsence, error)
 	getByDateRangeFunc         func(ctx context.Context, from, to timezone.Date) ([]*activeModels.StaffAbsence, error)
-	getTodayAbsenceMapFunc     func(ctx context.Context) (map[int64]string, error)
+	getAbsenceMapForDateFunc   func(ctx context.Context, date timezone.Date) (map[int64]string, error)
 	listByStatusesFunc         func(ctx context.Context, statuses []string) ([]*activeModels.StaffAbsence, error)
 }
 
@@ -102,9 +102,9 @@ func (m *absStaffAbsenceRepoMock) GetByDateRange(ctx context.Context, from, to t
 	return nil, nil
 }
 
-func (m *absStaffAbsenceRepoMock) GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error) {
-	if m.getTodayAbsenceMapFunc != nil {
-		return m.getTodayAbsenceMapFunc(ctx)
+func (m *absStaffAbsenceRepoMock) GetAbsenceMapForDate(ctx context.Context, date timezone.Date) (map[int64]string, error) {
+	if m.getAbsenceMapForDateFunc != nil {
+		return m.getAbsenceMapForDateFunc(ctx, date)
 	}
 	return nil, nil
 }

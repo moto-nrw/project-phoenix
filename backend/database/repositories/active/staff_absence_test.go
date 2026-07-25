@@ -348,7 +348,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 	})
 }
 
-func TestStaffAbsenceRepository_GetTodayAbsenceMap(t *testing.T) {
+func TestStaffAbsenceRepository_GetAbsenceMapForDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -394,7 +394,7 @@ func TestStaffAbsenceRepository_GetTodayAbsenceMap(t *testing.T) {
 			testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence2.ID)
 		}()
 
-		absenceMap, err := repo.GetTodayAbsenceMap(ctx)
+		absenceMap, err := repo.GetAbsenceMapForDate(ctx, today)
 		require.NoError(t, err)
 		assert.Equal(t, active.AbsenceTypeSick, absenceMap[staff1.ID])
 		assert.Equal(t, active.AbsenceTypeVacation, absenceMap[staff2.ID])
@@ -431,9 +431,28 @@ func TestStaffAbsenceRepository_GetTodayAbsenceMap(t *testing.T) {
 			testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence2.ID)
 		}()
 
-		absenceMap, err := repo.GetTodayAbsenceMap(ctx)
+		absenceMap, err := repo.GetAbsenceMapForDate(ctx, today)
 		require.NoError(t, err)
 		// Sick should take priority over vacation
 		assert.Equal(t, active.AbsenceTypeSick, absenceMap[staff3.ID])
+	})
+
+	t.Run("uses the requested date", func(t *testing.T) {
+		requestedDate := timezone.TodayDate().AddDays(30)
+		absence := &active.StaffAbsence{
+			StaffID:     staff1.ID,
+			AbsenceType: active.AbsenceTypeTraining,
+			DateStart:   requestedDate,
+			DateEnd:     requestedDate,
+			Status:      active.AbsenceStatusApproved,
+			CreatedBy:   staff1.ID,
+		}
+
+		require.NoError(t, repo.Create(ctx, absence))
+		defer testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence.ID)
+
+		absenceMap, err := repo.GetAbsenceMapForDate(ctx, requestedDate)
+		require.NoError(t, err)
+		assert.Equal(t, active.AbsenceTypeTraining, absenceMap[staff1.ID])
 	})
 }
