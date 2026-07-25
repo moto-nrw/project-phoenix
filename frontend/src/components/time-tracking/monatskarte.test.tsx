@@ -195,6 +195,30 @@ describe("monthLabel", () => {
       ).not.toBeInTheDocument();
     });
 
+    it("shows the close instant on its Berlin calendar date", () => {
+      const originalTimeZone = process.env.TZ;
+      process.env.TZ = "America/Los_Angeles";
+
+      try {
+        render(
+          <Monatskarte
+            summary={makeSummary({
+              ...closed,
+              closedAt: "2026-09-01T00:30:00Z",
+              driftMinutes: 0,
+            })}
+            isLoading={false}
+          />,
+        );
+
+        expect(
+          screen.getByText(/Abgeschlossen am 01\.09\.2026/),
+        ).toBeInTheDocument();
+      } finally {
+        process.env.TZ = originalTimeZone;
+      }
+    });
+
     it("explains non-zero drift and keeps the frozen value as the Übertrag", () => {
       render(
         <Monatskarte

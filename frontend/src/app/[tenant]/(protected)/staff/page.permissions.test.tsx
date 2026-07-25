@@ -4,7 +4,7 @@
 // Umschalter nicht erscheinen UND der Overview-Request nicht gefeuert werden —
 // eine Seite, die still ein 403 im Netzwerk-Tab produziert, gilt als kaputt.
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useSession } from "next-auth/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -14,11 +14,21 @@ const getTimeAccounts = vi.hoisted(() => vi.fn());
 const getDashboardSummary = vi.hoisted(() => vi.fn());
 const getAllStaff = vi.hoisted(() => vi.fn());
 const swrKeys = vi.hoisted(() => [] as (string | null)[]);
+const berlinToday = vi.hoisted(() => vi.fn());
+const closeMonth = vi.hoisted(() => vi.fn());
+const mutateMonthClose = vi.hoisted(() => vi.fn());
+const globalMutate = vi.hoisted(() => vi.fn());
 
 vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: vi.fn() }),
+}));
+vi.mock("~/lib/hooks/use-berlin-today", () => ({
+  useBerlinToday: berlinToday,
+}));
+vi.mock("swr", () => ({
+  useSWRConfig: () => ({ mutate: globalMutate }),
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -26,13 +36,24 @@ vi.mock("~/lib/swr", () => ({
     swrKeys.push(key);
     // Genau wie useSWRAuth selbst: ein null-Key fetcht nicht.
     if (key !== null) void fetcher();
+    if (key?.includes("staff-month-close-")) {
+      return {
+        data: [],
+        isLoading: false,
+        error: null,
+        mutate: mutateMonthClose,
+      };
+    }
     return { data: undefined, isLoading: false, error: null };
   },
 }));
 
 vi.mock("~/lib/staff-api", () => ({
   staffService: { getAllStaff },
-  staffMonthCloseService: { getStatus: vi.fn().mockResolvedValue([]) },
+  staffMonthCloseService: {
+    getStatus: vi.fn().mockResolvedValue([]),
+    closeMonth,
+  },
 }));
 
 vi.mock("~/lib/staff-overview-api", () => ({
@@ -50,6 +71,17 @@ vi.mock("~/components/staff/school-overview-section", () => ({
     return <div data-testid="schul-uebersicht" />;
   },
 }));
+vi.mock("~/components/staff/month-close-modal", () => ({
+  MonthCloseReasonModal: ({
+    onSubmit,
+  }: {
+    onSubmit: (reason: string) => Promise<void>;
+  }) => (
+    <button type="button" onClick={() => void onSubmit("Lohnlauf")}>
+      Abschluss bestätigen
+    </button>
+  ),
+}));
 
 function mockSession(permissions: string[]) {
   vi.mocked(useSession).mockReturnValue({
@@ -65,6 +97,10 @@ function mockSession(permissions: string[]) {
 describe("/staff — Berechtigungs-Split", () => {
   beforeEach(() => {
     swrKeys.length = 0;
+    berlinToday.mockReset().mockReturnValue("2026-09-01");
+    closeMonth.mockReset().mockResolvedValue({});
+    mutateMonthClose.mockReset().mockResolvedValue(undefined);
+    globalMutate.mockReset().mockResolvedValue(undefined);
     getAllStaff.mockReset().mockResolvedValue([]);
     getDashboardSummary.mockReset().mockResolvedValue({});
     getTimeAccounts.mockReset().mockResolvedValue({
@@ -138,5 +174,53 @@ describe("/staff — Berechtigungs-Split", () => {
     // Default-Ansicht ist Status; die Tabelle kostet erst dann einen Request,
     // wenn sie auch angezeigt wird.
     expect(getTimeAccounts).not.toHaveBeenCalled();
+  });
+
+  it("leitet den laufenden Monat und die Abschlussgrenze vom Berliner Tag ab", () => {
+    berlinToday.mockReturnValue("2030-01-01");
+    mockSession(["time_tracking:manage"]);
+
+    render(<StaffPage />);
+
+    expect(getTimeAccounts).toHaveBeenCalledWith(
+      expect.objectContaining({ year: 2030, month: 1 }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Nächster Monat" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Monat abschließen" }),
+    ).toBeDisabled();
+  });
+
+  it("aktualisiert nach dem Abschluss beide Monatskarten-Cachefamilien", async () => {
+    mockSession(["time_tracking:manage"]);
+    render(<StaffPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Vorheriger Monat" }));
+    fireEvent.click(screen.getByRole("button", { name: "Monat abschließen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Abschluss bestätigen" }),
+    );
+
+    await waitFor(() => {
+      expect(closeMonth).toHaveBeenCalledWith({
+        year: 2026,
+        month: 8,
+        reason: "Lohnlauf",
+      });
+      expect(mutateMonthClose).toHaveBeenCalledTimes(1);
+      expect(globalMutate).toHaveBeenCalledTimes(1);
+    });
+
+    const isAffectedKey = globalMutate.mock.calls[0]?.[0] as (
+      key: unknown,
+    ) => boolean;
+    expect(isAffectedKey("tenant:staff-time-accounts-2026-8")).toBe(true);
+    expect(isAffectedKey("tenant:staff-month-summary-12-2026-8")).toBe(true);
+    expect(isAffectedKey("tenant:time-tracking-month-summary-2026-8")).toBe(
+      true,
+    );
+    expect(isAffectedKey("tenant:staff-list")).toBe(false);
   });
 });

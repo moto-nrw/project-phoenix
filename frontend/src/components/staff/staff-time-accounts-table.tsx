@@ -18,7 +18,7 @@ import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { Input } from "~/components/ui/input";
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
-import { formatDate } from "~/lib/date-helpers";
+import { formatLocalizedDate } from "~/lib/localized-date-format";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
 import { formatDuration } from "~/lib/time-tracking-helpers";
 import type { TimeAccountRow } from "~/lib/staff-overview-api";
@@ -222,7 +222,8 @@ export function StaffTimeAccountsTable({
             {monthClose?.closed && (
               <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
                 <Lock className="h-3 w-3" />
-                Abgeschlossen am {formatDate(monthClose.closedAt)}
+                Abgeschlossen am{" "}
+                {formatLocalizedDate(monthClose.closedAt, "de")}
               </span>
             )}
           </div>

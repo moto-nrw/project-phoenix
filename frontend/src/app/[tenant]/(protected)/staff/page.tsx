@@ -21,6 +21,7 @@ import {
   getStaffLocationStatus,
 } from "~/lib/staff-helpers";
 import { useSWRAuth } from "~/lib/swr";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { isAdmin, hasPermission } from "~/lib/auth-utils";
 import {
@@ -68,11 +69,13 @@ function StaffPageContent() {
   // Angezeigter Monat der Zeitkonten (#1417): Default ist der laufende Monat;
   // zurückblättern erlaubt der Endpoint seit #1988, vorwärts über heute hinaus
   // lehnt er ab (Zukunftsmonat = volles Soll gegen null Ist).
-  const now = new Date();
+  const berlinToday = useBerlinToday();
+  const currentYear = Number(berlinToday.slice(0, 4));
+  const currentMonth = Number(berlinToday.slice(5, 7));
   const [monthAnchor, setMonthAnchor] = useState<{
     year: number;
     month: number;
-  }>({ year: now.getFullYear(), month: now.getMonth() + 1 });
+  }>(() => ({ year: currentYear, month: currentMonth }));
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [saldoPreset, setSaldoPreset] = useState<SaldoPresetId>("all");
   const [customSaldoHours, setCustomSaldoHours] = useState("");
@@ -174,9 +177,8 @@ function StaffPageContent() {
     : null;
 
   const isCurrentOrFutureMonth =
-    monthAnchor.year > now.getFullYear() ||
-    (monthAnchor.year === now.getFullYear() &&
-      monthAnchor.month >= now.getMonth() + 1);
+    monthAnchor.year > currentYear ||
+    (monthAnchor.year === currentYear && monthAnchor.month >= currentMonth);
   const shiftMonth = (delta: number) => {
     setMonthAnchor((anchor) => {
       const date = new Date(anchor.year, anchor.month - 1 + delta, 1);
@@ -192,11 +194,15 @@ function StaffPageContent() {
       reason,
     });
     await mutateMonthClose();
-    // Folgemonate rechnen ab jetzt vom eingefrorenen Übertrag — alle
-    // Zeitkonten-Antworten sind potenziell veraltet.
+    // Folgemonate rechnen ab jetzt vom eingefrorenen Übertrag — die schulweite
+    // Tabelle und beide Monatskarten-Familien sind potenziell veraltet.
     // includes statt startsWith: useSWRAuth präfixt die Keys mit dem Tenant.
     await globalMutate(
-      (key) => typeof key === "string" && key.includes("staff-time-accounts"),
+      (key) =>
+        typeof key === "string" &&
+        (key.includes("staff-time-accounts") ||
+          key.includes("staff-month-summary-") ||
+          key.includes("time-tracking-month-summary-")),
     );
   };
 

@@ -10,6 +10,7 @@ import { Lock } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
+import { formatLocalizedDate } from "~/lib/localized-date-format";
 import {
   balanceAdjustmentTypeLabel,
   formatDuration,
@@ -175,7 +176,7 @@ export function Monatskarte({
             <Lock className="h-3 w-3" />
             Abgeschlossen
             {summary.closedAt
-              ? ` am ${formatIsoDateGerman(summary.closedAt)}`
+              ? ` am ${formatLocalizedDate(summary.closedAt, "de")}`
               : ""}
           </span>
         )}

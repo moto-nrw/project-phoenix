@@ -95,4 +95,32 @@ describe("StaffTimeAccountsTable", () => {
       1201,
     );
   });
+
+  it("zeigt das Abschlussdatum in der Berliner Zeitzone", () => {
+    const originalTimeZone = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+
+    try {
+      render(
+        <StaffTimeAccountsTable
+          {...baseProps}
+          monthClose={{
+            closed: true,
+            closedAt: "2026-09-01T00:30:00Z",
+            closedCount: 12,
+          }}
+          onSaldoPresetChange={vi.fn()}
+          onCustomSaldoHoursChange={vi.fn()}
+          onShowCustomSaldoChange={vi.fn()}
+          showCustomSaldo={false}
+        />,
+      );
+
+      expect(
+        screen.getByText("Abgeschlossen am 01.09.2026"),
+      ).toBeInTheDocument();
+    } finally {
+      process.env.TZ = originalTimeZone;
+    }
+  });
 });
