@@ -106,7 +106,7 @@ describe("StaffPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(useSession).mockReturnValue({
-      data: { user: { id: "1" } },
+      data: { user: { id: "1", permissions: ["users:read"] } },
       status: "authenticated",
     } as never);
   });

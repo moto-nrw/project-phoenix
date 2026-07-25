@@ -60,6 +60,30 @@ describe("StaffTimeAccountsTable", () => {
     expect(onShowCustomSaldoChange).toHaveBeenCalledWith(false);
   });
 
+  it("entfernt das Preset beim Öffnen einer eigenen Grenze", () => {
+    const onSaldoPresetChange = vi.fn();
+    const onCustomSaldoHoursChange = vi.fn();
+    const onShowCustomSaldoChange = vi.fn();
+
+    render(
+      <StaffTimeAccountsTable
+        {...baseProps}
+        saldoPreset="minus"
+        customSaldoHours=""
+        showCustomSaldo={false}
+        onSaldoPresetChange={onSaldoPresetChange}
+        onCustomSaldoHoursChange={onCustomSaldoHoursChange}
+        onShowCustomSaldoChange={onShowCustomSaldoChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Eigene Grenze" }));
+
+    expect(onCustomSaldoHoursChange).toHaveBeenCalledWith("");
+    expect(onSaldoPresetChange).toHaveBeenCalledWith("all");
+    expect(onShowCustomSaldoChange).toHaveBeenCalledWith(true);
+  });
+
   it("schließt genau +20:00 aus dem Preset über +20 Std. aus", () => {
     expect(saldoPresets.find((preset) => preset.id === "plus20")?.min).toBe(
       1201,

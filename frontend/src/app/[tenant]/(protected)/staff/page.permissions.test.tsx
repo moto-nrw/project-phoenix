@@ -12,6 +12,7 @@ import StaffPage from "./page";
 
 const getTimeAccounts = vi.hoisted(() => vi.fn());
 const getDashboardSummary = vi.hoisted(() => vi.fn());
+const getAllStaff = vi.hoisted(() => vi.fn());
 const swrKeys = vi.hoisted(() => [] as (string | null)[]);
 
 vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
@@ -30,7 +31,7 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 vi.mock("~/lib/staff-api", () => ({
-  staffService: { getAllStaff: vi.fn().mockResolvedValue([]) },
+  staffService: { getAllStaff },
 }));
 
 vi.mock("~/lib/staff-overview-api", () => ({
@@ -63,6 +64,7 @@ function mockSession(permissions: string[]) {
 describe("/staff — Berechtigungs-Split", () => {
   beforeEach(() => {
     swrKeys.length = 0;
+    getAllStaff.mockReset().mockResolvedValue([]);
     getDashboardSummary.mockReset().mockResolvedValue({});
     getTimeAccounts.mockReset().mockResolvedValue({
       year: 2026,
@@ -80,13 +82,20 @@ describe("/staff — Berechtigungs-Split", () => {
     expect(getDashboardSummary).toHaveBeenCalledTimes(1);
   });
 
-  it("blendet die Schul-Übersicht ohne users:read aus und fragt sie nicht ab", () => {
+  it("öffnet für time_tracking:manage ohne users:read direkt die Zeitkonten und fragt die Personalliste nicht ab", () => {
     mockSession(["time_tracking:manage"]);
 
     render(<StaffPage />);
 
     expect(screen.queryByTestId("schul-uebersicht")).not.toBeInTheDocument();
     expect(getDashboardSummary).not.toHaveBeenCalled();
+    expect(getAllStaff).not.toHaveBeenCalled();
+    expect(swrKeys).not.toContain("staff-list");
+    expect(getTimeAccounts).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/Zeitkonten —/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: "Status" }),
+    ).not.toBeInTheDocument();
   });
 
   it("blendet den Zeitkonten-Umschalter ohne time_tracking:manage aus und fragt die Zeitkonten nicht ab", () => {

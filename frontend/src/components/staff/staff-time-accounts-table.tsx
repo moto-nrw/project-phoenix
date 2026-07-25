@@ -200,8 +200,9 @@ export function StaffTimeAccountsTable({
             size="compact"
             variant={showCustomSaldo ? "primary" : "ghost"}
             onClick={() => {
-              if (showCustomSaldo) {
-                onCustomSaldoHoursChange("");
+              onCustomSaldoHoursChange("");
+              if (!showCustomSaldo) {
+                onSaldoPresetChange("all");
               }
               onShowCustomSaldoChange(!showCustomSaldo);
             }}

@@ -47,10 +47,7 @@ function StaffPageContent() {
   const userIsAdmin = isAdmin(session);
 
   // Die Zeitkonten-Ansicht ist an time_tracking:manage gebunden, nicht an
-  // users:read: sie zeigt Arbeitszeitdaten identifizierbarer Personen. Ohne
-  // die Berechtigung wird der Umschalter nicht gerendert und der Request
-  // deshalb nie gefeuert — die Seite läuft dann vollständig als Status-Ansicht
-  // plus aggregierte Schul-Übersicht.
+  // users:read: sie zeigt Arbeitszeitdaten identifizierbarer Personen.
   const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
   const canReadUsers = hasPermission(session, "users:read");
 
@@ -58,11 +55,16 @@ function StaffPageContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [locationFilter, setLocationFilter] = useState("all");
   const [isMobile, setIsMobile] = useState(false);
-  const [view, setView] = useState<"status" | "accounts">("status");
+  const [selectedView, setSelectedView] = useState<"status" | "accounts">(
+    "status",
+  );
   const [employmentFilter, setEmploymentFilter] = useState("all");
   const [saldoPreset, setSaldoPreset] = useState<SaldoPresetId>("all");
   const [customSaldoHours, setCustomSaldoHours] = useState("");
   const [showCustomSaldo, setShowCustomSaldo] = useState(false);
+  // Ohne users:read ist die Statusansicht nicht erlaubt. Manage-only-Konten
+  // landen deshalb direkt in den Zeitkonten und können nicht zu Status wechseln.
+  const view = canReadUsers ? selectedView : "accounts";
 
   // Handle mobile detection
   useEffect(() => {
@@ -81,7 +83,7 @@ function StaffPageContent() {
     isLoading,
     error: staffError,
   } = useSWRAuth<Staff[]>(
-    "staff-list",
+    canReadUsers ? "staff-list" : null,
     async () => {
       const staffData = await staffService.getAllStaff({});
       return sortStaff(staffData);
@@ -400,10 +402,12 @@ function StaffPageContent() {
       {/* Sektion 3 — Mitarbeitende. Status (Karten) und Zeitkonten (Tabelle)
           beantworten verschiedene Fragen; der Umschalter erscheint nur mit
           time_tracking:manage. */}
-      {canManageTimeTracking && (
+      {canReadUsers && canManageTimeTracking && (
         <Tabs
           value={view}
-          onValueChange={(value) => setView(value as "status" | "accounts")}
+          onValueChange={(value) =>
+            setSelectedView(value as "status" | "accounts")
+          }
           className="mb-4"
         >
           <TabsList variant="line">
