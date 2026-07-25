@@ -1204,6 +1204,15 @@ func (s *workTimeMonthService) getDailyBalanceDeltas(
 	if err := s.addDailyAdjustments(ctx, staffID, from, to, deltas); err != nil {
 		return nil, err
 	}
+	anchor, err := s.chainAnchor(ctx, monthOf(from))
+	if err != nil {
+		return nil, err
+	}
+	for d := from; !d.After(to); d = d.AddDays(1) {
+		if excludedByAccountStart(d, anchor) {
+			deltas[d] = 0
+		}
+	}
 	return deltas, nil
 }
 

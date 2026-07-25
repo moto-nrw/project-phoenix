@@ -102,15 +102,20 @@ func (s *staffMonthCloseService) getLogger() *slog.Logger {
 	return cmp.Or(s.logger, slog.Default())
 }
 
+func calendarMonthHasEnded(key monthKey, today timezone.Date) bool {
+	return key.lastDay().Before(today)
+}
+
 // validateCloseRequest checks the month, the reason, and whether the month may
 // be frozen at all.
 //
 // The "month is over" check is the load-bearing one. The month math clamps
 // Soll at the clamp date, and the close deliberately clamps at the month's
 // last day to get a true closing value. For a month that is still running,
-// that clamp lies in the future: the full month's Soll would be charged
-// against an Ist that stops today, and the frozen value would be short by
-// every remaining working day — an error that then carries forward forever.
+// the full month's Soll would be charged against an Ist that stops now. This
+// also applies on the last calendar day: that day's remaining work has not
+// happened yet. The frozen value would carry the artificial deficit forward
+// forever.
 // Closing with the clamp at today is not a fix; the result would not be the
 // month's closing balance and the splice for the next month would be wrong in
 // the other direction.
@@ -123,7 +128,7 @@ func (s *staffMonthCloseService) validateCloseRequest(ctx context.Context, year,
 		return monthKey{}, "", fmt.Errorf("%w: a reason is required", ErrMonthCloseInvalid)
 	}
 	key := monthKey{Year: year, Month: month}
-	if key.lastDay().After(timezone.TodayDate()) {
+	if !calendarMonthHasEnded(key, timezone.TodayDate()) {
 		return monthKey{}, "", fmt.Errorf(
 			"%w: %04d-%02d is not over yet",
 			ErrMonthNotClosable, year, month,

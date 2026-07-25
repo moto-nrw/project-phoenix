@@ -347,6 +347,41 @@ func TestDashboardSummary_WeekVsMonth(t *testing.T) {
 	assert.Equal(t, month.Period, def.Period)
 }
 
+func TestDashboardSummary_WeekExcludesAdjustmentsOutsideRange(t *testing.T) {
+	f := newOverviewFixture(t, 1)
+
+	before, err := f.svc.GetDashboardSummary(f.ctx, active.OverviewPeriodWeek)
+	require.NoError(t, err)
+
+	weekStart := configModels.MondayOf(f.today)
+	effectiveDate := timezone.NewDate(f.today.Year, f.today.Month, 1)
+	if !effectiveDate.Before(weekStart) {
+		effectiveDate = f.today.AddDays(1)
+	}
+	require.Equal(t, f.today.Month, effectiveDate.Month,
+		"fixture must place the adjustment inside the prefetched month")
+	require.True(t, effectiveDate.Before(weekStart) || effectiveDate.After(f.today),
+		"fixture adjustment must lie outside the requested week")
+
+	adjustment := &activeModels.StaffBalanceAdjustment{
+		StaffID:       f.staff[0].ID,
+		Type:          activeModels.BalanceAdjustmentTypePayout,
+		MinutesDelta:  -60,
+		EffectiveDate: effectiveDate,
+		Note:          "Außerhalb der Woche",
+		DecidedBy:     f.staff[0].ID,
+		DecidedAt:     time.Now(),
+	}
+	adjustment.SetTenantID(f.tenantID)
+	require.NoError(t, f.repos.StaffBalanceAdjust.Create(f.ctx, adjustment))
+
+	after, err := f.svc.GetDashboardSummary(f.ctx, active.OverviewPeriodWeek)
+	require.NoError(t, err)
+
+	assert.Equal(t, before.Period, after.Period,
+		"an adjustment outside [weekStart, today] must not alter the week aggregate")
+}
+
 func TestDashboardSummary_RejectsUnknownPeriod(t *testing.T) {
 	f := newOverviewFixture(t, 1)
 

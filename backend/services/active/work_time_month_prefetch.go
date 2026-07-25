@@ -127,8 +127,16 @@ func (r prefetchedAbsenceReader) GetByStaffAndDateRange(_ context.Context, staff
 
 type prefetchedAdjustmentReader struct{ p *monthPrefetch }
 
-func (r prefetchedAdjustmentReader) GetByStaffAndDateRange(_ context.Context, staffID int64, _, _ timezone.Date) ([]*activeModels.StaffBalanceAdjustment, error) {
-	return r.p.adjustments[staffID], nil
+func (r prefetchedAdjustmentReader) GetByStaffAndDateRange(_ context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffBalanceAdjustment, error) {
+	adjustments := r.p.adjustments[staffID]
+	result := make([]*activeModels.StaffBalanceAdjustment, 0, len(adjustments))
+	for _, adjustment := range adjustments {
+		if adjustment.EffectiveDate.Before(from) || adjustment.EffectiveDate.After(to) {
+			continue
+		}
+		result = append(result, adjustment)
+	}
+	return result, nil
 }
 
 type prefetchedShiftReader struct{ p *monthPrefetch }

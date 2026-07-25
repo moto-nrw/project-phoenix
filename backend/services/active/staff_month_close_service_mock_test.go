@@ -4,7 +4,9 @@ import (
 	"context"
 	"log/slog"
 	"testing"
+	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
@@ -81,4 +83,13 @@ func TestStaffMonthCloseService_RechecksIdempotencyAfterLock(t *testing.T) {
 	assert.Equal(t, 1, result.SkippedStaff)
 	assert.Empty(t, result.Snapshots)
 	assert.Equal(t, []string{"staff", "lock", "snapshot"}, events)
+}
+
+func TestCalendarMonthHasEnded_RequiresFollowingDay(t *testing.T) {
+	key := monthKey{Year: 2026, Month: 7}
+
+	assert.False(t, calendarMonthHasEnded(key, timezone.NewDate(2026, time.July, 31)),
+		"the final calendar day is still running")
+	assert.True(t, calendarMonthHasEnded(key, timezone.NewDate(2026, time.August, 1)),
+		"the month is over on the following day")
 }
