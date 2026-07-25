@@ -39,7 +39,8 @@ const logger = createLogger({ component: "GlobalSSE" });
 const DEBOUNCE_MS = 500;
 
 // Every cache family derived from work sessions, absences, balance
-// adjustments, contractual schedules, or planned shifts. Keep this targeted:
+// adjustments, month-close snapshots, contractual schedules, or planned
+// shifts. Keep this targeted:
 // unrelated time-tracking configuration, holiday, closing-day, and assignment
 // caches do not change when staff_time_tracking_changed fires.
 const STAFF_TIME_TRACKING_CACHE_KEY_PARTS = [
@@ -49,6 +50,7 @@ const STAFF_TIME_TRACKING_CACHE_KEY_PARTS = [
   "staff-absences-",
   "staff-pending-absences-",
   "staff-month-summary-",
+  "staff-month-close-",
   "staff-balance-adjustments-",
   "staff-schedule-",
   "staff-shifts-visible-",

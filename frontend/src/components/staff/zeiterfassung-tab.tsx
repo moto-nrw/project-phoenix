@@ -42,7 +42,8 @@ import { KpiCards, ViewToggle, type ViewMode } from "./staff-time-views";
 
 // Reopening changes both the staff-detail chain and, when the selected person
 // is the signed-in manager, the self-service month chain. The remaining
-// school-wide caches expose the lock state and frozen carry-over.
+// school-wide caches expose the lock state, frozen carry-over, and aggregate
+// balance.
 export function isStaleAfterMonthReopen(
   key: unknown,
   staffId: string,
@@ -52,6 +53,7 @@ export function isStaleAfterMonthReopen(
     (key.includes(`staff-month-summary-${staffId}-`) ||
       key.includes("time-tracking-month-summary-") ||
       key.includes("staff-time-accounts") ||
+      key.includes("staff-dashboard-summary-") ||
       key.includes("staff-month-close"))
   );
 }
