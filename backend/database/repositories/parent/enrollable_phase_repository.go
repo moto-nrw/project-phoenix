@@ -233,20 +233,28 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 }
 
 // GuardianSubmitStatus resolves the (account, school) facts the parent
-// enrollment submit path gates on (#1663). One round trip, three
-// EXISTS probes. HasSubmitPermission additionally requires an ACTIVE
+// enrollment submit and form-load paths gate on (#1663). One round trip,
+// four EXISTS probes. HasSubmitPermission additionally requires an ACTIVE
 // auth.account_tenants mapping so a deactivated guardian's lingering
-// guardian rows cannot report submit authority. Cross-tenant — must run
-// inside tenant.WithAdminTx.
+// guardian rows cannot report submit authority.
+//
+// HasEnrolledSubmitPermission is the existing_students counterpart and MUST
+// stay identical to guard.has_enrolled_submit_permission in ListEnrollable
+// above: it additionally requires the permission-granting relationship to
+// point at an ACTIVE or PENDING student whose person is not soft-deleted.
+// The picker and the authenticated form gate have to agree — a form that
+// loads for a phase the picker hides is a dead end whose submit always
+// fails. Cross-tenant — must run inside tenant.WithAdminTx.
 func (r *EnrollablePhaseRepository) GuardianSubmitStatus(ctx context.Context, accountID, tenantID int64) (*parentModels.GuardianSubmitStatus, error) {
 	if accountID <= 0 || tenantID <= 0 {
 		return nil, fmt.Errorf("parent: account_id and tenant_id must be positive")
 	}
 
 	type row struct {
-		Linked              bool `bun:"linked"`
-		HasGuardianLink     bool `bun:"has_guardian_link"`
-		HasSubmitPermission bool `bun:"has_submit_permission"`
+		Linked                      bool `bun:"linked"`
+		HasGuardianLink             bool `bun:"has_guardian_link"`
+		HasSubmitPermission         bool `bun:"has_submit_permission"`
+		HasEnrolledSubmitPermission bool `bun:"has_enrolled_submit_permission"`
 	}
 
 	const query = `
@@ -275,7 +283,27 @@ func (r *EnrollablePhaseRepository) GuardianSubmitStatus(ctx context.Context, ac
 					AND act.status     = 'active'
 				WHERE gp.tenant_id = ? AND gp.account_id = ?
 					AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
-			) AS has_submit_permission
+			) AS has_submit_permission,
+			EXISTS (
+				SELECT 1
+				FROM users.guardian_profiles AS gp
+				JOIN users.students_guardians AS sg
+					ON sg.guardian_profile_id = gp.id
+					AND sg.tenant_id = gp.tenant_id
+				JOIN users.students AS st
+					ON st.id = sg.student_id
+					AND st.tenant_id = sg.tenant_id
+					AND st.status IN ('active', 'pending')
+				JOIN users.persons AS pe
+					ON pe.id = st.person_id
+					AND pe.deleted_at IS NULL
+				JOIN auth.account_tenants AS act
+					ON act.tenant_id  = gp.tenant_id
+					AND act.account_id = gp.account_id
+					AND act.status     = 'active'
+				WHERE gp.tenant_id = ? AND gp.account_id = ?
+					AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
+			) AS has_enrolled_submit_permission
 	`
 
 	var out row
@@ -284,13 +312,16 @@ func (r *EnrollablePhaseRepository) GuardianSubmitStatus(ctx context.Context, ac
 		tenantID, accountID,
 		tenantID, accountID,
 		authorize.GuardianPermissionEnrollmentSubmit,
+		tenantID, accountID,
+		authorize.GuardianPermissionEnrollmentSubmit,
 	).Scan(ctx, &out); err != nil {
 		return nil, fmt.Errorf("parent: guardian submit status: %w", err)
 	}
 
 	return &parentModels.GuardianSubmitStatus{
-		Linked:              out.Linked,
-		HasGuardianLink:     out.HasGuardianLink,
-		HasSubmitPermission: out.HasSubmitPermission,
+		Linked:                      out.Linked,
+		HasGuardianLink:             out.HasGuardianLink,
+		HasSubmitPermission:         out.HasSubmitPermission,
+		HasEnrolledSubmitPermission: out.HasEnrolledSubmitPermission,
 	}, nil
 }

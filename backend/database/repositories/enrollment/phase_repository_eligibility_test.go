@@ -54,6 +54,46 @@ func TestPhaseRepository_ListPublicOpen_HidesLinkedParentsPhases(t *testing.T) {
 		"linked_parents phase MUST be hidden from the anonymous public listing")
 }
 
+// existing_students phases are just as unreachable anonymously as
+// linked_parents ones: the public form gate refuses both
+// (audienceRequiresGuardianAccount), so listing one would advertise a card
+// whose form 404s on the very next request (#1663).
+func TestPhaseRepository_ListPublicOpen_HidesExistingStudentsPhases(t *testing.T) {
+	db, repo, tenantID := setupPhaseRepoTest(t)
+	openName := uniquePhaseName("audienceOpenB")
+	existingName := uniquePhaseName("audienceExisting")
+	defer wipePhases(db, tenantID, openName, existingName)
+
+	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+
+	pOpen := makeValidPhase(openName)
+	pOpen.Audience = enrollmentModels.PhaseAudienceOpen
+
+	pExisting := makeValidPhase(existingName)
+	pExisting.Audience = enrollmentModels.PhaseAudienceExistingStudents
+
+	for _, p := range []*enrollmentModels.Phase{pOpen, pExisting} {
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			return repo.Create(ctx, p)
+		}))
+	}
+
+	var list []*enrollmentModels.Phase
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListPublicOpen(ctx, now)
+		return lErr
+	}))
+
+	names := make(map[string]struct{}, len(list))
+	for _, p := range list {
+		names[p.Name] = struct{}{}
+	}
+	assert.Contains(t, names, openName, "open phase MUST appear in the public listing")
+	assert.NotContains(t, names, existingName,
+		"existing_students phase MUST be hidden from the anonymous public listing")
+}
+
 // --- Create/Update roundtrip of the eligibility columns ----------------
 
 func TestPhaseRepository_EligibilityColumnsRoundtrip(t *testing.T) {

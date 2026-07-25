@@ -174,7 +174,8 @@ func TestLoadEnrolleePhaseWithLateInvite_ValidInviteClearsGradeRestriction(t *te
 
 	svc := audienceTestService(&enrollmentModels.LateInvite{}, nil, phase)
 
-	loaded, err := svc.LoadEnrolleePhaseWithLateInvite(context.Background(), 4242, time.Now(), "valid-token")
+	loaded, err := svc.LoadEnrolleePhaseWithLateInvite(context.Background(), 4242, time.Now(), "valid-token",
+		EnrolleeAudienceAccess{LinkedParents: true})
 	require.NoError(t, err)
 	require.Empty(t, loaded.EligibleGradeLevels)
 }
@@ -208,11 +209,51 @@ func TestLoadPublicPhaseWithLateInvite_InvalidInviteKeepsGradeRestriction(t *tes
 }
 
 // The authenticated enrollee gate keeps loading restricted phases without any
-// invite — the guardian is already authorized.
+// invite — the guardian is already authorized for that audience.
 func TestLoadEnrolleePhaseWithLateInvite_AllowsRestrictedWithoutInvite(t *testing.T) {
 	svc := audienceTestService(nil, enrollmentModels.ErrLateInviteNotFound, linkedParentsPhaseOpenWindow())
 
-	phase, err := svc.LoadEnrolleePhaseWithLateInvite(context.Background(), 4242, time.Now(), "")
+	phase, err := svc.LoadEnrolleePhaseWithLateInvite(context.Background(), 4242, time.Now(), "",
+		EnrolleeAudienceAccess{LinkedParents: true})
 	require.NoError(t, err)
 	require.NotNil(t, phase)
+}
+
+// Access is resolved PER audience (#1663): the linked_parents fact (any
+// submit-permitted guardian relationship) must NOT open an existing_students
+// phase, which needs a still-enrolled child. Otherwise the parents portal
+// serves a form for a phase its own picker hides and whose submit can only
+// fail with ErrChildNotEnrolled.
+func TestLoadEnrolleePhaseWithLateInvite_LinkedParentsAccessDoesNotOpenExistingStudents(t *testing.T) {
+	phase := linkedParentsPhaseOpenWindow()
+	phase.Audience = enrollmentModels.PhaseAudienceExistingStudents
+
+	svc := audienceTestService(nil, enrollmentModels.ErrLateInviteNotFound, phase)
+
+	_, err := svc.LoadEnrolleePhaseWithLateInvite(context.Background(), 4242, time.Now(), "",
+		EnrolleeAudienceAccess{LinkedParents: true})
+	require.ErrorIs(t, err, ErrPhaseAudienceRestricted)
+}
+
+// The matching fact does open it.
+func TestLoadEnrolleePhaseWithLateInvite_EnrolledAccessOpensExistingStudents(t *testing.T) {
+	phase := linkedParentsPhaseOpenWindow()
+	phase.Audience = enrollmentModels.PhaseAudienceExistingStudents
+
+	svc := audienceTestService(nil, enrollmentModels.ErrLateInviteNotFound, phase)
+
+	loaded, err := svc.LoadEnrolleePhaseWithLateInvite(context.Background(), 4242, time.Now(), "",
+		EnrolleeAudienceAccess{ExistingStudents: true})
+	require.NoError(t, err)
+	require.NotNil(t, loaded)
+}
+
+// An existing_students-only account must not reach a linked_parents phase
+// either — the per-audience mapping is not a hierarchy.
+func TestLoadEnrolleePhaseWithLateInvite_ExistingStudentsAccessDoesNotOpenLinkedParents(t *testing.T) {
+	svc := audienceTestService(nil, enrollmentModels.ErrLateInviteNotFound, linkedParentsPhaseOpenWindow())
+
+	_, err := svc.LoadEnrolleePhaseWithLateInvite(context.Background(), 4242, time.Now(), "",
+		EnrolleeAudienceAccess{ExistingStudents: true})
+	require.ErrorIs(t, err, ErrPhaseAudienceRestricted)
 }

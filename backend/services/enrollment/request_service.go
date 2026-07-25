@@ -409,8 +409,10 @@ type RequestService interface {
 	LoadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error)
 	// LoadEnrolleePhaseWithLateInvite is the authenticated parents-portal
 	// counterpart to LoadPublicPhaseWithLateInvite; identical except it also
-	// admits audience-restricted (linked_parents / existing_students) phases.
-	LoadEnrolleePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error)
+	// admits the audience-restricted (linked_parents / existing_students)
+	// phases the caller's resolved guardian facts cover — the caller passes
+	// them as EnrolleeAudienceAccess, whose zero value is the public gate.
+	LoadEnrolleePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*enrollmentModels.Phase, error)
 	LoadManualEnrollmentPhase(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error)
 
 	// LoadPublicFormBootstrap assembles everything the public enrollment
@@ -423,9 +425,10 @@ type RequestService interface {
 	LoadPublicFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
 	// LoadEnrolleeFormBootstrap mirrors LoadPublicFormBootstrap for the
 	// authenticated parents-portal form load, using the enrollee phase gate
-	// so audience-restricted (linked_parents) phases load for a logged-in
-	// guardian. Caller must be inside a tenant-tx.
-	LoadEnrolleeFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
+	// so the audience-restricted phases the caller's access covers load for a
+	// logged-in guardian. Passing the zero access value makes it behave
+	// exactly like LoadPublicFormBootstrap. Caller must be inside a tenant-tx.
+	LoadEnrolleeFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*PublicFormBootstrapData, error)
 	// LoadPublicCareOfferings is the offering-only projection of the public
 	// bootstrap: phase gate + capabilities + active offerings, no schema,
 	// legal texts or captcha. Capability failures are wrapped in
@@ -2930,10 +2933,10 @@ func (s *requestService) LegalTextsForPhaseWithLateInvite(ctx context.Context, p
 
 // LegalTextsForEnrolleePhaseWithLateInvite mirrors
 // LegalTextsForPhaseWithLateInvite but runs the authenticated enrollee gate
-// so the parents-portal bootstrap can resolve legal texts for
-// audience-restricted phases too.
-func (s *requestService) LegalTextsForEnrolleePhaseWithLateInvite(ctx context.Context, phaseID int64, lateInviteToken string) (LegalTexts, error) {
-	phase, err := s.LoadEnrolleePhaseWithLateInvite(ctx, phaseID, time.Now(), lateInviteToken)
+// with the caller's resolved audience access, so the parents-portal bootstrap
+// resolves legal texts for exactly the restricted phases it may load.
+func (s *requestService) LegalTextsForEnrolleePhaseWithLateInvite(ctx context.Context, phaseID int64, lateInviteToken string, access EnrolleeAudienceAccess) (LegalTexts, error) {
+	phase, err := s.LoadEnrolleePhaseWithLateInvite(ctx, phaseID, time.Now(), lateInviteToken, access)
 	if err != nil {
 		return LegalTexts{}, err
 	}
@@ -2962,15 +2965,16 @@ func (s *requestService) legalTextsForLoadedPhase(ctx context.Context, phase *en
 
 // loadEditablePhaseWithLateInvite is the shared form-load phase gate. It
 // resolves the phase, enforces the enrollment window (honoring a valid
-// late-invite token when the window is closed) and — unless the caller is
-// an authenticated enrollee — rejects audience-restricted phases so a
-// direct or guessed link cannot bootstrap a linked_parents or
-// existing_students phase anonymously (#1663). The audience check runs before
-// the window check so a restricted phase always surfaces the same 404
-// regardless of window. The restricted set is exactly the one Submit refuses
-// anonymously (audienceRequiresGuardianAccount): loading a form whose save can
-// only ever fail is a dead end that also leaks the phase's existence.
-func (s *requestService) loadEditablePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, allowRestrictedAudience bool) (*enrollmentModels.Phase, error) {
+// late-invite token when the window is closed) and rejects every
+// audience-restricted phase the caller's resolved access does not cover, so
+// neither a direct anonymous link nor a parent-scoped JWT without the
+// matching guardian fact can bootstrap a linked_parents or existing_students
+// phase (#1663). The audience check runs before the window check so a
+// restricted phase always surfaces the same 404 regardless of window. The
+// restricted set is exactly the one Submit refuses
+// (audienceRequiresGuardianAccount): loading a form whose save can only ever
+// fail is a dead end that also leaks the phase's existence.
+func (s *requestService) loadEditablePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*enrollmentModels.Phase, error) {
 	phase, err := s.loadPhaseForEditableRequest(ctx, phaseID)
 	if err != nil {
 		return nil, err
@@ -3001,7 +3005,7 @@ func (s *requestService) loadEditablePhaseWithLateInvite(ctx context.Context, ph
 			return nil, fmt.Errorf("resolve late invite: %w", inviteErr)
 		}
 	}
-	if !allowRestrictedAudience && !hasValidLateInvite && audienceRequiresGuardianAccount(phase.Audience) {
+	if !hasValidLateInvite && !access.AllowsAudience(phase.Audience) {
 		return nil, ErrPhaseAudienceRestricted
 	}
 	if !IsEnrollmentWindowOpen(phase, now) {
@@ -3080,18 +3084,19 @@ func narrowOfferedClassesToEligibleForForm(phase *enrollmentModels.Phase) {
 }
 
 // LoadPublicPhaseWithLateInvite is the anonymous public form-load gate: it
-// rejects audience-restricted (linked_parents) phases outright.
+// rejects every audience-restricted phase (linked_parents and
+// existing_students) outright — the zero access value grants neither.
 func (s *requestService) LoadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error) {
-	return s.loadEditablePhaseWithLateInvite(ctx, phaseID, now, lateInviteToken, false)
+	return s.loadEditablePhaseWithLateInvite(ctx, phaseID, now, lateInviteToken, EnrolleeAudienceAccess{})
 }
 
 // LoadEnrolleePhaseWithLateInvite is the authenticated parent-portal
 // form-load gate. It behaves exactly like the public gate except it also
-// allows audience-restricted (linked_parents) phases — the caller is an
-// authenticated guardian and the submit path still enforces
-// GuardianSubmitEligible + the audience eligibility rules.
-func (s *requestService) LoadEnrolleePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error) {
-	return s.loadEditablePhaseWithLateInvite(ctx, phaseID, now, lateInviteToken, true)
+// admits the restricted audiences the caller's resolved guardian facts cover
+// (see EnrolleeAudienceAccess) — the submit path still enforces
+// GuardianSubmitEligible + the per-child eligibility rules on top.
+func (s *requestService) LoadEnrolleePhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*enrollmentModels.Phase, error) {
+	return s.loadEditablePhaseWithLateInvite(ctx, phaseID, now, lateInviteToken, access)
 }
 
 func (s *requestService) LoadManualEnrollmentPhase(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error) {
@@ -3471,6 +3476,46 @@ func (s *requestService) validatePhaseEligibility(ctx context.Context, phase *en
 func audienceRequiresGuardianAccount(audience string) bool {
 	return audience == enrollmentModels.PhaseAudienceLinkedParents ||
 		audience == enrollmentModels.PhaseAudienceExistingStudents
+}
+
+// EnrolleeAudienceAccess carries the caller's per-audience form-load
+// authority. The restricted audiences do NOT share one gate (#1663):
+//
+//   - linked_parents needs any guardian relationship at the school that
+//     grants parent_portal.enrollment.submit — a relationship to an inactive
+//     child still qualifies, because enrolling a new sibling is the point.
+//   - existing_students additionally needs that relationship to point at a
+//     still-enrolled (active/pending) child: without one, the submit-time
+//     student matcher can only fail (ErrChildNotEnrolled /
+//     ErrChildEnrollmentNotPermitted).
+//
+// The two flags therefore mirror guard.has_submit_permission and
+// guard.has_enrolled_submit_permission in the parents-portal picker
+// (EnrollablePhaseRepository.ListEnrollable) one-for-one, so the form gate
+// admits exactly the phases the picker advertises. The zero value is the
+// anonymous caller: no restricted audience at all.
+type EnrolleeAudienceAccess struct {
+	LinkedParents    bool
+	ExistingStudents bool
+}
+
+// AllowsAudience reports whether the caller may load a form for a phase with
+// this audience. Unrestricted audiences (open / new_students) always pass; a
+// restricted one passes only on its matching flag. A restricted audience with
+// no flag of its own fails closed, so adding one to
+// audienceRequiresGuardianAccount can never silently open the form gate.
+func (a EnrolleeAudienceAccess) AllowsAudience(audience string) bool {
+	if !audienceRequiresGuardianAccount(audience) {
+		return true
+	}
+	switch audience {
+	case enrollmentModels.PhaseAudienceLinkedParents:
+		return a.LinkedParents
+	case enrollmentModels.PhaseAudienceExistingStudents:
+		return a.ExistingStudents
+	default:
+		return false
+	}
 }
 
 // validatePhaseChildEligibility enforces the per-child eligibility gates

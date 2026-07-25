@@ -442,3 +442,44 @@ func TestEnrollablePhaseRepository_GuardianSubmitStatus(t *testing.T) {
 	_, err := repo.GuardianSubmitStatus(context.Background(), 0, chain.TenantID)
 	require.Error(t, err)
 }
+
+// HasEnrolledSubmitPermission must track the SAME enrolled-child scope
+// ListEnrollable filters existing_students phases by: an account whose only
+// submit-permitted child left the OGS keeps the loose linked_parents fact but
+// loses the enrolled one, so the parents-portal form gate refuses the
+// existing_students phase its picker already hides (#1663).
+func TestEnrollablePhaseRepository_GuardianSubmitStatus_EnrolledPermissionTracksStudentStatus(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
+
+	repo := parentRepo.NewEnrollablePhaseRepository(db)
+	load := func() *parentModels.GuardianSubmitStatus {
+		t.Helper()
+		var status *parentModels.GuardianSubmitStatus
+		require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+			var sErr error
+			status, sErr = repo.GuardianSubmitStatus(ctx, chain.AccountID, chain.TenantID)
+			return sErr
+		}))
+		return status
+	}
+
+	status := load()
+	assert.True(t, status.HasSubmitPermission)
+	assert.True(t, status.HasEnrolledSubmitPermission,
+		"an active child grants the enrolled-scoped fact")
+
+	setStudentStatus(t, db, chain.StudentID, "pending")
+	status = load()
+	assert.True(t, status.HasEnrolledSubmitPermission,
+		"pending counts as enrolled, matching the submit-path student matcher")
+
+	setStudentStatus(t, db, chain.StudentID, "inactive")
+	status = load()
+	assert.True(t, status.HasSubmitPermission,
+		"the loose fact survives — linked_parents still allows enrolling a new sibling")
+	assert.False(t, status.HasEnrolledSubmitPermission,
+		"no still-enrolled child means no existing_students access")
+}

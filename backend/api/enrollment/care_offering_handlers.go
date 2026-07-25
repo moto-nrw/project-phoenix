@@ -588,9 +588,10 @@ type PublicPhase struct {
 	EnrollmentCloseAt         string `json:"enrollment_close_at,omitempty"`
 	ShowStatusReasonToParent  bool   `json:"show_status_reason_to_parent"`
 	CareOfferingSelectionMode string `json:"care_offering_selection_mode"`
-	// Audience (#1663): linked_parents phases never reach this listing
-	// (filtered in ListPublicOpen); "new_students" lets the public
-	// picker label the restriction.
+	// Audience (#1663): audience-restricted phases (linked_parents and
+	// existing_students) never reach this listing — ListPublicOpen filters
+	// exactly what the anonymous form gate refuses; "new_students" lets the
+	// public picker label the remaining restriction.
 	Audience string `json:"audience"`
 	// EligibleGradeLevels (#1663) is the phase's grade restriction, empty
 	// when unrestricted. The form narrows its grade select to these values

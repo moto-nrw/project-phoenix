@@ -106,10 +106,10 @@ type EnrollablePhase struct {
 	Audience string `json:"audience"`
 }
 
-// GuardianSubmitStatus captures the three facts the parent enrollment
-// submit path needs about (account, school) — resolved in one query
-// (#1663). Linked proves membership only; the permission fields carry
-// the actual parent-portal authority per
+// GuardianSubmitStatus captures the facts the parent enrollment submit
+// and form-load paths need about (account, school) — resolved in one
+// query (#1663). Linked proves membership only; the permission fields
+// carry the actual parent-portal authority per
 // .claude/rules/guardian-parent-permissions.md.
 type GuardianSubmitStatus struct {
 	// Linked: the account has an active auth.account_tenants mapping.
@@ -118,8 +118,20 @@ type GuardianSubmitStatus struct {
 	// via a guardian profile owned by the account at this school.
 	HasGuardianLink bool
 	// HasSubmitPermission: at least one of those rows grants
-	// parent_portal.enrollment.submit.
+	// parent_portal.enrollment.submit, backed by an ACTIVE account_tenants
+	// mapping. This is the linked_parents audience fact — it deliberately
+	// accepts a relationship to an inactive child, because enrolling a
+	// genuinely NEW sibling is exactly what that audience is for.
 	HasSubmitPermission bool
+	// HasEnrolledSubmitPermission narrows HasSubmitPermission to a
+	// relationship pointing at a student that is still ACTIVE or PENDING
+	// (person not soft-deleted) — the same "enrolled" scope the submit-time
+	// student matcher uses. This is the existing_students audience fact:
+	// without such a child, a re-enrollment can only ever fail
+	// (ErrChildNotEnrolled / ErrChildEnrollmentNotPermitted), so the picker
+	// (ListEnrollable) hides those phases and the form gate must refuse them
+	// with the same fact.
+	HasEnrolledSubmitPermission bool
 }
 
 // EnrollablePhaseRepository is the cross-tenant lookup for the parent

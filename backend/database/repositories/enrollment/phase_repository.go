@@ -133,16 +133,23 @@ func (r *PhaseRepository) ListByTenant(ctx context.Context) ([]*enrollment.Phase
 // path doesn't pull every phase into memory; NULL bounds are treated
 // as "unbounded" via the IS NULL OR ... pattern.
 //
-// Phases restricted to linked parents are excluded entirely: their
-// eligibility cannot be verified for an anonymous visitor, so they are
-// only reachable through the authenticated parents portal (#1663).
+// Audience-restricted phases (linked_parents AND existing_students) are
+// excluded entirely: their eligibility cannot be verified for an anonymous
+// visitor, so they are only reachable through the authenticated parents
+// portal (#1663). The excluded set must stay identical to the anonymous
+// form-load gate (services/enrollment.audienceRequiresGuardianAccount) —
+// advertising a card whose form the very next request 404s is a guaranteed
+// dead end for the parent.
 func (r *PhaseRepository) ListPublicOpen(ctx context.Context, now time.Time) ([]*enrollment.Phase, error) {
 	var rows []*enrollment.Phase
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
 		ModelTableExpr(phaseTableExpr).
 		Where(`"phase".is_active = TRUE`).
-		Where(`"phase".audience <> ?`, enrollment.PhaseAudienceLinkedParents).
+		Where(`"phase".audience NOT IN (?)`, bun.List([]string{
+			enrollment.PhaseAudienceLinkedParents,
+			enrollment.PhaseAudienceExistingStudents,
+		})).
 		Where(`("phase".enrollment_open_at IS NULL OR "phase".enrollment_open_at <= ?)`, now).
 		Where(`("phase".enrollment_close_at IS NULL OR "phase".enrollment_close_at > ?)`, now).
 		OrderExpr(`"phase".service_start_date ASC, "phase".id ASC`).

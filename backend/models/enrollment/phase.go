@@ -388,9 +388,11 @@ type PhaseRepository interface {
 	// to the top of the admin list.
 	ListByTenant(ctx context.Context) ([]*Phase, error)
 
-	// ListPublicOpen returns phases the parent landing page should show:
-	// is_active=true AND the open window includes `now`. The public form
-	// uses this for the "select phase" picker.
+	// ListPublicOpen returns phases the anonymous parent landing page should
+	// show: is_active=true AND the open window includes `now`, minus every
+	// audience-restricted phase (linked_parents / existing_students), which
+	// only the authenticated parents portal can load. The public form uses
+	// this for the "select phase" picker.
 	ListPublicOpen(ctx context.Context, now time.Time) ([]*Phase, error)
 
 	// ExistsByFormSchemaID is the safety check for schema deletion -
