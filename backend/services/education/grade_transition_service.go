@@ -704,7 +704,18 @@ func (s *GradeTransitionService) executeApply(
 		return err
 	}
 
-	if err := s.recordTransitionHistory(ctx, transition.ID, transition.Mappings, promotions, graduates); err != nil {
+	// Free the physical bracelets BEFORE the history write, so the ledger row
+	// carries the tag that was actually released. A graduate keeps their person
+	// row (graduation is a soft delete) and would otherwise keep holding the tag
+	// while every staff-facing route — the kiosk's dedicated unassign included —
+	// 404s on them, leaving a tag the kiosk can see but nobody can release
+	// (#405 review).
+	releasedTags, err := s.releaseGraduateTags(ctx, graduates)
+	if err != nil {
+		return err
+	}
+
+	if err := s.recordTransitionHistory(ctx, transition.ID, transition.Mappings, promotions, graduates, releasedTags); err != nil {
 		return err
 	}
 
@@ -965,6 +976,7 @@ func (s *GradeTransitionService) recordTransitionHistory(
 	mappings []*education.GradeTransitionMapping,
 	promoted []*education.StudentClassInfo,
 	graduates []*education.StudentClassInfo,
+	releasedTags map[int64]string,
 ) error {
 	// A student belongs to exactly one class, which is either a promote class or
 	// a graduate class, so the two sets are disjoint — no dedup needed.
@@ -977,7 +989,7 @@ func (s *GradeTransitionService) recordTransitionHistory(
 	}
 
 	classMapping := buildClassMapping(mappings)
-	historyRecords := buildHistoryRecords(transitionID, students, classMapping)
+	historyRecords := buildHistoryRecords(transitionID, students, classMapping, releasedTags)
 
 	tenantID := tenant.FromContext(ctx)
 	for _, h := range historyRecords {
@@ -1000,10 +1012,13 @@ func buildClassMapping(mappings []*education.GradeTransitionMapping) map[string]
 }
 
 // buildHistoryRecords creates history records from students and class mapping.
+// releasedTags carries the RFID tag graduation took off each student (keyed by
+// student id); a student absent from it held none.
 func buildHistoryRecords(
 	transitionID int64,
 	students []*education.StudentClassInfo,
 	classMapping map[string]*string,
+	releasedTags map[int64]string,
 ) []*education.GradeTransitionHistory {
 	records := make([]*education.GradeTransitionHistory, 0, len(students))
 	for _, student := range students {
@@ -1015,7 +1030,7 @@ func buildHistoryRecords(
 		// Snapshot the pre-transition status so a revert restores graduates to
 		// exactly what they were (pending / inactive) instead of activating them.
 		fromStatus := student.Status
-		records = append(records, &education.GradeTransitionHistory{
+		record := &education.GradeTransitionHistory{
 			TransitionID: transitionID,
 			StudentID:    student.StudentID,
 			PersonName:   student.PersonName,
@@ -1023,7 +1038,12 @@ func buildHistoryRecords(
 			ToClass:      toClass,
 			Action:       action,
 			FromStatus:   &fromStatus,
-		})
+		}
+		if tag, ok := releasedTags[student.StudentID]; ok && tag != "" {
+			released := tag
+			record.RFIDTag = &released
+		}
+		records = append(records, record)
 	}
 	return records
 }
@@ -1104,6 +1124,34 @@ func (s *GradeTransitionService) applyGraduations(
 	}
 	result.StudentsGraduated = int(graduated)
 	return nil
+}
+
+// releaseGraduateTags clears the RFID tag of every graduating student and
+// returns what each was holding, so the history write can ledger it.
+//
+// The bracelet is physical: it is handed back when a child leaves and reissued
+// to a current one. Leaving it bound to the alumnus creates a state the kiosk
+// can observe but not resolve — GET /api/iot/rfid/{tagId} resolves the person
+// unfiltered and shows the departed child's name, while DELETE
+// /api/students/{id}/rfid goes through the shared alumnus gate and always 404s
+// (#405 review).
+//
+// Runs inside the apply transaction on the already FOR UPDATE-locked cohort, so
+// a failure here rolls the whole graduation back rather than half-releasing
+// tags.
+func (s *GradeTransitionService) releaseGraduateTags(
+	ctx context.Context,
+	graduates []*education.StudentClassInfo,
+) (map[int64]string, error) {
+	if len(graduates) == 0 {
+		return nil, nil
+	}
+
+	released, err := s.transitionRepo.ReleaseStudentTagsByIDs(ctx, studentIDsOf(graduates))
+	if err != nil {
+		return nil, fmt.Errorf("failed to release graduate RFID tags: %w", err)
+	}
+	return released, nil
 }
 
 // markTransitionApplied updates the transition status to applied.
@@ -1350,7 +1398,53 @@ func (s *GradeTransitionService) revertGraduatedStudents(
 			fmt.Sprintf("%d graduated students could not be restored (deleted or status changed since graduation)",
 				notRestored))
 	}
+
+	// Hand the bracelets back to exactly the children this revert reactivated.
+	if err := s.restoreGraduateTags(ctx, graduated, restored, result); err != nil {
+		return nil, err
+	}
 	return restored, nil
+}
+
+// restoreGraduateTags re-links the RFID tags the apply released, for the
+// students this revert actually reactivated. A tag that has since been issued to
+// another child is left where it is and reported as a warning: the bracelet is a
+// physical object, the current holder is the one wearing it, and
+// users.persons.tag_id is unique per tenant anyway (#405 review).
+func (s *GradeTransitionService) restoreGraduateTags(
+	ctx context.Context,
+	graduated []*education.GradeTransitionHistory,
+	restored []int64,
+	result *TransitionResult,
+) error {
+	restoredSet := make(map[int64]struct{}, len(restored))
+	for _, id := range restored {
+		restoredSet[id] = struct{}{}
+	}
+
+	reissued := 0
+	for _, h := range graduated {
+		if h.RFIDTag == nil || *h.RFIDTag == "" {
+			continue
+		}
+		if _, ok := restoredSet[h.StudentID]; !ok {
+			continue
+		}
+		relinked, err := s.transitionRepo.RestoreStudentTag(ctx, h.StudentID, *h.RFIDTag)
+		if err != nil {
+			return fmt.Errorf("failed to restore RFID tag for student %d: %w", h.StudentID, err)
+		}
+		if !relinked {
+			reissued++
+		}
+	}
+
+	if reissued > 0 {
+		result.Warnings = append(result.Warnings,
+			fmt.Sprintf("%d RFID tags could not be re-linked (reassigned to another child since graduation)",
+				reissued))
+	}
+	return nil
 }
 
 // revertStudentClass moves a promoted student back to their original class,

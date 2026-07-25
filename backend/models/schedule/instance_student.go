@@ -221,19 +221,21 @@ type InstanceStudentRepository interface {
 	// revert can replay it verbatim.
 	//
 	// Past rows are kept as a historical record, and so is any row that records
-	// an actual event — an observed presence or a stamped check-in/checkout.
-	// Rows a status day rewrote to 'absent' (planned sickness, excusal, class
-	// trip) ARE removed: every timetable and slot-list reader loads instance
-	// rows irrespective of status, so leaving them behind keeps a departed child
-	// visible and counted (#405 review). The bound is inclusive so a graduation
-	// applied during the school day also clears the child's still-planned rows
-	// on later blocks of that same day.
+	// an actual event — an observed presence, a stamped check-in/checkout, or a
+	// hand-set status (manual_status_at) on an occurrence that has already
+	// started, judged against `at`. Rows a status day rewrote to 'absent'
+	// (planned sickness, excusal, class trip) ARE removed, and so are hand-set
+	// rows on occurrences that have NOT started yet: every timetable and
+	// slot-list reader loads instance rows irrespective of status, so leaving
+	// either behind keeps a departed child visible and counted (#405 review).
+	// The bound is inclusive so a graduation applied during the school day also
+	// clears the child's still-planned rows on later blocks of that same day.
 	//
 	// Used when a grade transition graduates a cohort after the scheduler has
 	// already materialized upcoming instances, so departed children stop
 	// counting on current and future timetables and staffing ratios.
 	// Tenant-scoped; returns the rows removed.
-	ArchivePlannedByStudentIDsFrom(ctx context.Context, transitionID int64, studentIDs []int64, from timezone.Date) (int, error)
+	ArchivePlannedByStudentIDsFrom(ctx context.Context, transitionID int64, studentIDs []int64, from timezone.Date, at time.Time) (int, error)
 
 	// RestoreArchivedByTransition replays the rows
 	// ArchivePlannedByStudentIDsFrom removed for `transitionID` (restricted to
@@ -249,7 +251,10 @@ type InstanceStudentRepository interface {
 	// now frozen history; re-inserting an expected/absent child there would
 	// rewrite attendance nobody can still record. Those ledger entries are
 	// consumed all the same, so a later re-apply starts from a clean snapshot
-	// (#405 review). Tenant-scoped; returns the rows restored.
+	// (#405 review). Structural fields come back verbatim and attendance state
+	// is re-derived from today's status days, except for non-bookings and
+	// hand-set statuses, which are replayed as archived. Tenant-scoped; returns
+	// the rows restored.
 	RestoreArchivedByTransition(ctx context.Context, transitionID int64, studentIDs []int64, from timezone.Date) (int, error)
 
 	// UpdateAttendanceFromCheckin opens observed presence for an expected row,

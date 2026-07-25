@@ -96,8 +96,12 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse ID and get student
-	student, ok := rs.parseAndGetStudent(w, r)
+	// Parse ID and get student. Alumni pass on purpose: releasing a bracelet is
+	// the one action that must still work on a departed child, otherwise a tag
+	// left over from a graduation applied before graduation released tags itself
+	// can never be freed (#405 review). Assignment stays gated — a soft-deleted
+	// child must not be given a new tag.
+	student, ok := rs.parseAndGetStudentIncludingAlumni(w, r)
 	if !ok {
 		return
 	}

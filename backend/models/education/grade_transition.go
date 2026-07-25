@@ -223,6 +223,16 @@ type GradeTransitionRepository interface {
 	// caller must treat them as not reverted — including for roster
 	// reconciliation (#405 review).
 	ReactivateStudentsToStatus(ctx context.Context, studentIDs []int64, targetStatus string) ([]int64, error)
+	// ReleaseStudentTagsByIDs clears the RFID tag on the given students' person
+	// rows and returns what each of them was holding, keyed by student id.
+	// Graduation must free the bracelet: an alumnus is invisible to every
+	// staff-facing student route (including the kiosk's unassign call), so a tag
+	// left on them can never be reassigned through the normal flow (#405 review).
+	ReleaseStudentTagsByIDs(ctx context.Context, studentIDs []int64) (map[int64]string, error)
+	// RestoreStudentTag re-links a released tag on revert, but only while the
+	// student still has no tag and nobody else holds this one. Returns whether it
+	// was re-linked.
+	RestoreStudentTag(ctx context.Context, studentID int64, tagID string) (bool, error)
 }
 
 // StudentClassInfo contains basic student information for class transitions

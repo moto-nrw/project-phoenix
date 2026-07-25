@@ -872,3 +872,127 @@ func (r *GradeTransitionRepository) ReactivateStudentsToStatus(ctx context.Conte
 
 	return reactivated, nil
 }
+
+// ReleaseStudentTagsByIDs clears users.persons.tag_id for the given students and
+// returns the tag each of them was holding, keyed by student id. Students
+// without a tag are absent from the map.
+//
+// Graduation is a soft delete, so without this the physical bracelet stays bound
+// to a departed child: every staff-facing student route 404s on an alumnus, the
+// kiosk's dedicated unassign call goes through the same gate, and the tag can
+// never be handed to a current child through the normal flow. Clearing it at
+// apply time (and ledgering the value in grade_transition_history.rfid_tag)
+// frees the bracelet without losing what to restore on a revert (#405 review).
+//
+// The rows are read FOR UPDATE in the same statement-order the caller already
+// locked the student rows in, so a concurrent bracelet assignment either
+// committed before this read (and is the value ledgered) or waits for the
+// apply's transaction.
+func (r *GradeTransitionRepository) ReleaseStudentTagsByIDs(ctx context.Context, studentIDs []int64) (map[int64]string, error) {
+	if len(studentIDs) == 0 {
+		return nil, nil
+	}
+
+	type heldTag struct {
+		StudentID int64  `bun:"student_id"`
+		PersonID  int64  `bun:"person_id"`
+		TagID     string `bun:"tag_id"`
+	}
+	var held []heldTag
+
+	tenantID := tenant.FromContext(ctx)
+
+	selQuery := base.GetDB(ctx, r.db).NewSelect().
+		Model((*struct{})(nil)).
+		ModelTableExpr(`users.students AS "student"`).
+		ColumnExpr(`"student".id AS student_id`).
+		ColumnExpr(`"person".id AS person_id`).
+		ColumnExpr(`"person".tag_id AS tag_id`).
+		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id AND "person".tenant_id = "student".tenant_id`).
+		Where(`"student".id IN (?)`, bun.List(studentIDs)).
+		Where(`"person".tag_id IS NOT NULL`).
+		Where(`"person".deleted_at IS NULL`).
+		OrderExpr(`"person".id ASC`).
+		For("UPDATE OF \"person\"")
+
+	selQuery = base.WithTenantFilter(ctx, selQuery, "student")
+
+	if err := selQuery.Scan(ctx, &held); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "read student rfid tags",
+			Err: err,
+		}
+	}
+	if len(held) == 0 {
+		return nil, nil
+	}
+
+	personIDs := make([]int64, 0, len(held))
+	released := make(map[int64]string, len(held))
+	for _, row := range held {
+		personIDs = append(personIDs, row.PersonID)
+		released[row.StudentID] = row.TagID
+	}
+
+	updQuery := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*struct{})(nil)).
+		ModelTableExpr(`users.persons AS "person"`).
+		Set("tag_id = NULL").
+		Set("updated_at = NOW()").
+		Where(`"person".id IN (?)`, bun.List(personIDs)).
+		Where(`"person".tenant_id = ?`, tenantID)
+
+	if _, err := updQuery.Exec(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "release student rfid tags",
+			Err: err,
+		}
+	}
+
+	return released, nil
+}
+
+// RestoreStudentTag re-links a tag this transition released back to the
+// student's person row. Returns false without touching anything when the child
+// has since been given another tag, or when the released tag now belongs to
+// somebody else — the bracelet was reissued while they were gone, and the
+// current holder wins (users.persons carries UNIQUE (tenant_id, tag_id), so
+// overwriting is not even an option).
+func (r *GradeTransitionRepository) RestoreStudentTag(ctx context.Context, studentID int64, tagID string) (bool, error) {
+	if tagID == "" {
+		return false, nil
+	}
+
+	tenantID := tenant.FromContext(ctx)
+
+	updQuery := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*struct{})(nil)).
+		ModelTableExpr(`users.persons AS "person"`).
+		Set("tag_id = ?", tagID).
+		Set("updated_at = NOW()").
+		Where(`"person".tenant_id = ?`, tenantID).
+		Where(`"person".tag_id IS NULL`).
+		Where(`"person".deleted_at IS NULL`).
+		Where(`"person".id = (SELECT "student".person_id FROM users.students AS "student" WHERE "student".id = ? AND "student".tenant_id = ?)`,
+			studentID, tenantID).
+		Where(`NOT EXISTS (SELECT 1 FROM users.persons AS "holder" WHERE "holder".tenant_id = ? AND "holder".tag_id = ?)`,
+			tenantID, tagID)
+
+	result, err := updQuery.Exec(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "restore student rfid tag",
+			Err: err,
+		}
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "get rows affected",
+			Err: err,
+		}
+	}
+
+	return affected > 0, nil
+}

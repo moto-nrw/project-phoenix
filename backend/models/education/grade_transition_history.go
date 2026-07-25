@@ -29,6 +29,12 @@ type GradeTransitionHistory struct {
 	// active) instead of blanket-activating them. Nullable for rows written
 	// before the from_status column existed (revert falls back to 'active').
 	FromStatus *string `bun:"from_status" json:"from_status,omitempty"`
+	// RFIDTag snapshots the bracelet the graduate was holding when the
+	// transition released it. Graduation clears users.persons.tag_id so the
+	// physical tag can be handed to a current child; this ledger entry is what
+	// lets a revert give it back. NULL means the child held no tag (or the row
+	// predates the column) and the revert re-links nothing.
+	RFIDTag *string `bun:"rfid_tag" json:"rfid_tag,omitempty"`
 }
 
 // Validate ensures history data is valid

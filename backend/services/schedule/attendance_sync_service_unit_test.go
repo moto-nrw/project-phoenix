@@ -235,7 +235,7 @@ func (f *fakeInstanceStudentRepo) DeleteByInstanceID(context.Context, int64) err
 	panic("unused")
 }
 
-func (f *fakeInstanceStudentRepo) ArchivePlannedByStudentIDsFrom(context.Context, int64, []int64, timezone.Date) (int, error) {
+func (f *fakeInstanceStudentRepo) ArchivePlannedByStudentIDsFrom(context.Context, int64, []int64, timezone.Date, time.Time) (int, error) {
 	panic("unused")
 }
 

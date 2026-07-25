@@ -70,17 +70,23 @@ func (s *RosterReconciler) getLogger() *slog.Logger {
 // and slot-list Plan/Abgleich reads load every instance row regardless of
 // status — eligibleOn filters on the enrollment interval, not on alumnus — so a
 // row left behind keeps the departed child visible and counted in today's and
-// future exports. Only rows recording an actual event (observed presence or a
-// stamped check-in/checkout) survive, today's included (#405 review).
+// future exports. The same holds for a status a supervisor set by hand on a
+// block that has not started yet: it is still a plan, and no reader filters
+// alumni. Only rows recording an actual event survive — observed presence, a
+// stamped check-in/checkout, or a hand-set status on an occurrence that has
+// already started — today's included (#405 review).
 func (s *RosterReconciler) RemoveStudentsFromFutureRosters(ctx context.Context, transitionID int64, studentIDs []int64) error {
 	if len(studentIDs) == 0 {
 		return nil
 	}
 	// Inclusive of today: a graduation applied mid-day must also clear the
 	// child's still-planned rows on the day's remaining blocks, which today's
-	// slot-list reads would otherwise keep showing.
-	from := timezone.TodayDate()
-	removed, err := s.instanceStudentRepo.ArchivePlannedByStudentIDsFrom(ctx, transitionID, studentIDs, from)
+	// slot-list reads would otherwise keep showing. `now` additionally separates
+	// today's blocks that have already started (hand-set statuses there are
+	// observations and stay) from the ones still ahead.
+	now := timezone.Now()
+	from := timezone.DateFromTime(now)
+	removed, err := s.instanceStudentRepo.ArchivePlannedByStudentIDsFrom(ctx, transitionID, studentIDs, from, now)
 	if err != nil {
 		return &ScheduleError{Op: "reconcile roster: remove graduated students", Err: err}
 	}

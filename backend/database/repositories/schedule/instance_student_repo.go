@@ -771,16 +771,25 @@ func (r *InstanceStudentRepository) DeleteByInstanceID(ctx context.Context, inst
 // and counted in slot-list Plan/Abgleich reads and future exports, which load
 // every instance row regardless of status. So the predicate excludes every row
 // that records something that actually HAPPENED — an observed presence, a
-// stamped check-in/checkout, a status a supervisor finalized BY HAND
-// (manual_status_at), or any row on an instance that has already run to
-// completion (#405 review).
+// stamped check-in/checkout, or a status a supervisor finalized BY HAND
+// (manual_status_at) on an occurrence that has already started or become
+// history — plus every row on an instance that ran to completion (#405 review).
 //
-// The last two exclusions are not cosmetic. The revert deliberately refuses to
-// replay archived rows into completed or past instances (that attendance is
-// frozen history), while consuming their ledger entries — so anything this
-// statement deletes there is gone for good. A hand-finalized absence on today's
-// completed block is exactly such a row: recorded attendance, not a plan.
-// Deleting it would erase a supervisor's observation permanently.
+// The exclusions are not cosmetic. The revert deliberately refuses to replay
+// archived rows into completed or past instances (that attendance is frozen
+// history), while consuming their ledger entries — so anything this statement
+// deletes there is gone for good. A hand-finalized absence on today's completed
+// block is exactly such a row: recorded attendance, not a plan. Deleting it
+// would erase a supervisor's observation permanently.
+//
+// A hand-set status on a block that has NOT started yet is the opposite case:
+// nothing was observed, it is still a plan, and `at` is where the line is drawn.
+// Exempting those rows too would leave the departed child on the roster of every
+// future occurrence a supervisor happened to touch — visible in the timetable
+// list and in slot-list/export reads, and counted for staffing on an 'expected'
+// row, since none of those readers filter alumni. They are archived like any
+// other plan, and the replay restores the hand-set status verbatim (#405
+// review).
 //
 // The date bound is INCLUSIVE of `from` (today, for a graduation): slot-list
 // eligibleOn decides visibility from the enrollment interval, not from alumnus
@@ -794,11 +803,14 @@ func (r *InstanceStudentRepository) DeleteByInstanceID(ctx context.Context, inst
 // rather than the generic builder. Tenant-scoped; a nil/empty student set is a
 // no-op.
 func (r *InstanceStudentRepository) ArchivePlannedByStudentIDsFrom(
-	ctx context.Context, transitionID int64, studentIDs []int64, from timezone.Date,
+	ctx context.Context, transitionID int64, studentIDs []int64, from timezone.Date, at time.Time,
 ) (int, error) {
 	if len(studentIDs) == 0 {
 		return 0, nil
 	}
+
+	today := timezone.DateFromTime(at)
+	clock := at.In(timezone.Berlin).Format("15:04:05")
 
 	const rawSQL = `
 		WITH removed AS (
@@ -809,7 +821,13 @@ func (r *InstanceStudentRepository) ArchivePlannedByStudentIDsFrom(
 			  AND s.status <> ?
 			  AND s.checked_in_at IS NULL
 			  AND s.checked_out_at IS NULL
-			  AND s.manual_status_at IS NULL
+			  AND (
+			        s.manual_status_at IS NULL
+			        OR (
+			              ai.status = ?
+			              AND (ai.date > ? OR (ai.date = ? AND ai.start_time > ?::time))
+			        )
+			  )
 			  AND ai.date >= ?
 			  AND ai.status NOT IN (?, ?)
 			  AND s.tenant_id = ?
@@ -839,6 +857,10 @@ func (r *InstanceStudentRepository) ArchivePlannedByStudentIDsFrom(
 	result, err := base.GetDB(ctx, r.db).ExecContext(ctx, rawSQL,
 		bun.List(studentIDs),
 		schedule.AttendanceStatusPresent,
+		schedule.InstanceStatusPlanned,
+		today,
+		today,
+		clock,
 		from,
 		schedule.InstanceStatusCompleted,
 		schedule.InstanceStatusCancelled,
@@ -883,7 +905,12 @@ func (r *InstanceStudentRepository) ArchivePlannedByStudentIDsFrom(
 //
 // Rows marked not_scheduled keep their own status: a non-booking is not an
 // attendance plan, and ApplyActiveStatusDaysForInstance skips them for the same
-// reason.
+// reason. So do rows a supervisor had set by hand to something other than
+// 'expected' (manual_status_at with a non-expected status): the archive only
+// takes those off occurrences that had not started yet, and re-deriving would
+// silently drop the decision the archive is supposed to hand back. Their
+// status-day provenance stays NULL — the PATCH that set the status cleared it
+// (#405 review).
 //
 // room_id is re-validated against its current row instead of being trusted: a
 // room deleted during the alumnus window restores as NULL rather than failing
@@ -928,11 +955,13 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 		       room.id,
 		       CASE
 		           WHEN restored.not_scheduled          THEN restored.status
+		           WHEN hand_set.kept                   THEN restored.status
 		           WHEN active_day.id IS NOT NULL       THEN ?
 		           ELSE ?
 		       END,
 		       CASE
 		           WHEN restored.not_scheduled          THEN restored.substatus
+		           WHEN hand_set.kept                   THEN restored.substatus
 		           WHEN active_day.status = 'sick'       THEN ?
 		           WHEN active_day.status = 'excused'    THEN ?
 		           WHEN active_day.status = 'class_trip' THEN ?
@@ -940,7 +969,7 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 		       END,
 		       restored.note,
 		       restored.is_unplanned, restored.not_scheduled, restored.manual_status_at,
-		       CASE WHEN restored.not_scheduled THEN NULL ELSE active_day.id END,
+		       CASE WHEN restored.not_scheduled OR hand_set.kept THEN NULL ELSE active_day.id END,
 		       NOW(), NOW()
 		FROM restored
 		JOIN schedule.activity_instances AS ai
@@ -949,6 +978,10 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 		LEFT JOIN facilities.rooms AS room
 		       ON room.id = restored.room_id
 		      AND room.tenant_id = restored.tenant_id
+		CROSS JOIN LATERAL (
+		       SELECT restored.manual_status_at IS NOT NULL
+		              AND restored.status <> ? AS kept
+		) AS hand_set
 		LEFT JOIN LATERAL (
 		       SELECT sd.id, sd.status
 		       FROM active.student_status_days AS sd
@@ -972,6 +1005,7 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 		schedule.AttendanceSubstatusSick,
 		schedule.AttendanceSubstatusExcused,
 		schedule.AttendanceSubstatusFieldTrip,
+		schedule.AttendanceStatusExpected,
 		from,
 		schedule.InstanceStatusCompleted,
 		schedule.InstanceStatusCancelled,

@@ -1548,7 +1548,7 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 		return n
 	}
 
-	removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today)
+	removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
 	require.NoError(t, err)
 	assert.Equal(t, 2, removed, "the graduate's planned rows from today onwards are removed")
 	assert.Equal(t, 1, archived(futureInst.ID, graduate.ID), "every removed row is archived for the revert")
@@ -1582,7 +1582,7 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 
 		// Re-archive so the remaining subtests keep their original starting
 		// state (the graduate has no planned row from today onwards).
-		_, err = repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today)
+		_, err = repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
 		require.NoError(t, err)
 		assertRowGone(t, futureInst.ID, graduate.ID)
 	})
@@ -1597,7 +1597,7 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 		require.NoError(t, repo.Create(ctx, row))
 		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
 
-		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today)
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
 		require.NoError(t, err)
 		assert.Equal(t, 0, removed)
 		assertRowKept(t, todayInst.ID, graduate.ID)
@@ -1612,7 +1612,7 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID,
 			scheduleModels.AttendanceFieldPatch{Substatus: &sick}))
 
-		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today)
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
 		require.NoError(t, err)
 		assert.Equal(t, 1, removed)
 		assertRowGone(t, futureInst.ID, graduate.ID)
@@ -1628,7 +1628,7 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 		require.NoError(t, repo.Create(ctx, row))
 		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
 
-		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today)
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
 		require.NoError(t, err)
 		assert.Equal(t, 0, removed)
 		assertRowKept(t, futureInst.ID, graduate.ID)
@@ -1646,14 +1646,14 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 		require.NoError(t, repo.Create(ctx, row))
 		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
 
-		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today)
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
 		require.NoError(t, err)
 		assert.Equal(t, 0, removed)
 		assertRowKept(t, futureInst.ID, graduate.ID)
 	})
 
 	t.Run("empty student set is a no-op", func(t *testing.T) {
-		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, nil, today)
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, nil, today, time.Now())
 		require.NoError(t, err)
 		assert.Equal(t, 0, removed)
 	})
@@ -1664,10 +1664,103 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
 
 		removed, err := repo.ArchivePlannedByStudentIDsFrom(
-			testpkg.TenantContext(999), transition.ID, []int64{graduate.ID}, today)
+			testpkg.TenantContext(999), transition.ID, []int64{graduate.ID}, today, time.Now())
 		require.NoError(t, err)
 		assert.Equal(t, 0, removed)
 		assertRowKept(t, futureInst.ID, graduate.ID)
+	})
+}
+
+// TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom_ManualStatusRows
+// pins where the manual_status_at exemption stops (#405 review). A status a
+// supervisor set BY HAND is an observation only once the occurrence has started
+// — before that it is still a plan, and leaving it behind keeps the departed
+// child on the timetable list, in slot-list/export reads and (on an 'expected'
+// row) in staffing counts, none of which filter alumni. The replay hands the
+// hand-set status back verbatim instead of re-deriving it from day statuses.
+func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom_ManualStatusRows(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	account := testpkg.CreateTestAccount(t, db, "roster-archive-manual@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	today := timezone.TodayDate()
+
+	// createInstanceFixture builds a 14:00-15:00 block, so "now" on either side
+	// of 14:00 decides whether the occurrence has started. Both clocks are
+	// explicit, which keeps the test independent of the wall clock it runs at.
+	inst, cleanupInst := createInstanceFixture(t, db, "manualtoday", today)
+	defer cleanupInst()
+
+	midnight := today.BerlinMidnight()
+	beforeStart := midnight.Add(12 * time.Hour)
+	afterStart := midnight.Add(14*time.Hour + 30*time.Minute)
+
+	graduate := testpkg.CreateTestStudent(t, db, "Abgang", fmt.Sprintf("M-%d", time.Now().UnixNano()), "4a")
+	defer testpkg.CleanupActivityFixtures(t, db, graduate.ID)
+
+	// A hand-set absence: the PATCH stamps manual_status_at, clears any
+	// status-day provenance and drops the non-booking marker.
+	handSetAbsence := func(t *testing.T) *scheduleModels.InstanceStudent {
+		t.Helper()
+		row := testpkg.CreateTestInstanceStudent(t, db, inst.ID, graduate.ID,
+			scheduleModels.AttendanceStatusExpected)
+		absent := scheduleModels.AttendanceStatusAbsent
+		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID,
+			scheduleModels.AttendanceFieldPatch{Status: &absent}))
+		stored, err := repo.FindByInstanceAndStudent(ctx, inst.ID, graduate.ID)
+		require.NoError(t, err)
+		require.NotNil(t, stored.ManualStatusAt, "the PATCH must record that a human decided this row")
+		return stored
+	}
+
+	t.Run("keeps a hand-set status once the occurrence has started", func(t *testing.T) {
+		row := handSetAbsence(t)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(
+			ctx, transition.ID, []int64{graduate.ID}, today, afterStart)
+		require.NoError(t, err)
+		assert.Equal(t, 0, removed, "a status finalized on a block that has run is an observation")
+
+		kept, err := repo.FindByInstanceAndStudent(ctx, inst.ID, graduate.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, kept)
+	})
+
+	t.Run("removes a hand-set status on a block that has not started", func(t *testing.T) {
+		row := handSetAbsence(t)
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+		removed, err := repo.ArchivePlannedByStudentIDsFrom(
+			ctx, transition.ID, []int64{graduate.ID}, today, beforeStart)
+		require.NoError(t, err)
+		assert.Equal(t, 1, removed, "nothing was observed yet — the row is still a plan")
+
+		gone, err := repo.FindByInstanceAndStudent(ctx, inst.ID, graduate.ID)
+		require.NoError(t, err)
+		assert.Nil(t, gone)
+
+		// The replay must not re-derive the status from day statuses: there is
+		// none here, so re-deriving would silently turn the hand-set absence
+		// back into 'expected' and put the child back on the staffing count.
+		restored, err := repo.RestoreArchivedByTransition(ctx, transition.ID, []int64{graduate.ID}, today)
+		require.NoError(t, err)
+		assert.Equal(t, 1, restored)
+
+		back, err := repo.FindByInstanceAndStudent(ctx, inst.ID, graduate.ID)
+		require.NoError(t, err)
+		require.NotNil(t, back)
+		assert.Equal(t, scheduleModels.AttendanceStatusAbsent, back.Status,
+			"the supervisor's decision comes back verbatim")
+		assert.NotNil(t, back.ManualStatusAt, "and it is still marked as hand-set")
+		assert.Nil(t, back.StudentStatusDayID, "a hand-set status carries no day-status provenance")
 	})
 }
 
@@ -1711,7 +1804,7 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen(t *te
 		scheduleModels.AttendanceStatusExpected)
 	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", finishedRow.ID, openRow.ID)
 
-	removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today)
+	removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
 	require.NoError(t, err)
 	require.Equal(t, 2, removed, "both planned rows are archived on apply")
 
@@ -1742,7 +1835,7 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen(t *te
 
 	t.Run("an occurrence that fell into the past is not replayed either", func(t *testing.T) {
 		// Re-archive the row the replay just put back on the open occurrence.
-		n, aErr := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today)
+		n, aErr := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, []int64{graduate.ID}, today, time.Now())
 		require.NoError(t, aErr)
 		require.Equal(t, 1, n)
 
@@ -1806,7 +1899,7 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 		sickenedRow.ID, recoveredRow.ID, unbookedRow.ID)
 
 	graduates := []int64{sickened.ID, recovered.ID, unbooked.ID}
-	removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, graduates, today)
+	removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, graduates, today, time.Now())
 	require.NoError(t, err)
 	require.Equal(t, 3, removed, "all three plan rows are archived on apply")
 
