@@ -42,6 +42,12 @@ var allTablePrivileges = []string{
 	"TRUNCATE", "REFERENCES", "TRIGGER", "MAINTAIN",
 }
 
+// allSequencePrivileges is the complete PostgreSQL sequence privilege set. A
+// sequence is a separate object from its table: "REVOKE ALL ON <table>" leaves
+// it untouched, so a backup table locked down at the table level can still have
+// its counter moved via nextval (USAGE).
+var allSequencePrivileges = []string{"USAGE", "SELECT", "UPDATE"}
+
 func auditSchemaTables(t *testing.T, db *bun.DB) []string {
 	t.Helper()
 	var tables []string
@@ -78,6 +84,29 @@ func tenantHasPrivilege(t *testing.T, db *bun.DB, relation, privilege string) bo
 	require.NoError(t, db.NewRaw(`SELECT has_table_privilege('phoenix_tenant', ?, ?)`, relation, privilege).
 		Scan(context.Background(), &granted))
 	return granted
+}
+
+func tenantHasSequencePrivilege(t *testing.T, db *bun.DB, sequence, privilege string) bool {
+	t.Helper()
+	var granted bool
+	require.NoError(t, db.NewRaw(`SELECT has_sequence_privilege('phoenix_tenant', ?, ?)`, sequence, privilege).
+		Scan(context.Background(), &granted))
+	return granted
+}
+
+// tenantSequenceACLEntries is the sequence counterpart of tenantACLEntries.
+func tenantSequenceACLEntries(t *testing.T, db *bun.DB, sequence string) []string {
+	t.Helper()
+	var entries []string
+	require.NoError(t, db.NewRaw(`
+		SELECT acl::text
+		FROM pg_class c
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		CROSS JOIN LATERAL unnest(COALESCE(c.relacl, '{}'::aclitem[])) AS acl
+		WHERE n.nspname = 'audit' AND c.relname = ? AND c.relkind = 'S'
+		  AND acl::text LIKE 'phoenix_tenant=%'
+	`, sequence).Scan(context.Background(), &entries))
+	return entries
 }
 
 // TestAuditSchemaAppendOnlyForTenantRole is the ratchet for issue #1924. The
@@ -141,6 +170,19 @@ func TestAuditSchemaAppendOnlyForTenantRole(t *testing.T) {
 		// no phoenix_tenant entry whatsoever.
 		assert.Emptyf(t, tenantACLEntries(t, db, table), //nolint:testifylint // Empty reads better than Len(…, 0) here
 			"audit.%s: table ACL still carries a phoenix_tenant grant", table)
+
+		// Same for the BIGSERIAL sequence behind the table. It is a distinct
+		// object that the table-level REVOKE does not reach, and 1.14.1's
+		// sequence default ACL granted USAGE on it — enough to move the
+		// counter of a table the role must not touch at all.
+		sequence := table + "_id_seq"
+		for _, privilege := range allSequencePrivileges {
+			assert.Falsef(t, tenantHasSequencePrivilege(t, db, "audit."+sequence, privilege),
+				"audit.%s: phoenix_tenant must hold no %s — the backing table has no RLS policy "+
+					"and REVOKE ALL on the table does not cover its sequence", sequence, privilege)
+		}
+		assert.Emptyf(t, tenantSequenceACLEntries(t, db, sequence), //nolint:testifylint // Empty reads better than Len(…, 0) here
+			"audit.%s: sequence ACL still carries a phoenix_tenant grant", sequence)
 	}
 }
 

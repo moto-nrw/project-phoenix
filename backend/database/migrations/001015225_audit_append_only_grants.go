@@ -129,6 +129,25 @@ func auditAppendOnlyGrantsUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed revoking tenant privileges on audit migration backups: %w", err)
 	}
 
+	// The table REVOKE above does not reach their BIGSERIAL sequences: those
+	// are separate objects, and 1.14.1's "ALTER DEFAULT PRIVILEGES IN SCHEMA
+	// audit GRANT USAGE ON SEQUENCES TO phoenix_tenant" handed them out when
+	// 1.15.45/1.15.48 created the tables. USAGE permits nextval, i.e. mutating
+	// the counter of a cross-tenant backup object the role must not touch at
+	// all. Revoke ALL (USAGE, SELECT, UPDATE) so the isolation is complete.
+	//
+	// Only these two sequences: every other audit table is INSERT-able by
+	// design and needs its sequence's USAGE to make that INSERT work, so the
+	// schema-wide sequence default stays as it is.
+	if _, err := db.NewRaw(`
+		REVOKE ALL ON SEQUENCE
+			audit.room_color_migration_backup_id_seq,
+			audit.wc_alias_migration_backup_id_seq
+		FROM phoenix_tenant;
+	`).Exec(ctx); err != nil {
+		return fmt.Errorf("failed revoking tenant privileges on audit migration backup sequences: %w", err)
+	}
+
 	// Root cause: stop the schema-wide default ACL from handing UPDATE/DELETE
 	// to every future audit table. New tables now start append-only and a
 	// migration that genuinely needs more has to grant it explicitly — which
@@ -215,6 +234,18 @@ func auditAppendOnlyGrantsDown(ctx context.Context, db *bun.DB) error {
 		TO phoenix_tenant;
 	`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed restoring tenant privileges on audit migration backups: %w", err)
+	}
+
+	// Only USAGE goes back: that is what 1.14.1's sequence default granted.
+	// SELECT and UPDATE on these sequences were never held, so re-granting
+	// them would leave a state the database was never in.
+	if _, err := db.NewRaw(`
+		GRANT USAGE ON SEQUENCE
+			audit.room_color_migration_backup_id_seq,
+			audit.wc_alias_migration_backup_id_seq
+		TO phoenix_tenant;
+	`).Exec(ctx); err != nil {
+		return fmt.Errorf("failed restoring tenant privileges on audit migration backup sequences: %w", err)
 	}
 
 	return nil
