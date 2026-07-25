@@ -159,7 +159,7 @@ function ClockIcon({
 // =============================================================================
 
 interface FieldChangeEntry {
-  id: number;
+  id: string;
   field: string;
   edited_by: string;
   changed_at: string;

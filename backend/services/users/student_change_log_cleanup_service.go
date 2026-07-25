@@ -13,9 +13,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// studentChangeLogRetentionDefaultDays is a last-resort fallback. In production
-// this is unreachable because services/config/defaults/gdpr.go registers 90 at
-// init time. Kept so the service is callable in tests without settings wiring.
+// studentChangeLogRetentionDefaultDays keeps the service callable in tests
+// without settings wiring. Production always injects the settings service.
 const studentChangeLogRetentionDefaultDays = 90
 
 // StudentChangeLogCleanupResult summarises one cleanup run for a single tenant.
@@ -74,7 +73,10 @@ func (s *studentChangeLogCleanupService) CleanupExpiredChangeLog(ctx context.Con
 	}
 
 	start := time.Now()
-	retentionDays := s.resolveRetentionDays(ctx)
+	retentionDays, err := s.resolveRetentionDays(ctx)
+	if err != nil {
+		return nil, err
+	}
 	// created_at is TIMESTAMPTZ, so compare against an instant. BerlinMidnight
 	// of (today - retentionDays) is the cutoff; anything older is deleted.
 	cutoff := timezone.TodayDate().AddDays(-retentionDays).BerlinMidnight()
@@ -163,22 +165,19 @@ func (s *studentChangeLogCleanupService) writeStudentAuditRows(
 // registry default. This setting has no env-var fallback, so ResolveInt already
 // returns the registry default (90) when no tenant override exists — there is no
 // "no override" case to distinguish, hence no HasTenantOverride check. The
-// literal fallback is only reached when the settings service is not wired (tests)
-// or the resolve errors.
-func (s *studentChangeLogCleanupService) resolveRetentionDays(ctx context.Context) int {
+// literal fallback is only reached when the settings service is not wired in
+// tests. A resolution error aborts cleanup so a transient settings failure
+// cannot shorten a tenant's configured retention period.
+func (s *studentChangeLogCleanupService) resolveRetentionDays(ctx context.Context) (int, error) {
 	if s.settings == nil {
-		return studentChangeLogRetentionDefaultDays
+		return studentChangeLogRetentionDefaultDays, nil
 	}
 	v, err := s.settings.ResolveInt(ctx, configModel.KeyGDPRStudentChangeLogRetentionDays)
 	if err != nil {
-		s.logger.Warn("change-log retention resolve failed, falling back to registry default",
-			slog.String("key", configModel.KeyGDPRStudentChangeLogRetentionDays),
-			slog.String("error", err.Error()),
-		)
-		return studentChangeLogRetentionDefaultDays
+		return 0, fmt.Errorf("resolve student change-log retention: %w", err)
 	}
-	if v > 0 {
-		return v
+	if v <= 0 {
+		return 0, fmt.Errorf("student change-log retention must be positive, got %d", v)
 	}
-	return studentChangeLogRetentionDefaultDays
+	return v, nil
 }

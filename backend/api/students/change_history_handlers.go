@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 // frontend (issue #1455). Values are already display-ready German strings, so
 // the UI renders a plain "Vorher → Nachher" table without field-specific logic.
 type changeHistoryEntry struct {
-	ID        int64     `json:"id"`
+	ID        string    `json:"id"`
 	Field     string    `json:"field"`
 	OldValue  string    `json:"old_value"`
 	NewValue  string    `json:"new_value"`
@@ -77,7 +78,7 @@ func (rs *Resource) getStudentChangeHistory(w http.ResponseWriter, r *http.Reque
 	entries := make([]changeHistoryEntry, 0, len(edits))
 	for _, e := range edits {
 		entries = append(entries, changeHistoryEntry{
-			ID:        e.ID,
+			ID:        strconv.FormatInt(e.ID, 10),
 			Field:     e.FieldName,
 			OldValue:  derefOrEmpty(e.OldValue),
 			NewValue:  derefOrEmpty(e.NewValue),
