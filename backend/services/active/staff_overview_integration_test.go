@@ -264,6 +264,28 @@ func TestTimeTrackingOverview_MatchesMonthSummary(t *testing.T) {
 
 func TestTimeTrackingOverview_AccountStartAfterRequestedMonthMatchesDetail(t *testing.T) {
 	f := newOverviewFixture(t, 1)
+	// The shared fixture's 08:00–12:00 UTC session is still in the future when
+	// CI runs shortly after Berlin midnight. Pin this regression test to the
+	// first completed minute of the month so its non-zero Ist assertion is
+	// independent of the current clock.
+	monthStart := timezone.NewDate(f.today.Year, f.today.Month, 1)
+	checkIn := monthStart.BerlinMidnight()
+	checkOut := checkIn.Add(time.Minute)
+	if time.Now().Before(checkOut) {
+		t.Skip("the current month has not completed its first minute")
+	}
+	res, err := f.db.NewUpdate().
+		Table("active.work_sessions").
+		Set("date = ?", monthStart).
+		Set("check_in_time = ?", checkIn).
+		Set("check_out_time = ?", checkOut).
+		Where("tenant_id = ? AND staff_id = ?", f.tenantID, f.staff[0].ID).
+		Exec(f.ctx)
+	require.NoError(t, err)
+	affected, err := res.RowsAffected()
+	require.NoError(t, err)
+	require.EqualValues(t, 1, affected)
+
 	settings := wtmIntSettings{accountStart: f.today.AddDays(40).String()}
 	svc := f.newOverviewService(settings)
 	monthSvc := active.NewWorkTimeMonthService(
@@ -283,7 +305,7 @@ func TestTimeTrackingOverview_AccountStartAfterRequestedMonthMatchesDetail(t *te
 	assert.Equal(t, expected.TargetMinutesToDate, overview.Rows[0].SollMinutes)
 	assert.Equal(t, expected.ActualMinutes, overview.Rows[0].IstMinutes)
 	assert.Equal(t, expected.ClosingBalanceMinutes, overview.Rows[0].BalanceMinutes)
-	assert.Equal(t, 4*60, overview.Rows[0].IstMinutes, "the standalone month must retain its worked session")
+	assert.Equal(t, 1, overview.Rows[0].IstMinutes, "the standalone month must retain its worked session")
 }
 
 // TestTimeTrackingOverview_VacationMatchesQuotaEndpoint pins Resturlaub against
