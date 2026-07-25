@@ -201,7 +201,7 @@ const teamMembers = [
     initials: "JS",
     imageSrc: "/pitch/reach/team/jule-soll-v2.webp",
     name: "Jule Soll",
-    role: "Pädagogische Leitung",
+    role: "Marketing",
     tone: "green" as Tone,
   },
 ];
