@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	emailDeliveryEventsVersion     = "1.15.226"
+	emailDeliveryEventsVersion     = "1.15.227"
 	emailDeliveryEventsDescription = "Add provider delivery-status tracking to platform.email_outbox and create platform.email_delivery_events (#1937)"
 )
 
@@ -33,7 +33,7 @@ func init() {
 }
 
 func emailDeliveryEventsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.226: Adding delivery-status tracking to platform.email_outbox...")
+	fmt.Println("Migration 1.15.227: Adding delivery-status tracking to platform.email_outbox...")
 
 	// Delivery status is a SECOND, orthogonal axis to the existing `status`
 	// column. `status` answers "did we hand the message to the SMTP relay";
@@ -79,7 +79,7 @@ func emailDeliveryEventsUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed creating message-id indexes: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.226: Creating platform.email_dispatch_attempts...")
+	fmt.Println("Migration 1.15.227: Creating platform.email_dispatch_attempts...")
 
 	if _, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS platform.email_dispatch_attempts (
@@ -122,7 +122,7 @@ func emailDeliveryEventsUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed enabling RLS on email_dispatch_attempts: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.226: Creating platform.email_delivery_events...")
+	fmt.Println("Migration 1.15.227: Creating platform.email_delivery_events...")
 
 	// outbox_id is NOT NULL by design: it makes tenant_id derivable and
 	// un-forgeable. An event we cannot match to an outbox row is never
@@ -206,7 +206,7 @@ func emailDeliveryEventsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func emailDeliveryEventsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.226: Dropping email delivery tracking...")
+	fmt.Println("Rolling back migration 1.15.227: Dropping email delivery tracking...")
 
 	if _, err := db.NewRaw(`DROP TABLE IF EXISTS platform.email_delivery_events CASCADE;`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed dropping platform.email_delivery_events: %w", err)

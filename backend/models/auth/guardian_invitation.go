@@ -37,7 +37,7 @@ type GuardianInvitation struct {
 	// the guardian profile specifically to back this invitation.
 	ProfileCreatedForInvitation bool `bun:"profile_created_for_invitation,notnull,default:false" json:"profile_created_for_invitation"`
 
-	// Revocation (#1937, migration 1.15.227). A token minted for a mistyped
+	// Revocation (#1937, migration 1.15.228). A token minted for a mistyped
 	// address is a live credential in a stranger's inbox: correcting the
 	// guardian's email must invalidate it. Kept separate from ExpiresAt so
 	// "zurückgezogen" and "abgelaufen" stay distinguishable in the UI and in

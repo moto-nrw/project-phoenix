@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	guardianInvitationRevocationVersion     = "1.15.227"
+	guardianInvitationRevocationVersion     = "1.15.228"
 	guardianInvitationRevocationDescription = "Add revoked_at/revoked_reason to auth.guardian_invitations so a token minted for a mistyped address can be invalidated (#1937)"
 )
 
@@ -30,7 +30,7 @@ func init() {
 }
 
 func guardianInvitationRevocationUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.227: Adding revocation columns to auth.guardian_invitations...")
+	fmt.Println("Migration 1.15.228: Adding revocation columns to auth.guardian_invitations...")
 
 	// A separate column rather than back-dating expires_at: "zurückgezogen"
 	// and "abgelaufen" need different UI text, and rewriting expires_at would
@@ -55,7 +55,7 @@ func guardianInvitationRevocationUp(ctx context.Context, db *bun.DB) error {
 }
 
 func guardianInvitationRevocationDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.227: Dropping revocation columns...")
+	fmt.Println("Rolling back migration 1.15.228: Dropping revocation columns...")
 	if _, err := db.NewRaw(`
 		DROP INDEX IF EXISTS auth.idx_guardian_invitations_open;
 		ALTER TABLE auth.guardian_invitations
