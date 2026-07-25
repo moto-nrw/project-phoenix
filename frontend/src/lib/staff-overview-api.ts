@@ -46,6 +46,7 @@ export interface BackendTimeTrackingOverviewRow {
   employment_type: string;
   soll_minutes: number;
   ist_minutes: number;
+  /** Frozen closing balance for an actively closed month, live otherwise. */
   balance_minutes: number;
   remaining_vacation_days: number;
 }
