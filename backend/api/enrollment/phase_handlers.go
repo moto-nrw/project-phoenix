@@ -54,8 +54,11 @@ type PhaseResponse struct {
 	// must satisfy.
 	Audience              string   `json:"audience"`
 	EligibleSchoolClasses []string `json:"eligible_school_classes"`
-	CreatedAt             string   `json:"created_at"`
-	UpdatedAt             string   `json:"updated_at"`
+	// EligibleGradeLevels (migration 1.15.225) restricts the phase to whole
+	// grades — the case a concrete-class list cannot express.
+	EligibleGradeLevels []int  `json:"eligible_grade_levels"`
+	CreatedAt           string `json:"created_at"`
+	UpdatedAt           string `json:"updated_at"`
 }
 
 func toPhaseResponse(p *enrollmentModels.Phase) PhaseResponse {
@@ -113,6 +116,10 @@ func toPhaseResponse(p *enrollmentModels.Phase) PhaseResponse {
 	if resp.EligibleSchoolClasses == nil {
 		resp.EligibleSchoolClasses = []string{}
 	}
+	resp.EligibleGradeLevels = p.EligibleGradeLevels
+	if resp.EligibleGradeLevels == nil {
+		resp.EligibleGradeLevels = []int{}
+	}
 	return resp
 }
 
@@ -148,6 +155,7 @@ type PhaseRequest struct {
 	// stored values on update rather than resetting them.
 	Audience              *string   `json:"audience,omitempty"`
 	EligibleSchoolClasses *[]string `json:"eligible_school_classes,omitempty"`
+	EligibleGradeLevels   *[]int    `json:"eligible_grade_levels,omitempty"`
 
 	calendarPeriodIDPresent bool
 }
@@ -216,6 +224,14 @@ func (req *PhaseRequest) toModel(existingID int64) (*enrollmentModels.Phase, err
 	} else {
 		p.EligibleSchoolClasses = []string{}
 	}
+	if req.EligibleGradeLevels != nil {
+		// Range/dedup normalization lives in Phase.Validate, which owns the
+		// shared grade bounds; copying the slice keeps the request body from
+		// aliasing into the model.
+		p.EligibleGradeLevels = append([]int{}, *req.EligibleGradeLevels...)
+	} else {
+		p.EligibleGradeLevels = []int{}
+	}
 	openAt, err := parseOptionalRFC3339(req.EnrollmentOpenAt, "enrollment_open_at must be RFC3339")
 	if err != nil {
 		return nil, err
@@ -238,6 +254,33 @@ func (req *PhaseRequest) toModel(existingID int64) (*enrollmentModels.Phase, err
 	p.CalendarPeriodID = periodID
 	p.ID = existingID
 	return p, nil
+}
+
+// hydrateOmittedFields copies every optional field the request omitted from
+// the stored phase onto the update model. PUT replaces the whole row, so a
+// stale client that predates one of these fields (pre-#1833 concrete classes,
+// pre-#1663 eligibility) would otherwise silently wipe the admin's
+// configuration. A PUT without calendar_period_id likewise keeps the stored
+// link; only an explicit null (or value) changes it.
+func (req *PhaseRequest) hydrateOmittedFields(model, existing *enrollmentModels.Phase) {
+	if !req.calendarPeriodIDPresent {
+		model.CalendarPeriodID = existing.CalendarPeriodID
+	}
+	if req.AvailableSchoolClasses == nil {
+		model.AvailableSchoolClasses = existing.AvailableSchoolClasses
+	}
+	if req.RequireSchoolClass == nil {
+		model.RequireSchoolClass = existing.RequireSchoolClass
+	}
+	if req.Audience == nil {
+		model.Audience = existing.Audience
+	}
+	if req.EligibleSchoolClasses == nil {
+		model.EligibleSchoolClasses = existing.EligibleSchoolClasses
+	}
+	if req.EligibleGradeLevels == nil {
+		model.EligibleGradeLevels = existing.EligibleGradeLevels
+	}
 }
 
 // parseOptionalRFC3339 parses an optional RFC3339 timestamp. A nil or empty
@@ -451,28 +494,7 @@ func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
 			if getErr != nil {
 				return getErr
 			}
-			if !req.calendarPeriodIDPresent {
-				model.CalendarPeriodID = existing.CalendarPeriodID
-			}
-			// A stale client (pre-#1833) omits the concrete-class fields
-			// entirely. Update replaces the whole row, so without this a
-			// partial update would silently wipe the admin's class pick
-			// list / mandatory toggle. Re-hydrate any omitted field from
-			// the stored phase before persisting.
-			if req.AvailableSchoolClasses == nil {
-				model.AvailableSchoolClasses = existing.AvailableSchoolClasses
-			}
-			if req.RequireSchoolClass == nil {
-				model.RequireSchoolClass = existing.RequireSchoolClass
-			}
-			// Same stale-client protection for the eligibility fields
-			// (#1663): an omitted field keeps the stored value.
-			if req.Audience == nil {
-				model.Audience = existing.Audience
-			}
-			if req.EligibleSchoolClasses == nil {
-				model.EligibleSchoolClasses = existing.EligibleSchoolClasses
-			}
+			req.hydrateOmittedFields(model, existing)
 			return rs.PhaseService.Update(ctx, model)
 		},
 		func(ctx context.Context, id int64) (*enrollmentModels.Phase, error) {

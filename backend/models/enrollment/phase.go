@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -196,6 +198,21 @@ type Phase struct {
 	// the phases_audience_check constraint with an empty string.
 	Audience              string   `bun:"audience,notnull,default:'open'" json:"audience"`
 	EligibleSchoolClasses []string `bun:"eligible_school_classes,type:jsonb,notnull" json:"eligible_school_classes"`
+
+	// EligibleGradeLevels (migration 1.15.225, issue #1663) is the
+	// grade-level counterpart of EligibleSchoolClasses: when non-empty,
+	// every submitted child must declare one of the listed grades. It is
+	// the representation for a phase aimed at a whole grade ("alle
+	// Drittklässler"), which enumerating the concrete classes 3a/3b cannot
+	// express — that enumeration goes stale the moment a class is added or
+	// renamed, and it forces concrete-class collection on a school that
+	// only collects the grade level.
+	//
+	// The two restrictions are independent and combine with AND: grades
+	// need only enrollment.collect_grade_level, classes additionally need
+	// enrollment.collect_school_class. Validate keeps a combined pair
+	// satisfiable (every eligible class's grade must be an eligible grade).
+	EligibleGradeLevels []int `bun:"eligible_grade_levels,type:jsonb,notnull" json:"eligible_grade_levels"`
 }
 
 // Validate runs the column-level checks in app code so the service can
@@ -312,6 +329,37 @@ func (p *Phase) Validate() error {
 			return fmt.Errorf("eligible_school_classes entry %q must also be listed in available_school_classes; the form can only offer available classes, so a restriction to a class it never presents rejects every submission", c)
 		}
 	}
+	// Grade-level eligibility: same NOT NULL jsonb coalescing, plus the shared
+	// grade-bounds check. Unlike the class list this needs no available-list
+	// membership — the form always offers every grade 1..grade_level_max, so any
+	// in-range grade is satisfiable on its own (#1663).
+	gradeLevels, err := normalizeGradeLevelList("eligible_grade_levels", p.EligibleGradeLevels)
+	if err != nil {
+		return err
+	}
+	p.EligibleGradeLevels = gradeLevels
+	// Both restrictions apply together (AND), so a class whose grade is not an
+	// eligible grade can never be declared: the child would have to be in grade
+	// 4 and in class 3a at once. The form filters the class pick list by the
+	// selected grade, so such a class is never even offered. Reject the
+	// unsatisfiable pair up front, mirroring the eligible ⊆ available rule
+	// above. Classes without a numeric grade ("Bienen") carry no derivable
+	// grade and stay compatible with every grade restriction (#1663).
+	if len(p.EligibleGradeLevels) > 0 {
+		eligibleGrades := make(map[string]struct{}, len(p.EligibleGradeLevels))
+		for _, level := range p.EligibleGradeLevels {
+			eligibleGrades[strconv.Itoa(level)] = struct{}{}
+		}
+		for _, c := range p.EligibleSchoolClasses {
+			prefix := schoolclass.GradePrefix(c)
+			if prefix == "" {
+				continue
+			}
+			if _, ok := eligibleGrades[prefix]; !ok {
+				return fmt.Errorf("eligible_school_classes entry %q belongs to grade %s, which is not in eligible_grade_levels; a child cannot satisfy both restrictions at once", c, prefix)
+			}
+		}
+	}
 	return nil
 }
 
@@ -374,4 +422,12 @@ type PhaseRepository interface {
 	// with class_not_eligible (#1663). It is the inverse of the
 	// phase-side validateEligibleClassesCollectable check.
 	ExistsActiveWithEligibleClasses(ctx context.Context) (bool, error)
+
+	// ExistsActiveWithEligibleGradeLevels is the grade-level counterpart:
+	// it reports whether the tenant has any active phase restricting
+	// eligibility to specific grades. The settings guard consults it to
+	// refuse disabling grade-level collection, which would clear every
+	// child's declared grade and reject every submission to such a phase
+	// with grade_not_eligible (#1663).
+	ExistsActiveWithEligibleGradeLevels(ctx context.Context) (bool, error)
 }

@@ -280,6 +280,7 @@ const (
 	// Phase eligibility codes (#1663).
 	ErrCodeEnrollmentPhaseNotEligible     = "enrollment.phase_not_eligible"
 	ErrCodeEnrollmentClassNotEligible     = "enrollment.class_not_eligible"
+	ErrCodeEnrollmentGradeNotEligible     = "enrollment.grade_not_eligible"
 	ErrCodeEnrollmentChildAlreadyEnrolled = "enrollment.child_already_enrolled"
 	ErrCodeEnrollmentChildNotEnrolled     = "enrollment.child_not_enrolled"
 	ErrCodeEnrollmentChildAmbiguous       = "enrollment.child_ambiguous"
@@ -301,6 +302,8 @@ func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	// so their specific matches must precede the generic case below.
 	case errors.Is(err, enrollmentService.ErrChildClassNotEligible):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentClassNotEligible))
+	case errors.Is(err, enrollmentService.ErrChildGradeNotEligible):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentGradeNotEligible))
 	case errors.Is(err, enrollmentService.ErrChildAlreadyEnrolled):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentChildAlreadyEnrolled))
 	case errors.Is(err, enrollmentService.ErrChildNotEnrolled):

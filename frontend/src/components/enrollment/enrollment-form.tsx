@@ -182,6 +182,11 @@ export interface EnrollmentFormPrefetchedData {
    * the parent adopt a child the server will reject.
    */
   audience?: PublicPhase["audience"];
+  /**
+   * Phase grade restriction (#1663). When non-empty the grade select offers
+   * exactly these grades, so a parent cannot pick one the server rejects.
+   */
+  eligibleGradeLevels?: number[];
 }
 
 /**
@@ -261,6 +266,12 @@ export function EnrollmentForm({
     useState<PublicSchoolClassConfig>(
       prefetchedData?.schoolClass ?? EMPTY_SCHOOL_CLASS_CONFIG,
     );
+  // Phase grade restriction (#1663): empty = every grade up to the tenant
+  // cap. Seeded from prefetched data (public page + parent portal) or from
+  // the care-offerings fallback load below.
+  const [eligibleGradeLevels, setEligibleGradeLevels] = useState<number[]>(
+    prefetchedData?.eligibleGradeLevels ?? [],
+  );
   // Offerings the school flagged as mandatory. These are pre-selected and
   // locked in the UI so every child carries them.
   const requiredOfferingIDs = useMemo(
@@ -413,6 +424,7 @@ export function EnrollmentForm({
       setSchoolClassConfig(
         prefetchedData.schoolClass ?? EMPTY_SCHOOL_CLASS_CONFIG,
       );
+      setEligibleGradeLevels(prefetchedData.eligibleGradeLevels ?? []);
       setCaptchaConfig(prefetchedData.captchaConfig);
       setLegalTexts(prefetchedData.legalTexts);
       setProfile(prefetchedData.profile ?? null);
@@ -476,6 +488,8 @@ export function EnrollmentForm({
                 schoolClass: EMPTY_SCHOOL_CLASS_CONFIG,
                 collectGradeLevel: true,
                 careOfferingsEnabled: true,
+                // No phase, so no phase-level grade restriction (preview).
+                eligibleGradeLevels: [] as number[],
               }),
           profileLoader().catch(() => null),
           // Skip the captcha config when the caller already authenticated
@@ -509,6 +523,7 @@ export function EnrollmentForm({
         setSchoolClassConfig(
           offeringsResult.schoolClass ?? EMPTY_SCHOOL_CLASS_CONFIG,
         );
+        setEligibleGradeLevels(offeringsResult.eligibleGradeLevels ?? []);
         // Seed mandatory offerings into the children that already exist
         // (the initial blank slot is created before offerings load).
         setChildren((prev) =>
@@ -1710,6 +1725,7 @@ export function EnrollmentForm({
                       );
                     }}
                     max={gradeLevelMax}
+                    allowedGrades={eligibleGradeLevels}
                     error={fieldErrors[`children_${i}_target_grade_level`]}
                     tr={tr}
                   />
@@ -2636,6 +2652,7 @@ function GradeLevelSelect({
   value,
   onChange,
   max,
+  allowedGrades,
   error,
   tr,
 }: {
@@ -2643,9 +2660,25 @@ function GradeLevelSelect({
   readonly value: string;
   readonly onChange: (v: string) => void;
   readonly max: number;
+  /**
+   * Phase grade restriction (#1663); empty means unrestricted. Offering a
+   * grade the submit gate rejects would let a parent complete the entire
+   * form and then fail with grade_not_eligible, so the select presents the
+   * eligible grades only — the same reason the class pick list is narrowed
+   * server-side.
+   */
+  readonly allowedGrades: number[];
   readonly error?: string;
   readonly tr: EnrollmentFormTranslator;
 }) {
+  const everyGrade = Array.from({ length: max }, (_, n) => n + 1);
+  const eligible = everyGrade.filter((grade) => allowedGrades.includes(grade));
+  // A restriction naming only grades above the tenant cap is broken config
+  // (the cap was lowered after the phase was set up). Fall back to the full
+  // range rather than rendering an empty select; the server still rejects
+  // the submission with the authoritative error.
+  const grades =
+    allowedGrades.length > 0 && eligible.length > 0 ? eligible : everyGrade;
   return (
     <label className="block" htmlFor={id}>
       <span className="block text-sm font-semibold text-gray-700">
@@ -2660,13 +2693,10 @@ function GradeLevelSelect({
         className="mt-1"
         options={[
           { value: "", label: tr("fields.choose"), disabled: true },
-          ...Array.from({ length: max }, (_, n) => {
-            const grade = String(n + 1);
-            return {
-              value: grade,
-              label: tr("fields.grade", { grade: n + 1 }),
-            };
-          }),
+          ...grades.map((grade) => ({
+            value: String(grade),
+            label: tr("fields.grade", { grade }),
+          })),
         ]}
       />
       {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}

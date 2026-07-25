@@ -53,6 +53,8 @@ const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
     "Diese Anmeldephase ist für dein Konto nicht verfügbar. Bitte melde dich im Elternportal an oder wende dich an die Schule.",
   "enrollment.class_not_eligible":
     "Diese Anmeldephase ist auf bestimmte Klassen beschränkt. Bitte prüfe die Klassenangabe deines Kindes.",
+  "enrollment.grade_not_eligible":
+    "Diese Anmeldephase ist auf bestimmte Klassenstufen beschränkt. Bitte prüfe die Klassenstufe deines Kindes.",
   "enrollment.child_already_enrolled":
     "Dieses Kind ist an der Schule bereits angemeldet. Diese Phase richtet sich nur an neue Kinder.",
   "enrollment.child_not_enrolled":

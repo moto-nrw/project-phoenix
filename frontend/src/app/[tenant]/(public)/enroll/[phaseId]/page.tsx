@@ -107,6 +107,9 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
       // children the server would always reject (#1663). Mirrors the
       // parent-portal mapper.
       audience: bootstrap.phase.audience,
+      // Same for the grade restriction, so the grade select offers only the
+      // grades the phase accepts (#1663).
+      eligibleGradeLevels: bootstrap.phase.eligible_grade_levels ?? [],
     };
   }, [bootstrap]);
 

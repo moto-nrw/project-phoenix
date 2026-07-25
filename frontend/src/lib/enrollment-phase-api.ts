@@ -47,6 +47,10 @@ export interface Phase {
   // of these classes ([] = no restriction). Omitted on legacy phases.
   audience?: PhaseAudience;
   eligible_school_classes?: string[];
+  // eligible_grade_levels restricts submissions to children declaring one of
+  // these grade levels ([] = no restriction). Independent of the class
+  // restriction: a phase for a whole grade needs no concrete classes.
+  eligible_grade_levels?: number[];
   created_at: string;
   updated_at: string;
 }
@@ -79,6 +83,7 @@ export interface PhaseInput {
   require_school_class?: boolean;
   audience?: PhaseAudience;
   eligible_school_classes?: string[];
+  eligible_grade_levels?: number[];
 }
 
 interface BackendEnvelope<T> {
@@ -138,6 +143,11 @@ export function phaseToInput(p: Phase): PhaseInput {
     // save never silently changes their eligibility.
     audience: p.audience ?? "open",
     eligible_school_classes: p.eligible_school_classes ?? [],
+    // Deliberately NOT coalesced to [] like its neighbours: a phase payload
+    // without the field comes from a backend that predates it, and sending an
+    // explicit [] would read as "clear the restriction". Leaving it undefined
+    // omits the key, which the backend re-hydrates from the stored phase.
+    eligible_grade_levels: p.eligible_grade_levels,
   };
 }
 

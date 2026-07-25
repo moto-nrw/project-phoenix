@@ -1957,6 +1957,75 @@ describe("PhasesEditor", () => {
     });
   });
 
+  it("saves a grade-level restriction without touching the class config (#1663)", async () => {
+    // A phase for a whole grade needs no concrete classes — that is the case
+    // the class list cannot express, so selecting a grade must not force a
+    // class pick list or the mandatory toggle.
+    const target = phase({ id: "26" });
+    mocks.listPhases.mockResolvedValue([target]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.updatePhase.mockResolvedValue(target);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    const gradeButtons = await screen.findAllByRole("button", { name: "3" });
+    fireEvent.click(gradeButtons[0]!);
+    fireEvent.click(await screen.findByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updatePhase).toHaveBeenCalledWith(
+        "26",
+        expect.objectContaining({
+          eligible_grade_levels: [3],
+          eligible_school_classes: [],
+          require_school_class: false,
+        }),
+      );
+    });
+  });
+
+  it("refuses a class that contradicts the selected grade levels (#1663)", async () => {
+    // Both restrictions apply together, so a grade-2 class under a grade-3
+    // restriction can never be declared. The backend rejects the pair; the
+    // editor names the offending class instead of surfacing that error.
+    const conflicting = phase({
+      id: "27",
+      available_school_classes: ["2a"],
+      eligible_school_classes: ["2a"],
+      eligible_grade_levels: [3],
+      require_school_class: true,
+    });
+    mocks.listPhases.mockResolvedValue([conflicting]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(/passt nicht zu den gewählten Klassenstufen/),
+    ).toBeInTheDocument();
+    expect(mocks.updatePhase).not.toHaveBeenCalled();
+  });
+
   it("adds an eligible class that is not yet offered to the offered list (#1663)", async () => {
     // The eligible list is edited free-form; the backend rejects a phase whose
     // eligible list is not a subset of the offered one, so the missing class

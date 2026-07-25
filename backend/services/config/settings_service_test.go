@@ -2211,3 +2211,65 @@ func TestResetValue_ClassCollectionGuard_CrossFieldValidation(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, got, "rejected reset must not delete the override")
 }
+
+// setGradeRestrictionGuard wires the enrollment grade-restriction probe, the
+// counterpart of setClassRestrictionGuard above (#1663).
+func setGradeRestrictionGuard(t *testing.T, svc configSvc.SettingsService, restricted bool) {
+	t.Helper()
+	guarded, ok := svc.(interface {
+		SetGradeRestrictionGuard(func(context.Context) (bool, error))
+	})
+	require.True(t, ok, "settings service must expose SetGradeRestrictionGuard")
+	guarded.SetGradeRestrictionGuard(func(context.Context) (bool, error) { return restricted, nil })
+}
+
+// TestSetValue_GradeCollectionGuard_CrossFieldValidation covers the grade-level
+// half of the #1663 guard. A phase restricted to whole grades depends on
+// collect_grade_level ALONE — it needs no concrete classes — so disabling that
+// toggle must be refused, while disabling concrete-class collection stays
+// allowed for such a phase.
+func TestSetValue_GradeCollectionGuard_CrossFieldValidation(t *testing.T) {
+	registerCollectionKeys := func() {
+		registerTestSetting(config.KeyEnrollmentCollectGradeLevel, config.FieldBoolean, true)
+		registerTestSetting(config.KeyEnrollmentCollectSchoolClass, config.FieldBoolean, true)
+	}
+
+	t.Run("disabling grade-level collection is rejected while a grade-restricted phase exists", func(t *testing.T) {
+		setupTest(t)
+		registerCollectionKeys()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setGradeRestrictionGuard(t, svc, true)
+
+		err := svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectGradeLevel, false, nil, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Klassenstufen-Abfrage")
+	})
+
+	t.Run("disabling concrete-class collection stays allowed for a grade-restricted phase", func(t *testing.T) {
+		setupTest(t)
+		registerCollectionKeys()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setGradeRestrictionGuard(t, svc, true)
+
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectSchoolClass, false, nil, nil),
+			"a whole-grade phase does not depend on concrete classes")
+	})
+
+	t.Run("enabling grade-level collection is never blocked", func(t *testing.T) {
+		setupTest(t)
+		registerCollectionKeys()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setGradeRestrictionGuard(t, svc, true)
+
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectGradeLevel, true, nil, nil))
+	})
+
+	t.Run("disabling is allowed when no grade-restricted phase exists", func(t *testing.T) {
+		setupTest(t)
+		registerCollectionKeys()
+		svc := createService(newMockValueRepo(), &mockAuditRepo{})
+		setGradeRestrictionGuard(t, svc, false)
+
+		require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyEnrollmentCollectGradeLevel, false, nil, nil))
+	})
+}

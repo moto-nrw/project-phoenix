@@ -105,6 +105,10 @@ var (
 	// codes so the form can explain which child is affected.
 	ErrPhaseNotEligible      = errors.New("phase is not open for this applicant")
 	ErrChildClassNotEligible = fmt.Errorf("%w: child school class is not eligible for this phase", ErrInvalidSubmission)
+	// ErrChildGradeNotEligible is the grade-level counterpart of
+	// ErrChildClassNotEligible: a phase aimed at whole grades (e.g. all
+	// grade-3 applicants) rejects a child declaring any other grade.
+	ErrChildGradeNotEligible = fmt.Errorf("%w: child grade level is not eligible for this phase", ErrInvalidSubmission)
 	ErrChildAlreadyEnrolled  = fmt.Errorf("%w: child is already enrolled at this school", ErrInvalidSubmission)
 	// ErrChildNotEnrolled backs the existing_students audience — the
 	// inverse of ErrChildAlreadyEnrolled: a phase open only to already
@@ -3407,6 +3411,9 @@ func (s *requestService) validatePhaseEligibility(ctx context.Context, phase *en
 // preserved from the original submission (#1663). Callers must run
 // validateAndNormalizeSchoolClasses first so this sees the persisted class.
 func (s *requestService) validatePhaseChildEligibility(ctx context.Context, phase *enrollmentModels.Phase, req SubmitRequest) error {
+	if err := validateChildGradeEligibility(phase, req.Children); err != nil {
+		return err
+	}
 	if err := validateChildClassEligibility(phase, req.Children); err != nil {
 		return err
 	}
@@ -3469,6 +3476,43 @@ func validateChildClassEligibility(phase *enrollmentModels.Phase, children []Sub
 		}
 		if _, ok := eligible[declared]; !ok {
 			return fmt.Errorf("%w: child %d class %q", ErrChildClassNotEligible, i, declared)
+		}
+	}
+	return nil
+}
+
+// validateChildGradeEligibility enforces the phase's eligible_grade_levels
+// restriction: when the list is non-empty, every child must declare one of the
+// listed grades. This is the enforcement half of the whole-grade phase
+// ("nur Klasse 3") — a case the concrete-class list cannot express, because a
+// school that collects only the grade level never has a class to compare, and
+// enumerating 3a/3b goes stale as soon as a class is added or renamed (#1663).
+//
+// Pure, like validateChildClassEligibility, and applied at exactly the same
+// points: submit, the editable-request path, and the change-request path. A
+// child's grade is stable data the parent declares in every one of them, so
+// re-checking it never rejects an edit that creation allowed — unlike the
+// enrolled-status probes.
+//
+// A missing grade is a rejection, not a pass: normalizeSubmissionForCapabilities
+// nils the grade out when collect_grade_level is off, and the phase-side
+// collectability guard is what keeps that pair from being configurable. Treating
+// nil as "eligible" would silently disable the restriction instead.
+func validateChildGradeEligibility(phase *enrollmentModels.Phase, children []SubmitChild) error {
+	if len(phase.EligibleGradeLevels) == 0 {
+		return nil
+	}
+	eligible := make(map[int]struct{}, len(phase.EligibleGradeLevels))
+	for _, level := range phase.EligibleGradeLevels {
+		eligible[level] = struct{}{}
+	}
+	for i := range children {
+		if children[i].TargetGradeLevel == nil {
+			return fmt.Errorf("%w: child %d declares no grade level", ErrChildGradeNotEligible, i)
+		}
+		declared := int(*children[i].TargetGradeLevel)
+		if _, ok := eligible[declared]; !ok {
+			return fmt.Errorf("%w: child %d grade %d", ErrChildGradeNotEligible, i, declared)
 		}
 	}
 	return nil

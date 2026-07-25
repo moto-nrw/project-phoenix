@@ -33,6 +33,13 @@ type settingsService struct {
 	// SetClassRestrictionGuard to keep the config package decoupled from
 	// the enrollment domain.
 	classRestrictionGuard func(ctx context.Context) (bool, error)
+	// gradeRestrictionGuard is the same probe for phases restricted to
+	// specific GRADE LEVELS. Separate from classRestrictionGuard because the
+	// two hang off different toggles: a grade restriction only needs
+	// collect_grade_level, so disabling collect_school_class must not be
+	// blocked by it (#1663). Optional in the same way; injected via
+	// SetGradeRestrictionGuard.
+	gradeRestrictionGuard func(ctx context.Context) (bool, error)
 }
 
 // SetClassRestrictionGuard wires the enrollment class-restriction probe used
@@ -41,6 +48,13 @@ type settingsService struct {
 // unaffected; the factory sets it after construction (#1663).
 func (s *settingsService) SetClassRestrictionGuard(fn func(ctx context.Context) (bool, error)) {
 	s.classRestrictionGuard = fn
+}
+
+// SetGradeRestrictionGuard wires the enrollment grade-restriction probe used
+// by the grade-level collection guard, following the same off-constructor
+// convention as SetClassRestrictionGuard (#1663).
+func (s *settingsService) SetGradeRestrictionGuard(fn func(ctx context.Context) (bool, error)) {
+	s.gradeRestrictionGuard = fn
 }
 
 // NewSettingsService creates a new SettingsService.
@@ -515,8 +529,12 @@ func (s *settingsService) validateCrossField(ctx context.Context, key string, va
 // of the phase-side validateEligibleClassesCollectable check: together they
 // keep the restricted-phase / class-collection pair consistent from either
 // edit direction (#1663). Best-effort: nil guard skips the check.
+//
+// It guards the grade-level restriction on the same lock: an active phase
+// limited to whole grades survives collect_school_class being off, but not
+// collect_grade_level.
 func (s *settingsService) validateClassCollectionGuard(ctx context.Context, key string, value any) error {
-	if s.classRestrictionGuard == nil {
+	if s.classRestrictionGuard == nil && s.gradeRestrictionGuard == nil {
 		return nil
 	}
 	newVal, ok := value.(bool)
@@ -534,6 +552,25 @@ func (s *settingsService) validateClassCollectionGuard(ctx context.Context, key 
 	// the request tx.
 	if err := s.LockClassCollectionPair(ctx); err != nil {
 		return err
+	}
+	// Grade-level restrictions hang off collect_grade_level ALONE — a phase
+	// targeting a whole grade never needs concrete classes — so this check runs
+	// only when the write itself turns grade collection off, and independently
+	// of the class-collection pair below (#1663).
+	if key == config.KeyEnrollmentCollectGradeLevel && !newVal && s.gradeRestrictionGuard != nil {
+		restricted, err := s.gradeRestrictionGuard(ctx)
+		if err != nil {
+			return fmt.Errorf("check grade-restricted phases: %w", err)
+		}
+		if restricted {
+			return &InvalidValueError{
+				Key:    key,
+				Reason: "Die Klassenstufen-Abfrage kann nicht deaktiviert werden, solange eine aktive Anmeldephase auf bestimmte Klassenstufen beschränkt ist. Entfernen Sie zuerst die Klassenstufenbeschränkung der betroffenen Phase.",
+			}
+		}
+	}
+	if s.classRestrictionGuard == nil {
+		return nil
 	}
 	// Compute the effective collection state with `value` applied to `key`
 	// and the sibling toggle resolved live (its current effective value).

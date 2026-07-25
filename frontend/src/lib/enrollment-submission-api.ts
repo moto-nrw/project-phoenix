@@ -269,6 +269,13 @@ export interface PublicCareOfferingsResult {
   schoolClass?: PublicSchoolClassConfig;
   collectGradeLevel: boolean;
   careOfferingsEnabled: boolean;
+  /**
+   * Phase grade restriction (#1663); empty means unrestricted. Present only
+   * when the backend includes `eligible_grade_levels` in the response, so the
+   * normalized shape for a payload without it is unchanged — same convention
+   * as `schoolClass` above. Consumers coalesce to [].
+   */
+  eligibleGradeLevels?: number[];
 }
 
 export interface LateInviteFetchOptions {
@@ -321,6 +328,7 @@ export async function fetchPublicCareOfferings(
     school_class?: unknown;
     collect_grade_level?: boolean;
     care_offerings_enabled?: boolean;
+    eligible_grade_levels?: unknown;
   }>(response);
   const mode =
     payload?.care_offering_selection_mode ??
@@ -337,7 +345,23 @@ export async function fetchPublicCareOfferings(
       payload?.school_class == null
         ? undefined
         : parseSchoolClassConfig(payload.school_class),
+    eligibleGradeLevels:
+      payload?.eligible_grade_levels == null
+        ? undefined
+        : parseGradeLevels(payload.eligible_grade_levels),
   };
+}
+
+/**
+ * Normalizes a grade-restriction list from an untrusted payload: keeps
+ * positive integers only, so a backend that omits the field (or a stale
+ * one that never sends it) reads as "no restriction" rather than throwing.
+ */
+export function parseGradeLevels(raw: unknown): number[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (g): g is number => typeof g === "number" && Number.isInteger(g) && g > 0,
+  );
 }
 
 export interface PublicPhase {
@@ -360,6 +384,13 @@ export interface PublicPhase {
    * server-side).
    */
   audience?: "open" | "new_students" | "existing_students" | "linked_parents";
+  /**
+   * Grade restriction (#1663). Empty (or missing) = no restriction;
+   * otherwise only children in one of these grades may apply. The form
+   * narrows its grade select to these values so a parent never fills in
+   * the whole form only to be rejected with grade_not_eligible.
+   */
+  eligible_grade_levels?: number[];
 }
 
 /**

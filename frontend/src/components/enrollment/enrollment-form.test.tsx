@@ -1163,6 +1163,53 @@ describe("EnrollmentForm", () => {
     await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1));
   });
 
+  // Grade-level eligibility (#1663): a phase aimed at whole grades must offer
+  // only those grades, otherwise the parent fills in the entire form and is
+  // rejected with grade_not_eligible on submit.
+  it("offers only the phase's eligible grade levels", async () => {
+    renderForm({
+      prefetchedData: {
+        schema: schema(),
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts(),
+        eligibleGradeLevels: [3],
+      },
+    });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByLabelText("Klassenstufe *"));
+    expect(
+      await screen.findByRole("option", { name: "3. Klasse" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "2. Klasse" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers every grade when the phase carries no grade restriction", async () => {
+    renderForm({
+      prefetchedData: {
+        schema: schema(),
+        offerings: offerings(),
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts(),
+        eligibleGradeLevels: [],
+      },
+    });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByLabelText("Klassenstufe *"));
+    // gradeLevelMax is 4 in renderForm.
+    for (const grade of ["1. Klasse", "2. Klasse", "3. Klasse", "4. Klasse"]) {
+      expect(
+        await screen.findByRole("option", { name: grade }),
+      ).toBeInTheDocument();
+    }
+  });
+
   it("prefills from a parent profile and adopts an existing child", async () => {
     // Reuse is scoped to existing_students phases (#1663): on other audiences
     // adopting a linked child would fresh-create a duplicate on approval, so

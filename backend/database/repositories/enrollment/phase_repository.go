@@ -85,6 +85,7 @@ func (r *PhaseRepository) Update(ctx context.Context, phase *enrollment.Phase) e
 		Set("require_school_class = ?", phase.RequireSchoolClass).
 		Set("audience = ?", phase.Audience).
 		Set("eligible_school_classes = ?", phase.EligibleSchoolClasses).
+		Set("eligible_grade_levels = ?", phase.EligibleGradeLevels).
 		Set("updated_at = NOW()").
 		Where(`"phase".id = ?`, phase.ID).
 		Exec(ctx)
@@ -186,6 +187,25 @@ func (r *PhaseRepository) ExistsActiveWithEligibleClasses(ctx context.Context) (
 		Exists(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to check active phases with eligible classes: %w", err)
+	}
+	return exists, nil
+}
+
+// ExistsActiveWithEligibleGradeLevels reports whether the tenant (via the
+// RLS tx in context) has any active phase whose eligible_grade_levels holds
+// at least one entry. Grades are stored as JSON numbers written only through
+// Phase.Validate, so a length check is exact — there is no blank-entry case
+// like the class list has. Backs the settings guard that refuses to disable
+// grade-level collection while such a phase exists (#1663).
+func (r *PhaseRepository) ExistsActiveWithEligibleGradeLevels(ctx context.Context) (bool, error) {
+	exists, err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*enrollment.Phase)(nil)).
+		ModelTableExpr(phaseTableExpr).
+		Where(`"phase".is_active = TRUE`).
+		Where(`jsonb_array_length("phase".eligible_grade_levels) > 0`).
+		Exists(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to check active phases with eligible grade levels: %w", err)
 	}
 	return exists, nil
 }

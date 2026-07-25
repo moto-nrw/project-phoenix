@@ -888,7 +888,13 @@ func (s *changeRequestService) prepareProposed(
 	// path both take. The trusted-source / rollover exemptions mirror
 	// ReplaceEditable: those creation paths bypassed eligibility deliberately
 	// and an edit must not newly reject what creation allowed.
+	// The grade restriction rides along for the same reason: a phase limited to
+	// whole grades must not be defeated by a change request that moves the
+	// child into another grade (#1663).
 	if !isTrustedEnrollmentSource(req.SubmissionSource) && !hasRolloverGeneratedChild(children) {
+		if err := validateChildGradeEligibility(phase, editReq.Children); err != nil {
+			return editReq, nil, nil, nil, err
+		}
 		if err := validateChildClassEligibility(phase, editReq.Children); err != nil {
 			return editReq, nil, nil, nil, err
 		}

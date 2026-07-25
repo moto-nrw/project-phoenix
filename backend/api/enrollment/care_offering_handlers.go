@@ -428,6 +428,7 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		SchoolClass:               schoolClassCfg,
 		CollectGradeLevel:         capabilities.CollectGradeLevel,
 		CareOfferingsEnabled:      capabilities.CareOfferingsEnabled,
+		EligibleGradeLevels:       publicEligibleGradeLevels(data.Phase),
 	}, "Public care offerings retrieved")
 }
 
@@ -500,6 +501,11 @@ type PublicCareOfferingsResponse struct {
 	SchoolClass               PublicSchoolClassConfig `json:"school_class"`
 	CollectGradeLevel         bool                    `json:"collect_grade_level"`
 	CareOfferingsEnabled      bool                    `json:"care_offerings_enabled"`
+	// EligibleGradeLevels mirrors PublicPhase.EligibleGradeLevels (#1663).
+	// This response carries no phase object, and it is the form's fallback
+	// load path when the page did not prefetch a bootstrap — so the grade
+	// restriction has to ride along here too, next to the class config.
+	EligibleGradeLevels []int `json:"eligible_grade_levels"`
 }
 
 type PublicEnrollmentFormBootstrapResponse struct {
@@ -539,6 +545,15 @@ func toPublicSchoolClassConfig(phase *enrollmentModels.Phase, collect bool) Publ
 	}
 }
 
+// publicEligibleGradeLevels returns the phase's grade restriction as a
+// non-nil slice so the JSON is `[]` rather than `null` (#1663).
+func publicEligibleGradeLevels(phase *enrollmentModels.Phase) []int {
+	if phase == nil || phase.EligibleGradeLevels == nil {
+		return []int{}
+	}
+	return phase.EligibleGradeLevels
+}
+
 func effectiveCareOfferingSelectionMode(mode string, enabled bool) string {
 	if !enabled {
 		return enrollmentModels.PhaseCareOfferingSelectionOptional
@@ -566,6 +581,12 @@ type PublicPhase struct {
 	// (filtered in ListPublicOpen); "new_students" lets the public
 	// picker label the restriction.
 	Audience string `json:"audience"`
+	// EligibleGradeLevels (#1663) is the phase's grade restriction, empty
+	// when unrestricted. The form narrows its grade select to these values
+	// so a parent cannot fill in the whole form only to be rejected with
+	// grade_not_eligible — the same reason the offered class list is
+	// narrowed server-side.
+	EligibleGradeLevels []int `json:"eligible_grade_levels"`
 }
 
 func toPublicPhase(p *enrollmentModels.Phase) PublicPhase {
@@ -578,6 +599,11 @@ func toPublicPhase(p *enrollmentModels.Phase) PublicPhase {
 		ShowStatusReasonToParent:  p.ShowStatusReasonToParent,
 		CareOfferingSelectionMode: p.CareOfferingSelectionMode,
 		Audience:                  p.Audience,
+		EligibleGradeLevels:       p.EligibleGradeLevels,
+	}
+	if entry.EligibleGradeLevels == nil {
+		// Emit [] rather than null so the frontend list binding is stable.
+		entry.EligibleGradeLevels = []int{}
 	}
 	if p.EnrollmentOpenAt != nil {
 		entry.EnrollmentOpenAt = p.EnrollmentOpenAt.Format(time.RFC3339)

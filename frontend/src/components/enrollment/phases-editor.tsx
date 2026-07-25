@@ -157,6 +157,7 @@ function blankInput(): PhaseInput {
     require_school_class: false,
     audience: "open",
     eligible_school_classes: [],
+    eligible_grade_levels: [],
   };
 }
 
@@ -397,6 +398,24 @@ export function PhasesEditor() {
         payload.available_school_classes = offered;
         payload.require_school_class = true;
       }
+      // Both restrictions apply together, so a class outside the selected
+      // grades can never be declared — the child would have to be in two
+      // grades at once. The backend rejects the pair; catch it here with a
+      // concrete message naming the offending class (#1663).
+      const eligibleGrades = payload.eligible_grade_levels ?? [];
+      if (eligibleGrades.length > 0) {
+        const conflicting = eligibleClasses.find((cls) => {
+          const prefix = /(\d+)/.exec(cls)?.[1];
+          return (
+            prefix !== undefined && !eligibleGrades.includes(Number(prefix))
+          );
+        });
+        if (conflicting) {
+          throw new Error(
+            `Die Klasse „${conflicting}“ passt nicht zu den gewählten Klassenstufen. Entferne die Klasse oder ergänze ihre Klassenstufe.`,
+          );
+        }
+      }
       if (editingId === "new") {
         const created = await createPhase(payload);
         toast.success(`Anmeldephase „${created.name}" erstellt.`);
@@ -558,6 +577,11 @@ export function PhasesEditor() {
               {phase.audience && phase.audience !== "open" ? (
                 <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-1.5 py-0.5 text-[11px] font-medium text-[#4070C8]">
                   {AUDIENCE_BADGE_LABELS[phase.audience]}
+                </span>
+              ) : null}
+              {(phase.eligible_grade_levels ?? []).length > 0 ? (
+                <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-1.5 py-0.5 text-[11px] font-medium text-[#4070C8]">
+                  {`Nur Klassenstufe ${(phase.eligible_grade_levels ?? []).join(", ")}`}
                 </span>
               ) : null}
             </p>
@@ -729,6 +753,7 @@ export function PhasesEditor() {
           editing={editingId !== "new"}
           saving={saving}
           highlightFormSection={highlightFormSection}
+          gradeLevelMax={gradeLevelMax}
           onSubmit={handleSave}
           onCancel={cancelEdit}
         />
@@ -824,6 +849,8 @@ interface PhaseFormProps {
   readonly editing: boolean;
   readonly saving: boolean;
   readonly highlightFormSection: boolean;
+  /** Tenant grade cap; null when unresolved — the grade picker then hides. */
+  readonly gradeLevelMax: number | null;
   readonly onSubmit: (e: React.FormEvent) => void;
   readonly onCancel: () => void;
 }
@@ -1252,6 +1279,7 @@ function PhaseForm(props: PhaseFormProps) {
     editing,
     saving,
     highlightFormSection,
+    gradeLevelMax,
     onSubmit,
     onCancel,
   } = props;
@@ -1676,6 +1704,22 @@ function PhaseForm(props: PhaseFormProps) {
         </div>
         <div className="mt-4">
           <span className="text-xs font-medium text-gray-700">
+            Nur für Klassenstufen (optional)
+          </span>
+          <p className="mt-1 text-xs leading-5 text-gray-500">
+            Leer lassen für keine Einschränkung. Kinder müssen eine dieser
+            Klassenstufen angeben, zum Beispiel für eine Phase nur für den 3.
+            Jahrgang. Dafür genügt die Klassenstufen-Abfrage, konkrete Klassen
+            sind nicht nötig.
+          </p>
+          <GradeLevelListEditor
+            value={draft.eligible_grade_levels ?? []}
+            gradeLevelMax={gradeLevelMax}
+            onChange={(list) => update({ eligible_grade_levels: list })}
+          />
+        </div>
+        <div className="mt-4">
+          <span className="text-xs font-medium text-gray-700">
             Nur für Klassen (optional)
           </span>
           <p className="mt-1 text-xs leading-5 text-gray-500">
@@ -1748,6 +1792,59 @@ function PhaseForm(props: PhaseFormProps) {
         </button>
       </div>
     </form>
+  );
+}
+
+// GradeLevelListEditor picks the grade levels a phase is restricted to
+// (#1663). Grades are a closed, server-known set (1..grade_level_max), so
+// this is a toggle row rather than the free-text chip editor the concrete
+// classes need. An empty selection means "no restriction". Renders nothing
+// while the tenant cap is unresolved — guessing a range would let an admin
+// save a grade the school does not have.
+function GradeLevelListEditor({
+  value,
+  gradeLevelMax,
+  onChange,
+}: Readonly<{
+  value: number[];
+  gradeLevelMax: number | null;
+  onChange: (next: number[]) => void;
+}>) {
+  if (gradeLevelMax === null) {
+    return (
+      <p className="mt-2 text-xs text-gray-400">
+        Klassenstufen konnten nicht geladen werden.
+      </p>
+    );
+  }
+  const grades = Array.from({ length: gradeLevelMax }, (_, i) => i + 1);
+  const toggle = (grade: number) =>
+    onChange(
+      value.includes(grade)
+        ? value.filter((g) => g !== grade)
+        : [...value, grade].sort((a, b) => a - b),
+    );
+  return (
+    <div className="mt-2 flex flex-wrap gap-2">
+      {grades.map((grade) => {
+        const selected = value.includes(grade);
+        return (
+          <button
+            key={grade}
+            type="button"
+            onClick={() => toggle(grade)}
+            aria-pressed={selected}
+            className={`inline-flex h-9 min-w-11 items-center justify-center rounded-full border px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+              selected
+                ? "border-[#83CD2D] bg-[#83CD2D] text-white"
+                : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+            }`}
+          >
+            {grade}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

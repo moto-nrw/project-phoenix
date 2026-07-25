@@ -353,6 +353,13 @@ func (s *rolloverService) createRolloverPhase(ctx context.Context, tenantID int6
 		// (#1663).
 		Audience:              source.Audience,
 		EligibleSchoolClasses: source.EligibleSchoolClasses,
+		// Copied verbatim, like the class list: a rollover is a new service
+		// period for the same target group, and the admin retargets the
+		// successor in the editor when the group changes. Deliberately NOT
+		// shifted by RolloverBumpsGrade — that flag bumps each CHILD's grade,
+		// and auto-shifting the phase restriction alongside it would silently
+		// retarget a phase the admin never edited (#1663).
+		EligibleGradeLevels:   source.EligibleGradeLevels,
 		IsActive:              true,
 		RolloverSourcePhaseID: &source.ID,
 		RolloverMode:          &mode,
@@ -372,6 +379,9 @@ func (s *rolloverService) createRolloverPhase(ctx context.Context, tenantID int6
 	// otherwise bypasses. runCreate wraps this in a tenant tx, so the shared
 	// lock inside serializes it against a concurrent class-collection toggle
 	// (#1663).
+	if err := ensureEligibleGradeLevelsCollectable(ctx, s.Settings, phase.EligibleGradeLevels); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrRolloverInvalidRequest, err)
+	}
 	if err := ensureEligibleClassesCollectable(ctx, s.Settings, phase.EligibleSchoolClasses); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrRolloverInvalidRequest, err)
 	}

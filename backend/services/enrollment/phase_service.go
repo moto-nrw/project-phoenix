@@ -187,11 +187,47 @@ func ensureEligibleClassesCollectable(ctx context.Context, settings classCollect
 	return nil
 }
 
-// validateEligibleClassesCollectable is the phaseService adapter over
-// ensureEligibleClassesCollectable used by Create/Update.
+// ensureEligibleGradeLevelsCollectable is the grade-level counterpart of
+// ensureEligibleClassesCollectable. A grade restriction is checked at submit
+// against each child's declared grade level, which the form collects only
+// while collect_grade_level is on — with it off,
+// normalizeSubmissionForCapabilities nils every child's grade and the
+// restriction rejects every submission with grade_not_eligible. Note the
+// weaker requirement than the class guard: a whole-grade phase needs the grade
+// toggle ALONE, which is exactly why enumerating concrete classes is not a
+// substitute for it (#1663). Skipped when no settings resolver is wired.
+func ensureEligibleGradeLevelsCollectable(ctx context.Context, settings classCollectionResolver, eligible []int) error {
+	if settings == nil || len(eligible) == 0 {
+		return nil
+	}
+	// Same per-tenant lock as the class guard: the settings side takes it
+	// before deciding whether collect_grade_level may be turned off, so the two
+	// invariant sides cannot both pass on a stale read (#1663).
+	if locker, ok := settings.(interface {
+		LockClassCollectionPair(context.Context) error
+	}); ok {
+		if err := locker.LockClassCollectionPair(ctx); err != nil {
+			return fmt.Errorf("lock class-collection pair: %w", err)
+		}
+	}
+	collectGrade, err := settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectGradeLevel)
+	if err != nil {
+		return fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentCollectGradeLevel, err)
+	}
+	if !collectGrade {
+		return fmt.Errorf("%w: eligible_grade_levels requires the grade-level collection setting (Klassenstufen-Abfrage) to be active", ErrInvalidPhase)
+	}
+	return nil
+}
+
+// validateEligibleClassesCollectable is the phaseService adapter over the two
+// collectability guards used by Create/Update.
 func (s *phaseService) validateEligibleClassesCollectable(ctx context.Context, phase *enrollmentModels.Phase) error {
 	if s.settings == nil {
 		return nil
+	}
+	if err := ensureEligibleGradeLevelsCollectable(ctx, s.settings, phase.EligibleGradeLevels); err != nil {
+		return err
 	}
 	return ensureEligibleClassesCollectable(ctx, s.settings, phase.EligibleSchoolClasses)
 }

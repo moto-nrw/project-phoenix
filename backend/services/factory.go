@@ -310,6 +310,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			return repos.Phase.ExistsActiveWithEligibleClasses(ctx)
 		})
 	}
+	// Same for the grade-level restriction, which survives concrete-class
+	// collection being off but not grade-level collection (#1663).
+	if guarded, ok := settingsService.(interface {
+		SetGradeRestrictionGuard(func(context.Context) (bool, error))
+	}); ok {
+		guarded.SetGradeRestrictionGuard(func(ctx context.Context) (bool, error) {
+			return repos.Phase.ExistsActiveWithEligibleGradeLevels(ctx)
+		})
+	}
 
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
