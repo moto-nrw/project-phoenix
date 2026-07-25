@@ -132,6 +132,7 @@ type Factory struct {
 	StaffAbsenceAudit     activeModels.StaffAbsenceAuditRepository
 	StaffVacationQuota    activeModels.StaffVacationQuotaRepository
 	StaffBalanceAdjust    activeModels.StaffBalanceAdjustmentRepository
+	StaffMonthSnapshot    activeModels.StaffMonthBalanceSnapshotRepository
 
 	// Meal plan domain
 	MealPlanEntry mealplanModels.MealPlanEntryRepository
@@ -320,6 +321,7 @@ func NewFactory(db *bun.DB) *Factory {
 		StaffAbsenceAudit:     active.NewStaffAbsenceAuditRepository(db),
 		StaffVacationQuota:    active.NewStaffVacationQuotaRepository(db),
 		StaffBalanceAdjust:    active.NewStaffBalanceAdjustmentRepository(db),
+		StaffMonthSnapshot:    active.NewStaffMonthBalanceSnapshotRepository(db),
 
 		// Meal plan repositories
 		MealPlanEntry: mealplanRepo.NewMealPlanEntryRepository(db),

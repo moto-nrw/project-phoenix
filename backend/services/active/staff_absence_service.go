@@ -1274,6 +1274,21 @@ func (s *staffAbsenceService) GetVacationQuotaSummary(ctx context.Context, staff
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch year absences: %w", err)
 	}
+	return computeVacationQuotaSummary(staffID, year, entitled, carryover, absences), nil
+}
+
+// computeVacationQuotaSummary is the pure tail of GetVacationQuotaSummary: the
+// two reads happen at the call site, the arithmetic lives here. Extracted so
+// the cross-staff overview (#1417) can compute Resturlaub from prefetched rows
+// through the SAME code, instead of a second implementation that would drift.
+func computeVacationQuotaSummary(
+	staffID int64,
+	year int,
+	entitled, carryover float64,
+	absences []*activeModels.StaffAbsence,
+) *VacationQuotaSummary {
+	yearStart := timezone.NewDate(year, time.January, 1)
+	yearEnd := timezone.NewDate(year, time.December, 31)
 
 	taken, reserved := 0.0, 0.0
 	for _, a := range absences {
@@ -1300,7 +1315,7 @@ func (s *staffAbsenceService) GetVacationQuotaSummary(ctx context.Context, staff
 		TakenDays:     taken,
 		ReservedDays:  reserved,
 		RemainingDays: entitled + carryover - taken - reserved,
-	}, nil
+	}
 }
 
 func dateWithinRange(d, from, to timezone.Date) bool {

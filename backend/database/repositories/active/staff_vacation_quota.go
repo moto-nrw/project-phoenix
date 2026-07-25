@@ -101,3 +101,35 @@ func (r *StaffVacationQuotaRepository) Upsert(ctx context.Context, quota *active
 	}
 	return nil
 }
+
+// GetByStaffIDsAndYear is GetByStaffAndYear for many staff members in one round
+// trip, keyed by staff ID. A batched IN-lookup the generic filter API cannot
+// express as a single query. Staff members without a quota row are absent from
+// the map; callers fall back to the tenant default exactly as they would for
+// the single-staff (nil, nil).
+func (r *StaffVacationQuotaRepository) GetByStaffIDsAndYear(ctx context.Context, staffIDs []int64, year int) (map[int64]*active.StaffVacationQuota, error) {
+	result := make(map[int64]*active.StaffVacationQuota, len(staffIDs))
+	if len(staffIDs) == 0 {
+		// bun renders an empty IN list as invalid SQL.
+		return result, nil
+	}
+
+	var quotas []*active.StaffVacationQuota
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&quotas).
+		ModelTableExpr(tableStaffVacationQuota).
+		Where("staff_id IN (?)", bun.List(staffIDs)).
+		Where("year = ?", year)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "get vacation quotas by staff IDs+year", Err: err}
+	}
+	for _, quota := range quotas {
+		result[quota.StaffID] = quota
+	}
+	return result, nil
+}

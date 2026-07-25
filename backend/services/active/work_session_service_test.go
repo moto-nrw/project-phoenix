@@ -3274,3 +3274,27 @@ func TestWSRecalcBreakMinutes_ExcludesRunningBreak(t *testing.T) {
 	assert.Equal(t, 30, cached,
 		"only the ended break belongs in the cache; the running break's 20 minutes would be double-counted by readers")
 }
+
+// GetHistoryByStaffIDs satisfies the batched interface method (#1417); this mock
+// exercises the single-staff path only.
+func (m *wsMockWorkSessionRepository) GetHistoryByStaffIDs(context.Context, []int64, timezone.Date, timezone.Date) (map[int64][]*activeModels.WorkSession, error) {
+	return nil, nil
+}
+
+// GetActiveBySessionIDs satisfies the batched interface method (#1417); this mock
+// exercises the single-staff path only.
+func (m *wsMockWorkSessionBreakRepository) GetActiveBySessionIDs(context.Context, []int64) (map[int64]*activeModels.WorkSessionBreak, error) {
+	return nil, nil
+}
+
+// GetByStaffIDsAndDateRange satisfies the batched interface method (#1417); this mock
+// exercises the single-staff path only.
+func (m *wsMockStaffAbsenceRepository) GetByStaffIDsAndDateRange(context.Context, []int64, timezone.Date, timezone.Date) (map[int64][]*activeModels.StaffAbsence, error) {
+	return nil, nil
+}
+
+// FindStaffIDsWithScheduleHistory satisfies the batched interface method (#1417); this mock
+// exercises the single-staff path only.
+func (m *wsMockStaffWorkScheduleRepository) FindStaffIDsWithScheduleHistory(context.Context, []int64) (map[int64]bool, error) {
+	return nil, nil
+}
