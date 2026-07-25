@@ -118,6 +118,14 @@ func TestTimeTrackingOverviewAPI_FilterValidation(t *testing.T) {
 		"?sort=bogus",
 		"?order=sideways",
 		"?saldo_min=100&saldo_max=10",
+		"?month=3",   // month without year
+		"?year=2026", // year without month
+		"?year=abc&month=3",
+		"?year=0&month=0",
+		"?year=0&month=1",
+		"?year=2026&month=0",
+		"?year=2026&month=13",
+		"?year=2999&month=1", // future
 	} {
 		rec := ctx.get("/staff/time-tracking/overview"+query, "time_tracking:manage")
 		assert.Equal(t, http.StatusBadRequest, rec.Code, "query %s: %s", query, rec.Body.String())
@@ -128,6 +136,7 @@ func TestTimeTrackingOverviewAPI_FilterValidation(t *testing.T) {
 		"?employment_type=full_time",
 		"?saldo_min=-600&saldo_max=600",
 		"?sort=balance&order=desc",
+		"?year=2025&month=1",
 	} {
 		rec := ctx.get("/staff/time-tracking/overview"+query, "time_tracking:manage")
 		assert.Equal(t, http.StatusOK, rec.Code, "query %s: %s", query, rec.Body.String())

@@ -15,6 +15,8 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -688,6 +690,38 @@ func TestWSCheckIn_Success(t *testing.T) {
 	assert.Equal(t, activeModels.WorkSessionStatusPresent, session.Status)
 	assert.Equal(t, activeModels.WorkSessionSourceApp, session.Source)
 	assert.Nil(t, session.CheckOutTime)
+}
+
+func TestWSCheckInBroadcastsTimeTrackingChangeAfterCommit(t *testing.T) {
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	svc.SetBroadcaster(broadcaster)
+	ctx, commit := tenant.WithAfterCommitHooksForTest(
+		tenant.WithTenantID(context.Background(), 42),
+	)
+
+	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
+		return nil, sql.ErrNoRows
+	}
+
+	_, err := svc.CheckIn(
+		ctx,
+		100,
+		activeModels.WorkSessionStatusPresent,
+		activeModels.WorkSessionSourceApp,
+		"",
+	)
+	require.NoError(t, err)
+	assert.Empty(t, broadcaster.Events(),
+		"the invalidation must not precede the surrounding transaction commit")
+
+	commit()
+
+	events := broadcaster.EventsOfType(realtime.EventStaffTimeTrackingChanged)
+	require.Len(t, events, 1)
+	calls := broadcaster.CallsByMethod("tenant")
+	require.Len(t, calls, 1)
+	assert.Equal(t, int64(42), calls[0].TenantID)
 }
 
 func TestWSCheckIn_PlannedStartEnforcement(t *testing.T) {
@@ -2327,6 +2361,8 @@ func TestWSEnsureCheckedIn_ForwardsAppSource(t *testing.T) {
 
 func TestWSUpdateSession_CheckInTimeChange(t *testing.T) {
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	svc.SetBroadcaster(broadcaster)
 	staffID := int64(100)
 	sessionID := int64(100)
 
@@ -2358,9 +2394,15 @@ func TestWSUpdateSession_CheckInTimeChange(t *testing.T) {
 		CheckInTime: &newCheckIn,
 	}
 
-	session, err := svc.UpdateSession(context.Background(), staffID, sessionID, updates)
+	session, err := svc.UpdateSession(
+		tenant.WithTenantID(context.Background(), 43),
+		staffID,
+		sessionID,
+		updates,
+	)
 	require.NoError(t, err)
 	require.NotNil(t, session)
+	require.Len(t, broadcaster.EventsOfType(realtime.EventStaffTimeTrackingChanged), 1)
 }
 
 func TestWSUpdateSession_OwnershipFails(t *testing.T) {
@@ -3150,6 +3192,39 @@ func TestWSUpdateSession_TimeChangeNotesGate(t *testing.T) {
 // ============================================================================
 // ApplyCustomScheduleRows anchor persistence (#1842)
 // ============================================================================
+
+func TestWSUpdateScheduleBroadcastsTimeTrackingChangeAfterCommit(t *testing.T) {
+	svc, _, _, _, _ := wsCreateTestService()
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	svc.SetBroadcaster(broadcaster)
+	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{}
+	svc.staffRepo = &testpkg.StaffRepoMock{
+		UpdateFn: func(_ context.Context, _ *userModels.Staff) error { return nil },
+	}
+	ctx, commit := tenant.WithAfterCommitHooksForTest(
+		tenant.WithTenantID(context.Background(), 42),
+	)
+
+	err := svc.UpdateSchedule(ctx, &userModels.Staff{Model: base.Model{ID: 100}}, ScheduleUpdateInput{
+		Mode:           "custom",
+		RotationLength: 1,
+		Entries: []ScheduleEntry{{
+			WeekIndex:     0,
+			DayOfWeek:     configModels.DayMonday,
+			TargetMinutes: 480,
+		}},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, broadcaster.Events())
+
+	commit()
+
+	events := broadcaster.EventsOfType(realtime.EventStaffTimeTrackingChanged)
+	require.Len(t, events, 1)
+	calls := broadcaster.CallsByMethod("tenant")
+	require.Len(t, calls, 1)
+	assert.Equal(t, int64(42), calls[0].TenantID)
+}
 
 // A staff member saving a multi-week custom schedule with no anchor anywhere
 // must still get one stamped onto the rows. Left NULL, the rows fall back to

@@ -23,6 +23,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/xuri/excelize/v2"
 )
@@ -342,6 +343,7 @@ type workSessionService struct {
 	settings       settingsResolver
 	staffShiftRepo scheduleModels.StaffShiftRepository
 	holidayReader  HolidayDatesReader
+	broadcaster    realtime.Broadcaster
 	logger         *slog.Logger
 	nowFunc        func() time.Time
 }
@@ -362,9 +364,19 @@ func (s *workSessionService) SetHolidayReader(reader HolidayDatesReader) {
 	s.holidayReader = reader
 }
 
+// SetBroadcaster injects the tenant-wide SSE broadcaster. It stays outside
+// WorkSessionService so existing API-layer mocks do not need a no-op setter.
+func (s *workSessionService) SetBroadcaster(broadcaster realtime.Broadcaster) {
+	s.broadcaster = broadcaster
+}
+
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (s *workSessionService) getLogger() *slog.Logger {
 	return cmp.Or(s.logger, slog.Default())
+}
+
+func (s *workSessionService) broadcastTimeTrackingChanged(ctx context.Context) {
+	queueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
 }
 
 func (s *workSessionService) lockStaffBalanceWrites(ctx context.Context, staffID int64) error {
@@ -485,7 +497,12 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, lookupD
 		}
 		// Re-open the checked-out session (accidental checkout recovery).
 		// Source and Status are both preserved (see reopenSession comment).
-		return s.reopenSession(ctx, existingSession, staffID)
+		reopened, err := s.reopenSession(ctx, existingSession, staffID)
+		if err != nil {
+			return nil, err
+		}
+		s.broadcastTimeTrackingChanged(ctx)
+		return reopened, nil
 	}
 
 	// From here the session is created, so it belongs to the day of its own
@@ -538,6 +555,7 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, lookupD
 		}
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return session, nil
 }
 
@@ -680,6 +698,7 @@ func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day 
 		return nil, fmt.Errorf("failed to retrieve updated session: %w", err)
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return updatedSession, nil
 }
 
@@ -911,6 +930,7 @@ func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, da
 		return nil, fmt.Errorf("failed to create break: %w", err)
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return brk, nil
 }
 
@@ -963,6 +983,7 @@ func (s *workSessionService) EndBreakOn(ctx context.Context, staffID int64, day 
 		return nil, fmt.Errorf("failed to retrieve updated session: %w", err)
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return updatedSession, nil
 }
 
@@ -1177,6 +1198,7 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 		}
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return session, nil
 }
 
@@ -1264,6 +1286,7 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 		return nil, fmt.Errorf("failed to create audit entries: %w", err)
 	}
 
+	s.broadcastTimeTrackingChanged(ctx)
 	return session, nil
 }
 
@@ -1862,6 +1885,9 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 		}
 	}
 
+	if count > 0 {
+		s.broadcastTimeTrackingChanged(ctx)
+	}
 	return count, nil
 }
 
@@ -2022,6 +2048,9 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 		count++
 	}
 
+	if count > 0 {
+		s.broadcastTimeTrackingChanged(ctx)
+	}
 	return count, nil
 }
 
@@ -2399,6 +2428,9 @@ func (s *workSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, err
 		count++
 	}
 
+	if count > 0 {
+		s.broadcastTimeTrackingChanged(ctx)
+	}
 	return count, nil
 }
 
@@ -2515,17 +2547,23 @@ func (s *workSessionService) UpdateSchedule(ctx context.Context, staff *userMode
 		}
 	}
 
+	var err error
 	switch mode {
 	case "template":
 		if in.ModelID == nil || *in.ModelID == 0 {
 			return scheduleValidationErrorf("model_id is required for mode=template")
 		}
-		return s.AssignScheduleTemplate(ctx, staff, *in.ModelID)
+		err = s.AssignScheduleTemplate(ctx, staff, *in.ModelID)
 	case "custom":
-		return s.applyCustomSchedule(ctx, staff, in)
+		err = s.applyCustomSchedule(ctx, staff, in)
 	default:
 		return scheduleValidationErrorf("invalid mode %q", mode)
 	}
+	if err != nil {
+		return err
+	}
+	s.broadcastTimeTrackingChanged(ctx)
+	return nil
 }
 
 func (s *workSessionService) applyCustomSchedule(ctx context.Context, staff *userModels.Staff, in ScheduleUpdateInput) error {

@@ -146,3 +146,14 @@ export function sortStaff(staff: Staff[]): Staff[] {
     return a.lastName.localeCompare(b.lastName, "de");
   });
 }
+
+/**
+ * Employment types as stored by the backend (users.staff.employment_type).
+ * Shared by the staff detail header and the Zeitkonten filter on /staff so
+ * both spell the German labels the same way.
+ */
+export const employmentTypeLabels: Record<string, string> = {
+  full_time: "Vollzeit",
+  part_time: "Teilzeit",
+  minijob: "Minijob",
+};
