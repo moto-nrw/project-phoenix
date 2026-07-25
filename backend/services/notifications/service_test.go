@@ -7,13 +7,17 @@ import (
 	"log/slog"
 	"testing"
 
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/services/notifications"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -84,6 +88,52 @@ func TestNotifyDeliversTenantScopedSSE(t *testing.T) {
 	require.NotNil(t, call.Event.Data.DeepLink)
 	assert.Equal(t, "/dashboard", *call.Event.Data.DeepLink)
 	assert.Equal(t, map[string]string{"reminder_id": "123"}, call.Event.Data.NotificationData)
+}
+
+func TestNotifyDefersDeliveryUntilCommit(t *testing.T) {
+	channel := &recordingChannel{name: "recording"}
+	svc := notifications.NewService(enabledSettings(true), nil, channel)
+	ctx, commit := tenant.WithAfterCommitHooksForTest(context.Background())
+
+	event := tenantEvent(41)
+	event.Data = map[string]string{"reminder_id": "123"}
+	require.NoError(t, svc.Notify(ctx, event))
+	assert.Empty(t, channel.events, "notification must not be delivered before commit")
+
+	event.Data["reminder_id"] = "mutated-before-commit"
+	commit()
+
+	require.Len(t, channel.events, 1)
+	assert.Equal(t, map[string]string{"reminder_id": "123"}, channel.events[0].Data,
+		"queued notification must use the event snapshot taken by Notify")
+}
+
+func TestNotifyDropsQueuedDeliveryOnRollback(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	db := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		_ = db.Close()
+		_ = sqlDB.Close()
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_tenant").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("SELECT set_config").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	channel := &recordingChannel{name: "recording"}
+	svc := notifications.NewService(enabledSettings(true), nil, channel)
+	rollbackErr := errors.New("force rollback")
+	err = tenant.WithTenantTx(context.Background(), db, 41, func(ctx context.Context, _ bun.Tx) error {
+		require.NoError(t, svc.Notify(ctx, tenantEvent(41)))
+		assert.Empty(t, channel.events, "notification must remain queued inside the transaction")
+		return rollbackErr
+	})
+
+	require.ErrorIs(t, err, rollbackErr)
+	assert.Empty(t, channel.events, "rollback must discard the queued notification")
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestNotifyGuardianAndGroupRouting(t *testing.T) {
