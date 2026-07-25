@@ -107,8 +107,16 @@ func (r prefetchedStaffReader) FindByID(_ context.Context, id any) (*userModels.
 
 type prefetchedSessionReader struct{ p *monthPrefetch }
 
-func (r prefetchedSessionReader) GetHistoryByStaffID(_ context.Context, staffID int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
-	return r.p.sessions[staffID], nil
+func (r prefetchedSessionReader) GetHistoryByStaffID(_ context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {
+	sessions := r.p.sessions[staffID]
+	result := make([]*activeModels.WorkSession, 0, len(sessions))
+	for _, session := range sessions {
+		if session.Date.Before(from) || session.Date.After(to) {
+			continue
+		}
+		result = append(result, session)
+	}
+	return result, nil
 }
 
 // prefetchedBreakReader mirrors the repository's (nil, nil) on no open break —

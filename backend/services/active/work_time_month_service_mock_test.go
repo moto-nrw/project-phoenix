@@ -641,6 +641,28 @@ func TestWTMRangeAggregate_ExcludesPreviousMonthBeforeAccountStart(t *testing.T)
 	assert.Equal(t, 120, aggregate.BalanceMinutes, "the weekly delta starts at the account anchor")
 }
 
+func TestPrefetchedMonthService_FiltersSessionsToRequestedRange(t *testing.T) {
+	accountStart := timezone.NewDate(2026, time.July, 8)
+	prefetch := &monthPrefetch{
+		staff: map[int64]*userModels.Staff{
+			wtmStaffID: {Model: base.Model{ID: wtmStaffID}},
+		},
+		sessions: map[int64][]*activeModels.WorkSession{
+			wtmStaffID: {
+				wtmSession(accountStart.AddDays(-2), 8, 60, 0),
+				wtmSession(accountStart, 8, 120, 0),
+			},
+		},
+		settings: newMemoSettingsResolver(&wtmMockSettings{accountStart: accountStart.String()}),
+	}
+	svc := newPrefetchedMonthService(prefetch, nil)
+
+	summary, err := svc.GetMonthSummaryAtMonthEnd(context.Background(), wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+	assert.Equal(t, 120, summary.ActualMinutes,
+		"the prefetched session before the account start must not enter the month bucket")
+}
+
 // An unset account start must not zero anything: chainAnchor then falls back to
 // January 1st, and no day can precede January 1st of its own year.
 func TestWTMDailyTargets_UnsetAccountStartZeroesNothing(t *testing.T) {
