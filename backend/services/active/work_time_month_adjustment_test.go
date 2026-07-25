@@ -21,6 +21,27 @@ type wtmMockAdjustmentReader struct {
 	adjustments []*activeModels.StaffBalanceAdjustment
 }
 
+type wtmMockSnapshotReader struct {
+	activeModels.StaffMonthBalanceSnapshotRepository
+	snapshot *activeModels.StaffMonthBalanceSnapshot
+}
+
+func (m *wtmMockSnapshotReader) GetLatestClosedThrough(
+	_ context.Context,
+	_ int64,
+	year, month int,
+) (*activeModels.StaffMonthBalanceSnapshot, error) {
+	if m.snapshot == nil {
+		return nil, nil
+	}
+	requested := monthKey{Year: year, Month: month}
+	snapshotMonth := monthKey{Year: m.snapshot.Year, Month: m.snapshot.Month}
+	if requested.before(snapshotMonth) {
+		return nil, nil
+	}
+	return m.snapshot, nil
+}
+
 func (m *wtmMockAdjustmentReader) GetByStaffAndDateRange(_ context.Context, _ int64, from, to timezone.Date) ([]*activeModels.StaffBalanceAdjustment, error) {
 	var result []*activeModels.StaffBalanceAdjustment
 	for _, a := range m.adjustments {
@@ -291,6 +312,30 @@ func TestWTMAdjustments_BackdatedReductionProtectsMinimumDailyClosing(t *testing
 	// today's balance to 240, but a backdated debit must still preserve the
 	// lower historical closing balance.
 	assert.Equal(t, 120, capacity)
+}
+
+func TestWTMAdjustments_ReductionCapacityStartsFromFrozenPriorMonth(t *testing.T) {
+	f := newWTMFixture()
+	f.svc.SetSnapshotReader(&wtmMockSnapshotReader{
+		snapshot: &activeModels.StaffMonthBalanceSnapshot{
+			StaffID:               wtmStaffID,
+			Year:                  2026,
+			Month:                 6,
+			ClosingBalanceMinutes: 1_000,
+		},
+	})
+
+	capacity, err := f.svc.GetBalanceReductionCapacity(
+		context.Background(),
+		wtmStaffID,
+		timezone.NewDate(2026, time.July, 1),
+	)
+	require.NoError(t, err)
+
+	// June's live balance has drifted to -2,400, but its frozen close is
+	// 1,000. The two July Monday targets reduce that frozen carry to 40 by
+	// today, which is the limiting capacity for a debit effective July 1.
+	assert.Equal(t, 40, capacity)
 }
 
 func TestWTMAdjustments_DailyMinimumMatchesCarryChain(t *testing.T) {

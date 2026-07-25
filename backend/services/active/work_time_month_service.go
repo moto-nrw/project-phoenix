@@ -1070,9 +1070,17 @@ func (s *workTimeMonthService) getOpeningBalanceOnDate(
 	}
 
 	if cutoff := date.AddDays(-1); !cutoff.Before(anchor) {
-		available, err = s.GetClosingBalanceAsOf(ctx, staffID, cutoff)
+		boundaries, err := s.frozenMonthBoundaries(ctx, staffID, date, date)
 		if err != nil {
-			return 0, fmt.Errorf("failed to compute opening balance on %s: %w", date.String(), err)
+			return 0, fmt.Errorf("failed to load opening balance on %s: %w", date.String(), err)
+		}
+		if frozen, ok := boundaries[date]; ok {
+			available = frozen
+		} else {
+			available, err = s.GetClosingBalanceAsOf(ctx, staffID, cutoff)
+			if err != nil {
+				return 0, fmt.Errorf("failed to compute opening balance on %s: %w", date.String(), err)
+			}
 		}
 	}
 	sameDayAdjustments, err := s.GetBalanceAdjustmentMinutes(ctx, staffID, date, date)
@@ -1149,7 +1157,7 @@ func (s *workTimeMonthService) getMinimumDailyClosingBalance(
 	}
 	minimum := int(^uint(0) >> 1)
 	for d := from; !d.After(to); d = d.AddDays(1) {
-		if opening, ok := boundaries[d]; ok {
+		if opening, ok := boundaries[d]; ok && d.After(anchor) {
 			balance = opening
 		}
 		balance += deltas[d]
@@ -1158,11 +1166,10 @@ func (s *workTimeMonthService) getMinimumDailyClosingBalance(
 	return minimum, nil
 }
 
-// frozenMonthBoundaries maps each month-start day inside (from, to] to the
+// frozenMonthBoundaries maps each month-start day inside [from, to] to the
 // frozen closing balance of the preceding month, for the days where the carry
-// chain restarts instead of continuing. `from` itself is never a boundary: the
-// caller already seeded the balance with the closing value before it, which is
-// snapshot-aware via GetClosingBalanceAsOf.
+// chain restarts instead of continuing. `from` is a boundary only when it is
+// itself the first day of a month.
 func (s *workTimeMonthService) frozenMonthBoundaries(
 	ctx context.Context,
 	staffID int64,
@@ -1172,7 +1179,11 @@ func (s *workTimeMonthService) frozenMonthBoundaries(
 	if s.snapshotRepo == nil {
 		return boundaries, nil
 	}
-	for k := monthOf(from).next(); !monthOf(to).before(k); k = k.next() {
+	first := monthOf(from)
+	if first.firstDay().Before(from) {
+		first = first.next()
+	}
+	for k := first; !monthOf(to).before(k); k = k.next() {
 		prev := k.addMonths(-1)
 		snapshot, err := s.snapshotRepo.GetLatestClosedThrough(ctx, staffID, prev.Year, prev.Month)
 		if err != nil {
