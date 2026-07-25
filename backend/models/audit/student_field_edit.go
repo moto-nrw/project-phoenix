@@ -38,6 +38,12 @@ const (
 	StudentFieldHealthInfo      = "health_info"
 	StudentFieldPickupStatus    = "pickup_status"
 	StudentFieldDepartureDays   = "departure_days"
+
+	// StudentFieldEditSystemActor identifies automated changes. edited_by has
+	// no foreign key so zero can safely represent the scheduler without
+	// attributing its work to a real account.
+	StudentFieldEditSystemActorID   int64 = 0
+	StudentFieldEditSystemActorName       = "System"
 )
 
 // TableName returns the database table name.
@@ -50,7 +56,8 @@ func (e *StudentFieldEdit) Validate() error {
 	if e.StudentID <= 0 {
 		return errors.New("student ID is required")
 	}
-	if e.EditedBy <= 0 {
+	if e.EditedBy < 0 ||
+		(e.EditedBy == StudentFieldEditSystemActorID && e.EditedByName != StudentFieldEditSystemActorName) {
 		return errors.New("edited by is required")
 	}
 	if e.EditedByName == "" {

@@ -109,6 +109,9 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 		// Parent-enrollment PR 2: activate-students tick.
 		if api.repos != nil && api.repos.Student != nil {
 			srv.scheduler.SetStudentLifecycleRepo(api.repos.Student)
+			if api.Services.StudentAudit != nil {
+				srv.scheduler.SetStudentLifecycleAudit(api.Services.StudentAudit)
+			}
 		}
 		// Parent-enrollment PR 5: platform email outbox worker.
 		if api.Services.EmailOutboxWorker != nil {

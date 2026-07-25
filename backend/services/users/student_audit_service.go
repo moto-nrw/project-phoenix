@@ -12,7 +12,7 @@ import (
 // StudentAuditService records and reads the per-child change history (issue
 // #1455): who changed which student profile field, from what to what, and when.
 //
-// Scope (stage 1) is the human-edited profile fields the OGS office asks about —
+// Scope (stage 1) is the profile fields the OGS office asks about — lifecycle
 // status, the three note fields, and the pickup/departure plan. Attendance and
 // scheduled status (sick/excused) originate from devices/parents and have their
 // own history, so they are intentionally not recorded here.
@@ -24,6 +24,9 @@ type StudentAuditService interface {
 	// RecordChanges diffs the before/after student snapshots and appends one
 	// audit row per changed tracked field. A no-op when nothing tracked changed.
 	RecordChanges(ctx context.Context, before, after *userModels.Student, editedBy int64, editedByName string) error
+
+	// RecordSystemStatusChange records an automated lifecycle transition.
+	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after userModels.StudentStatus) error
 
 	// GetChangeHistory returns the student's change history, newest first.
 	GetChangeHistory(ctx context.Context, studentID int64) ([]*auditModels.StudentFieldEdit, error)
@@ -77,6 +80,24 @@ func (s *studentAuditService) RecordChanges(ctx context.Context, before, after *
 		slog.Int("fields_changed", len(edits)),
 	)
 	return nil
+}
+
+func (s *studentAuditService) RecordSystemStatusChange(
+	ctx context.Context,
+	studentID int64,
+	before userModels.StudentStatus,
+	after userModels.StudentStatus,
+) error {
+	beforeStudent := &userModels.Student{Status: before}
+	afterStudent := &userModels.Student{Status: after}
+	afterStudent.ID = studentID
+	return s.RecordChanges(
+		ctx,
+		beforeStudent,
+		afterStudent,
+		auditModels.StudentFieldEditSystemActorID,
+		auditModels.StudentFieldEditSystemActorName,
+	)
 }
 
 func (s *studentAuditService) GetChangeHistory(ctx context.Context, studentID int64) ([]*auditModels.StudentFieldEdit, error) {

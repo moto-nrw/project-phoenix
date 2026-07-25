@@ -135,7 +135,8 @@ type Scheduler struct {
 
 	// Student lifecycle (parent-enrollment PR 2). Wired via SetStudentLifecycleRepo.
 	// Nil → activate-students task does not register.
-	studentLifecycleRepo StudentLifecycleRepository
+	studentLifecycleRepo  StudentLifecycleRepository
+	studentLifecycleAudit StudentLifecycleAuditor
 
 	// Outbox worker (parent-enrollment PR 5). Wired via SetOutboxWorker.
 	// Nil → outbox task does not register.
@@ -2440,7 +2441,7 @@ func (s *Scheduler) checkAndRunStudentChangeLogCleanup(task *ScheduledTask) {
 			)
 			// Clear today-mark so retry on next matching minute succeeds.
 			s.lastStudentChangeLogCleanup.Delete(tenantID)
-			return nil
+			return err
 		}
 
 		if result.EditsDeleted > 0 {
