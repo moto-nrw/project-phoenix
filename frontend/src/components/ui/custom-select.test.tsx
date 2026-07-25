@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import type { FormEvent } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { CustomSelect } from "./custom-select";
 
@@ -382,5 +383,71 @@ describe("CustomSelect", () => {
     );
 
     expect(document.querySelector('input[name="phase"]')).toHaveValue("second");
+  });
+
+  it("omits a disabled select from form submission", () => {
+    render(
+      <CustomSelect
+        name="phase"
+        value="second"
+        options={options}
+        onChange={vi.fn()}
+        ariaLabel="Auswahl"
+        disabled
+      />,
+    );
+
+    expect(document.querySelector('input[name="phase"]')).toBeDisabled();
+  });
+
+  it("blocks submitting a required select with an empty value", () => {
+    const onSubmit = vi.fn((event: FormEvent) => event.preventDefault());
+    render(
+      <form onSubmit={onSubmit}>
+        <CustomSelect
+          name="phase"
+          value=""
+          options={options}
+          onChange={vi.fn()}
+          ariaLabel="Auswahl"
+          required
+        />
+        <button type="submit">Speichern</button>
+      </form>,
+    );
+
+    const form = document.querySelector("form")!;
+    expect(form.checkValidity()).toBe(false);
+    expect(
+      document.querySelector<HTMLSelectElement>("[data-validation-mirror]")
+        ?.validity.valueMissing,
+    ).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("allows submitting a required select once a value is chosen", () => {
+    const onSubmit = vi.fn((event: FormEvent) => event.preventDefault());
+    render(
+      <form onSubmit={onSubmit}>
+        <CustomSelect
+          name="phase"
+          value="second"
+          options={options}
+          onChange={vi.fn()}
+          ariaLabel="Auswahl"
+          required
+        />
+        <button type="submit">Speichern</button>
+      </form>,
+    );
+
+    expect(document.querySelector("form")!.checkValidity()).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 });

@@ -11,6 +11,7 @@ import {
   useState,
   type KeyboardEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 
@@ -30,6 +31,8 @@ interface ListboxDropdownProps<K extends string> {
   readonly ariaDescribedBy?: string;
   readonly containerClassName?: string;
   readonly containerStyle?: CSSProperties;
+  /** Receives the wrapper node, e.g. to locate the surrounding <form>. */
+  readonly containerNodeRef?: RefObject<HTMLDivElement | null>;
   readonly className?: string;
   readonly menuClassName?: string;
   /** Horizontal anchor of the portaled menu relative to the trigger. */
@@ -143,6 +146,7 @@ export function ListboxDropdown<K extends string>({
   ariaDescribedBy,
   containerClassName = "relative",
   containerStyle,
+  containerNodeRef,
   className = "",
   menuClassName = "",
   menuAlign = "start",
@@ -427,7 +431,10 @@ export function ListboxDropdown<K extends string>({
 
   return (
     <div
-      ref={containerRef}
+      ref={(node) => {
+        containerRef.current = node;
+        if (containerNodeRef) containerNodeRef.current = node;
+      }}
       className={containerClassName}
       style={containerStyle}
     >
