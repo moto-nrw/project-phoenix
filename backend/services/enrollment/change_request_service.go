@@ -891,11 +891,17 @@ func (s *changeRequestService) prepareProposed(
 	// The grade restriction rides along for the same reason: a phase limited to
 	// whole grades must not be defeated by a change request that moves the
 	// child into another grade (#1663).
+	// validateChangedChildIdentityEligibility closes the third hole: the
+	// audience's enrolled-status gate, re-applied to exactly the children whose
+	// identity this edit REWRITES.
 	if !isTrustedEnrollmentSource(req.SubmissionSource) && !hasRolloverGeneratedChild(children) {
 		if err := validateChildGradeEligibility(phase, editReq.Children); err != nil {
 			return editReq, nil, nil, nil, err
 		}
 		if err := validateChildClassEligibility(phase, editReq.Children); err != nil {
+			return editReq, nil, nil, nil, err
+		}
+		if err := s.validateChangedChildIdentityEligibility(ctx, phase, editReq, children); err != nil {
 			return editReq, nil, nil, nil, err
 		}
 	}
@@ -1479,6 +1485,49 @@ func (s *changeRequestService) matchResolverShim() *requestService {
 		GuardianAuthorizer: s.GuardianAuthorizer,
 		Logger:             s.Logger,
 	}}
+}
+
+// validateChangedChildIdentityEligibility re-applies the audience's
+// enrolled-status gate (new_students / existing_students) to the children whose
+// submitted identity a change request actually REWRITES (#1663).
+//
+// validateChangeRequestChildIdentity pins the child ROW ids, not the human they
+// name: an edit may freely change first name, last name and birthday on a
+// persisted row. Without this gate a pending or rejected child could be
+// retargeted onto an already-enrolled student's name+birthday, and approval
+// would then take the fresh-create branch and add a duplicate Person/Student for
+// a child the school already has — precisely what the new_students audience
+// exists to prevent. Submit and ReplaceEditable both run the same probe; only
+// this path was missing it.
+//
+// Scoped to CHANGED identities on purpose. prepareProposed also runs on
+// approval, and a change request may be filed against an already-approved
+// request whose own approval created the matching student: probing an unchanged
+// child would make it fail the gate against its own record and would reject
+// every later change request on it. That is exactly the case the earlier
+// "enrolled gates stay out of the change-request path" note was protecting, and
+// filtering by identity keeps it working while closing the hole it left.
+//
+// Children are paired positionally: validateChangeRequestChildIdentity has
+// already proven the two slices are the same length and in the same row-id
+// order. An unpaired index (defensive: a shorter persisted slice) counts as
+// changed and is probed.
+func (s *changeRequestService) validateChangedChildIdentityEligibility(
+	ctx context.Context,
+	phase *enrollmentModels.Phase,
+	editReq SubmitRequest,
+	children []*enrollmentModels.RequestChild,
+) error {
+	rs := s.matchResolverShim()
+	for i := range editReq.Children {
+		if i < len(children) && sameSubmittedIdentity(children[i], editReq.Children[i]) {
+			continue
+		}
+		if err := rs.validateChildEnrolledStatus(ctx, phase, editReq.TenantID, editReq.Children[i], i); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // postApprovalChildStatus predicts the status a child ends this approval with,

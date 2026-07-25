@@ -309,6 +309,48 @@ func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolExcludedForUnlinke
 		"a non-hidden school's open phase is discoverable by any parent")
 }
 
+// auth.account_tenants carries every role at a tenant — staff, admins,
+// operators — not just families. Keying hidden-school visibility on the
+// membership mapping alone therefore leaked the school's name, phase names and
+// service dates to accounts with no guardian relationship at all. Only an
+// actual family link may lift the hidden flag (#1663).
+func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolExcludedForNonGuardianMember(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
+	enableEnrollmentForTenant(t, db, chain.TenantID)
+	// The chain reuses the shared tenant 1; always restore hidden so this
+	// test can never leak the flag onto tenant-1 tests that run after it.
+	// A defer (not t.Cleanup) so it runs before the deferred db.Close.
+	defer setSchoolHidden(t, db, chain.TenantID, false)
+	setSchoolHidden(t, db, chain.TenantID, true)
+
+	openName := fmt.Sprintf("eligibility-hiddenstaff-%d", time.Now().UnixNano())
+	defer wipePhasesForTenant(db, chain.TenantID, "eligibility-hiddenstaff")
+	insertEnrollablePhaseWithAudience(t, db, chain.TenantID, openName, enrollmentModels.PhaseAudienceOpen)
+
+	// An ACTIVE member of the hidden school that holds no guardian relationship
+	// there — the shape a staff or admin account has.
+	member := testpkg.CreateTestAccount(t, db, "hidden-nonguardian")
+	testpkg.MapAccountToTenant(t, db, member.ID, chain.TenantID)
+	t.Cleanup(func() {
+		ctx := context.Background()
+		_, _ = db.NewDelete().Table("auth.account_tenants").Where("account_id = ?", member.ID).Exec(ctx)
+		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", member.ID).Exec(ctx)
+	})
+
+	names := phaseNamesOf(listEnrollableAsAdmin(t, db, member.ID))
+	assert.NotContains(t, names, openName,
+		"tenant membership without a guardian relationship must not reveal a hidden school's phases")
+
+	// The same account sees the phase as soon as the school is not hidden.
+	setSchoolHidden(t, db, chain.TenantID, false)
+	visible := phaseNamesOf(listEnrollableAsAdmin(t, db, member.ID))
+	assert.Contains(t, visible, openName,
+		"the gate is scoped to hidden schools only")
+}
+
 func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolVisibleToActiveMember(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

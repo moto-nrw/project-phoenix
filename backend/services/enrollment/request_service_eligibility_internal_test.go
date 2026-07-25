@@ -279,10 +279,13 @@ func TestValidatePhaseEligibility_ExistingStudentsRejectsUnknownChild(t *testing
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
 	tenantID := int64(9052)
+	accountID := int64(4712)
 
 	err := svc.validatePhaseEligibility(context.Background(), phase, SubmitRequest{
-		TenantID: tenantID,
-		Children: []SubmitChild{{FirstName: "Kim", LastName: "Test", DateOfBirth: timezone.NewDate(2019, 4, 12)}},
+		TenantID:               tenantID,
+		GuardianAccountID:      &accountID,
+		GuardianSubmitEligible: true,
+		Children:               []SubmitChild{{FirstName: "Kim", LastName: "Test", DateOfBirth: timezone.NewDate(2019, 4, 12)}},
 	})
 	require.ErrorIs(t, err, ErrChildNotEnrolled)
 	require.ErrorIs(t, err, ErrInvalidSubmission, "not-enrolled error must keep the 400 category")
@@ -293,10 +296,49 @@ func TestValidatePhaseEligibility_ExistingStudentsAcceptsEnrolledChild(t *testin
 	repo := &stubEligibilityStudentRepo{exists: true}
 	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
 	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
+	accountID := int64(4713)
 
 	err := svc.validatePhaseEligibility(context.Background(), phase, SubmitRequest{
-		TenantID: int64(9053),
-		Children: []SubmitChild{{FirstName: "Kim", LastName: "Test", DateOfBirth: timezone.NewDate(2019, 4, 12)}},
+		TenantID:               int64(9053),
+		GuardianAccountID:      &accountID,
+		GuardianSubmitEligible: true,
+		Children:               []SubmitChild{{FirstName: "Kim", LastName: "Test", DateOfBirth: timezone.NewDate(2019, 4, 12)}},
+	})
+	require.NoError(t, err)
+}
+
+// An existing_students phase never CREATES a record — it renews a live student
+// and attaches the submitter as its guardian — so name+birthday alone must not
+// admit a submission. It carries the same authentication gate as
+// linked_parents; account-less parents come in through a late invite or admin
+// manual enrollment, both of which set AllowClosedPhase (#1663).
+func TestValidatePhaseEligibility_ExistingStudentsRejectsAnonymous(t *testing.T) {
+	repo := &stubEligibilityStudentRepo{exists: true}
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{StudentRepo: repo}}
+	phase := eligibilityTestPhase(enrollmentModels.PhaseAudienceExistingStudents)
+	accountID := int64(4714)
+	child := []SubmitChild{{FirstName: "Kim", LastName: "Test", DateOfBirth: timezone.NewDate(2019, 4, 12)}}
+
+	// Anonymous: no guardian account at all.
+	err := svc.validatePhaseEligibility(context.Background(), phase, SubmitRequest{
+		TenantID: int64(9054),
+		Children: child,
+	})
+	require.ErrorIs(t, err, ErrPhaseNotEligible)
+
+	// Authenticated but without a permission-granting guardian link.
+	err = svc.validatePhaseEligibility(context.Background(), phase, SubmitRequest{
+		TenantID:          int64(9054),
+		GuardianAccountID: &accountID,
+		Children:          child,
+	})
+	require.ErrorIs(t, err, ErrPhaseNotEligible)
+
+	// The trusted override paths keep working.
+	err = svc.validatePhaseEligibility(context.Background(), phase, SubmitRequest{
+		TenantID:         int64(9054),
+		AllowClosedPhase: true,
+		Children:         child,
 	})
 	require.NoError(t, err)
 }

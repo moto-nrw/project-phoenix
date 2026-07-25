@@ -249,8 +249,16 @@ func decodeParentEnrollmentBody(r *http.Request) (*enrollmentAPI.SubmitEnrollmen
 // parentSubmitOutcome captures the mutually-distinguished results of the
 // admin-tx submit closure so the post-tx mapping can pick the right response.
 type parentSubmitOutcome struct {
-	result     *enrollmentService.SubmitResult
-	submitErr  error
+	result *enrollmentService.SubmitResult
+	// submitErr is the RequestService.Submit failure (400/403/409 family).
+	submitErr error
+	// statusErr is a guardian-submit-status lookup failure. It is tracked
+	// separately from resolveErr because it is a server-side fault (DB or
+	// repository outage), not "this tenant does not exist": folding it into
+	// resolveErr rendered an outage as a 404 and told the client its school
+	// was gone instead of letting it retry.
+	statusErr error
+	// resolveErr is the tenant (subdomain) resolution failure → 404.
 	resolveErr error
 }
 
@@ -284,7 +292,12 @@ func (rs *Resource) runParentEnrollmentSubmit(r *http.Request, accountID int64, 
 		// per-student inside Submit (ErrChildEnrollmentNotPermitted).
 		status, stErr := rs.ParentService.GetEnrollmentSubmitStatus(adminCtx, accountID, school.ID)
 		if stErr != nil {
-			return fmt.Errorf("resolve enrollment submit status: %w", stErr)
+			// Recorded in its own field so respondParentEnrollment can render a
+			// 500: a repository failure here is an outage, and the resolveErr
+			// path would have masked it as "tenant not found" (404), which a
+			// client cannot tell from a genuinely dead link and will not retry.
+			out.statusErr = fmt.Errorf("resolve enrollment submit status: %w", stErr)
+			return out.statusErr
 		}
 
 		out.result, out.submitErr = rs.submitEnrollmentForTenant(adminCtx, school.ID, accountID, status.HasSubmitPermission, wireReq, getClientIP(r))
@@ -312,15 +325,22 @@ func (rs *Resource) submitEnrollmentForTenant(adminCtx context.Context, schoolID
 }
 
 // respondParentEnrollment maps the submit outcome to the HTTP response.
-// Priority: submit → resolve → success. submitErr is checked first because a
-// submit failure now rolls the admin-tx back, so WithAdminTx also surfaces that
-// same error as resolveErr; the dedicated submitErr field lets us map it to its
-// real status (e.g. 400 ambiguous, 403 not-permitted) instead of the resolve
-// 404. Per-child authorization failures (ErrChildEnrollmentNotPermitted) travel
-// through submitErr and MapSubmitError renders them as 403.
+// Priority: submit → status → resolve → success. submitErr is checked first
+// because a submit failure now rolls the admin-tx back, so WithAdminTx also
+// surfaces that same error as resolveErr; the dedicated submitErr field lets us
+// map it to its real status (e.g. 400 ambiguous, 403 not-permitted) instead of
+// the resolve 404. Per-child authorization failures
+// (ErrChildEnrollmentNotPermitted) travel through submitErr and MapSubmitError
+// renders them as 403. statusErr is checked for the same reason one step later:
+// a failed submit-status lookup is a server fault and must be a 500, not the
+// resolve path's 404. Only a genuinely unresolvable tenant reaches resolveErr.
 func (rs *Resource) respondParentEnrollment(w http.ResponseWriter, r *http.Request, out parentSubmitOutcome) {
 	if out.submitErr != nil {
 		enrollmentAPI.MapSubmitError(w, r, out.submitErr)
+		return
+	}
+	if out.statusErr != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(out.statusErr))
 		return
 	}
 	if out.resolveErr != nil {

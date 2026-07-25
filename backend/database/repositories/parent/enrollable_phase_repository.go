@@ -34,10 +34,18 @@ func NewEnrollablePhaseRepository(db *bun.DB) parentModels.EnrollablePhaseReposi
 // Hidden schools (platform.schools.hidden) are excluded from cross-school
 // discovery the same way the public tenant listing excludes them: an
 // unlinked parent must not learn a hidden school's name or phase details
-// through this picker. A hidden school stays visible only to a parent who
-// is ALREADY an active member of it (at.account_id IS NOT NULL / the
-// already_linked flag), so existing families keep seeing their own
+// through this picker. A hidden school stays visible only to an account that
+// holds an actual FAMILY link there — a guardian_profile with at least one
+// students_guardians row, backed by an ACTIVE auth.account_tenants mapping
+// (guard.has_family_link) — so existing families keep seeing their own
 // school's re-enrollment phases.
+//
+// The membership mapping alone (at.account_id / the already_linked display
+// flag) is deliberately NOT the visibility key: auth.account_tenants also
+// carries staff, admins, and any other role at that tenant, so keying on it
+// leaked a hidden school's name, phase names, and service dates to accounts
+// with no guardian relationship at all. already_linked keeps its membership
+// meaning — it only orders and labels rows that already passed this gate.
 //
 // Eligibility (#1663): a phase whose audience is linked_parents OR
 // existing_students is listed only when the account holds a guardian
@@ -165,12 +173,25 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 					WHERE gp.tenant_id = ph.tenant_id
 						AND gp.account_id = ?
 						AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
-				) AS has_enrolled_submit_permission
+				) AS has_enrolled_submit_permission,
+				EXISTS (
+					SELECT 1
+					FROM users.guardian_profiles AS gp
+					JOIN users.students_guardians AS sg
+						ON sg.guardian_profile_id = gp.id
+						AND sg.tenant_id = gp.tenant_id
+					JOIN auth.account_tenants AS act
+						ON act.tenant_id  = gp.tenant_id
+						AND act.account_id = gp.account_id
+						AND act.status     = 'active'
+					WHERE gp.tenant_id = ph.tenant_id
+						AND gp.account_id = ?
+				) AS has_family_link
 		) AS guard
 		WHERE ph.is_active = TRUE
 		  AND sch.active   = TRUE
 		  AND sch.deleted_at IS NULL
-		  AND (sch.hidden = FALSE OR at.account_id IS NOT NULL)
+		  AND (sch.hidden = FALSE OR guard.has_family_link)
 		  AND (ph.enrollment_open_at IS NULL OR ph.enrollment_open_at <= NOW())
 		  AND (ph.enrollment_close_at IS NULL OR ph.enrollment_close_at >= NOW())
 		  AND (ph.audience <> 'linked_parents' OR guard.has_submit_permission)
@@ -185,6 +206,7 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 		authorize.GuardianPermissionEnrollmentSubmit,
 		accountID,
 		authorize.GuardianPermissionEnrollmentSubmit,
+		accountID,
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent: list enrollable phases: %w", err)
 	}
