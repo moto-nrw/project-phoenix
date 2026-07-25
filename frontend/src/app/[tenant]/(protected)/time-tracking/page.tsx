@@ -30,6 +30,7 @@ import {
 } from "~/components/ui/chart";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { ISODatePicker } from "~/components/ui/date-picker";
 import { Modal } from "~/components/ui/modal";
 import { OriginChip } from "~/components/ui/origin-chip";
 import {
@@ -2759,13 +2760,12 @@ function EditSessionModal({
                     >
                       Von
                     </label>
-                    <input
+                    <ISODatePicker
                       id="edit-abs-start"
-                      type="date"
                       value={absDateStart}
-                      onChange={(e) => setAbsDateStart(e.target.value)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                      required
+                      onChange={setAbsDateStart}
+                      calendarLayout="popover"
+                      hideClearButton
                     />
                   </div>
                   <div>
@@ -2775,14 +2775,13 @@ function EditSessionModal({
                     >
                       Bis
                     </label>
-                    <input
+                    <ISODatePicker
                       id="edit-abs-end"
-                      type="date"
                       value={absDateEnd}
-                      min={absDateStart}
-                      onChange={(e) => setAbsDateEnd(e.target.value)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-                      required
+                      min={absDateStart || undefined}
+                      onChange={setAbsDateEnd}
+                      calendarLayout="popover"
+                      hideClearButton
                     />
                   </div>
                 </div>
@@ -2969,13 +2968,12 @@ function CreateAbsenceModal({
             >
               Von
             </label>
-            <input
+            <ISODatePicker
               id="absence-start"
-              type="date"
               value={dateStart}
-              onChange={(e) => setDateStart(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-              required
+              onChange={setDateStart}
+              calendarLayout="popover"
+              hideClearButton
             />
           </div>
           <div>
@@ -2985,14 +2983,13 @@ function CreateAbsenceModal({
             >
               Bis
             </label>
-            <input
+            <ISODatePicker
               id="absence-end"
-              type="date"
               value={dateEnd}
-              min={dateStart}
-              onChange={(e) => setDateEnd(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:border-gray-400 focus-visible:ring-1 focus-visible:ring-gray-400"
-              required
+              min={dateStart || undefined}
+              onChange={setDateEnd}
+              calendarLayout="popover"
+              hideClearButton
             />
           </div>
         </div>

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { addDays, format, isSameDay, startOfWeek } from "date-fns";
 import { de } from "date-fns/locale";
 import { CalendarCheck, CalendarX, X } from "lucide-react";
-import { DatePicker } from "~/components/ui/date-picker";
+import { DatePicker, ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import type {
   StudentStatusDay,
@@ -227,25 +227,37 @@ export function PlannedStatusDaysModal({
           <div>
             <p className="mb-2 text-sm font-medium text-gray-900">Zeitraum</p>
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-sm font-medium text-gray-700">
-                Von
-                <input
-                  type="date"
+              <div>
+                <label
+                  htmlFor="class-trip-range-start"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Von
+                </label>
+                <ISODatePicker
+                  id="class-trip-range-start"
                   value={rangeStart}
-                  onChange={(event) => setRangeStart(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
+                  onChange={setRangeStart}
+                  calendarLayout="popover"
+                  className="mt-1"
                 />
-              </label>
-              <label className="text-sm font-medium text-gray-700">
-                Bis
-                <input
-                  type="date"
+              </div>
+              <div>
+                <label
+                  htmlFor="class-trip-range-end"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Bis
+                </label>
+                <ISODatePicker
+                  id="class-trip-range-end"
                   value={rangeEnd}
                   min={rangeStart || undefined}
-                  onChange={(event) => setRangeEnd(event.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
+                  onChange={setRangeEnd}
+                  calendarLayout="popover"
+                  className="mt-1"
                 />
-              </label>
+              </div>
             </div>
             {selectionHint ? (
               <p className="mt-2 rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-sm text-[#CC2626]">

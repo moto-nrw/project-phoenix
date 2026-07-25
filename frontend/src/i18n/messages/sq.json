@@ -3,6 +3,14 @@
     "label": "Gjuha",
     "saveError": "Gjuha nuk u ruajt në llogarinë tënde. Zgjedhja vlen në këtë pajisje."
   },
+  "datePicker": {
+    "placeholder": "Zgjidhni datën",
+    "clear": "Fshi datën",
+    "previousMonth": "Muaji i mëparshëm",
+    "nextMonth": "Muaji i ardhshëm",
+    "month": "Muaji",
+    "year": "Viti"
+  },
   "parentAuthShell": {
     "badges": {
       "audience": "Krijuar për kujdesin pas shkollës",

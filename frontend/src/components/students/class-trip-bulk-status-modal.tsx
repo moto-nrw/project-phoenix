@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { Bus } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
 import type { Student } from "~/lib/api";
@@ -114,25 +115,37 @@ export function ClassTripBulkStatusModal({
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-sm font-medium text-gray-700">
-            Von
-            <input
-              type="date"
+          <div>
+            <label
+              htmlFor="class-trip-bulk-from"
+              className="text-sm font-medium text-gray-700"
+            >
+              Von
+            </label>
+            <ISODatePicker
+              id="class-trip-bulk-from"
               value={from}
-              onChange={(event) => setFrom(event.target.value)}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
+              onChange={setFrom}
+              calendarLayout="popover"
+              className="mt-1"
             />
-          </label>
-          <label className="text-sm font-medium text-gray-700">
-            Bis
-            <input
-              type="date"
+          </div>
+          <div>
+            <label
+              htmlFor="class-trip-bulk-to"
+              className="text-sm font-medium text-gray-700"
+            >
+              Bis
+            </label>
+            <ISODatePicker
+              id="class-trip-bulk-to"
               value={to}
               min={from || undefined}
-              onChange={(event) => setTo(event.target.value)}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
+              onChange={setTo}
+              calendarLayout="popover"
+              className="mt-1"
             />
-          </label>
+          </div>
         </div>
         <label className="block text-sm font-medium text-gray-700">
           Hinweis (optional)
