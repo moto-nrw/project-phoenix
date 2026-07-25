@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -31,6 +32,7 @@ func (c *sseChannel) Deliver(ctx context.Context, event Event) error {
 		DeepLink:         &event.DeepLink,
 		Priority:         &event.Priority,
 		NotificationType: &event.Type,
+		NotificationData: maps.Clone(event.Data),
 	})
 
 	switch event.Audience.Scope {

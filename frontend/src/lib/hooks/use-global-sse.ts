@@ -26,6 +26,7 @@ import { useCallback, useRef } from "react";
 import { mutate } from "swr";
 import { useSession } from "next-auth/react";
 import { useSSE } from "~/lib/hooks/use-sse";
+import { dispatchPhoenixNotification } from "~/lib/notification-events";
 import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 import {
   notifyStudentCompanionDisplayChanged,
@@ -667,19 +668,7 @@ export function useGlobalSSE(): SSEHookState {
           // ToastProvider consumers, so hand the event to the notification
           // bridge (mounted under Providers) via a window event — mirroring
           // the reminders/tenant-settings decoupling above.
-          if (typeof window !== "undefined") {
-            window.dispatchEvent(
-              new CustomEvent("phoenix:notification", {
-                detail: {
-                  title: event.data.title ?? null,
-                  body: event.data.body ?? null,
-                  deepLink: event.data.deep_link ?? null,
-                  priority: event.data.priority ?? null,
-                  notificationType: event.data.notification_type ?? null,
-                },
-              }),
-            );
-          }
+          dispatchPhoenixNotification(event);
           break;
         }
 

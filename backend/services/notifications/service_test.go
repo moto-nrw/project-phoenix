@@ -67,7 +67,10 @@ func TestNotifyDeliversTenantScopedSSE(t *testing.T) {
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := notifications.NewService(enabledSettings(true), nil, notifications.NewSSEChannel(broadcaster))
 
-	require.NoError(t, svc.Notify(context.Background(), tenantEvent(41)))
+	event := tenantEvent(41)
+	event.Data = map[string]string{"reminder_id": "123"}
+	require.NoError(t, svc.Notify(context.Background(), event))
+	event.Data["reminder_id"] = "mutated-after-notify"
 
 	calls := broadcaster.CallsByMethod("tenant")
 	require.Len(t, calls, 1)
@@ -80,6 +83,7 @@ func TestNotifyDeliversTenantScopedSSE(t *testing.T) {
 	assert.Equal(t, notifications.PriorityNormal, *call.Event.Data.Priority, "empty priority defaults to normal")
 	require.NotNil(t, call.Event.Data.DeepLink)
 	assert.Equal(t, "/dashboard", *call.Event.Data.DeepLink)
+	assert.Equal(t, map[string]string{"reminder_id": "123"}, call.Event.Data.NotificationData)
 }
 
 func TestNotifyGuardianAndGroupRouting(t *testing.T) {

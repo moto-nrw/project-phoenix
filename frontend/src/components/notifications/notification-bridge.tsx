@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useToast } from "~/contexts/ToastContext";
+import type { PhoenixNotificationDetail } from "~/lib/notification-events";
+
+export type { PhoenixNotificationDetail } from "~/lib/notification-events";
 
 /**
  * NotificationBridge — the in-app rendering half of the notification
@@ -16,16 +20,21 @@ import { useToast } from "~/contexts/ToastContext";
  * data); sensitive details are only shown after navigating into the
  * authenticated app via the deep link.
  */
-export interface PhoenixNotificationDetail {
-  title: string | null;
-  body: string | null;
-  deepLink: string | null;
-  priority: string | null;
-  notificationType: string | null;
+function isSafeAppRelativePath(path: string): boolean {
+  if (!path.startsWith("/") || path.startsWith("//")) return false;
+
+  try {
+    return (
+      new URL(path, window.location.origin).origin === window.location.origin
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function NotificationBridge() {
   const toast = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     const onNotification = (event: Event) => {
@@ -35,20 +44,28 @@ export function NotificationBridge() {
       const message = detail.body
         ? `${detail.title}: ${detail.body}`
         : detail.title;
+      const deepLink = detail.deepLink;
+      const action =
+        deepLink && isSafeAppRelativePath(deepLink)
+          ? {
+              label: "Öffnen",
+              onClick: () => router.push(deepLink),
+            }
+          : undefined;
 
       // High priority renders as warning (amber) so it stands out; everything
       // else as info. Errors stay reserved for actual failures.
       if (detail.priority === "high") {
-        toast.warning(message, { duration: 8000 });
+        toast.warning(message, { duration: 8000, action });
       } else {
-        toast.info(message, { duration: 6000 });
+        toast.info(message, { duration: 6000, action });
       }
     };
 
     window.addEventListener("phoenix:notification", onNotification);
     return () =>
       window.removeEventListener("phoenix:notification", onNotification);
-  }, [toast]);
+  }, [router, toast]);
 
   return null;
 }

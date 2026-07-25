@@ -111,6 +111,7 @@ interface SSEEventData {
   deep_link?: string; // app-relative path, e.g. "/reminders"
   priority?: string; // "low" | "normal" | "high"
   notification_type?: string;
+  notification_data?: Record<string, string>; // opaque IDs for client-side routing
 
   // Parent-messaging field (parent_message events). With student_id, lets an
   // open chat/conversation skip refetching when the event is about a different

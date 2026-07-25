@@ -50,8 +50,9 @@ display-safe: no student names or other sensitive child data. Validation
 mechanically enforces what it can (deep links must be app-relative, never an
 external URL); the semantic half is a producer responsibility. Sensitive
 details are loaded authenticated after the user follows the deep link into
-the app. `Data` carries opaque IDs only and never leaves the backend channels
-that need it.
+the app. `Data` carries opaque IDs only. The SSE channel forwards it as
+`notification_data` for client-side routing; channels that leave the app
+(especially Web Push and E-Mail) must not include it.
 
 ## Channels
 
@@ -70,11 +71,13 @@ channel is activated, per the issue.
 ## Frontend
 
 - `use-global-sse.ts` receives `notification` SSE events and re-dispatches
-  them as `phoenix:notification` window events.
+  them as `phoenix:notification` window events. The parents portal shares the
+  same dispatch path through `ParentRealtimeBridge`.
 - `components/notifications/notification-bridge.tsx` (mounted once in
   `app/providers.tsx`) renders them as toasts — `high` priority as a warning
-  toast, everything else as info. This is also the seam where a future bell
-  inbox or push-permission prompt hooks in.
+  toast, everything else as info. A valid app-relative `DeepLink` adds an
+  "Öffnen" action. This is also the seam where a future bell inbox or
+  push-permission prompt hooks in.
 - Unlike all other SSE events, `notification` events are rendered directly,
   not used as refetch triggers.
 

@@ -1212,7 +1212,7 @@ describe("useGlobalSSE", () => {
       expect(dispatched[0]?.detail).toEqual({ source: null });
     });
 
-    it("dispatches the complete display-safe notification payload", () => {
+    it("dispatches the complete notification payload", () => {
       renderHook(() => useGlobalSSE());
 
       const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
@@ -1229,6 +1229,7 @@ describe("useGlobalSSE", () => {
             deep_link: "/reminders",
             priority: "high",
             notification_type: "pickup_changed",
+            notification_data: { reminder_id: "123" },
           },
           timestamp: new Date().toISOString(),
         });
@@ -1241,6 +1242,7 @@ describe("useGlobalSSE", () => {
           deepLink: "/reminders",
           priority: "high",
           notificationType: "pickup_changed",
+          data: { reminder_id: "123" },
         });
       } finally {
         window.removeEventListener("phoenix:notification", listener);
@@ -1270,6 +1272,7 @@ describe("useGlobalSSE", () => {
           deepLink: null,
           priority: null,
           notificationType: null,
+          data: null,
         });
       } finally {
         window.removeEventListener("phoenix:notification", listener);

@@ -164,8 +164,8 @@ type Event struct {
 	Timestamp     time.Time `json:"timestamp"`
 }
 
-// EventData contains the payload for an SSE event
-// Only includes display-level data for GDPR compliance (no sensitive info)
+// EventData contains the payload for an SSE event. Fields follow the
+// event-specific GDPR contract and must not expose sensitive data.
 type EventData struct {
 	// Student-related fields (for check-in/check-out events)
 	StudentID   *string `json:"student_id,omitempty"`
@@ -221,12 +221,14 @@ type EventData struct {
 
 	// Notification fields (notification events only, #1624). Display-safe by
 	// contract: the notifications service validates that no sensitive student
-	// data travels here — clients render these directly instead of refetching.
-	Title            *string `json:"title,omitempty"`
-	Body             *string `json:"body,omitempty"`
-	DeepLink         *string `json:"deep_link,omitempty"` // app-relative path, e.g. "/reminders"
-	Priority         *string `json:"priority,omitempty"`  // "low" | "normal" | "high"
-	NotificationType *string `json:"notification_type,omitempty"`
+	// data travels in the visible fields — clients render these directly instead
+	// of refetching. NotificationData contains only opaque routing IDs.
+	Title            *string           `json:"title,omitempty"`
+	Body             *string           `json:"body,omitempty"`
+	DeepLink         *string           `json:"deep_link,omitempty"` // app-relative path, e.g. "/reminders"
+	Priority         *string           `json:"priority,omitempty"`  // "low" | "normal" | "high"
+	NotificationType *string           `json:"notification_type,omitempty"`
+	NotificationData map[string]string `json:"notification_data,omitempty"` // opaque IDs for client-side routing
 }
 
 // staffSafeParentMessage returns a copy of a parent-message event with every

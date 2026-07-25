@@ -9,6 +9,10 @@ vi.mock("@/components/dashboard/modal-context", () => ({
   ),
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
 vi.mock("~/contexts/ToastContext", () => ({
   ToastProvider: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="toast-provider">{children}</div>
