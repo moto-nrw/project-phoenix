@@ -23,6 +23,8 @@ const mockAddGuardianPhoneNumber = vi.fn();
 const mockUpdateGuardianPhoneNumber = vi.fn();
 const mockDeleteGuardianPhoneNumber = vi.fn();
 const mockSetGuardianPrimaryPhone = vi.fn();
+const mockFetchOpenInvitationsByGuardian = vi.fn();
+const mockFetchInvitationDelivery = vi.fn();
 
 // Real subclass exported from the guardian-api mock so any code path that
 // branches on `err instanceof GuardianApiError` still resolves against the
@@ -69,6 +71,9 @@ vi.mock("@/lib/guardian-api", () => ({
     mockDeleteGuardianPhoneNumber(guardianId, phoneId),
   setGuardianPrimaryPhone: (guardianId: string, phoneId: string) =>
     mockSetGuardianPrimaryPhone(guardianId, phoneId),
+  fetchOpenInvitationsByGuardian: () => mockFetchOpenInvitationsByGuardian(),
+  fetchInvitationDelivery: (invitationId: string) =>
+    mockFetchInvitationDelivery(invitationId),
 }));
 
 // Session mock — drives the admin-only "Komplett löschen" affordance. Default
@@ -99,16 +104,23 @@ vi.mock("./guardian-list", () => ({
     guardians,
     onEdit,
     readOnly,
+    deliveryByGuardianId,
   }: {
     guardians: GuardianWithRelationship[];
     onEdit?: (g: GuardianWithRelationship) => void;
     readOnly?: boolean;
+    deliveryByGuardianId?: ReadonlyMap<string, { label: string }>;
   }) => (
     <div data-testid="guardian-list">
       <p data-testid="guardian-count">Guardians: {guardians.length}</p>
       {guardians.map((g) => (
         <div key={g.id} data-testid={`guardian-${g.id}`}>
           <span>{`${g.firstName ?? ""} ${g.lastName ?? ""}`}</span>
+          {deliveryByGuardianId?.get(g.id) && (
+            <span data-testid={`delivery-${g.id}`}>
+              {deliveryByGuardianId.get(g.id)!.label}
+            </span>
+          )}
           {!readOnly && onEdit && (
             <button
               type="button"
@@ -400,6 +412,11 @@ describe("StudentGuardianManager", () => {
     // with an id. clearAllMocks() clears call records but NOT implementations, so
     // setting this here avoids depending on another test's leaked mockResolvedValue.
     mockAddGuardianPhoneNumber.mockResolvedValue({ id: "new-phone-1" });
+    mockFetchOpenInvitationsByGuardian.mockResolvedValue(new Map());
+    mockFetchInvitationDelivery.mockResolvedValue({
+      invitationId: "invitation-1",
+      attempts: [],
+    });
     mockPermissions = [];
   });
 
@@ -438,6 +455,65 @@ describe("StudentGuardianManager", () => {
       expect(screen.getByTestId("guardian-count")).toHaveTextContent(
         "Guardians: 2",
       );
+    });
+
+    it("refreshes invitation delivery status while an invitation is open", async () => {
+      vi.useFakeTimers();
+      mockFetchOpenInvitationsByGuardian.mockResolvedValue(
+        new Map([["guardian-1", "invitation-1"]]),
+      );
+      mockFetchInvitationDelivery
+        .mockResolvedValueOnce({
+          invitationId: "invitation-1",
+          attempts: [
+            {
+              outboxId: "outbox-1",
+              dispatchStatus: "pending",
+              deliveryStatus: "unknown",
+              queuedAt: "2026-07-25T10:31:02Z",
+              attempts: 0,
+              events: [],
+            },
+          ],
+        })
+        .mockResolvedValue({
+          invitationId: "invitation-1",
+          attempts: [
+            {
+              outboxId: "outbox-1",
+              dispatchStatus: "sent",
+              deliveryStatus: "delivered",
+              queuedAt: "2026-07-25T10:31:02Z",
+              sentAt: "2026-07-25T10:31:03Z",
+              deliveryStatusAt: "2026-07-25T10:31:04Z",
+              attempts: 1,
+              events: [],
+            },
+          ],
+        });
+
+      const view = render(<StudentGuardianManager studentId="student-123" />);
+
+      try {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(0);
+        });
+        expect(screen.getByTestId("delivery-guardian-1")).toHaveTextContent(
+          "Einladung eingeplant",
+        );
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10_000);
+        });
+
+        expect(mockFetchInvitationDelivery).toHaveBeenCalledTimes(2);
+        expect(screen.getByTestId("delivery-guardian-1")).toHaveTextContent(
+          "Zugestellt",
+        );
+      } finally {
+        view.unmount();
+        vi.useRealTimers();
+      }
     });
   });
 

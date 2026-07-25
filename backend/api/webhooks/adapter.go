@@ -86,6 +86,10 @@ func (a genericAdapter) Parse(body []byte) ([]platformSvc.DeliveryEvent, error) 
 			// retry forever.
 			continue
 		}
+		bounceClass, err := normalizeBounceClass(ev.BounceClass)
+		if err != nil {
+			return nil, err
+		}
 		out = append(out, platformSvc.DeliveryEvent{
 			Provider:          a.Name(),
 			EventID:           ev.EventID,
@@ -94,13 +98,23 @@ func (a genericAdapter) Parse(body []byte) ([]platformSvc.DeliveryEvent, error) 
 			MessageID:         ev.MessageID,
 			ProviderMessageID: ev.ProviderMessageID,
 			Recipient:         ev.Recipient,
-			BounceClass:       ev.BounceClass,
+			BounceClass:       bounceClass,
 			ReasonCode:        ev.ReasonCode,
 			Reason:            ev.Reason,
 			Raw:               ev.Raw,
 		})
 	}
 	return out, nil
+}
+
+func normalizeBounceClass(class string) (string, error) {
+	class = strings.ToLower(strings.TrimSpace(class))
+	switch class {
+	case "", platformModels.BounceClassHard, platformModels.BounceClassSoft:
+		return class, nil
+	default:
+		return "", fmt.Errorf("unsupported bounce_class %q", class)
+	}
 }
 
 func knownEventType(t string) bool {

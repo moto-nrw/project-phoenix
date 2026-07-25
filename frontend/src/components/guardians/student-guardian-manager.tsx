@@ -40,6 +40,7 @@ import { createLogger } from "~/lib/logger";
 import { useSession } from "next-auth/react";
 
 const logger = createLogger({ component: "StudentGuardianManager" });
+const DELIVERY_STATUS_REFRESH_MS = 10_000;
 
 interface StudentGuardianManagerProps {
   readonly studentId: string;
@@ -112,9 +113,13 @@ export default function StudentGuardianManager({
   // Best effort: the guardian list must render even when delivery status is
   // unavailable. Losing a status badge is not worth failing the page for.
   const loadDeliveryStatus = useCallback(
-    async (current: GuardianWithRelationship[]) => {
+    async (
+      current: GuardianWithRelationship[],
+      isCurrent: () => boolean,
+    ): Promise<boolean> => {
       try {
         const ids = await fetchOpenInvitationsByGuardian();
+        if (!isCurrent()) return false;
         setInvitationIds(ids);
 
         const entries = await Promise.all(
@@ -133,14 +138,17 @@ export default function StudentGuardianManager({
             }),
         );
 
+        if (!isCurrent()) return false;
         setDeliveryByGuardianId(
           new Map(entries.filter((entry) => entry !== null)),
         );
+        return ids.size > 0;
       } catch (err) {
         logger.warn("guardian_delivery_status_load_failed", {
           error: err instanceof Error ? err.message : String(err),
           student_id: studentId,
         });
+        return true;
       }
     },
     [studentId],
@@ -152,7 +160,6 @@ export default function StudentGuardianManager({
       setError(null);
       const data = await fetchStudentGuardians(studentId);
       setGuardians(data);
-      void loadDeliveryStatus(data);
     } catch (err) {
       logger.error("guardians_load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -166,13 +173,38 @@ export default function StudentGuardianManager({
     } finally {
       setIsLoading(false);
     }
-  }, [studentId, loadDeliveryStatus]);
+  }, [studentId]);
 
   useEffect(() => {
     loadGuardians().catch(() => {
       // Error already handled in loadGuardians
     });
   }, [loadGuardians]);
+
+  useEffect(() => {
+    if (guardians.length === 0) {
+      setInvitationIds(new Map());
+      setDeliveryByGuardianId(new Map());
+      return;
+    }
+
+    let active = true;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const refresh = async () => {
+      const shouldContinue = await loadDeliveryStatus(guardians, () => active);
+      if (active && shouldContinue) {
+        refreshTimer = setTimeout(refresh, DELIVERY_STATUS_REFRESH_MS);
+      }
+    };
+
+    void refresh();
+
+    return () => {
+      active = false;
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
+  }, [guardians, loadDeliveryStatus]);
 
   // Handle create guardian(s) - supports multiple guardians at once.
   //

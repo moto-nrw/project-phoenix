@@ -348,16 +348,21 @@ func (s *EmailDeliveryService) CleanupExpiredDeliveryEvents(ctx context.Context,
 	}
 	days := defaultDeliveryRetentionDays
 	if s.Settings != nil {
-		if resolved, err := s.Settings.ResolveIntForTenant(ctx, tenantID, configModels.KeyEmailDeliveryRetentionDays); err == nil && resolved > 0 {
-			days = resolved
+		resolved, err := s.Settings.ResolveIntForTenant(ctx, tenantID, configModels.KeyEmailDeliveryRetentionDays)
+		if err != nil {
+			return 0, fmt.Errorf("resolve delivery event retention: %w", err)
 		}
+		if resolved <= 0 {
+			return 0, fmt.Errorf("resolve delivery event retention: invalid value %d", resolved)
+		}
+		days = resolved
 	}
 	cutoff := time.Now().AddDate(0, 0, -days)
 
 	var deleted int64
-	if err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(tenantCtx context.Context, _ bun.Tx) error {
+	if err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
 		var err error
-		deleted, err = s.EventRepo.DeleteOlderThan(tenantCtx, cutoff)
+		deleted, err = s.EventRepo.DeleteOlderThan(adminCtx, tenantID, cutoff)
 		return err
 	}); err != nil {
 		return 0, fmt.Errorf("cleanup delivery events: %w", err)
@@ -365,8 +370,8 @@ func (s *EmailDeliveryService) CleanupExpiredDeliveryEvents(ctx context.Context,
 	return deleted, nil
 }
 
-// defaultDeliveryRetentionDays mirrors the registry default and is only used
-// when the setting cannot be resolved at all.
+// defaultDeliveryRetentionDays mirrors the registry default for deployments
+// where the settings service is not wired.
 const defaultDeliveryRetentionDays = 90
 
 func buildEvent(row *platformModels.EmailOutbox, attempt *platformModels.EmailDispatchAttempt, ev DeliveryEvent, _ string) *platformModels.EmailDeliveryEvent {

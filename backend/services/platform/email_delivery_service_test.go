@@ -82,9 +82,12 @@ func (r *deliveryOutboxRepo) ApplyDeliveryStatus(_ context.Context, _ int64, t p
 // deliveryEventRepo records inserted events and can simulate the unique-index
 // conflict that makes replays idempotent.
 type deliveryEventRepo struct {
-	created   []*platformModels.EmailDeliveryEvent
-	seen      map[string]bool
-	createErr error
+	created        []*platformModels.EmailDeliveryEvent
+	seen           map[string]bool
+	createErr      error
+	deleteTenantID int64
+	deleteCutoff   time.Time
+	deleteCalls    int
 }
 
 func (r *deliveryEventRepo) CreateIfNew(_ context.Context, e *platformModels.EmailDeliveryEvent) (bool, error) {
@@ -107,7 +110,10 @@ func (r *deliveryEventRepo) ListByOutboxIDs(_ context.Context, _ []int64) ([]*pl
 	return r.created, nil
 }
 
-func (r *deliveryEventRepo) DeleteOlderThan(_ context.Context, _ time.Time) (int64, error) {
+func (r *deliveryEventRepo) DeleteOlderThan(_ context.Context, tenantID int64, cutoff time.Time) (int64, error) {
+	r.deleteTenantID = tenantID
+	r.deleteCutoff = cutoff
+	r.deleteCalls++
 	return int64(len(r.created)), nil
 }
 
@@ -695,7 +701,7 @@ func TestIngestEvent_UnwiredServiceErrors(t *testing.T) {
 func TestCleanupExpiredDeliveryEvents_UsesTenantRetentionSetting(t *testing.T) {
 	db, mock, cleanup := newAdminTxDB(t)
 	defer cleanup()
-	expectTenantTx(mock)
+	expectAdminTx(mock)
 
 	eventRepo := &deliveryEventRepo{created: []*platformModels.EmailDeliveryEvent{{}, {}}}
 	svc := NewEmailDeliveryService(EmailDeliveryServiceConfig{
@@ -708,6 +714,29 @@ func TestCleanupExpiredDeliveryEvents_UsesTenantRetentionSetting(t *testing.T) {
 	deleted, err := svc.CleanupExpiredDeliveryEvents(context.Background(), 7)
 	require.NoError(t, err)
 	assert.EqualValues(t, 2, deleted)
+	assert.EqualValues(t, 7, eventRepo.deleteTenantID)
+	assert.WithinDuration(t, time.Now().AddDate(0, 0, -7), eventRepo.deleteCutoff, time.Second)
+	assert.Equal(t, 1, eventRepo.deleteCalls)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCleanupExpiredDeliveryEvents_StopsOnRetentionResolutionError(t *testing.T) {
+	db, mock, cleanup := newAdminTxDB(t)
+	defer cleanup()
+
+	eventRepo := &deliveryEventRepo{created: []*platformModels.EmailDeliveryEvent{{}}}
+	svc := NewEmailDeliveryService(EmailDeliveryServiceConfig{
+		OutboxRepo: &deliveryOutboxRepo{},
+		EventRepo:  eventRepo,
+		Settings:   stubSettings{err: errors.New("settings unavailable")},
+		DB:         db,
+	})
+
+	deleted, err := svc.CleanupExpiredDeliveryEvents(context.Background(), 7)
+
+	require.ErrorContains(t, err, "resolve delivery event retention")
+	assert.Zero(t, deleted)
+	assert.Zero(t, eventRepo.deleteCalls, "a failed resolver must not delete with a fallback cutoff")
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

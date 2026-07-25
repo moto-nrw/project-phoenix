@@ -63,13 +63,14 @@ func (r *EmailDeliveryEventRepository) ListByOutboxIDs(ctx context.Context, outb
 	return rows, nil
 }
 
-// DeleteOlderThan removes events received before cutoff. Retention sweep; the
-// caller decides the cutoff from the tenant's gdpr.email_delivery_retention_days
-// setting.
-func (r *EmailDeliveryEventRepository) DeleteOlderThan(ctx context.Context, cutoff time.Time) (int64, error) {
+// DeleteOlderThan removes one tenant's events received before cutoff. The
+// retention sweep runs as phoenix_admin because phoenix_tenant has SELECT-only
+// access, so tenant_id must be an explicit predicate rather than relying on RLS.
+func (r *EmailDeliveryEventRepository) DeleteOlderThan(ctx context.Context, tenantID int64, cutoff time.Time) (int64, error) {
 	res, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*platform.EmailDeliveryEvent)(nil)).
 		ModelTableExpr(deliveryEventTableExprAlias).
+		Where(`"email_delivery_event".tenant_id = ?`, tenantID).
 		Where(`"email_delivery_event".received_at < ?`, cutoff).
 		Exec(ctx)
 	if err != nil {

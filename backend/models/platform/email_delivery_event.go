@@ -120,7 +120,8 @@ type EmailDeliveryEventRepository interface {
 type EmailDeliveryEventCleanupRepository interface {
 	EmailDeliveryEventRepository
 
-	// DeleteOlderThan removes events received before cutoff for the current
-	// tenant and returns the number of rows deleted.
-	DeleteOlderThan(ctx context.Context, cutoff time.Time) (int64, error)
+	// DeleteOlderThan removes events received before cutoff for tenantID and
+	// returns the number of rows deleted. Admin-scoped retention path; the
+	// explicit tenant predicate is required because phoenix_admin bypasses RLS.
+	DeleteOlderThan(ctx context.Context, tenantID int64, cutoff time.Time) (int64, error)
 }

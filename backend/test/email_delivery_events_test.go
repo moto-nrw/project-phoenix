@@ -325,7 +325,7 @@ func TestDeliveryEventRepository_ListAndRetention(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, empty)
 
-	deleted, err := repo.DeleteOlderThan(ctx, time.Now().AddDate(0, 0, -90))
+	deleted, err := repo.DeleteOlderThan(ctx, scope.TenantID, time.Now().AddDate(0, 0, -90))
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, deleted, "only the expired event is removed")
 
@@ -333,6 +333,63 @@ func TestDeliveryEventRepository_ListAndRetention(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, remaining, 1)
 	assert.Equal(t, recent.ProviderEventID, remaining[0].ProviderEventID)
+}
+
+func TestDeliveryEventRepository_AdminRetentionStaysWithinTenant(t *testing.T) {
+	db := SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	target := NewTenantScope(t, db)
+	other := NewTenantScope(t, db)
+	defer CleanupTenantTestData(t, db, target.TenantID)
+	defer CleanupTenantTestData(t, db, other.TenantID)
+
+	repo := platformRepo.NewEmailDeliveryEventRepository(db)
+	cutoff := time.Now().AddDate(0, 0, -90)
+
+	rows := []struct {
+		scope TenantScope
+		row   *platformModels.EmailOutbox
+		event *platformModels.EmailDeliveryEvent
+	}{
+		{scope: target},
+		{scope: other},
+	}
+	for i := range rows {
+		messageID := fmt.Sprintf("ob.%d.admin-retention.%d@test.local", rows[i].scope.TenantID, i)
+		rows[i].row = seedOutboxRow(t, db, rows[i].scope.TenantID, messageID)
+		rows[i].event = &platformModels.EmailDeliveryEvent{
+			OutboxID:          rows[i].row.ID,
+			DispatchAttemptID: dispatchAttemptID(t, db, messageID),
+			Provider:          "generic",
+			ProviderEventID:   fmt.Sprintf("evt_admin_retention_%d", rows[i].row.ID),
+			EventType:         platformModels.DeliveryEventDeferred,
+			OccurredAt:        cutoff.AddDate(0, 0, -1),
+			ReceivedAt:        cutoff.AddDate(0, 0, -1),
+		}
+		rows[i].event.SetTenantID(rows[i].scope.TenantID)
+		inserted, err := repo.CreateIfNew(context.Background(), rows[i].event)
+		require.NoError(t, err)
+		require.True(t, inserted)
+	}
+
+	var deleted int64
+	err := tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+		var deleteErr error
+		deleted, deleteErr = repo.DeleteOlderThan(adminCtx, target.TenantID, cutoff)
+		return deleteErr
+	})
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, deleted)
+
+	targetEvents, err := repo.ListByOutboxIDs(context.Background(), []int64{rows[0].row.ID})
+	require.NoError(t, err)
+	assert.Empty(t, targetEvents)
+
+	otherEvents, err := repo.ListByOutboxIDs(context.Background(), []int64{rows[1].row.ID})
+	require.NoError(t, err)
+	require.Len(t, otherEvents, 1)
+	assert.Equal(t, rows[1].event.ProviderEventID, otherEvents[0].ProviderEventID)
 }
 
 // A malformed event must be rejected before it reaches the database.

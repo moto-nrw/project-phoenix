@@ -211,6 +211,36 @@ func TestAdapterRejectsIncompleteEvents(t *testing.T) {
 	}
 }
 
+func TestWebhookRejectsUnknownBounceClassWithoutIngesting(t *testing.T) {
+	rs, ingester := newTestResource(t, testSecret)
+	body := []byte(`{"events":[{
+		"event_id":"evt_unknown_bounce",
+		"type":"bounced",
+		"occurred_at":"2026-07-25T10:31:02Z",
+		"message_id":"ob.1.2.abc@mail.example.de",
+		"bounce_class":"permanent"
+	}]}`)
+
+	rec := serve(rs, signedRequest(t, testSecret, body))
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.Empty(t, ingester.events)
+}
+
+func TestAdapterNormalizesKnownBounceClass(t *testing.T) {
+	events, err := genericAdapter{}.Parse([]byte(`{"events":[{
+		"event_id":"evt_soft_bounce",
+		"type":"bounced",
+		"occurred_at":"2026-07-25T10:31:02Z",
+		"message_id":"ob.1.2.abc@mail.example.de",
+		"bounce_class":" Soft "
+	}]}`))
+
+	require.NoError(t, err)
+	require.Len(t, events, 1)
+	assert.Equal(t, "soft", events[0].BounceClass)
+}
+
 func TestAdapterRejectsOversizedBatch(t *testing.T) {
 	var sb strings.Builder
 	sb.WriteString(`{"events":[`)
