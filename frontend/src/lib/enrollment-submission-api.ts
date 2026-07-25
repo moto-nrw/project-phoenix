@@ -238,12 +238,22 @@ export interface PublicSchoolClassConfig {
   collect: boolean;
   available_classes: string[];
   require: boolean;
+  /**
+   * Server-authoritative "does grade 1 declare a concrete class here?" (#1663).
+   * Grade 1 is opt-in (#1833) and the form cannot derive the answer from the
+   * pick list: a phase restricted to a prefixless class ("Bienen") collects it
+   * for grade 1 too, yet its narrowed list looks like an unrestricted phase
+   * that merely offers a named class. Optional so a payload from a backend
+   * that does not send it keeps the old prefix-only rule.
+   */
+  collect_grade_1?: boolean;
 }
 
 export const EMPTY_SCHOOL_CLASS_CONFIG: PublicSchoolClassConfig = {
   collect: false,
   available_classes: [],
   require: false,
+  collect_grade_1: false,
 };
 
 function parseSchoolClassConfig(raw: unknown): PublicSchoolClassConfig {
@@ -254,6 +264,7 @@ function parseSchoolClassConfig(raw: unknown): PublicSchoolClassConfig {
       ? obj.available_classes.filter((c): c is string => typeof c === "string")
       : [],
     require: obj.require === true,
+    collect_grade_1: obj.collect_grade_1 === true,
   };
 }
 

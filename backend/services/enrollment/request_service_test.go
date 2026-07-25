@@ -2762,3 +2762,67 @@ func TestRequestService_ReplaceEditable_RejectsOffListPickupTime(t *testing.T) {
 	assert.True(t, errors.Is(err, enrollmentService.ErrPickupTimeNotAllowed),
 		"the edit path must reject off-list pickup times too")
 }
+
+// restrictClassesForEditDraftTest turns the env phase into a class-restricted
+// phase whose offered list is a proper superset of the eligible list — the
+// shape the admin editor produces, since eligible classes are ADDED to the
+// offered list rather than replacing it.
+func restrictClassesForEditDraftTest(t *testing.T, env *requestTestEnv, source string) *enrollmentService.SubmitResult {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	env.settings.boolValues[configModel.KeyEnrollmentCollectSchoolClass] = true
+	env.phase.AvailableSchoolClasses = []string{"2a", "2b"}
+	env.phase.EligibleSchoolClasses = []string{"2a"}
+	env.phase.EligibleGradeLevels = []int{2}
+	env.phase.RequireSchoolClass = true
+	require.NoError(t, repositories.NewFactory(env.db).Phase.Update(ctx, env.phase))
+
+	req := validSubmission(env.phaseID)
+	req.GuardianEmail = "edit-draft-eligibility@example.com"
+	req.SubmissionSource = source
+	req.AllowClosedPhase = source != ""
+	req.Children[0].TargetGradeLevel = testpkg.Int16Ptr(2)
+	req.Children[0].TargetSchoolClass = testpkg.StrPtr("2a")
+	req.Children[0].DateOfBirth = timezone.NewDate(2018, 4, 15)
+	submitted, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+	return submitted
+}
+
+// Reopening a request for editing is a self-service form load, and the edit
+// paths re-run the class-eligibility gate. Offering "2b" — available but not
+// eligible — would let the parent pick it and lose the whole edit to
+// class_not_eligible on save, so the draft must present the eligible subset
+// only (#1663).
+func TestRequestService_GetEditDraft_NarrowsOfferedClassesToEligible(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	submitted := restrictClassesForEditDraftTest(t, env, "")
+
+	draft, err := env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"2a"}, draft.Phase.AvailableSchoolClasses,
+		"an available-but-ineligible class must not be offered on the edit form")
+	assert.Equal(t, []int{2}, draft.Phase.EligibleGradeLevels,
+		"an enforced draft keeps the grade restriction its save re-checks")
+}
+
+// A trusted-source request (admin manual / late invite) bypasses the
+// eligibility gates on edit, so its draft keeps the phase's full offered list —
+// narrowing it would strip the exception the admin deliberately created.
+func TestRequestService_GetEditDraft_TrustedSourceKeepsFullClassList(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	submitted := restrictClassesForEditDraftTest(t, env, enrollmentModels.RequestSourceAdminManual)
+
+	draft, err := env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"2a", "2b"}, draft.Phase.AvailableSchoolClasses,
+		"an eligibility-exempt draft must keep every offered class")
+	assert.Empty(t, draft.Phase.EligibleGradeLevels,
+		"an eligibility-exempt draft must not narrow the grade select")
+}

@@ -1861,6 +1861,22 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 			return ErrEnrollmentWindowClosed
 		}
 		phase = loadedPhase
+		// Reopening the form is a self-service load like the public one, so it
+		// must present exactly the world the save will accept. Both edit paths
+		// (ReplaceEditable, prepareProposed) re-run the per-child eligibility
+		// gates under this very predicate, so an enforced draft gets the
+		// offered classes narrowed to the eligible subset — otherwise the
+		// parent picks an available-but-ineligible class and the save fails
+		// with class_not_eligible after the whole form was filled in. An exempt
+		// draft (trusted source / rollover-generated) bypasses those gates, so
+		// it keeps the full offered list and drops the grade restriction the
+		// form would otherwise narrow its grade select to. Mirrors the public
+		// form gate loadEditablePhaseWithLateInvite (#1663).
+		if isTrustedEnrollmentSource(req.SubmissionSource) || hasRolloverGeneratedChild(children) {
+			clearGradeRestrictionForEligibilityExemptForm(phase)
+		} else {
+			narrowOfferedClassesToEligibleForForm(phase)
+		}
 		loadedSchema, err := s.schemaForEditableRequest(txCtx, req, phase)
 		if err != nil {
 			return err
@@ -2995,27 +3011,30 @@ func (s *requestService) loadEditablePhaseWithLateInvite(ctx context.Context, ph
 	// A valid late invite bypasses that gate (AllowClosedPhase), so its recipient
 	// keeps the full offered list; everyone else sees the eligible subset (#1663).
 	if hasValidLateInvite {
-		clearGradeRestrictionForLateInviteForm(phase)
+		clearGradeRestrictionForEligibilityExemptForm(phase)
 	} else {
 		narrowOfferedClassesToEligibleForForm(phase)
 	}
 	return phase, nil
 }
 
-// clearGradeRestrictionForLateInviteForm drops the phase's grade restriction
-// from a form-load response served to a valid late-invite recipient. The invite
-// is a deliberate per-recipient eligibility override — Submit honors it via
-// AllowClosedPhase, which skips validateChildGradeEligibility entirely — so an
-// admin can invite a child from outside the restricted grade and the submission
-// is accepted. Leaving the restriction in the response would still narrow the
-// form's grade select to it, making the recipient unable to declare the very
-// grade the invite exists for. This is the grade-level mirror of the class
-// handling above, where a late invite skips narrowOfferedClassesToEligibleForForm
-// and keeps the full offered class list (#1663).
+// clearGradeRestrictionForEligibilityExemptForm drops the phase's grade
+// restriction from a form-load response served to a caller the submit-time
+// eligibility gates do not apply to: a valid late-invite recipient, or the
+// holder of a status token on a trusted-source / rollover-generated request.
+// Such a load is a deliberate eligibility override — Submit honors the invite
+// via AllowClosedPhase and the edit paths skip validateChildGradeEligibility
+// for exempt requests — so a child from outside the restricted grade is
+// accepted. Leaving the restriction in the response would still narrow the
+// form's grade select to it, making the caller unable to declare the very
+// grade the invite (or the carried-forward enrollment) exists for. This is the
+// grade-level mirror of the class handling, where an exempt load skips
+// narrowOfferedClassesToEligibleForForm and keeps the full offered class list
+// (#1663).
 //
-// Mutates a phase already cleared for a form load; Submit reloads the phase
-// independently (loadPhaseForSubmission), so this never reaches validation.
-func clearGradeRestrictionForLateInviteForm(phase *enrollmentModels.Phase) {
+// Mutates a phase already cleared for a form load; Submit and the edit paths
+// reload the phase independently, so this never reaches validation.
+func clearGradeRestrictionForEligibilityExemptForm(phase *enrollmentModels.Phase) {
 	if phase == nil {
 		return
 	}
@@ -3030,8 +3049,9 @@ func clearGradeRestrictionForLateInviteForm(phase *enrollmentModels.Phase) {
 // list stays narrow. Offering a class the submit-time gate rejects would let a
 // parent complete the whole form only to fail with class_not_eligible, so
 // present exactly the eligible subset instead. Mutates a phase already cleared
-// for a self-service load; the caller excludes late-invite loads, which bypass
-// eligibility. No-op when no restriction is active. Submit reloads the phase
+// for a self-service load; the callers exclude eligibility-exempt loads (late
+// invite, trusted-source or rollover-generated edit drafts), which bypass the
+// gate. No-op when no restriction is active. Submit reloads the phase
 // independently (loadPhaseForSubmission), so this narrowing never reaches
 // validation — and eligible ⊆ available guarantees every offered class still
 // passes the available check anyway (#1663).
@@ -3722,11 +3742,11 @@ func (s *requestService) validateAndNormalizeSchoolClasses(ctx context.Context, 
 		if children[i].TargetGradeLevel != nil {
 			grade = int(*children[i].TargetGradeLevel)
 		}
-		// Grade 1 stays grade-level-only (#1833) UNLESS the phase explicitly
-		// offers a concrete grade-1 class, in which case it is collected and
-		// validated exactly like grade >= 2 (#1663). Grade-less rows (grade 0)
-		// never collect a class. Grade >= 2 is unchanged.
-		if !collect || grade < 1 || (grade == 1 && !phaseOffersGradeClass(allowed, 1)) {
+		// Grade 1 stays grade-level-only (#1833) UNLESS the phase collects a
+		// grade-1 class (CollectsGrade1Class), in which case it is collected
+		// and validated exactly like grade >= 2 (#1663). Grade-less rows
+		// (grade 0) never collect a class. Grade >= 2 is unchanged.
+		if !collect || grade < 1 || (grade == 1 && !CollectsGrade1Class(phase)) {
 			children[i].TargetSchoolClass = nil
 			continue
 		}
@@ -3780,16 +3800,69 @@ func gradeHasSelectableClass(allowed map[string]struct{}, grade int) bool {
 	return false
 }
 
-// phaseOffersGradeClass reports whether the phase offers at least one concrete
-// class whose numeric prefix equals the grade (e.g. a "1x" class for grade 1).
-// Unlike gradeHasSelectableClass it deliberately ignores prefixless classes:
-// it is the opt-in trigger for collecting a grade-1 concrete class, so a phase
-// that never added a grade-1 class keeps grade 1 grade-level-only, preserving
-// the #1833 default. Grade >= 2 does not use it. Issue #1663.
-func phaseOffersGradeClass(allowed map[string]struct{}, grade int) bool {
+// CollectsGrade1Class reports whether a grade-1 child's concrete class is
+// collected for this phase. Grade 1 is opt-in — the #1833 default keeps it
+// grade-level-only — and there are exactly two triggers (#1663):
+//
+//   - No class restriction: the phase offers a concrete grade-1 class ("1a"),
+//     i.e. an admin deliberately added one. Prefixless classes ("Bienen")
+//     deliberately do NOT trigger it here, so a phase that never added a
+//     grade-1 class keeps the #1833 default.
+//   - Class restriction active: the eligible list decides, because it is the
+//     only world the submit gate accepts — validateChildClassEligibility
+//     rejects every child that declares no class, and the self-service form
+//     is narrowed to that same list. A grade-1 child can satisfy the
+//     restriction when an eligible class is grade-1-prefixed OR prefixless
+//     ("Bienen" carries no derivable grade and belongs to every grade), so
+//     the class must be collected. Not collecting it would clear the class
+//     and then reject the very submission the config exists for: a phase
+//     limited to "Bienen" accepted no grade-1 submission at all.
+//
+// An eligible list that only names grade >= 2 classes still returns false:
+// such a grade-1 child is genuinely ineligible and is rejected by the class
+// gate with class_not_eligible, not by a missing-pick error.
+//
+// Exported because the form-load responses must present the same decision the
+// submit path makes — a field the form hides and the validator then demands is
+// a dead end. Reads EligibleSchoolClasses (never narrowed) whenever a
+// restriction exists, so it returns the same answer on a form-load phase whose
+// offered list was narrowed to the eligible subset.
+func CollectsGrade1Class(phase *enrollmentModels.Phase) bool {
+	if phase == nil {
+		return false
+	}
+	if hasNonEmptyEligibleClass(phase.EligibleSchoolClasses) {
+		return listHasClassSelectableByGrade(phase.EligibleSchoolClasses, 1)
+	}
+	return listHasGradePrefixedClass(phase.AvailableSchoolClasses, 1)
+}
+
+// listHasGradePrefixedClass reports whether the list holds a concrete class
+// whose numeric prefix equals the grade (e.g. a "1x" class for grade 1).
+// Prefixless classes are ignored on purpose — see CollectsGrade1Class.
+func listHasGradePrefixedClass(classes []string, grade int) bool {
 	want := strconv.Itoa(grade)
-	for class := range allowed {
-		if schoolclass.GradePrefix(class) == want {
+	for _, class := range classes {
+		if schoolclass.GradePrefix(strings.TrimSpace(class)) == want {
+			return true
+		}
+	}
+	return false
+}
+
+// listHasClassSelectableByGrade reports whether a child in the given grade can
+// pick at least one class from the list: a matching numeric prefix, or a
+// prefixless class, which carries no derivable grade and is offered to every
+// grade. Same rule as gradeHasSelectableClass, over a slice instead of the
+// offered-class set.
+func listHasClassSelectableByGrade(classes []string, grade int) bool {
+	want := strconv.Itoa(grade)
+	for _, class := range classes {
+		trimmed := strings.TrimSpace(class)
+		if trimmed == "" {
+			continue
+		}
+		if prefix := schoolclass.GradePrefix(trimmed); prefix == "" || prefix == want {
 			return true
 		}
 	}

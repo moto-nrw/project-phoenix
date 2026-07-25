@@ -2726,10 +2726,12 @@ function classMatchesGrade(schoolClass: string, gradeLevel: string): boolean {
 // collectsConcreteClassForGrade decides whether the concrete-class field is
 // shown/collected for a child of the given grade. Grade >= 2 is unchanged
 // (#1833): collected whenever the phase offers a class matching the grade,
-// prefixless classes included. Grade 1 is opt-in (#1663): collected ONLY when
-// the phase offers a concrete grade-1 class (a "1x" prefix, prefixless classes
-// do NOT trigger it), mirroring the backend phaseOffersGradeClass gate so a
-// phase that never added a grade-1 class keeps grade 1 grade-level-only.
+// prefixless classes included. Grade 1 is opt-in (#1663): the backend decides
+// it (CollectsGrade1Class -> `collect_grade_1`), because a phase restricted to
+// a prefixless class ("Bienen") collects a grade-1 class too and the narrowed
+// pick list alone cannot say so. The prefix-only rule stays as the fallback
+// for a payload without the field, keeping the pre-#1663 behaviour: a phase
+// that never added a grade-1 class leaves grade 1 grade-level-only.
 function collectsConcreteClassForGrade(
   config: PublicSchoolClassConfig,
   gradeLevel: string,
@@ -2742,6 +2744,7 @@ function collectsConcreteClassForGrade(
       classMatchesGrade(cls, gradeLevel),
     );
   }
+  if (config.collect_grade_1 === true) return true;
   return config.available_classes.some(
     (cls) => schoolClassGradePrefix(cls) === "1",
   );

@@ -531,6 +531,16 @@ type PublicSchoolClassConfig struct {
 	Collect          bool     `json:"collect"`
 	AvailableClasses []string `json:"available_classes"`
 	Require          bool     `json:"require"`
+	// CollectGrade1 is the server-authoritative answer to "does grade 1
+	// declare a concrete class in this phase?" (#1663). Grade 1 is opt-in
+	// (#1833) and the form cannot derive the answer itself: a phase
+	// restricted to a prefixless class ("Bienen") collects it for grade 1
+	// too, yet its narrowed pick list looks exactly like an unrestricted
+	// phase that merely offers a named class. Hiding the field where the
+	// submit path demands it — or showing it where the submit path clears
+	// it — is a dead end either way, so the decision is made once, in
+	// enrollment.CollectsGrade1Class, and shipped to the form.
+	CollectGrade1 bool `json:"collect_grade_1"`
 }
 
 func toPublicSchoolClassConfig(phase *enrollmentModels.Phase, collect bool) PublicSchoolClassConfig {
@@ -542,6 +552,7 @@ func toPublicSchoolClassConfig(phase *enrollmentModels.Phase, collect bool) Publ
 		Collect:          collect,
 		AvailableClasses: classes,
 		Require:          phase.RequireSchoolClass,
+		CollectGrade1:    enrollmentService.CollectsGrade1Class(phase),
 	}
 }
 
