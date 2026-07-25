@@ -8,6 +8,8 @@ import {
   resendInvitation,
   revokeInvitation,
 } from "~/lib/invitation-api";
+import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { STAFF_INVITATION_DELIVERY_META } from "~/lib/invitation-helpers";
 import type { PendingInvitation } from "~/lib/invitation-helpers";
 import type { ApiError } from "~/lib/auth-api";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
@@ -254,6 +256,22 @@ export function PendingInvitationsList({
                         </span>
                       ) : (
                         <span className="text-xs text-gray-400">Ungültig</span>
+                      )}
+                      {invitation.deliveryStatus && (
+                        <div className="mt-1">
+                          <StatusDotBadge
+                            label={
+                              STAFF_INVITATION_DELIVERY_META[
+                                invitation.deliveryStatus
+                              ].label
+                            }
+                            color={
+                              STAFF_INVITATION_DELIVERY_META[
+                                invitation.deliveryStatus
+                              ].color
+                            }
+                          />
+                        </div>
                       )}
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap md:px-4 md:py-3">

@@ -17,6 +17,8 @@ import {
   buildGuardianTelHref,
 } from "./guardian-contact-actions";
 import { LOCATION_COLORS, GROUP_ROOM_SHADES } from "~/lib/location-helper";
+import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import type { DeliveryPresentation } from "~/lib/guardian-delivery-helpers";
 import {
   UserCheck,
   Phone,
@@ -43,14 +45,29 @@ function AccountStatusBadge({
   status,
 }: Readonly<{ status?: GuardianAccountStatus }>) {
   const meta = ACCOUNT_STATUS_META[status ?? "none"];
+  return <StatusDotBadge label={meta.label} color={meta.dot} />;
+}
+
+// Delivery pill (#1937). Clickable, because the state alone ("verzögert")
+// raises the obvious follow-up question the dialog answers: do I resend or
+// wait? Rendered next to the account status, never instead of it — the two
+// answer different questions.
+function DeliveryStatusButton({
+  presentation,
+  onClick,
+}: Readonly<{
+  presentation: DeliveryPresentation;
+  onClick: () => void;
+}>) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-      <span
-        className="h-2 w-2 rounded-full"
-        style={{ backgroundColor: meta.dot }}
-      />
-      {meta.label}
-    </span>
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      title="Zustellstatus anzeigen"
+    >
+      <StatusDotBadge label={presentation.label} color={presentation.color} />
+    </button>
   );
 }
 
@@ -61,6 +78,13 @@ interface GuardianListProps {
   readonly invitingGuardianId?: string | null;
   readonly readOnly?: boolean;
   readonly showRelationship?: boolean;
+  /**
+   * Delivery state of the newest invitation attempt, per guardian id (#1937).
+   * Absent means "no open invitation" — the list then behaves as before.
+   */
+  readonly deliveryByGuardianId?: ReadonlyMap<string, DeliveryPresentation>;
+  /** Opens the delivery detail dialog for a guardian. */
+  readonly onShowDelivery?: (guardian: GuardianWithRelationship) => void;
 }
 
 export default function GuardianList({
@@ -70,6 +94,8 @@ export default function GuardianList({
   invitingGuardianId,
   readOnly = false,
   showRelationship = true,
+  deliveryByGuardianId,
+  onShowDelivery,
 }: GuardianListProps) {
   if (guardians.length === 0) {
     return (
@@ -84,160 +110,177 @@ export default function GuardianList({
 
   return (
     <div className="space-y-3">
-      {guardians.map((guardian) => (
-        <div
-          key={guardian.id}
-          className="rounded-lg border border-gray-200 bg-white p-3 transition-colors sm:p-4"
-        >
-          {/* Header with name and actions */}
-          <div className="mb-3 flex items-start justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <h4 className="flex flex-wrap items-center gap-2 text-base font-semibold sm:text-lg">
-                <span className="break-words">
-                  {getGuardianFullName(guardian)}
-                </span>
-                {guardian.isPrimary && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
-                    <UserCheck className="h-3 w-3" />
-                    Primär
+      {guardians.map((guardian) => {
+        const delivery = deliveryByGuardianId?.get(guardian.id);
+        return (
+          <div
+            key={guardian.id}
+            className="rounded-lg border border-gray-200 bg-white p-3 transition-colors sm:p-4"
+          >
+            {/* Header with name and actions */}
+            <div className="mb-3 flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <h4 className="flex flex-wrap items-center gap-2 text-base font-semibold sm:text-lg">
+                  <span className="break-words">
+                    {getGuardianFullName(guardian)}
                   </span>
+                  {guardian.isPrimary && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
+                      <UserCheck className="h-3 w-3" />
+                      Primär
+                    </span>
+                  )}
+                  <AccountStatusBadge status={guardian.accountStatus} />
+                  {delivery && onShowDelivery && (
+                    <DeliveryStatusButton
+                      presentation={delivery}
+                      onClick={() => onShowDelivery(guardian)}
+                    />
+                  )}
+                </h4>
+                {showRelationship && (
+                  <p className="mt-1 text-xs text-gray-600 sm:text-sm">
+                    {getRelationshipTypeLabel(guardian.relationshipType)}
+                  </p>
                 )}
-                <AccountStatusBadge status={guardian.accountStatus} />
-              </h4>
-              {showRelationship && (
-                <p className="mt-1 text-xs text-gray-600 sm:text-sm">
-                  {getRelationshipTypeLabel(guardian.relationshipType)}
-                </p>
+              </div>
+
+              {!readOnly && (
+                <div className="flex flex-shrink-0 items-center gap-1">
+                  {onInvite &&
+                    guardian.accountStatus !== "active" &&
+                    guardian.email && (
+                      <button
+                        type="button"
+                        onClick={() => onInvite(guardian)}
+                        disabled={
+                          invitingGuardianId === guardian.id ||
+                          delivery?.retryInProgress === true
+                        }
+                        className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors hover:bg-[#f0f9e4] disabled:opacity-50"
+                        style={{ color: GROUP_ROOM_SHADES.text }}
+                        title={
+                          // A resend while the mail server is still retrying
+                          // creates a second link for the family and speeds
+                          // nothing up — the acceptance criterion from #1937.
+                          delivery?.retryInProgress
+                            ? "Die Zustellung läuft noch. Ein erneutes Senden ist nicht nötig."
+                            : guardian.accountStatus === "pending"
+                              ? "Einladung erneut senden"
+                              : "Zum Elternportal einladen"
+                        }
+                      >
+                        <Send className="h-4 w-4" />
+                        <span className="hidden sm:inline">
+                          {guardian.accountStatus === "pending"
+                            ? "Erneut einladen"
+                            : "Einladen"}
+                        </span>
+                      </button>
+                    )}
+                  {onEdit && (
+                    <button
+                      type="button"
+                      onClick={() => onEdit(guardian)}
+                      className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                    >
+                      Bearbeiten
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 
-            {!readOnly && (
-              <div className="flex flex-shrink-0 items-center gap-1">
-                {onInvite &&
-                  guardian.accountStatus !== "active" &&
-                  guardian.email && (
-                    <button
-                      type="button"
-                      onClick={() => onInvite(guardian)}
-                      disabled={invitingGuardianId === guardian.id}
-                      className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors hover:bg-[#f0f9e4] disabled:opacity-50"
-                      style={{ color: GROUP_ROOM_SHADES.text }}
-                      title={
-                        guardian.accountStatus === "pending"
-                          ? "Einladung erneut senden"
-                          : "Zum Elternportal einladen"
-                      }
-                    >
-                      <Send className="h-4 w-4" />
-                      <span className="hidden sm:inline">
-                        {guardian.accountStatus === "pending"
-                          ? "Erneut einladen"
-                          : "Einladen"}
-                      </span>
-                    </button>
-                  )}
-                {onEdit && (
-                  <button
-                    type="button"
-                    onClick={() => onEdit(guardian)}
-                    className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
-                  >
-                    Bearbeiten
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Contact Information */}
-          <div className="grid grid-cols-1 gap-2 sm:gap-3 md:grid-cols-2">
-            <EmailItem
-              email={guardian.email}
-              guardianName={getGuardianFullName(guardian)}
-            />
-            {/* Display flexible phone numbers */}
-            {guardian.phoneNumbers && guardian.phoneNumbers.length > 0 ? (
-              guardian.phoneNumbers.map((phone) => (
-                <PhoneItem key={phone.id} phone={phone} />
-              ))
-            ) : (
-              <InfoItem
-                label="Telefon"
-                value="Nicht angegeben"
-                icon={<Phone className="h-4 w-4" />}
+            {/* Contact Information */}
+            <div className="grid grid-cols-1 gap-2 sm:gap-3 md:grid-cols-2">
+              <EmailItem
+                email={guardian.email}
+                guardianName={getGuardianFullName(guardian)}
               />
-            )}
-          </div>
+              {/* Display flexible phone numbers */}
+              {guardian.phoneNumbers && guardian.phoneNumbers.length > 0 ? (
+                guardian.phoneNumbers.map((phone) => (
+                  <PhoneItem key={phone.id} phone={phone} />
+                ))
+              ) : (
+                <InfoItem
+                  label="Telefon"
+                  value="Nicht angegeben"
+                  icon={<Phone className="h-4 w-4" />}
+                />
+              )}
+            </div>
 
-          {/* Address — use explicit check because nullish coalescing treats "" as present */}
-          {[
-            guardian.addressStreet,
-            guardian.addressCity,
-            guardian.addressPostalCode,
-          ].some((v) => v && v.trim() !== "") && (
-            <div className="mt-2 border-t border-gray-100 pt-2 sm:mt-3 sm:pt-3">
-              <div className="flex items-start gap-1.5 text-xs text-gray-500 sm:text-sm">
-                <MapPin className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-                <span className="text-gray-700">
-                  {[
-                    guardian.addressStreet,
-                    [guardian.addressPostalCode, guardian.addressCity]
+            {/* Address — use explicit check because nullish coalescing treats "" as present */}
+            {[
+              guardian.addressStreet,
+              guardian.addressCity,
+              guardian.addressPostalCode,
+            ].some((v) => v && v.trim() !== "") && (
+              <div className="mt-2 border-t border-gray-100 pt-2 sm:mt-3 sm:pt-3">
+                <div className="flex items-start gap-1.5 text-xs text-gray-500 sm:text-sm">
+                  <MapPin className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                  <span className="text-gray-700">
+                    {[
+                      guardian.addressStreet,
+                      [guardian.addressPostalCode, guardian.addressCity]
+                        .filter(Boolean)
+                        .join(" "),
+                    ]
                       .filter(Boolean)
-                      .join(" "),
-                  ]
-                    .filter(Boolean)
-                    .join(", ")}
-                </span>
+                      .join(", ")}
+                  </span>
+                </div>
               </div>
+            )}
+
+            {/* Badges: Flags and Language */}
+            <div className="mt-2 flex flex-wrap gap-1.5 border-t border-gray-100 pt-2 sm:mt-3 sm:pt-3">
+              {guardian.canPickup && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                  <Shield className="h-3 w-3" />
+                  Abholberechtigt
+                </span>
+              )}
+              {guardian.isEmergencyContact && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+                  <AlertCircle className="h-3 w-3" />
+                  Notfallkontakt
+                </span>
+              )}
+              {guardian.languagePreference && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                  <Globe className="h-3 w-3" />
+                  {getLanguageLabel(guardian.languagePreference)}
+                </span>
+              )}
             </div>
-          )}
 
-          {/* Badges: Flags and Language */}
-          <div className="mt-2 flex flex-wrap gap-1.5 border-t border-gray-100 pt-2 sm:mt-3 sm:pt-3">
-            {guardian.canPickup && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
-                <Shield className="h-3 w-3" />
-                Abholberechtigt
-              </span>
+            {/* Notes */}
+            {guardian.notes && (
+              <div className="mt-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 sm:text-sm">
+                {guardian.notes}
+              </div>
             )}
-            {guardian.isEmergencyContact && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
-                <AlertCircle className="h-3 w-3" />
-                Notfallkontakt
-              </span>
-            )}
-            {guardian.languagePreference && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
-                <Globe className="h-3 w-3" />
-                {getLanguageLabel(guardian.languagePreference)}
-              </span>
-            )}
-          </div>
 
-          {/* Notes */}
-          {guardian.notes && (
-            <div className="mt-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 sm:text-sm">
-              {guardian.notes}
+            {/* Contact Actions */}
+            <div className="mt-2 sm:mt-3">
+              <GuardianContactActions
+                email={guardian.email}
+                phone={getPrimaryPhone(guardian)}
+                phoneNumbers={
+                  guardian.phoneNumbers?.map((p) => ({
+                    number: p.phoneNumber,
+                    label: getPhoneLabel(p),
+                    isPrimary: p.isPrimary,
+                  })) ?? []
+                }
+                contactName={getGuardianFullName(guardian)}
+              />
             </div>
-          )}
-
-          {/* Contact Actions */}
-          <div className="mt-2 sm:mt-3">
-            <GuardianContactActions
-              email={guardian.email}
-              phone={getPrimaryPhone(guardian)}
-              phoneNumbers={
-                guardian.phoneNumbers?.map((p) => ({
-                  number: p.phoneNumber,
-                  label: getPhoneLabel(p),
-                  isPrimary: p.isPrimary,
-                })) ?? []
-              }
-              contactName={getGuardianFullName(guardian)}
-            />
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

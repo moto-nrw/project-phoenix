@@ -18,6 +18,7 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/viper"
@@ -973,35 +974,60 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 	accountID := int64(claims.ID)
 
-	// Send invitation
-	invitationReq := guardianSvc.GuardianInvitationRequest{
-		GuardianProfileID: guardianID,
-		CreatedBy:         accountID,
-	}
-
+	// Outbox path (#1937). The old GuardianService.SendInvitation sent
+	// synchronously and stamped email_sent_at, which is why this endpoint used
+	// to claim "gesendet" for mail that had not left the building — and for
+	// mail whose enqueue had failed outright.
 	var invitation *authModels.GuardianInvitation
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
-		invitation, txErr = rs.GuardianService.SendInvitation(ctx, invitationReq) //nolint:staticcheck // deprecated twin stays until audit A-13 deletes the whole flow
+		invitation, txErr = rs.InvitationService.Create(ctx, authSvc.GuardianInvitationCreateRequest{
+			GuardianProfileID: guardianID,
+			CreatedBy:         accountID,
+		})
 		return txErr
 	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	// Return invitation details (without token for security)
+	// Return invitation details (without token for security).
+	//
+	// email_status is "queued", never "sent": at this point the mail is a row
+	// in platform.email_outbox. The frontend renders "eingeplant" and polls
+	// /invitations/{id}/delivery for what actually happened.
 	response := map[string]interface{}{
 		"id":                  invitation.ID,
 		"guardian_profile_id": invitation.GuardianProfileID,
 		"expires_at":          invitation.ExpiresAt,
-		"email_sent":          invitation.EmailSentAt != nil,
+		"email_status":        "queued",
 	}
 	if shouldExposeSeedInvitationToken(r) {
 		response["token"] = invitation.Token
 	}
 
-	common.Respond(w, r, http.StatusCreated, response, "Invitation sent successfully")
+	common.Respond(w, r, http.StatusCreated, response, "Invitation queued")
+}
+
+// getInvitationDeliveryStatus reports what actually happened to the invitation
+// emails for one invitation: one entry per dispatch attempt, newest first.
+// Tenant isolation is RLS — an invitation from another school yields no
+// attempts rather than a leak.
+func (rs *Resource) getInvitationDeliveryStatus(w http.ResponseWriter, r *http.Request) {
+	invitationID, err := common.ParseIDParam(r, "invitationId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid invitation ID")))
+		return
+	}
+
+	delivery, err := rs.InvitationService.DeliveryStatus(r.Context(), invitationID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, delivery, "Delivery status retrieved successfully")
 }
 
 func shouldExposeSeedInvitationToken(r *http.Request) bool {

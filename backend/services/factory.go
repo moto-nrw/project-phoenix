@@ -147,8 +147,11 @@ type Factory struct {
 	// EmailOutbox enqueues from feature code; EmailOutboxWorker drains
 	// the table on a scheduler tick; EmailTemplateRegistry holds the
 	// kind→Renderer mapping populated at startup.
-	EmailOutbox           *platform.OutboxService
-	EmailOutboxWorker     *platform.OutboxWorker
+	EmailOutbox       *platform.OutboxService
+	EmailOutboxWorker *platform.OutboxWorker
+	// EmailDelivery ingests provider delivery events (#1937) and answers the
+	// "is this mail actually delivered" question the outbox status cannot.
+	EmailDelivery         *platform.EmailDeliveryService
 	EmailTemplateRegistry *platform.TemplateRegistry
 
 	// Display domain (info-point dashboards, issue #1325)
@@ -334,7 +337,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		FrontendURL:             frontendURL,
 		DefaultFrom:             defaultFrom,
 		InvitationExpiry:        invitationTokenExpiry,
-		DB:                      db,
+		// Outbox repo directly (not the outbox service, which is constructed
+		// later in this factory) so revoking an invitation can also stop its
+		// still-queued mail.
+		Outbox: repos.EmailOutbox,
+		DB:     db,
 	})
 
 	// Thin loader that backs the public + parent enrollment me/profile
@@ -956,6 +963,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:          db,
 	})
 
+	// Provider delivery-event ingest (#1937). Runs entirely under
+	// phoenix_admin: the webhook is unauthenticated and the tenant is only
+	// known once the outbox row is resolved.
+	emailDeliveryService := platform.NewEmailDeliveryService(platform.EmailDeliveryServiceConfig{
+		OutboxRepo: repos.EmailOutbox,
+		EventRepo:  repos.EmailDeliveryEvent,
+		Enqueuer:   emailOutboxService,
+		Settings:   settingsService,
+		Metrics:    platform.NewPrometheusDeliveryMetrics(),
+		DB:         db,
+		Logger:     logger.With("service", "email_delivery"),
+	})
+
 	guardianInvitationService := auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
 		InvitationRepo:       repos.GuardianInvitation,
 		AccountRepo:          repos.Account,
@@ -968,6 +988,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StudentRepo:          repos.Student,
 		SchoolRepo:           repos.School,
 		OutboxEnqueuer:       emailOutboxService,
+		OutboxReader:         emailOutboxService,
+		DeliveryEvents:       repos.EmailDeliveryEvent,
 		EnrollmentBackfiller: repos.ParentEnrollmentRequest,
 		SettingsResolver:     settingsService,
 		FrontendURL:          parentsURL, // accept link goes to the parents portal, not the staff frontend
@@ -983,6 +1005,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	emailTemplateRegistry.Register(
 		platformModels.EmailKindGuardianInvitation,
 		platform.RendererFunc(auth.NewGuardianInvitationRenderer(auth.GuardianInvitationRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindDeliveryFailureNotice,
+		platform.RendererFunc(platform.NewDeliveryFailureRenderer(platform.EmailConfig{
 			DefaultFrom: defaultFrom,
 		})),
 	)
@@ -1717,6 +1745,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 		EmailOutbox:           emailOutboxService,
 		EmailOutboxWorker:     emailOutboxWorker,
+		EmailDelivery:         emailDeliveryService,
 		EmailTemplateRegistry: emailTemplateRegistry,
 
 		EnrollmentFormSchema:      enrollmentFormSchemaService,

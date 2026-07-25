@@ -58,8 +58,10 @@ import (
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
+	webhooksAPI "github.com/moto-nrw/project-phoenix/api/webhooks"
 
 	projectJWT "github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/webhooksig"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
@@ -115,6 +117,10 @@ type API struct {
 	Operator *operatorAPI.Resource
 	Parent   *parentAPI.Resource
 	Platform *platformAPI.Resource
+
+	// Webhooks holds inbound provider webhooks. Mounted OUTSIDE every
+	// authenticated group — see the api/webhooks package doc.
+	Webhooks *webhooksAPI.Resource
 }
 
 // New creates a new API instance
@@ -549,6 +555,16 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		db,
 	)
 	api.Parent.SetCalendarService(api.Services.Calendar)
+	// Provider delivery webhooks (#1937). The signing secret is
+	// infrastructure config, not a tenant setting: it is shared by every
+	// tenant and only an operator may rotate it.
+	api.Webhooks = webhooksAPI.NewResource(webhooksAPI.ResourceConfig{
+		DeliveryService: api.Services.EmailDelivery,
+		Verifier:        webhooksig.NewVerifier(os.Getenv("EMAIL_WEBHOOK_SIGNING_SECRET")),
+		Logger:          logger.With("handler", "webhooks"),
+		RateLimiter:     customMiddleware.NewRateLimiter(120, 20).Middleware(),
+	})
+
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Uses tenant auth middleware
@@ -648,6 +664,13 @@ func (a *API) registerPublicRoutes() {
 	// is the capability). Calendar apps (Apple/Google/Outlook) poll this to keep
 	// the parent's Termine in sync.
 	a.Router.Get("/public/calendar/{token}", a.servePublicCalendarFeed)
+
+	// Provider email-delivery webhooks. Unauthenticated with respect to JWT
+	// by design: the HMAC signature is the credential and the tenant comes
+	// from the outbox row the event points at, never from the request.
+	// Mounted at the root, NOT under /api, because every /api resource router
+	// applies common.ProtectedTenantGroup and a webhook must not inherit it.
+	a.Router.Mount("/webhooks", a.Webhooks.Router())
 
 	a.Router.With(observability.MetricsAuthMiddleware(a.metricsBearerToken)).Handle("/internal/metrics", observability.MetricsHandler())
 }

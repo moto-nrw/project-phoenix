@@ -3,6 +3,11 @@
 
 import { createLogger } from "~/lib/logger";
 import type {
+  BackendInvitationDelivery,
+  InvitationDelivery,
+} from "./guardian-delivery-helpers";
+import { mapInvitationDelivery } from "./guardian-delivery-helpers";
+import type {
   Guardian,
   GuardianWithRelationship,
   GuardianFormData,
@@ -741,10 +746,7 @@ export async function removeGuardianFromStudent(
 
 // Outcome returned by the unified invite resolve, mirroring the backend.
 type InviteGuardianOutcome =
-  | "linked_existing_account"
-  | "already_linked"
-  | "invited"
-  | "pending_approval";
+  "linked_existing_account" | "already_linked" | "invited" | "pending_approval";
 
 export interface InviteGuardianResult {
   outcome: InviteGuardianOutcome;
@@ -1146,4 +1148,62 @@ export async function rejectGuardianInvitation(
   invitationId: string,
 ): Promise<void> {
   return postInvitationAction(invitationId, "reject");
+}
+
+// --- Email delivery status (#1937) ---------------------------------------
+
+interface BackendPendingInvitation {
+  id: number;
+  guardian_profile_id: number;
+}
+
+/**
+ * Map guardian profile ID → open invitation ID.
+ *
+ * The delivery-status endpoint is keyed on the invitation, but the guardian
+ * list only knows the profile. One list call resolves the mapping for every
+ * guardian on screen instead of one lookup per row.
+ */
+export async function fetchOpenInvitationsByGuardian(): Promise<
+  Map<string, string>
+> {
+  const response = await fetch("/api/guardians/invitations/pending");
+  if (!response.ok) {
+    throw new Error(
+      `Failed to load pending invitations: ${response.statusText}`,
+    );
+  }
+  const result = (await response.json()) as ApiResponse<
+    BackendPendingInvitation[]
+  >;
+  if (result.status === "error" || !result.data) {
+    throw new Error(result.error ?? "Failed to load pending invitations");
+  }
+  const map = new Map<string, string>();
+  for (const invitation of result.data) {
+    // The list is newest-first per profile; keep the first one seen.
+    const profileId = invitation.guardian_profile_id.toString();
+    if (!map.has(profileId)) {
+      map.set(profileId, invitation.id.toString());
+    }
+  }
+  return map;
+}
+
+/** Load the delivery status of every dispatch attempt for one invitation. */
+export async function fetchInvitationDelivery(
+  invitationId: string,
+): Promise<InvitationDelivery> {
+  const response = await fetch(
+    `/api/guardians/invitations/${invitationId}/delivery`,
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to load delivery status: ${response.statusText}`);
+  }
+  const result =
+    (await response.json()) as ApiResponse<BackendInvitationDelivery>;
+  if (result.status === "error" || !result.data) {
+    throw new Error(result.error ?? "Failed to load delivery status");
+  }
+  return mapInvitationDelivery(result.data);
 }

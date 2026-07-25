@@ -49,6 +49,21 @@ func init() {
 		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
 	})
 
+	config.Register(config.Definition{
+		Key:             config.KeyEmailDeliveryRetentionDays,
+		Label:           "Aufbewahrung Zustellprotokoll (Tage)",
+		Description:     "Wie lange Rückmeldungen des Mailservers zu Eltern-E-Mails (zugestellt, verzögert, unzustellbar) gespeichert bleiben. Danach werden sie automatisch gelöscht.",
+		Type:            config.FieldNumber,
+		Default:         90,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "gdpr",
+		Category:        "kommunikation",
+		SortOrder:       40,
+		Validation:      config.Range(7, 365),
+		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
+	})
+
 	// --- Anwesenheitsprotokoll / Raumverlauf (per-student attendance history) ---
 
 	config.Register(config.Definition{

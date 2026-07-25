@@ -28,8 +28,13 @@ import {
   setGuardianPrimaryPhone,
   inviteGuardianToStudent,
   fetchGuardianDeletePreview,
+  fetchOpenInvitationsByGuardian,
+  fetchInvitationDelivery,
   GuardianApiError,
 } from "@/lib/guardian-api";
+import type { DeliveryPresentation } from "~/lib/guardian-delivery-helpers";
+import { presentLatestAttempt } from "~/lib/guardian-delivery-helpers";
+import { InvitationDeliveryModal } from "./invitation-delivery-modal";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { useSession } from "next-auth/react";
@@ -91,12 +96,63 @@ export default function StudentGuardianManager({
   }, []);
 
   // Load guardians
+  // Invitation delivery state (#1937). Loaded alongside the guardian list so a
+  // school sees at a glance whether an invitation actually arrived, without a
+  // request per row.
+  const [invitationIds, setInvitationIds] = useState<Map<string, string>>(
+    new Map(),
+  );
+  const [deliveryByGuardianId, setDeliveryByGuardianId] = useState<
+    Map<string, DeliveryPresentation>
+  >(new Map());
+  const [deliveryGuardian, setDeliveryGuardian] = useState<
+    GuardianWithRelationship | undefined
+  >();
+
+  // Best effort: the guardian list must render even when delivery status is
+  // unavailable. Losing a status badge is not worth failing the page for.
+  const loadDeliveryStatus = useCallback(
+    async (current: GuardianWithRelationship[]) => {
+      try {
+        const ids = await fetchOpenInvitationsByGuardian();
+        setInvitationIds(ids);
+
+        const entries = await Promise.all(
+          current
+            .map((guardian) => {
+              const invitationId = ids.get(guardian.id);
+              return invitationId ? { guardian, invitationId } : null;
+            })
+            .filter((entry) => entry !== null)
+            .map(async ({ guardian, invitationId }) => {
+              const delivery = await fetchInvitationDelivery(invitationId);
+              const presentation = presentLatestAttempt(delivery);
+              return presentation
+                ? ([guardian.id, presentation] as const)
+                : null;
+            }),
+        );
+
+        setDeliveryByGuardianId(
+          new Map(entries.filter((entry) => entry !== null)),
+        );
+      } catch (err) {
+        logger.warn("guardian_delivery_status_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          student_id: studentId,
+        });
+      }
+    },
+    [studentId],
+  );
+
   const loadGuardians = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
       const data = await fetchStudentGuardians(studentId);
       setGuardians(data);
+      void loadDeliveryStatus(data);
     } catch (err) {
       logger.error("guardians_load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -110,7 +166,7 @@ export default function StudentGuardianManager({
     } finally {
       setIsLoading(false);
     }
-  }, [studentId]);
+  }, [studentId, loadDeliveryStatus]);
 
   useEffect(() => {
     loadGuardians().catch(() => {
@@ -351,10 +407,15 @@ export default function StudentGuardianManager({
       const name = getGuardianFullName(guardian);
       const message =
         result.outcome === "invited"
-          ? `Einladung an ${guardian.email} gesendet`
+          ? // Deliberately "eingeplant", not "gesendet": at this point the
+            // mail is a queued outbox row. The delivery badge reports what
+            // actually happens to it (#1937).
+            `Einladung an ${guardian.email} eingeplant`
           : result.outcome === "already_linked"
             ? `${name} ist bereits verbunden`
-            : `${name} wurde mit dem vorhandenen Konto verbunden`;
+            : result.outcome === "pending_approval"
+              ? `Anfrage für ${name} wartet auf Freigabe`
+              : `${name} wurde mit dem vorhandenen Konto verbunden`;
       toastSuccess(message);
     } catch (err) {
       logger.error("guardian_invite_failed", {
@@ -656,8 +717,21 @@ export default function StudentGuardianManager({
           invitingGuardianId={invitingGuardianId}
           readOnly={readOnly}
           showRelationship={true}
+          deliveryByGuardianId={deliveryByGuardianId}
+          onShowDelivery={setDeliveryGuardian}
         />
       </div>
+
+      {/* Invitation delivery detail (#1937) */}
+      {deliveryGuardian && invitationIds.get(deliveryGuardian.id) && (
+        <InvitationDeliveryModal
+          isOpen
+          onClose={() => setDeliveryGuardian(undefined)}
+          invitationId={invitationIds.get(deliveryGuardian.id)!}
+          recipientEmail={deliveryGuardian.email}
+          guardianName={getGuardianFullName(deliveryGuardian)}
+        />
+      )}
 
       {/* Form Modal */}
       <GuardianFormModal

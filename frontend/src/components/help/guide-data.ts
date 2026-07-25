@@ -1,4 +1,5 @@
 import {
+  MailWarning,
   Activity,
   Building2,
   CalendarDays,
@@ -538,6 +539,28 @@ export const appChapters: readonly GuideChapter[] = [
               "Seite „Konto-Anfragen“: von Eltern angestoßene Einladungen mit „Freigeben“ bestätigen oder mit „Ablehnen“ abweisen.",
           },
         ],
+      },
+      {
+        id: "einladungen-zustellstatus",
+        title: "Zustellstatus von Einladungen prüfen",
+        icon: MailWarning,
+        summary:
+          "Nach dem Einladen zeigt moto im Tab `Erziehungsberechtigte`, was aus der E-Mail geworden ist. So erkennen Sie, ob eine Familie die Einladung nie bekommen hat, statt vergeblich auf eine Anmeldung zu warten.",
+        steps: [
+          "Neben dem Kontostatus erscheint ein zweites Feld mit dem Zustellstatus. Darauf klicken öffnet die Details zu jedem Versandvorgang.",
+          "`Einladung eingeplant` heißt: die E-Mail ist in der Warteschlange und geht gleich raus.",
+          "`E-Mail übergeben` heißt: der Mailserver hat die Nachricht angenommen. Eine Bestätigung, dass sie im Postfach liegt, gibt es noch nicht.",
+          "`Zugestellt` heißt: die Nachricht wurde im Postfach abgelegt.",
+          "`Zustellung verzögert` heißt: es gibt ein vorübergehendes Problem, zum Beispiel ein volles Postfach. Der Mailserver versucht es weiter, die Schaltfläche `Erneut einladen` ist so lange deaktiviert.",
+          "`Nicht zustellbar`, `Blockiert` oder `Als Spam markiert` heißt: die Adresse nimmt keine Nachrichten an. Korrigieren Sie die E-Mail-Adresse über `Bearbeiten` und laden Sie danach erneut ein.",
+        ],
+        callout: {
+          title: "Adresse korrigiert? Alte Einladung ist ungültig",
+          body: "Sobald Sie die E-Mail-Adresse einer Bezugsperson ändern, wird die alte Einladung automatisch zurückgezogen. Ein Tippfehler in der Adresse kann sonst dazu führen, dass eine fremde Person den Zugang zum Kind erhält. Senden Sie nach der Korrektur eine neue Einladung.",
+          tone: "orange",
+        },
+        screenshot:
+          "Tab Erziehungsberechtigte mit Zustellstatus neben dem Kontostatus und dem Detaildialog zu den einzelnen Versandvorgängen.",
       },
       {
         id: "stammdaten-aenderungen-pruefen",

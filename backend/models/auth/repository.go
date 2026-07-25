@@ -368,6 +368,15 @@ type GuardianInvitationRepository interface {
 	// UpdateEmailStatus updates the email delivery status
 	UpdateEmailStatus(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error
 
+	// RevokeOpenByGuardianProfileID stamps revoked_at/revoked_reason on every
+	// invitation for a guardian that is neither accepted nor already revoked,
+	// and returns the affected invitation IDs so the caller can also cancel
+	// the matching queued outbox rows. Tenant-scoped.
+	//
+	// Not reducible to a generic filter: it is a conditional bulk UPDATE with
+	// a RETURNING projection, and the returned IDs are load-bearing.
+	RevokeOpenByGuardianProfileID(ctx context.Context, guardianProfileID int64, reason string) ([]int64, error)
+
 	// DeleteExpired deletes expired invitations
 	DeleteExpired(ctx context.Context) (int, error)
 }

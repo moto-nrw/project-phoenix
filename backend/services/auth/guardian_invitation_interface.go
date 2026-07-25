@@ -56,6 +56,11 @@ type GuardianInvitationService interface {
 	ListPendingApprovalsDetailed(ctx context.Context) ([]*PendingApprovalView, error)
 	RevokeAccess(ctx context.Context, req RevokeAccessRequest) error
 
+	// DeliveryStatus reports what actually happened to the invitation emails
+	// for an invitation: one entry per dispatch attempt, newest first,
+	// separating "handed to the mail server" from "arrived at the recipient".
+	DeliveryStatus(ctx context.Context, invitationID int64) (*GuardianInvitationDelivery, error)
+
 	// GetTenantSlugForToken resolves the tenant slug for a guardian
 	// invitation token. Best-effort: returns "" on any error or for deleted
 	// schools (issue #584: moved verbatim out of api/auth).

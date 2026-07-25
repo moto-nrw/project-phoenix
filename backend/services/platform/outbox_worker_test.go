@@ -3,6 +3,8 @@ package platform
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -30,6 +32,15 @@ type stubOutboxRepo struct {
 	markSentErr  error
 	cancelledIDs map[int64]bool // LockSending returns false for these
 	locked       []int64
+
+	// Delivery-tracking capture (#1937).
+	dispatchIDs   map[int64]dispatchIdentifiers
+	dispatchIDErr error
+}
+
+type dispatchIdentifiers struct {
+	MessageID         string
+	ProviderMessageID *string
 }
 
 type retryEntry struct {
@@ -104,6 +115,31 @@ func (s *stubOutboxRepo) FindByRelatedEntity(_ context.Context, _ string, _ int6
 
 func (s *stubOutboxRepo) CancelPendingByRelatedEntity(_ context.Context, _ string, _ int64, _ string) (int64, error) {
 	return 0, errors.New("not implemented in stub")
+}
+
+func (s *stubOutboxRepo) FindByMessageID(_ context.Context, _ string) (*platformModels.EmailOutbox, error) {
+	return nil, errors.New("not implemented in stub")
+}
+
+func (s *stubOutboxRepo) FindByProviderMessageID(_ context.Context, _ string) (*platformModels.EmailOutbox, error) {
+	return nil, errors.New("not implemented in stub")
+}
+
+func (s *stubOutboxRepo) SetDispatchIdentifiers(_ context.Context, id int64, messageID string, providerMessageID *string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.dispatchIDErr != nil {
+		return s.dispatchIDErr
+	}
+	if s.dispatchIDs == nil {
+		s.dispatchIDs = map[int64]dispatchIdentifiers{}
+	}
+	s.dispatchIDs[id] = dispatchIdentifiers{MessageID: messageID, ProviderMessageID: providerMessageID}
+	return nil
+}
+
+func (s *stubOutboxRepo) ApplyDeliveryStatus(_ context.Context, _ int64, _ platformModels.DeliveryTransition) (bool, error) {
+	return false, errors.New("not implemented in stub")
 }
 
 // TestTemplateRegistry_LookupRoundTrip — register + lookup + kinds.
@@ -520,4 +556,104 @@ func TestOutboxWorker_RunOnce_MissingDependencies_Errors(t *testing.T) {
 			assert.Contains(t, err.Error(), tc.want)
 		})
 	}
+}
+
+// --- Message-ID stamping (#1937) -----------------------------------------
+
+// idReportingMailer implements the optional MessageIDReporter extension so the
+// worker's preference for it can be observed. Behaviourally divergent from the
+// shared doubles (it captures and returns a provider id), so it stays local.
+type idReportingMailer struct {
+	captured   []email.Message
+	providerID string
+}
+
+func (m *idReportingMailer) Send(msg email.Message) error {
+	_, err := m.SendWithID(msg)
+	return err
+}
+
+func (m *idReportingMailer) SendWithID(msg email.Message) (string, error) {
+	m.captured = append(m.captured, msg)
+	return m.providerID, nil
+}
+
+// Without a Message-ID on the wire there is nothing to correlate a later
+// delivery event against, so the whole feature silently degrades to
+// "unmatched". This is the guard for that, and for the identifiers being
+// persisted inside the send transaction rather than after it.
+func TestOutboxWorker_StampsMessageIDAndPersistsIt(t *testing.T) {
+	db, mock, cleanup := newAdminTxDB(t)
+	defer cleanup()
+
+	expectAdminTx(mock) // Phase 1: ClaimDuePending
+	expectAdminTx(mock) // Phase 2: send tx
+
+	registry := NewTemplateRegistry()
+	registry.Register("welcome", RendererFunc(func(_ context.Context, _ *platformModels.EmailOutbox) (*email.Message, error) {
+		return &email.Message{Subject: "Welcome"}, nil
+	}))
+
+	row := makeRow(4321, 7, "welcome", 0)
+	repo := &stubOutboxRepo{due: []*platformModels.EmailOutbox{row}}
+	mailer := &idReportingMailer{providerID: "provider-abc-123"}
+
+	w := NewOutboxWorker(OutboxWorkerConfig{
+		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3,
+	})
+
+	n, err := w.RunOnce(context.Background(), 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+
+	require.Len(t, mailer.captured, 1)
+	stamped := mailer.captured[0].MessageID
+	require.NotEmpty(t, stamped, "the worker must stamp a Message-ID")
+
+	// The local part carries tenant + outbox id as the last-resort correlation
+	// fallback for relays that rewrite the header.
+	assert.True(t, strings.HasPrefix(stamped, fmt.Sprintf("ob.%d.%d.", row.GetTenantID(), row.ID)),
+		"unexpected message id shape: %s", stamped)
+
+	persisted, ok := repo.dispatchIDs[row.ID]
+	require.True(t, ok, "the stamped id must be persisted")
+	assert.Equal(t, stamped, persisted.MessageID)
+	require.NotNil(t, persisted.ProviderMessageID)
+	assert.Equal(t, "provider-abc-123", *persisted.ProviderMessageID)
+	assert.Contains(t, repo.sent, row.ID)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// A plain SMTP mailer reports no provider id. We must still stamp and persist
+// our own Message-ID — that is the only correlation key in that setup.
+func TestOutboxWorker_StampsMessageIDWithoutProviderReporter(t *testing.T) {
+	db, mock, cleanup := newAdminTxDB(t)
+	defer cleanup()
+
+	expectAdminTx(mock)
+	expectAdminTx(mock)
+
+	registry := NewTemplateRegistry()
+	registry.Register("welcome", RendererFunc(func(_ context.Context, _ *platformModels.EmailOutbox) (*email.Message, error) {
+		return &email.Message{Subject: "Welcome"}, nil
+	}))
+
+	row := makeRow(555, 3, "welcome", 0)
+	repo := &stubOutboxRepo{due: []*platformModels.EmailOutbox{row}}
+	mailer := &stubMailer{}
+
+	w := NewOutboxWorker(OutboxWorkerConfig{
+		Repo: repo, Registry: registry, Mailer: mailer, DB: db, MaxAttempts: 3,
+	})
+
+	_, err := w.RunOnce(context.Background(), 10)
+	require.NoError(t, err)
+
+	require.Len(t, mailer.sent, 1)
+	assert.NotEmpty(t, mailer.sent[0].MessageID)
+	persisted, ok := repo.dispatchIDs[row.ID]
+	require.True(t, ok)
+	assert.Equal(t, mailer.sent[0].MessageID, persisted.MessageID)
+	assert.Nil(t, persisted.ProviderMessageID)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

@@ -72,6 +72,11 @@ type GuardianInvitationServiceConfig struct {
 	StudentRepo         userModels.StudentRepository
 	SchoolRepo          platformModels.SchoolRepository
 	OutboxEnqueuer      platformModels.OutboxEnqueuer
+	// OutboxReader + DeliveryEvents back the delivery-status read API
+	// (#1937). Optional: DeliveryStatus reports "not wired" rather than
+	// failing the whole service when they are absent.
+	OutboxReader   platformModels.OutboxRelatedReader
+	DeliveryEvents platformModels.EmailDeliveryEventRepository
 	// EnrollmentBackfiller stamps guardian_account_id onto every
 	// pre-account enrollment.requests row matching the guardian's
 	// email, so requests submitted before invite acceptance show up in
@@ -180,7 +185,9 @@ func (s *guardianInvitationService) Create(ctx context.Context, req GuardianInvi
 	)
 
 	schoolName := s.lookupSchoolName(ctx, invitation.TenantID)
-	s.enqueueEmail(ctx, invitation, profile, schoolName)
+	if err := s.enqueueEmail(ctx, invitation, profile, schoolName); err != nil {
+		return nil, &AuthError{Op: opGuardianInviteCreate, Err: err}
+	}
 
 	return invitation, nil
 }
@@ -439,7 +446,9 @@ func (s *guardianInvitationService) Resend(ctx context.Context, invitationID int
 	)
 
 	schoolName := s.lookupSchoolName(ctx, invitation.TenantID)
-	s.enqueueEmail(ctx, invitation, profile, schoolName)
+	if err := s.enqueueEmail(ctx, invitation, profile, schoolName); err != nil {
+		return &AuthError{Op: opGuardianInviteResend, Err: err}
+	}
 	return nil
 }
 
@@ -471,6 +480,13 @@ func guardianInvitationTokenConsumable(invitation *authModels.GuardianInvitation
 	if invitation == nil {
 		return false
 	}
+	// A revoked token is dead regardless of expiry or approval state. This is
+	// the enforcement point for the email-change revocation (#1937): without
+	// it, the stranger holding a mistyped-address invitation could still
+	// accept it and gain access to the child.
+	if invitation.RevokedAt != nil {
+		return false
+	}
 	switch invitation.ApprovalStatus {
 	case "", authModels.GuardianInvitationApprovalNotRequired, authModels.GuardianInvitationApprovalApproved:
 		return true
@@ -498,20 +514,28 @@ func (s *guardianInvitationService) lookupSchoolName(ctx context.Context, tenant
 // delivery status lives in platform.email_outbox instead. Admin UIs that
 // want per-invitation delivery state should query the outbox by
 // (related_entity_type='guardian_invitation', related_entity_id=invitationID).
-func (s *guardianInvitationService) enqueueEmail(ctx context.Context, invitation *authModels.GuardianInvitation, profile *userModels.GuardianProfile, schoolName string) {
+//
+// Returns an error when the enqueue fails. Callers run inside the same tenant
+// transaction that created the invitation, so propagating rolls the invitation
+// back: an invitation row with no queued email is worse than no invitation,
+// because staff would see "eingeladen" for a family that will never hear from
+// us.
+func (s *guardianInvitationService) enqueueEmail(ctx context.Context, invitation *authModels.GuardianInvitation, profile *userModels.GuardianProfile, schoolName string) error {
 	if s.OutboxEnqueuer == nil {
+		// Not an error: several narrow integrations construct this service
+		// without an outbox. Production wiring is asserted at startup instead.
 		s.getLogger().Warn("guardian invitation: outbox enqueuer not configured, email skipped",
 			slog.Int64("invitation_id", invitation.ID),
 		)
-		return
+		return nil
 	}
-	s.enqueueViaOutbox(ctx, invitation, profile, schoolName)
+	return s.enqueueViaOutbox(ctx, invitation, profile, schoolName)
 }
 
 // enqueueViaOutbox writes a guardian_invitation row to the platform
 // outbox. The renderer (services/auth/guardian_invitation_renderer.go)
 // turns the payload into an email.Message at dispatch time.
-func (s *guardianInvitationService) enqueueViaOutbox(ctx context.Context, invitation *authModels.GuardianInvitation, profile *userModels.GuardianProfile, schoolName string) {
+func (s *guardianInvitationService) enqueueViaOutbox(ctx context.Context, invitation *authModels.GuardianInvitation, profile *userModels.GuardianProfile, schoolName string) error {
 	frontend := s.FrontendURL
 	if frontend == "" {
 		frontend = "http://localhost:3000"
@@ -553,7 +577,9 @@ func (s *guardianInvitationService) enqueueViaOutbox(ctx context.Context, invita
 		s.getLogger().Error("guardian invitation: outbox enqueue failed",
 			slog.Int64("invitation_id", invitation.ID),
 			slog.String("error", err.Error()))
+		return fmt.Errorf("queue guardian invitation email: %w", err)
 	}
+	return nil
 }
 
 // GetTenantSlugForToken resolves the tenant slug from a guardian invitation

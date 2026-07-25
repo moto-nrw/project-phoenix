@@ -20,3 +20,17 @@ type OutboxEnqueueRequest struct {
 type OutboxEnqueuer interface {
 	EnqueueOutbox(ctx context.Context, req OutboxEnqueueRequest) error
 }
+
+// OutboxRelatedReader is the read side of the same arrangement: it lets a
+// feature service answer "what happened to the mails for this entity" without
+// importing services/platform. Tenant-scoped.
+type OutboxRelatedReader interface {
+	FindByRelatedEntity(ctx context.Context, relatedType string, relatedID int64) ([]*EmailOutbox, error)
+}
+
+// OutboxCanceller lets a feature service stop still-queued mails for an entity
+// it just invalidated — used when a guardian's email address changes and the
+// invitation to the old address must never leave the building.
+type OutboxCanceller interface {
+	CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
+}

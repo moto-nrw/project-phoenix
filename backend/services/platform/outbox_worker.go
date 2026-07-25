@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"strings"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/email"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -182,6 +185,15 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 	// data that is already gone. With it, a concurrent delete either
 	// committed first (the probe finds nothing, the send is skipped) or
 	// blocks until this transaction commits.
+	// Correlation identifier for provider delivery events. Minted per send
+	// attempt (the column is UNIQUE, so a retry after a partial failure gets a
+	// fresh value and cannot collide). The local part carries tenant and
+	// outbox id as a last-resort fallback when a relay rewrites the header —
+	// the ingest path re-verifies both against the stored row before trusting
+	// it, because this string travels through hostile territory.
+	messageID := fmt.Sprintf("ob.%d.%d.%s@%s", row.GetTenantID(), row.ID, uuid.Must(uuid.NewV4()).String(), w.messageIDDomain())
+	msg.MessageID = messageID
+
 	var cancelled bool
 	var sendFailure string
 	if err := tenant.WithAdminTx(ctx, w.db, func(adminCtx context.Context, _ bun.Tx) error {
@@ -193,9 +205,13 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 			cancelled = true
 			return nil
 		}
-		if sendErr := w.mailer.Send(*msg); sendErr != nil {
+		providerMessageID, sendErr := w.send(*msg)
+		if sendErr != nil {
 			sendFailure = fmt.Sprintf("send: %v", sendErr)
 			return nil
+		}
+		if idErr := w.repo.SetDispatchIdentifiers(adminCtx, row.ID, messageID, providerMessageID); idErr != nil {
+			return idErr
 		}
 		return w.repo.MarkSent(adminCtx, row.ID, time.Now())
 	}); err != nil {
@@ -220,6 +236,40 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 		slog.Int64("outbox_id", row.ID),
 		slog.Int64("tenant_id", row.GetTenantID()),
 		slog.String("kind", row.Kind))
+}
+
+// send dispatches the message, preferring the MessageIDReporter extension so
+// providers that return their own identifier get it stored alongside ours.
+// Plain SMTP mailers fall through to Send and report no provider id.
+func (w *OutboxWorker) send(msg email.Message) (*string, error) {
+	if reporter, ok := w.mailer.(email.MessageIDReporter); ok {
+		providerID, err := reporter.SendWithID(msg)
+		if err != nil {
+			return nil, err
+		}
+		if providerID != "" {
+			return &providerID, nil
+		}
+		return nil, nil
+	}
+	if err := w.mailer.Send(msg); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
+// messageIDDomain is the right-hand side of the minted Message-ID. It only has
+// to be stable and syntactically valid — nothing resolves it — so the sender
+// address's domain is the natural choice.
+func (w *OutboxWorker) messageIDDomain() string {
+	if domain := strings.TrimSpace(os.Getenv("EMAIL_MESSAGE_ID_DOMAIN")); domain != "" {
+		return domain
+	}
+	from := os.Getenv("EMAIL_FROM_ADDRESS")
+	if at := strings.LastIndex(from, "@"); at >= 0 && at < len(from)-1 {
+		return from[at+1:]
+	}
+	return "phoenix.local"
 }
 
 // recordFailure increments attempts and decides retry vs terminal.

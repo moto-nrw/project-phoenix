@@ -1,0 +1,32 @@
+{{define "delivery-failure-notice.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <h1>Eine E-Mail konnte nicht zugestellt werden</h1>
+
+    <p>Guten Tag,</p>
+
+    <p>
+        die {{.KindLabel}}{{if .FailedTo}} an <strong>{{.FailedTo}}</strong>{{end}} ist
+        {{.StatusLabel}}.
+    </p>
+
+    {{if .OccurredAt}}
+    <p style="font-size: 14px; color: #6b7280;">Rückmeldung des Mailservers vom {{.OccurredAt}} Uhr.</p>
+    {{end}}
+
+    {{if or .Reason .ReasonCode}}
+    <div class="link-box">
+        {{if .ReasonCode}}<strong>{{.ReasonCode}}</strong> {{end}}{{.Reason}}
+    </div>
+    {{end}}
+
+    <p style="margin-top: 24px;">
+        Bitte prüfen Sie die E-Mail-Adresse in moto. Nach einer Korrektur können Sie die
+        Nachricht erneut versenden. Ein erneuter Versand an dieselbe Adresse wird
+        voraussichtlich wieder fehlschlagen.
+    </p>
+</div>
+
+{{template "footer" .}}
+{{end}}

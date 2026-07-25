@@ -17,6 +17,22 @@ const (
 	EmailOutboxStatusFailed  = "failed"
 )
 
+// Email delivery status values — what the RECEIVING side did with a message
+// we already handed to the provider. Orthogonal to the dispatch status above,
+// which only reports whether our own SMTP submission succeeded. `sent` +
+// `unknown` is the normal state right after dispatch and must never be
+// presented to a user as "zugestellt".
+const (
+	EmailDeliveryStatusUnknown     = "unknown"      // no provider feedback yet
+	EmailDeliveryStatusQueued      = "queued"       // provider accepted the submission
+	EmailDeliveryStatusDeferred    = "deferred"     // transient 4xx, provider still retrying
+	EmailDeliveryStatusDelivered   = "delivered"    // recipient MTA accepted it
+	EmailDeliveryStatusSoftBounced = "soft_bounced" // provider gave up after transient failures
+	EmailDeliveryStatusSuppressed  = "suppressed"   // suppression list, never attempted
+	EmailDeliveryStatusComplained  = "complained"   // recipient marked it as spam
+	EmailDeliveryStatusBounced     = "bounced"      // hard bounce, the address is dead
+)
+
 // Pre-defined kinds. The column is text and the worker looks up renderers
 // by kind, so new kinds can be added by registering a renderer at startup
 // without a schema change. These constants exist so the in-tree call sites
@@ -48,6 +64,12 @@ const (
 	EmailKindAppointmentUpdated   = "appointment_updated"
 	EmailKindAppointmentCancelled = "appointment_cancelled"
 	EmailKindAppointmentReminder  = "appointment_reminder"
+
+	// EmailKindDeliveryFailureNotice is the ops notice sent to the school's
+	// configured alert addresses when a message hard-bounces or is reported
+	// as spam. Rows of this kind never generate a notice of their own — see
+	// the loop guard in the delivery service.
+	EmailKindDeliveryFailureNotice = "email_delivery_failure_notice"
 )
 
 // Pre-defined related_entity_type values.
@@ -73,6 +95,17 @@ type EmailOutbox struct {
 	LastError         *string        `bun:"last_error" json:"last_error,omitempty"`
 	NextRetryAt       time.Time      `bun:"next_retry_at,notnull" json:"next_retry_at"`
 	SentAt            *time.Time     `bun:"sent_at" json:"sent_at,omitempty"`
+
+	// Delivery tracking. MessageID is the RFC 5322 Message-ID we mint at
+	// dispatch time; ProviderMessageID is the transport's own identifier when
+	// it reports one. Both are correlation keys for incoming provider events
+	// and are never exposed through a tenant API.
+	MessageID          *string    `bun:"message_id" json:"-"`
+	ProviderMessageID  *string    `bun:"provider_message_id" json:"-"`
+	DeliveryStatus     string     `bun:"delivery_status,notnull,default:'unknown'" json:"delivery_status"`
+	DeliveryStatusRank int        `bun:"delivery_status_rank,notnull,default:0" json:"-"`
+	DeliveryStatusAt   *time.Time `bun:"delivery_status_at" json:"delivery_status_at,omitempty"`
+	DeliveryDetail     *string    `bun:"delivery_detail" json:"delivery_detail,omitempty"`
 }
 
 // Validate enforces the column-level CHECK constraints in app code so we
@@ -89,6 +122,16 @@ func (e *EmailOutbox) Validate() error {
 		// ok
 	default:
 		return errors.New("email outbox status must be pending|sending|sent|failed")
+	}
+	switch e.DeliveryStatus {
+	case "":
+		e.DeliveryStatus = EmailDeliveryStatusUnknown
+	case EmailDeliveryStatusUnknown, EmailDeliveryStatusQueued, EmailDeliveryStatusDeferred,
+		EmailDeliveryStatusDelivered, EmailDeliveryStatusSoftBounced, EmailDeliveryStatusSuppressed,
+		EmailDeliveryStatusComplained, EmailDeliveryStatusBounced:
+		// ok
+	default:
+		return errors.New("email outbox delivery status is not a known value")
 	}
 	if e.NextRetryAt.IsZero() {
 		e.NextRetryAt = time.Now()
@@ -146,6 +189,46 @@ type EmailOutboxRepository interface {
 	// terminal ('sent'/'failed') are left untouched. Tenant-scoped. Returns the
 	// number of rows cancelled.
 	CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
+
+	// FindByMessageID resolves the outbox row a provider delivery event
+	// refers to. Caller must run as phoenix_admin: the webhook is
+	// unauthenticated and cross-tenant, so this deliberately does NOT honor
+	// app.current_tenant_id — the returned row's tenant_id is what
+	// establishes the tenant for everything downstream. Returns (nil, nil)
+	// when nothing matches; an unmatched event is a normal, expected outcome.
+	//
+	// Not expressible via List(filters): the whole point is the missing
+	// tenant predicate, which the generic path always applies.
+	FindByMessageID(ctx context.Context, messageID string) (*EmailOutbox, error)
+
+	// FindByProviderMessageID is the same lookup keyed on the transport's own
+	// identifier, for providers that rewrite our Message-ID.
+	FindByProviderMessageID(ctx context.Context, providerMessageID string) (*EmailOutbox, error)
+
+	// SetDispatchIdentifiers stores the Message-ID minted at send time (and
+	// the provider's identifier when the mailer reports one). Called by the
+	// worker inside its phoenix_admin send transaction.
+	SetDispatchIdentifiers(ctx context.Context, id int64, messageID string, providerMessageID *string) error
+
+	// ApplyDeliveryStatus performs the monotone, out-of-order-safe status
+	// transition in a single guarded UPDATE and reports whether the row was
+	// advanced. False means the incoming event lost the precedence
+	// comparison (a duplicate or a late event) and must not change the row.
+	//
+	// Not reducible to UpdateColumns: the WHERE clause IS the concurrency
+	// control — two webhook requests for the same message cannot interleave
+	// into a wrong final state.
+	ApplyDeliveryStatus(ctx context.Context, id int64, transition DeliveryTransition) (bool, error)
+}
+
+// DeliveryTransition is one candidate delivery-status change. Rank comes from
+// the precedence lattice in services/platform; the model deliberately holds no
+// policy of its own.
+type DeliveryTransition struct {
+	Status     string
+	Rank       int
+	OccurredAt time.Time
+	Detail     string
 }
 
 type EmailOutboxCleanupRepository interface {

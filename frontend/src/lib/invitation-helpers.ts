@@ -1,3 +1,5 @@
+import { LOCATION_COLORS } from "~/lib/location-helper";
+
 export interface InvitationValidation {
   email: string;
   roleName: string;
@@ -34,7 +36,18 @@ export interface PendingInvitation {
   firstName?: string | null;
   lastName?: string | null;
   position?: string | null;
+  /**
+   * Email delivery state the backend already tracks per invitation token
+   * (#1937). It was being dropped here, so a staff invitation whose mail
+   * failed looked identical to one that arrived.
+   */
+  deliveryStatus?: StaffInvitationDeliveryStatus;
+  emailError?: string | null;
+  emailRetryCount?: number;
 }
+
+/** Mirrors the backend's deriveDeliveryStatus. */
+export type StaffInvitationDeliveryStatus = "pending" | "sent" | "failed";
 
 export interface BackendInvitationValidation {
   email: string;
@@ -57,6 +70,9 @@ export interface BackendInvitation {
   last_name?: string | null;
   position?: string | null;
   creator?: string; // Creator email from backend
+  delivery_status?: StaffInvitationDeliveryStatus;
+  email_error?: string | null;
+  email_retry_count?: number;
 }
 
 export const mapInvitationValidationResponse = (
@@ -85,5 +101,22 @@ export const mapPendingInvitationResponse = (
     firstName: data.first_name,
     lastName: data.last_name,
     position: data.position,
+    deliveryStatus: data.delivery_status,
+    emailError: data.email_error,
+    emailRetryCount: data.email_retry_count,
   };
+};
+
+/**
+ * Presentation for a staff invitation's email delivery state. "sent" means the
+ * mail server accepted it — deliberately not "zugestellt", which we cannot
+ * know for this flow (it does not go through the outbox/webhook path).
+ */
+export const STAFF_INVITATION_DELIVERY_META: Record<
+  StaffInvitationDeliveryStatus,
+  { label: string; color: string }
+> = {
+  pending: { label: "E-Mail eingeplant", color: LOCATION_COLORS.UNKNOWN },
+  sent: { label: "E-Mail versendet", color: LOCATION_COLORS.GROUP_ROOM },
+  failed: { label: "Versand fehlgeschlagen", color: LOCATION_COLORS.HOME },
 };

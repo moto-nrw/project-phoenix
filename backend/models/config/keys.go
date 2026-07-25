@@ -42,6 +42,11 @@ const (
 	// (Rule 12): the 30-day default + 1..31 bounds moved off the
 	// PrivacyConsent model into this per-tenant setting.
 	KeyPrivacyConsentRetentionDays = "gdpr.privacy_consent_retention_days"
+	// KeyEmailDeliveryRetentionDays bounds how long provider delivery events
+	// (platform.email_delivery_events) are kept. They carry recipient
+	// addresses and bounce reasons, so they are personal data with no
+	// operational value once the affected invitation has been resolved.
+	KeyEmailDeliveryRetentionDays = "gdpr.email_delivery_retention_days"
 )
 
 // Attendance log / Raumverlauf (student attendance history) settings.
@@ -160,6 +165,13 @@ const (
 	// KeyNotificationsAbsenceApprovalEmail toggles the absence-request email
 	// notifications (request received / approved / declined / Rückfrage, #1419).
 	KeyNotificationsAbsenceApprovalEmail = "notifications.absence_approval_email"
+
+	// KeyEmailDeliveryAlertsEnabled / KeyEmailDeliveryAlertEmails control the
+	// ops notice sent when a parent email hard-bounces or is reported as
+	// spam. Only terminal outcomes notify — a temporary delay would spam the
+	// office with events the mail server is already handling itself.
+	KeyEmailDeliveryAlertsEnabled = "notifications.email_delivery_alerts_enabled"
+	KeyEmailDeliveryAlertEmails   = "notifications.email_delivery_alert_emails"
 )
 
 // PresenceMode option values for KeyPresenceMode.

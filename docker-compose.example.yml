@@ -33,6 +33,10 @@ services:
       EMAIL_SMTP_PORT: ${EMAIL_SMTP_PORT}
       EMAIL_SMTP_USER: ${EMAIL_SMTP_USER}
       EMAIL_SMTP_PASSWORD: ${EMAIL_SMTP_PASSWORD}
+      # Shared HMAC secret for inbound provider delivery webhooks (#1937).
+      # Unset means the webhook answers 503 — never open.
+      EMAIL_WEBHOOK_SIGNING_SECRET: ${EMAIL_WEBHOOK_SIGNING_SECRET}
+      EMAIL_MESSAGE_ID_DOMAIN: ${EMAIL_MESSAGE_ID_DOMAIN}
       FRONTEND_URL: ${FRONTEND_URL}
       PARENTS_URL: ${PARENTS_URL}
       TENANT_DOMAIN: ${TENANT_DOMAIN}

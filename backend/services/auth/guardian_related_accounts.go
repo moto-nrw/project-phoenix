@@ -207,7 +207,9 @@ func (s *guardianInvitationService) resolveInviteNow(ctx context.Context, req In
 		return nil, err
 	}
 	schoolName := s.lookupSchoolName(ctx, tenantID)
-	s.enqueueEmail(ctx, invitation, profile, schoolName)
+	if err := s.enqueueEmail(ctx, invitation, profile, schoolName); err != nil {
+		return nil, &AuthError{Op: opGuardianInviteToStudent, Err: err}
+	}
 	return &InviteToStudentResult{
 		Outcome:           InviteOutcomeInvited,
 		GuardianProfileID: profile.ID,
@@ -375,7 +377,9 @@ func (s *guardianInvitationService) ApproveInvitation(ctx context.Context, invit
 		slog.Int64("approver_account_id", approverAccountID),
 	)
 	schoolName := s.lookupSchoolName(ctx, invitation.TenantID)
-	s.enqueueEmail(ctx, invitation, profile, schoolName)
+	if err := s.enqueueEmail(ctx, invitation, profile, schoolName); err != nil {
+		return &AuthError{Op: opGuardianInviteApprove, Err: err}
+	}
 	return nil
 }
 

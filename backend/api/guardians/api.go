@@ -76,6 +76,10 @@ func (rs *Resource) Router() chi.Router {
 		// Guardian invitations
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/{id}/invite", rs.sendInvitation)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/invitations/pending", rs.listPendingInvitations)
+		// Delivery status per invitation (#1937): "eingeplant" vs "übergeben"
+		// vs "zugestellt" vs "verzögert" vs "unzustellbar". Same users:read
+		// gate as the invitation reads next to it.
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/invitations/{invitationId}/delivery", rs.getInvitationDeliveryStatus)
 
 		// Student-guardian relationships
 		// Anyone with users:read can view guardians (for emergency cases)

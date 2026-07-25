@@ -109,6 +109,7 @@ func configureSchedulerServices(sched *scheduler.Scheduler, svc *services.Factor
 	// WP-B14: timetable GDPR cleanup. Nil service → task does not register.
 	if svc.TimetableCleanup != nil {
 		sched.SetTimetableCleanup(svc.TimetableCleanup)
+		sched.SetEmailDeliveryCleanup(svc.EmailDelivery)
 	}
 	// Tranche 0b: time-tracking GDPR cleanup. Same nil-safe wiring.
 	if svc.TimeTrackingCleanup != nil {

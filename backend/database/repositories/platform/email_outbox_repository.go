@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -225,6 +226,90 @@ func (r *EmailOutboxRepository) CancelPendingByRelatedEntity(ctx context.Context
 	}
 	rows, _ := res.RowsAffected()
 	return rows, nil
+}
+
+// FindByMessageID resolves the outbox row a provider delivery event refers to.
+// Runs under phoenix_admin (cross-tenant); returns (nil, nil) when nothing
+// matches, because an event about a message we never sent is a normal outcome
+// on a shared provider account and must not be treated as an error.
+func (r *EmailOutboxRepository) FindByMessageID(ctx context.Context, messageID string) (*platform.EmailOutbox, error) {
+	return r.findByIdentifier(ctx, "message_id", messageID)
+}
+
+// FindByProviderMessageID is the same lookup keyed on the transport's own id.
+func (r *EmailOutboxRepository) FindByProviderMessageID(ctx context.Context, providerMessageID string) (*platform.EmailOutbox, error) {
+	return r.findByIdentifier(ctx, "provider_message_id", providerMessageID)
+}
+
+func (r *EmailOutboxRepository) findByIdentifier(ctx context.Context, column, value string) (*platform.EmailOutbox, error) {
+	if value == "" {
+		return nil, nil
+	}
+	row := new(platform.EmailOutbox)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(row).
+		ModelTableExpr(tableExprAlias).
+		Where(`"email_outbox".`+column+` = ?`, value).
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to find email outbox row by %s: %w", column, err)
+	}
+	return row, nil
+}
+
+// SetDispatchIdentifiers stores the correlation identifiers for a message the
+// worker is about to hand to the transport.
+func (r *EmailOutboxRepository) SetDispatchIdentifiers(ctx context.Context, id int64, messageID string, providerMessageID *string) error {
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*platform.EmailOutbox)(nil)).
+		ModelTableExpr(tableExprAlias).
+		Set("message_id = ?", messageID).
+		Where(`"email_outbox".id = ?`, id)
+	if providerMessageID != nil && *providerMessageID != "" {
+		q = q.Set("provider_message_id = ?", *providerMessageID)
+	}
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to set dispatch identifiers: %w", err)
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("email outbox row %d not found", id)
+	}
+	return nil
+}
+
+// ApplyDeliveryStatus advances the row's delivery status only when the
+// incoming event outranks what is stored. The guard in the WHERE clause is the
+// concurrency control: duplicate and out-of-order provider deliveries are
+// absorbed here, not by any ordering guarantee from the provider.
+//
+//	apply ⟺ newRank > storedRank ∨ (newRank == storedRank ∧ newOccurredAt > storedAt)
+func (r *EmailOutboxRepository) ApplyDeliveryStatus(ctx context.Context, id int64, t platform.DeliveryTransition) (bool, error) {
+	detail := sql.NullString{String: t.Detail, Valid: strings.TrimSpace(t.Detail) != ""}
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*platform.EmailOutbox)(nil)).
+		ModelTableExpr(tableExprAlias).
+		Set("delivery_status = ?", t.Status).
+		Set("delivery_status_rank = ?", t.Rank).
+		Set("delivery_status_at = ?", t.OccurredAt).
+		Set("delivery_detail = ?", detail).
+		Set("updated_at = NOW()").
+		Where(`"email_outbox".id = ?`, id).
+		Where(`(? > "email_outbox".delivery_status_rank
+			OR (? = "email_outbox".delivery_status_rank
+				AND ("email_outbox".delivery_status_at IS NULL
+					OR ? > "email_outbox".delivery_status_at)))`,
+			t.Rank, t.Rank, t.OccurredAt).
+		Exec(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to apply delivery status: %w", err)
+	}
+	rows, _ := res.RowsAffected()
+	return rows > 0, nil
 }
 
 // FindByRelatedEntity returns all outbox rows linked to a feature's

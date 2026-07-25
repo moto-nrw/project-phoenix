@@ -102,6 +102,7 @@ type Scheduler struct {
 	unregisteredTagScanCleaner UnregisteredTagScanCleaner
 	materializer               scheduleSvc.MaterializationService
 	timetableCleanup           scheduleSvc.TimetableCleanupService
+	emailDeliveryCleanup       EmailDeliveryCleaner
 	timeTrackingCleanup        active.TimeTrackingCleanupService
 	enrollmentRejectedCleanup  enrollmentSvc.RejectedEnrollmentCleaner
 	autoStart                  scheduleSvc.AutoStartService
@@ -247,6 +248,19 @@ func (s *Scheduler) SetMaterializer(m scheduleSvc.MaterializationService) {
 // the opt-in shape of SetMaterializer.
 func (s *Scheduler) SetTimetableCleanup(svc scheduleSvc.TimetableCleanupService) {
 	s.timetableCleanup = svc
+}
+
+// EmailDeliveryCleaner deletes provider delivery events past their retention
+// window (#1937). Narrow interface so the scheduler does not depend on
+// services/platform.
+type EmailDeliveryCleaner interface {
+	CleanupExpiredDeliveryEvents(ctx context.Context, tenantID int64) (int64, error)
+}
+
+// SetEmailDeliveryCleanup wires the delivery-event retention sweep. Same
+// opt-in shape as SetTimetableCleanup; nil simply skips the sweep.
+func (s *Scheduler) SetEmailDeliveryCleanup(svc EmailDeliveryCleaner) {
+	s.emailDeliveryCleanup = svc
 }
 
 // SetTimeTrackingCleanup wires the time-tracking retention cleanup service
@@ -619,6 +633,23 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 		slog.Int("students_processed", result.StudentsProcessed),
 		slog.Int64("records_deleted", result.RecordsDeleted),
 	)
+
+	// Delivery-event retention (#1937). Folded into the existing nightly
+	// window rather than registered as its own task: admins configure one
+	// cleanup time, and this sweep is a single indexed DELETE.
+	if s.emailDeliveryCleanup != nil {
+		if deleted, err := s.emailDeliveryCleanup.CleanupExpiredDeliveryEvents(ctx, tenantID); err != nil {
+			s.getLogger().Error("email delivery event cleanup failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+		} else if deleted > 0 {
+			s.getLogger().Info("email delivery event cleanup completed",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int64("records_deleted", deleted),
+			)
+		}
+	}
 
 	// Cleanup stale supervisors
 	if supervisorResult, err := s.cleanupService.CleanupStaleSupervisors(ctx); err != nil {

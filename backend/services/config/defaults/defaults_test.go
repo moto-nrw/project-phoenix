@@ -1451,3 +1451,42 @@ func TestAutoCheckoutSettings(t *testing.T) {
 	assert.Equal(t, float64(0), *grace.Validation.Min)
 	assert.Equal(t, float64(240), *grace.Validation.Max)
 }
+
+// Email delivery settings (#1937).
+
+func TestEmailDeliveryAlertSettings(t *testing.T) {
+	enabled := config.GetDefinition(config.KeyEmailDeliveryAlertsEnabled)
+	require.NotNil(t, enabled, "notifications.email_delivery_alerts_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, enabled.Type)
+	assert.Equal(t, true, enabled.Default, "a school should hear about undeliverable parent mail by default")
+	assert.Equal(t, "operations", enabled.Tab)
+	assert.Equal(t, "config:manage", enabled.WritePermission)
+
+	recipients := config.GetDefinition(config.KeyEmailDeliveryAlertEmails)
+	require.NotNil(t, recipients, "notifications.email_delivery_alert_emails should be registered")
+	assert.Equal(t, config.FieldText, recipients.Type)
+	assert.Equal(t, "", recipients.Default)
+	// Hidden until alerts are switched on — a recipient list with no alerts
+	// is a confusing dead field.
+	require.NotNil(t, recipients.DependsOn)
+	assert.Equal(t, config.KeyEmailDeliveryAlertsEnabled, recipients.DependsOn.Key)
+}
+
+func TestEmailDeliveryRetentionSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyEmailDeliveryRetentionDays)
+	require.NotNil(t, def, "gdpr.email_delivery_retention_days should be registered")
+	assert.Equal(t, config.FieldNumber, def.Type)
+	assert.Equal(t, 90, def.Default)
+	assert.Equal(t, "gdpr", def.Tab)
+	assert.Equal(t, "config:manage", def.WritePermission)
+	require.NotNil(t, def.Validation)
+	// Delivery events carry recipient addresses and bounce reasons, so an
+	// unbounded retention window is not an option.
+	require.NotNil(t, def.Validation.Max)
+	assert.LessOrEqual(t, *def.Validation.Max, float64(365))
+	require.NotNil(t, def.Validation.Min)
+	assert.GreaterOrEqual(t, *def.Validation.Min, float64(7))
+	// Shares the one nightly cleanup window every other retention job uses.
+	require.NotNil(t, def.DependsOn)
+	assert.Equal(t, config.KeyDataCleanupEnabled, def.DependsOn.Key)
+}

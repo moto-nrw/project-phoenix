@@ -103,6 +103,32 @@ var (
 		[]string{"tenant_id"},
 	)
 
+	// Email delivery webhook metrics (#1937). Deliberately carry no
+	// tenant_id label: the webhook is unauthenticated, so any label derived
+	// from the request before the outbox row is resolved would be
+	// attacker-controlled cardinality.
+	emailWebhookRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_email_webhook_requests_total",
+			Help: "Email delivery webhook requests by verification outcome.",
+		},
+		[]string{"provider", "result"},
+	)
+	emailDeliveryEvents = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_email_delivery_events_total",
+			Help: "Ingested email delivery events by type and ingest outcome.",
+		},
+		[]string{"provider", "event_type", "result"},
+	)
+	emailDeliveryStatus = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_email_delivery_status_total",
+			Help: "Applied email delivery-status transitions by resulting status.",
+		},
+		[]string{"status"},
+	)
+
 	dbStatsMu        sync.RWMutex
 	dbStatsProvider  DBStatsProvider
 	sseStatsMu       sync.RWMutex
@@ -133,6 +159,9 @@ func init() {
 		sseDropped,
 		sseConnections,
 		sseClients,
+		emailWebhookRequests,
+		emailDeliveryEvents,
+		emailDeliveryStatus,
 		dbStatsCollector{},
 	)
 }
@@ -224,6 +253,26 @@ func RecordSSEBroadcast(tenantID int64, eventType, target string, dropped int) {
 	if dropped > 0 {
 		sseDropped.WithLabelValues(tenant, sanitizeLabel(eventType), sanitizeLabel(target)).Add(float64(dropped))
 	}
+}
+
+// RecordEmailWebhook counts one webhook request by verification outcome.
+// Results in use: accepted, invalid_signature, stale_timestamp, malformed,
+// not_configured. A non-zero invalid_signature rate is an alertable event —
+// nothing legitimate produces one.
+func RecordEmailWebhook(provider, result string) {
+	emailWebhookRequests.WithLabelValues(sanitizeLabel(provider), sanitizeLabel(result)).Inc()
+}
+
+// RecordEmailDeliveryEvent counts one ingested event. A rising unmatched rate
+// means correlation is broken (a relay rewriting Message-IDs, or events for a
+// different account on a shared provider).
+func RecordEmailDeliveryEvent(provider, eventType, result string) {
+	emailDeliveryEvents.WithLabelValues(sanitizeLabel(provider), sanitizeLabel(eventType), sanitizeLabel(result)).Inc()
+}
+
+// RecordEmailDeliveryStatus counts one applied delivery-status transition.
+func RecordEmailDeliveryStatus(status string) {
+	emailDeliveryStatus.WithLabelValues(sanitizeLabel(status)).Inc()
 }
 
 func StatusClass(status int) string {

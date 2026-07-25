@@ -21,6 +21,15 @@ type Mailer interface {
 	Send(Message) error
 }
 
+// MessageIDReporter is the optional extension a mailer implements when its
+// transport hands back a provider-side identifier. API-based providers do;
+// plain SMTP does not, which is why this is separate from Mailer: adding a
+// return value to Send would break every implementation and the shared test
+// doubles for no gain.
+type MessageIDReporter interface {
+	SendWithID(Message) (providerMessageID string, err error)
+}
+
 // Message struct holds all parts of a specific email Message.
 type Message struct {
 	From     Email
@@ -28,8 +37,15 @@ type Message struct {
 	Subject  string
 	Template string
 	Content  any
-	html     string
-	text     string
+
+	// MessageID is the RFC 5322 Message-ID (without angle brackets) to stamp
+	// on the outgoing mail. Empty means "let the transport decide". The outbox
+	// worker always sets it, so later provider delivery events can be
+	// correlated back to the outbox row.
+	MessageID string
+
+	html string
+	text string
 }
 
 // parse parses the corrsponding template and content

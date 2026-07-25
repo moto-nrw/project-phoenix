@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -61,6 +62,11 @@ type GuardianServiceDependencies struct {
 	FrontendURL      string
 	DefaultFrom      email.Email
 	InvitationExpiry time.Duration
+
+	// Outbox lets the service cancel still-queued invitation mails when the
+	// invitation they belong to is revoked (#1937). Optional: nil simply skips
+	// the cancellation, the token revocation itself still happens.
+	Outbox platformModels.OutboxCanceller
 
 	// Infrastructure
 	DB *bun.DB
@@ -214,6 +220,11 @@ func (s *GuardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 		}
 	}
 
+	// Capture the address the still-open invitation tokens were mailed to,
+	// before it is overwritten.
+	oldEmail := normalizeGuardianEmail(profile.Email)
+	newEmail := normalizeGuardianEmail(req.Email)
+
 	// Update fields (phone numbers are managed separately)
 	profile.FirstName = req.FirstName
 	profile.LastName = req.LastName
@@ -237,6 +248,48 @@ func (s *GuardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 			return newEmailInUseError(*profile.Email)
 		}
 		return err
+	}
+
+	// The email changed, so every open invitation token was mailed to an
+	// address this guardian no longer owns. If that address belongs to a real
+	// stranger (a typo like name@gmial.com resolves to a live mailbox), the
+	// token in their inbox is a working credential for this family's child.
+	if oldEmail != newEmail {
+		if err := s.revokeOpenInvitations(ctx, profile.ID, "guardian email changed"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// normalizeGuardianEmail folds case and whitespace so a cosmetic edit is not
+// mistaken for an address change.
+func normalizeGuardianEmail(email *string) string {
+	if email == nil {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(*email))
+}
+
+// revokeOpenInvitations invalidates every unaccepted, unrevoked invitation
+// token for a guardian and cancels the outbox rows that would still deliver
+// them. Cancelling the queued mail is best effort: the token is already dead,
+// so a delivered-but-useless mail is a cosmetic problem, not a security one.
+func (s *GuardianService) revokeOpenInvitations(ctx context.Context, profileID int64, reason string) error {
+	if s.GuardianInvitationRepo == nil {
+		return nil
+	}
+	ids, err := s.GuardianInvitationRepo.RevokeOpenByGuardianProfileID(ctx, profileID, reason)
+	if err != nil {
+		return err
+	}
+	if s.Outbox == nil {
+		return nil
+	}
+	for _, id := range ids {
+		if _, err := s.Outbox.CancelPendingByRelatedEntity(ctx, platformModels.EmailRelatedTypeGuardianInvitation, id, reason); err != nil {
+			return err
+		}
 	}
 	return nil
 }

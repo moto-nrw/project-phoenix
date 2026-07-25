@@ -100,6 +100,13 @@ func (m *SMTPMailer) Send(email Message) error {
 	msg.Subject(email.Subject)
 	msg.SetGenHeader(mail.HeaderListUnsubscribe, fmt.Sprintf("<mailto:%s?subject=unsubscribe>", email.From.Address))
 	msg.SetGenHeader(mail.HeaderListUnsubscribePost, "List-Unsubscribe=One-Click")
+	if email.MessageID != "" {
+		msg.SetMessageIDWithValue(email.MessageID)
+		// Some relays rewrite Message-ID. A custom header survives more hops
+		// and is echoed back in most providers' webhook header blocks, so it
+		// is a second chance at correlating a delivery event.
+		msg.SetGenHeader("X-Phoenix-Outbox-Id", email.MessageID)
+	}
 	msg.SetBodyString(mail.TypeTextPlain, email.text)
 	msg.AddAlternativeString(mail.TypeTextHTML, email.html)
 

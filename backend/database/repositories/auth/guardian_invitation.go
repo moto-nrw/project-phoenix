@@ -189,6 +189,29 @@ func (r *GuardianInvitationRepository) FindPendingApproval(ctx context.Context) 
 	return invitations, nil
 }
 
+// RevokeOpenByGuardianProfileID invalidates every still-open invitation for a
+// guardian and reports which ones it hit. Called when the guardian's email
+// address changes: the token was mailed to the OLD address, and if that
+// address belongs to a real stranger they could otherwise accept it and gain
+// access to the child.
+func (r *GuardianInvitationRepository) RevokeOpenByGuardianProfileID(ctx context.Context, guardianProfileID int64, reason string) ([]int64, error) {
+	var ids []int64
+	err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.GuardianInvitation)(nil)).
+		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
+		Set("revoked_at = ?", time.Now()).
+		Set("revoked_reason = ?", reason).
+		Where(`"guardian_invitation".guardian_profile_id = ?`, guardianProfileID).
+		Where(`"guardian_invitation".accepted_at IS NULL`).
+		Where(`"guardian_invitation".revoked_at IS NULL`).
+		Returning(`"guardian_invitation".id`).
+		Scan(ctx, &ids)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("failed to revoke open guardian invitations: %w", err)
+	}
+	return ids, nil
+}
+
 // MarkAsAccepted marks an invitation as accepted
 func (r *GuardianInvitationRepository) MarkAsAccepted(ctx context.Context, id int64) error {
 	now := time.Now()

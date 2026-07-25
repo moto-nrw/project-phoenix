@@ -190,6 +190,7 @@ GET /api/guardians/
 GET /api/guardians/invitable
 GET /api/guardians/invitations/pending
 GET /api/guardians/invitations/pending-approval
+GET /api/guardians/invitations/{invitationId}/delivery
 GET /api/guardians/search
 GET /api/guardians/students/{studentId}/guardians
 GET /api/guardians/without-account
@@ -717,6 +718,7 @@ POST /parent/me/children/{studentId}/sick-note
 POST /parent/me/messages/children/{studentId}
 POST /parent/me/news/{announcementId}/acknowledge
 POST /parent/me/news/{announcementId}/read
+POST /webhooks/email/delivery/{provider}
 PUT /api/active/combined/{id}
 PUT /api/active/groups/{id}
 PUT /api/active/supervisors/{id}
