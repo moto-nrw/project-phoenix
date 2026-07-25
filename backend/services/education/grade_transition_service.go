@@ -35,12 +35,16 @@ var ErrGraduatesCheckedIn = errors.New("graduating students are still checked in
 // handlers map it to 409 Conflict, never a 500 (#405).
 var ErrNotLatestApplied = errors.New("only the most recently applied transition can be reverted")
 
-// ErrPreviewStale is returned by ApplyChecked when the caller's previewed cohort
-// no longer matches the one resolved under the locks — another admin changed the
-// mappings or moved a child between classes after the preview was rendered.
+// ErrPreviewStale is returned by Apply/ApplyChecked when the cohort the apply
+// would act on is no longer the one it was asked to act on — another admin
+// changed the mappings, moved a child between classes after the preview was
+// rendered, or moved one INTO a mapped class after the cohort was locked (see
+// ensureNoLateArrivals; that case is refused even without a fingerprint,
+// because the alternative is a transition marked applied that skipped a child).
 // Applying anyway would perform a destructive bulk change the admin never saw,
-// so the request is refused and the UI reloads the preview for a fresh
-// confirmation. Client-recoverable, hence 409 Conflict, never a 500 (#405).
+// or only part of the one they did, so the request is refused and the UI reloads
+// the preview for a fresh confirmation. Client-recoverable, hence 409 Conflict,
+// never a 500 (#405).
 var ErrPreviewStale = errors.New("the preview is out of date: the affected classes or children have changed")
 
 // CreateTransitionRequest contains data for creating a new transition
@@ -66,7 +70,7 @@ type MappingRequest struct {
 
 // TransitionPreview contains information about what will happen when applied
 type TransitionPreview struct {
-	TransitionID    int64               `json:"transition_id"`
+	TransitionID    int64               `json:"transition_id,string"`
 	AcademicYear    string              `json:"academic_year"`
 	TotalStudents   int                 `json:"total_students"`
 	ToPromote       int                 `json:"to_promote"`
@@ -98,7 +102,7 @@ type UnmappedClassInfo struct {
 
 // TransitionResult contains the result of applying or reverting a transition
 type TransitionResult struct {
-	TransitionID      int64    `json:"transition_id"`
+	TransitionID      int64    `json:"transition_id,string"`
 	Status            string   `json:"status"`
 	StudentsPromoted  int      `json:"students_promoted"`
 	StudentsGraduated int      `json:"students_graduated"`
@@ -816,6 +820,8 @@ func (s *GradeTransitionService) lockTransitionCohorts(
 	graduateSet := classSet(graduateClasses)
 	promoteSet := classSet(promoteClasses)
 
+	locked := make(map[int64]bool, len(students))
+
 	// The kiosk/web check-in write path also takes a FOR UPDATE lock on the
 	// student row (services/active.ensureStudentCheckinAllowed), so the two
 	// transactions serialize on the shared row instead of racing: either a
@@ -823,6 +829,8 @@ func (s *GradeTransitionService) lockTransitionCohorts(
 	// check-in guard (and refuse), or we win the lock and the check-in re-reads
 	// the alumnus status afterwards (and refuses).
 	for _, student := range students {
+		locked[student.StudentID] = true
+
 		current, err := s.lockAndRefreshStudent(ctx, student)
 		if err != nil {
 			return nil, nil, err
@@ -842,7 +850,54 @@ func (s *GradeTransitionService) lockTransitionCohorts(
 		}
 	}
 
+	if err := s.ensureNoLateArrivals(ctx, classes, locked); err != nil {
+		return nil, nil, err
+	}
+
 	return promotions, graduates, nil
+}
+
+// ensureNoLateArrivals refuses the apply when a child entered one of the mapped
+// classes after the cohort snapshot was taken.
+//
+// The row locks above bound what a concurrent writer can CHANGE, but they cannot
+// bound what it can ADD: a child created in a mapped class, moved in from an
+// unmapped one, or reactivated by a revert lands in a row this pass never
+// locked. Every write below then deliberately touches only the locked ids — so
+// that late arrival is silently left behind in a class the transition has just
+// emptied, while the transition is marked applied. That is a half-done bulk
+// change presented as a finished one, and the revert has no history row to undo
+// it with.
+//
+// Including them instead is not an option: they are exactly the children the
+// admin's preview never showed, and graduating a child nobody confirmed is the
+// destructive direction of this pair. So the apply refuses and the admin
+// re-previews — the same answer, and the same 409, the fingerprint guard gives
+// for every other cohort drift. Applying twice is safe (the second run sees the
+// complete cohort), applying half of it is not (#405 review).
+func (s *GradeTransitionService) ensureNoLateArrivals(
+	ctx context.Context,
+	classes []string,
+	locked map[int64]bool,
+) error {
+	// Nothing was locked (no student repository wired — pure unit tests), so
+	// there is no lock-window to re-check against.
+	if s.studentRepo == nil {
+		return nil
+	}
+
+	// Re-read UNDER the locks. In READ COMMITTED this statement sees every
+	// concurrent commit that landed since the snapshot query.
+	current, err := s.transitionRepo.GetStudentsByClasses(ctx, classes)
+	if err != nil {
+		return fmt.Errorf("failed to re-check transition students: %w", err)
+	}
+	for _, student := range current {
+		if !locked[student.StudentID] {
+			return ErrPreviewStale
+		}
+	}
+	return nil
 }
 
 // lockAndRefreshStudent locks one student row and returns the cohort entry built

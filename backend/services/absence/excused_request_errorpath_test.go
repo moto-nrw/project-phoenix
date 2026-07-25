@@ -87,7 +87,16 @@ func (r *fakeStudentRepo) FindByIDs(ctx context.Context, ids []int64) (map[int64
 func (r *fakeStudentRepo) FindByID(ctx context.Context, id any) (*usersModels.Student, error) {
 	return r.findByID(ctx, id)
 }
+
+// FindByIDForUpdate falls back to findByID when no locking stub is configured.
+// Decide reads the child under a row lock (the alumnus gate must not decide on
+// a state a concurrent graduation can change underneath it), so the plain and
+// the locking read are the same fixture for every test that does not care about
+// the difference.
 func (r *fakeStudentRepo) FindByIDForUpdate(ctx context.Context, id int64) (*usersModels.Student, error) {
+	if r.findByIDForUpdate == nil {
+		return r.findByID(ctx, id)
+	}
 	return r.findByIDForUpdate(ctx, id)
 }
 func (r *fakeStudentRepo) Update(ctx context.Context, s *usersModels.Student) error {
@@ -301,14 +310,22 @@ func TestErrorPath_Decide_ApplyTodayBranchErrors(t *testing.T) {
 	student := &usersModels.Student{}
 	student.ID = 9
 
-	// FindByIDForUpdate (today branch) fails.
+	// FindByIDForUpdate (today branch) fails. The authorization gate takes the
+	// same locked read first, so only the SECOND call is the today branch's.
+	locked := 0
 	svc := newFakeService(&fakeReqRepo{
 		findPending: func(context.Context, int64) (*activeModels.ExcusedAbsenceRequest, error) {
 			return pendingRow(5, 9, today), nil
 		},
 	}, okStatusRepo(), &fakeStudentRepo{
-		findByID:          func(context.Context, any) (*usersModels.Student, error) { return student, nil },
-		findByIDForUpdate: func(context.Context, int64) (*usersModels.Student, error) { return nil, errBoom },
+		findByID: func(context.Context, any) (*usersModels.Student, error) { return student, nil },
+		findByIDForUpdate: func(context.Context, int64) (*usersModels.Student, error) {
+			locked++
+			if locked == 1 {
+				return student, nil
+			}
+			return nil, errBoom
+		},
 	}, &fakePersonRepo{})
 	_, err := svc.Decide(adminCtx(), absenceSvc.ExcusedRequestDecideInput{RequestID: 5, Approve: true})
 	require.ErrorIs(t, err, errBoom)

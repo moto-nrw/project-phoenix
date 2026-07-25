@@ -2,7 +2,9 @@ package activities
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"sort"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -185,6 +187,18 @@ func newEnrollmentStudentIDs(currentStudentIDs map[int64]int64, studentIDs []int
 // revert reason about, so the hidden assignment can silently become an active
 // one later. Enrollment writes therefore refuse alumni up front instead of
 // creating a row nobody can see or delete (#405 review).
+//
+// The status is read UNDER a FOR UPDATE lock on the student row, in ascending
+// id order (the project-wide student lock order — see
+// users.LockStudentsForUpdate). An unlocked read is not enough: a grade
+// transition apply locks exactly these rows, flips them to alumnus and
+// reconciles their rosters, so an enrollment that checked the status just
+// before that commit would insert a row for a child who is an alumnus by the
+// time it lands — the hidden, undeletable row this check exists to prevent.
+// With the lock the two transactions serialize: either graduation commits
+// first and we observe the alumnus status, or we hold the row and graduation
+// waits until our enrollment is committed and visible to its own pass
+// (#405 review).
 func (s *Service) rejectAlumni(ctx context.Context, studentIDs []int64) error {
 	if len(studentIDs) == 0 {
 		return nil
@@ -196,18 +210,39 @@ func (s *Service) rejectAlumni(ctx context.Context, studentIDs []int64) error {
 		return errors.New("student repository not configured")
 	}
 
-	students, err := s.studentRepo.FindByIDs(ctx, studentIDs)
-	if err != nil {
-		return err
-	}
-	for _, studentID := range studentIDs {
-		// Unknown IDs are left to the foreign key, which is where a
-		// non-existent student has always been rejected.
-		if student, ok := students[studentID]; ok && student.Status == users.StudentStatusAlumnus {
+	for _, studentID := range ascendingUniqueIDs(studentIDs) {
+		student, err := s.studentRepo.FindByIDForUpdate(ctx, studentID)
+		if err != nil {
+			// Unknown IDs are left to the foreign key, which is where a
+			// non-existent student has always been rejected.
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			return err
+		}
+		if student.Status == users.StudentStatusAlumnus {
 			return ErrStudentIsAlumnus
 		}
 	}
 	return nil
+}
+
+// ascendingUniqueIDs normalizes a set of student ids for locking: duplicates
+// removed, non-positive ids dropped, ascending order. The order is what keeps
+// two enrollment writes over an overlapping roster from deadlocking against
+// each other and against every other student-row locker.
+func ascendingUniqueIDs(ids []int64) []int64 {
+	ordered := make([]int64, 0, len(ids))
+	seen := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		if id <= 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		ordered = append(ordered, id)
+	}
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i] < ordered[j] })
+	return ordered
 }
 
 // removeUnwantedEnrollmentsInTx removes students that are no longer enrolled,

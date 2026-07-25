@@ -7,6 +7,7 @@ package admin_test
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -185,11 +186,7 @@ func TestGradeTransitionResource_Create(t *testing.T) {
 
 		// Parse response to get ID for cleanup
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-		if data, ok := response["data"].(map[string]interface{}); ok {
-			if id, ok := data["id"].(float64); ok {
-				defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, int64(id))
-			}
-		}
+		defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, responseID(t, response))
 	})
 
 	t.Run("create transition with mappings", func(t *testing.T) {
@@ -211,11 +208,7 @@ func TestGradeTransitionResource_Create(t *testing.T) {
 
 		// Parse response to get ID for cleanup
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-		if data, ok := response["data"].(map[string]interface{}); ok {
-			if id, ok := data["id"].(float64); ok {
-				defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, int64(id))
-			}
-		}
+		defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, responseID(t, response))
 	})
 
 	t.Run("create transition with notes", func(t *testing.T) {
@@ -234,12 +227,9 @@ func TestGradeTransitionResource_Create(t *testing.T) {
 
 		// Parse response to get ID for cleanup
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-		if data, ok := response["data"].(map[string]interface{}); ok {
-			if id, ok := data["id"].(float64); ok {
-				defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, int64(id))
-				assert.Equal(t, notes, data["notes"])
-			}
-		}
+		defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, responseID(t, response))
+		data := response["data"].(map[string]interface{})
+		assert.Equal(t, notes, data["notes"])
 	})
 
 	t.Run("create fails with empty academic_year", func(t *testing.T) {
@@ -297,7 +287,9 @@ func TestGradeTransitionResource_GetByID(t *testing.T) {
 
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 		data := response["data"].(map[string]interface{})
-		assert.Equal(t, float64(transition.ID), data["id"])
+		// Ids cross the wire as strings so a value beyond 2^53 survives a JSON
+		// number parse in the browser (#405 review).
+		assert.Equal(t, strconv.FormatInt(transition.ID, 10), data["id"])
 		assert.Equal(t, "2025-2026", data["academic_year"])
 	})
 
@@ -971,3 +963,17 @@ func TestToTransitionResponse(t *testing.T) {
 // ============================================================================
 // Helper Functions
 // ============================================================================
+
+// responseID reads the transition id out of a success envelope. The API
+// serializes int64 ids as JSON strings (see adminAPI.TransitionResponse), so a
+// numeric assertion here would silently skip cleanup instead of failing.
+func responseID(t *testing.T, response map[string]interface{}) int64 {
+	t.Helper()
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "response has no data object")
+	raw, ok := data["id"].(string)
+	require.True(t, ok, "id must be serialized as a string, got %T", data["id"])
+	id, err := strconv.ParseInt(raw, 10, 64)
+	require.NoError(t, err)
+	return id
+}

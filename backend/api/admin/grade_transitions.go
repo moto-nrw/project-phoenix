@@ -128,17 +128,24 @@ type MappingRequest struct {
 	ToClass   *string `json:"to_class,omitempty"` // null = graduate
 }
 
-// TransitionResponse represents a transition in API responses
+// TransitionResponse represents a transition in API responses.
+//
+// Every int64 identifier is serialized as a JSON STRING (`,string`). The sole
+// consumer is a browser, where JSON numbers are IEEE-754 doubles: an id beyond
+// 2^53 is silently rounded on parse, so two distinct rows can collapse into one
+// key and an apply/revert can address a transition the admin never selected.
+// Sending the digits as text keeps the value exact end to end, and the frontend
+// already models every backend id as a string (#405 review).
 type TransitionResponse struct {
-	ID           int64             `json:"id"`
+	ID           int64             `json:"id,string"`
 	AcademicYear string            `json:"academic_year"`
 	Status       string            `json:"status"`
 	AppliedAt    *string           `json:"applied_at,omitempty"`
-	AppliedBy    *int64            `json:"applied_by,omitempty"`
+	AppliedBy    *int64            `json:"applied_by,string,omitempty"`
 	RevertedAt   *string           `json:"reverted_at,omitempty"`
-	RevertedBy   *int64            `json:"reverted_by,omitempty"`
+	RevertedBy   *int64            `json:"reverted_by,string,omitempty"`
 	CreatedAt    string            `json:"created_at"`
-	CreatedBy    int64             `json:"created_by"`
+	CreatedBy    int64             `json:"created_by,string"`
 	Notes        *string           `json:"notes,omitempty"`
 	Mappings     []MappingResponse `json:"mappings,omitempty"`
 	CanModify    bool              `json:"can_modify"`
@@ -146,12 +153,52 @@ type TransitionResponse struct {
 	CanRevert    bool              `json:"can_revert"`
 }
 
-// MappingResponse represents a mapping in API responses
+// MappingResponse represents a mapping in API responses. Ids are strings for the
+// reason given on TransitionResponse.
 type MappingResponse struct {
-	ID        int64   `json:"id"`
+	ID        int64   `json:"id,string"`
 	FromClass string  `json:"from_class"`
 	ToClass   *string `json:"to_class,omitempty"`
 	Action    string  `json:"action"` // "promote" or "graduate"
+}
+
+// HistoryResponse represents one grade transition history row in API responses.
+//
+// It exists so the ledger's ids cross the wire as strings like every other id in
+// this API; rendering the model directly would emit them as JSON numbers (the
+// json tags on models/education.GradeTransitionHistory and base.Model are shared
+// with persistence and are not this endpoint's to change).
+type HistoryResponse struct {
+	ID           int64   `json:"id,string"`
+	TransitionID int64   `json:"transition_id,string"`
+	StudentID    int64   `json:"student_id,string"`
+	PersonName   string  `json:"person_name"`
+	FromClass    string  `json:"from_class"`
+	ToClass      *string `json:"to_class,omitempty"`
+	Action       string  `json:"action"`
+	FromStatus   *string `json:"from_status,omitempty"`
+	RFIDTag      *string `json:"rfid_tag,omitempty"`
+	CreatedAt    string  `json:"created_at"`
+}
+
+// toHistoryResponses converts the ledger rows to their API shape.
+func toHistoryResponses(rows []*education.GradeTransitionHistory) []HistoryResponse {
+	out := make([]HistoryResponse, 0, len(rows))
+	for _, h := range rows {
+		out = append(out, HistoryResponse{
+			ID:           h.ID,
+			TransitionID: h.TransitionID,
+			StudentID:    h.StudentID,
+			PersonName:   h.PersonName,
+			FromClass:    h.FromClass,
+			ToClass:      h.ToClass,
+			Action:       h.Action,
+			FromStatus:   h.FromStatus,
+			RFIDTag:      h.RFIDTag,
+			CreatedAt:    h.CreatedAt.UTC().Format(timeFormatISO8601),
+		})
+	}
+	return out
 }
 
 // toTransitionResponse converts a model to a response
@@ -513,5 +560,5 @@ func (rs *GradeTransitionResource) getHistory(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, history, "Transition history retrieved successfully")
+	common.Respond(w, r, http.StatusOK, toHistoryResponses(history), "Transition history retrieved successfully")
 }

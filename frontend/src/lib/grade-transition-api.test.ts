@@ -186,6 +186,100 @@ describe("mapHistoryEntry", () => {
   });
 });
 
+describe("int64 ids on the wire", () => {
+  // The backend serializes every id as a decimal STRING (`json:"id,string"`)
+  // because a JSON number is a double here: 2^53+1 and 2^53+2 parse to the same
+  // value, so a numeric wire format would let two distinct transitions collapse
+  // onto one key and an apply/revert address a row nobody selected. The mappers
+  // must therefore pass a string id through untouched — never via Number()
+  // (#405 review).
+  const big = "9007199254740993"; // 2^53 + 1, not representable as a double
+  const bigger = "9007199254740995"; // 2^53 + 3, also rounds onto 2^53 + 4
+
+  it("keeps a string id past 2^53 exact", () => {
+    const t = mapTransition({
+      id: big,
+      academic_year: "2026-2027",
+      status: "draft",
+      created_at: "2026-07-24T09:00:00Z",
+      created_by: big,
+      mappings: [
+        { id: bigger, from_class: "1a", to_class: "2a", action: "promote" },
+      ],
+      can_modify: true,
+      can_apply: false,
+      can_revert: false,
+    });
+    expect(t.id).toBe(big);
+    expect(t.mappings[0]?.id).toBe(bigger);
+    // The guard that would fail if anything routed the id through a double.
+    expect(Number(t.id).toString()).not.toBe(t.id);
+  });
+
+  it("keeps preview, result and history ids exact", () => {
+    expect(
+      mapPreview({
+        transition_id: big,
+        academic_year: "2026-2027",
+        total_students: 0,
+        to_promote: 0,
+        to_graduate: 0,
+        by_mapping: [],
+      }).transitionId,
+    ).toBe(big);
+
+    expect(
+      mapResult({
+        transition_id: big,
+        status: "applied",
+        students_promoted: 0,
+        students_graduated: 0,
+        can_revert: true,
+      }).transitionId,
+    ).toBe(big);
+
+    const history = mapHistoryEntry({
+      id: big,
+      transition_id: bigger,
+      student_id: big,
+      person_name: "Mika Muster",
+      from_class: "4a",
+      action: "graduated",
+      created_at: "2026-08-01T06:00:00Z",
+    });
+    expect(history.id).toBe(big);
+    expect(history.transitionId).toBe(bigger);
+    expect(history.studentId).toBe(big);
+  });
+
+  it("does not collapse two ids that share a double", async () => {
+    const row = (id: string): BackendGradeTransition => ({
+      id,
+      academic_year: "2026-2027",
+      status: "applied",
+      created_at: "2026-07-24T09:00:00Z",
+      created_by: 1,
+      can_modify: false,
+      can_apply: false,
+      can_revert: true,
+    });
+    expect(Number(big)).toBe(Number("9007199254740992"));
+
+    const rows = [row(big), row("9007199254740992")];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: rows }),
+      })) as unknown as typeof fetch,
+    );
+
+    const result = await listGradeTransitions();
+    expect(result.map((t) => t.id)).toEqual([big, "9007199254740992"]);
+  });
+});
+
 describe("listGradeTransitions", () => {
   const makeRow = (id: number): BackendGradeTransition => ({
     id,

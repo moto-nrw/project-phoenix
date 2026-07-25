@@ -423,11 +423,20 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 
 	// Per-child write authorization: the caller may decide only if they could
 	// edit the child directly — admin, or the child's group supervisor.
-	student, err := s.studentRepo.FindByID(ctx, req.StudentID)
+	//
+	// Taken FOR UPDATE so the alumnus gate below decides on a state a concurrent
+	// grade transition cannot change underneath it: the transition apply locks
+	// exactly this row before flipping it to alumnus, so an unlocked read could
+	// see "active", let the approve through, and have the graduation commit
+	// before the status-day writes land — excused rows written for, or cleared
+	// from, a child who is an alumnus by then. Under the lock the two serialize.
+	// This is the only student row this transaction locks, so the ascending-id
+	// order every student-row locker follows is preserved (#405 review).
+	student, err := s.studentRepo.FindByIDForUpdate(ctx, req.StudentID)
 	if err != nil {
 		return nil, fmt.Errorf("active: load student for excused request decision: %w", err)
 	}
-	// The child graduated after filing this request. FindByID is unfiltered, so
+	// The child graduated after filing this request. The lookup is unfiltered, so
 	// without this gate an approve would still write excused status days for an
 	// alumnus. Same 404 the rest of the child surface returns for graduates
 	// (#405 review).

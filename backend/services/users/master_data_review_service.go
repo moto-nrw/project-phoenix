@@ -189,11 +189,22 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 	// (auth/authorize.CanUpdateStudent, the same gate the direct student edit
 	// uses). Both approve and reject are gated: a staffer who cannot edit the
 	// child has no business deciding its request either way.
-	student, err := s.studentRepo.FindByID(ctx, req.StudentID)
+	//
+	// Taken FOR UPDATE so the alumnus gate below decides on a state a concurrent
+	// grade transition cannot change underneath it: the transition apply locks
+	// exactly this row before flipping it to alumnus, so an unlocked read could
+	// see "active", let the approve through, and have the graduation commit
+	// before the person/student writes land — an alumnus' master data rewritten
+	// past the gate that exists to refuse it. Under the lock the two serialize.
+	// This is also the transaction's FIRST row lock: the apply below only ever
+	// re-acquires this same student row or takes the child's person row after
+	// it, so no student lock order is inverted and the person lock keeps its
+	// single acquisition site (#405 review).
+	student, err := s.studentRepo.FindByIDForUpdate(ctx, req.StudentID)
 	if err != nil {
 		return nil, fmt.Errorf("review: load student for decision: %w", err)
 	}
-	// The child graduated after filing this request. FindByID is unfiltered, so
+	// The child graduated after filing this request. The lookup is unfiltered, so
 	// without this gate an approve would still rewrite an alumnus' master data
 	// (name, departure modes, companion links). Same 404 the rest of the child
 	// surface returns for graduates (#405 review).

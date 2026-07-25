@@ -9,27 +9,45 @@ const BASE = "/api/admin/grade-transitions";
 // Backend (snake_case) types — mirror backend/api/admin/grade_transitions.go
 // ---------------------------------------------------------------------------
 
+/** A backend int64 identifier on the wire.
+ *
+ * The grade-transition endpoints serialize ids as JSON STRINGS (`json:"id,string"`)
+ * precisely so they survive the trip: a JSON number is an IEEE-754 double here,
+ * so an id beyond 2^53 would be rounded during parsing — before any mapper could
+ * run — and two distinct rows could collapse onto one key or an apply/revert
+ * could address a transition the admin never selected. `number` is still
+ * accepted so a response from an older server (or a hand-written test fixture)
+ * still maps; only the string form is exact, which is why nothing here ever
+ * converts an id back to a number (#405 review). */
+export type BackendID = string | number;
+
+/** Normalizes a wire id to the string form the app uses everywhere. A string
+ * passes through verbatim — never via Number() — so no precision is lost. */
+export function toIdString(id: BackendID): string {
+  return typeof id === "string" ? id : id.toString();
+}
+
 export type TransitionStatus = "draft" | "applied" | "reverted";
 export type MappingAction = "promote" | "graduate";
 export type HistoryAction = "promoted" | "graduated" | "unchanged";
 
 export interface BackendTransitionMapping {
-  id: number;
+  id: BackendID;
   from_class: string;
   to_class?: string | null;
   action: MappingAction;
 }
 
 export interface BackendGradeTransition {
-  id: number;
+  id: BackendID;
   academic_year: string;
   status: TransitionStatus;
   applied_at?: string | null;
-  applied_by?: number | null;
+  applied_by?: BackendID | null;
   reverted_at?: string | null;
-  reverted_by?: number | null;
+  reverted_by?: BackendID | null;
   created_at: string;
-  created_by: number;
+  created_by: BackendID;
   notes?: string | null;
   mappings?: BackendTransitionMapping[];
   can_modify: boolean;
@@ -50,7 +68,7 @@ export interface BackendUnmappedClass {
 }
 
 export interface BackendTransitionPreview {
-  transition_id: number;
+  transition_id: BackendID;
   academic_year: string;
   total_students: number;
   to_promote: number;
@@ -65,7 +83,7 @@ export interface BackendTransitionPreview {
 }
 
 export interface BackendTransitionResult {
-  transition_id: number;
+  transition_id: BackendID;
   status: string;
   students_promoted: number;
   students_graduated: number;
@@ -83,9 +101,9 @@ export interface BackendSuggestedMapping {
 }
 
 export interface BackendTransitionHistoryEntry {
-  id: number;
-  transition_id: number;
-  student_id: number;
+  id: BackendID;
+  transition_id: BackendID;
+  student_id: BackendID;
   person_name: string;
   from_class: string;
   to_class?: string | null;
@@ -197,7 +215,7 @@ export interface UpdateTransitionInput {
 
 export function mapTransition(data: BackendGradeTransition): GradeTransition {
   return {
-    id: data.id.toString(),
+    id: toIdString(data.id),
     academicYear: data.academic_year,
     status: data.status,
     appliedAt: data.applied_at ?? null,
@@ -205,7 +223,7 @@ export function mapTransition(data: BackendGradeTransition): GradeTransition {
     createdAt: data.created_at,
     notes: data.notes ?? null,
     mappings: (data.mappings ?? []).map((m) => ({
-      id: m.id.toString(),
+      id: toIdString(m.id),
       fromClass: m.from_class,
       toClass: m.to_class ?? null,
       action: m.action,
@@ -218,7 +236,7 @@ export function mapTransition(data: BackendGradeTransition): GradeTransition {
 
 export function mapPreview(data: BackendTransitionPreview): TransitionPreview {
   return {
-    transitionId: data.transition_id.toString(),
+    transitionId: toIdString(data.transition_id),
     academicYear: data.academic_year,
     totalStudents: data.total_students,
     toPromote: data.to_promote,
@@ -240,7 +258,7 @@ export function mapPreview(data: BackendTransitionPreview): TransitionPreview {
 
 export function mapResult(data: BackendTransitionResult): TransitionResult {
   return {
-    transitionId: data.transition_id.toString(),
+    transitionId: toIdString(data.transition_id),
     status: data.status,
     studentsPromoted: data.students_promoted,
     studentsGraduated: data.students_graduated,
@@ -265,9 +283,9 @@ export function mapHistoryEntry(
   data: BackendTransitionHistoryEntry,
 ): TransitionHistoryEntry {
   return {
-    id: data.id.toString(),
-    transitionId: data.transition_id.toString(),
-    studentId: data.student_id.toString(),
+    id: toIdString(data.id),
+    transitionId: toIdString(data.transition_id),
+    studentId: toIdString(data.student_id),
     personName: data.person_name,
     fromClass: data.from_class,
     toClass: data.to_class ?? null,
@@ -378,8 +396,10 @@ const LIST_PAGE_LIMIT = 100;
 // same dead target (#405 review).
 export async function listGradeTransitions(): Promise<GradeTransition[]> {
   // created_at DESC: a row inserted between page fetches shifts the rows behind
-  // it, so pages can overlap. Keyed by id rather than concatenated.
-  const byID = new Map<number, BackendGradeTransition>();
+  // it, so pages can overlap. Keyed by id rather than concatenated — as the
+  // exact string id, never a number, so two rows can never share a key through
+  // float rounding (#405 review).
+  const byID = new Map<string, BackendGradeTransition>();
 
   for (let page = 1; page <= LIST_PAGE_LIMIT; page++) {
     const response = await fetch(
@@ -388,7 +408,7 @@ export async function listGradeTransitions(): Promise<GradeTransition[]> {
     );
     const data = (await readJSON<BackendGradeTransition[]>(response)) ?? [];
     for (const transition of data) {
-      byID.set(transition.id, transition);
+      byID.set(toIdString(transition.id), transition);
     }
     if (data.length < LIST_PAGE_SIZE) break;
   }
