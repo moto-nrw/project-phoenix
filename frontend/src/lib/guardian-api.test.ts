@@ -18,6 +18,8 @@ import {
   updateGuardianPhoneNumber,
   deleteGuardianPhoneNumber,
   setGuardianPrimaryPhone,
+  fetchOpenInvitationsByGuardian,
+  fetchInvitationDelivery,
 } from "./guardian-api";
 import type {
   GuardianFormData,
@@ -1664,6 +1666,102 @@ describe("guardian-api functions", () => {
       await expect(setGuardianPrimaryPhone("123", "456")).rejects.toThrow(
         "Unauthorized",
       );
+    });
+  });
+
+  // Email delivery status (#1937).
+  describe("fetchOpenInvitationsByGuardian", () => {
+    it("maps guardian profile id to the newest open invitation", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            status: "success",
+            data: [
+              { id: 9, guardian_profile_id: 5 },
+              // Older invitation for the same guardian — the list is
+              // newest-first, so the first one seen wins.
+              { id: 3, guardian_profile_id: 5 },
+              { id: 7, guardian_profile_id: 8 },
+            ],
+          }),
+      });
+
+      const result = await fetchOpenInvitationsByGuardian();
+
+      expect(result.get("5")).toBe("9");
+      expect(result.get("8")).toBe("7");
+      expect(result.size).toBe(2);
+    });
+
+    it("throws on a failed request", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        statusText: "Forbidden",
+      });
+
+      await expect(fetchOpenInvitationsByGuardian()).rejects.toThrow(
+        "Forbidden",
+      );
+    });
+
+    it("throws when the API reports an error payload", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ status: "error", error: "nope" }),
+      });
+
+      await expect(fetchOpenInvitationsByGuardian()).rejects.toThrow("nope");
+    });
+  });
+
+  describe("fetchInvitationDelivery", () => {
+    it("returns the mapped delivery status", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            status: "success",
+            data: {
+              invitation_id: 42,
+              attempts: [
+                {
+                  outbox_id: 7,
+                  dispatch_status: "sent",
+                  delivery_status: "deferred",
+                  queued_at: "2026-07-25T10:00:00Z",
+                  attempts: 1,
+                },
+              ],
+            },
+          }),
+      });
+
+      const result = await fetchInvitationDelivery("42");
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/guardians/invitations/42/delivery",
+      );
+      expect(result.invitationId).toBe("42");
+      expect(result.attempts[0]?.deliveryStatus).toBe("deferred");
+    });
+
+    it("throws on a failed request", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        statusText: "Not Found",
+      });
+
+      await expect(fetchInvitationDelivery("42")).rejects.toThrow("Not Found");
+    });
+
+    it("throws when the API reports an error payload", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ status: "error", error: "boom" }),
+      });
+
+      await expect(fetchInvitationDelivery("42")).rejects.toThrow("boom");
     });
   });
 });

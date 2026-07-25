@@ -249,3 +249,104 @@ func TestFindByMessageID_UnmatchedIsNotAnError(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, found)
 }
+
+// ListByOutboxIDs backs the tenant read API; DeleteOlderThan backs the GDPR
+// retention sweep. Both are exercised here against the real table so the
+// tenant-scoped predicates are not merely assumed.
+func TestDeliveryEventRepository_ListAndRetention(t *testing.T) {
+	db := SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	scope := NewTenantScope(t, db)
+	defer CleanupTenantTestData(t, db, scope.TenantID)
+
+	row := seedOutboxRow(t, db, scope.TenantID, fmt.Sprintf("ob.%d.retention.uuid@test.local", scope.TenantID))
+	repo := platformRepo.NewEmailDeliveryEventRepository(db)
+	ctx := context.Background()
+
+	recent := &platformModels.EmailDeliveryEvent{
+		OutboxID:        row.ID,
+		Provider:        "generic",
+		ProviderEventID: fmt.Sprintf("evt_recent_%d", row.ID),
+		EventType:       platformModels.DeliveryEventDelivered,
+		OccurredAt:      time.Now(),
+		ReceivedAt:      time.Now(),
+	}
+	recent.SetTenantID(scope.TenantID)
+
+	old := &platformModels.EmailDeliveryEvent{
+		OutboxID:        row.ID,
+		Provider:        "generic",
+		ProviderEventID: fmt.Sprintf("evt_old_%d", row.ID),
+		EventType:       platformModels.DeliveryEventDeferred,
+		OccurredAt:      time.Now().AddDate(0, 0, -200),
+		ReceivedAt:      time.Now().AddDate(0, 0, -200),
+	}
+	old.SetTenantID(scope.TenantID)
+
+	for _, event := range []*platformModels.EmailDeliveryEvent{recent, old} {
+		inserted, err := repo.CreateIfNew(ctx, event)
+		require.NoError(t, err)
+		require.True(t, inserted)
+	}
+
+	events, err := repo.ListByOutboxIDs(ctx, []int64{row.ID})
+	require.NoError(t, err)
+	require.Len(t, events, 2)
+	assert.True(t, events[0].OccurredAt.After(events[1].OccurredAt), "newest first")
+
+	// An empty id list must not turn into an unbounded query.
+	empty, err := repo.ListByOutboxIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, empty)
+
+	deleted, err := repo.DeleteOlderThan(ctx, time.Now().AddDate(0, 0, -90))
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), deleted, "only the expired event is removed")
+
+	remaining, err := repo.ListByOutboxIDs(ctx, []int64{row.ID})
+	require.NoError(t, err)
+	require.Len(t, remaining, 1)
+	assert.Equal(t, recent.ProviderEventID, remaining[0].ProviderEventID)
+}
+
+// A malformed event must be rejected before it reaches the database.
+func TestDeliveryEventRepository_RejectsInvalidEvent(t *testing.T) {
+	db := SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := platformRepo.NewEmailDeliveryEventRepository(db)
+	_, err := repo.CreateIfNew(context.Background(), &platformModels.EmailDeliveryEvent{})
+	require.Error(t, err)
+}
+
+// SetDispatchIdentifiers stores the provider identifier when the transport
+// reports one, and errors on a row that is not there.
+func TestSetDispatchIdentifiers(t *testing.T) {
+	db := SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	scope := NewTenantScope(t, db)
+	defer CleanupTenantTestData(t, db, scope.TenantID)
+
+	messageID := fmt.Sprintf("ob.%d.dispatch.uuid@test.local", scope.TenantID)
+	row := seedOutboxRow(t, db, scope.TenantID, messageID)
+
+	repo := platformRepo.NewEmailOutboxRepository(db)
+	ctx := context.Background()
+
+	providerID := fmt.Sprintf("provider-%d", row.ID)
+	require.NoError(t, repo.SetDispatchIdentifiers(ctx, row.ID, messageID, &providerID))
+
+	found, err := repo.FindByProviderMessageID(ctx, providerID)
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Equal(t, row.ID, found.ID)
+
+	// An empty lookup key matches nothing rather than the first row.
+	none, err := repo.FindByProviderMessageID(ctx, "")
+	require.NoError(t, err)
+	assert.Nil(t, none)
+
+	require.Error(t, repo.SetDispatchIdentifiers(ctx, -1, "x@y", nil))
+}
