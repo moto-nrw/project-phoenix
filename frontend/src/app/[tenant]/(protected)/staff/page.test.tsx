@@ -138,30 +138,30 @@ describe("StaffPage", () => {
 
     render(<StaffPage />);
 
-    expect(screen.getByText("Anna")).toBeInTheDocument();
-    expect(screen.getByText("Ben")).toBeInTheDocument();
+    expect(screen.getByText("Anna Meyer")).toBeInTheDocument();
+    expect(screen.getByText("Ben Schulz")).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId("search-input"), {
       target: { value: "Schulz" },
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Anna")).not.toBeInTheDocument();
-      expect(screen.getByText("Ben")).toBeInTheDocument();
+      expect(screen.queryByText("Anna Meyer")).not.toBeInTheDocument();
+      expect(screen.getByText("Ben Schulz")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("clear-filters"));
 
     await waitFor(() => {
-      expect(screen.getByText("Anna")).toBeInTheDocument();
-      expect(screen.getByText("Ben")).toBeInTheDocument();
+      expect(screen.getByText("Anna Meyer")).toBeInTheDocument();
+      expect(screen.getByText("Ben Schulz")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("filter-im-raum"));
 
     await waitFor(() => {
-      expect(screen.queryByText("Anna")).not.toBeInTheDocument();
-      expect(screen.getByText("Ben")).toBeInTheDocument();
+      expect(screen.queryByText("Anna Meyer")).not.toBeInTheDocument();
+      expect(screen.getByText("Ben Schulz")).toBeInTheDocument();
     });
   });
 
@@ -185,13 +185,13 @@ describe("StaffPage", () => {
     fireEvent.click(screen.getByTestId("filter-abwesend"));
 
     await waitFor(() => {
-      expect(screen.getByText("Carla")).toBeInTheDocument();
+      expect(screen.getByText("Carla Frei")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("filter-im-raum"));
 
     await waitFor(() => {
-      expect(screen.queryByText("Carla")).not.toBeInTheDocument();
+      expect(screen.queryByText("Carla Frei")).not.toBeInTheDocument();
     });
   });
 

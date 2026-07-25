@@ -102,11 +102,13 @@ describe("SchoolOverviewSection", () => {
     render(<SchoolOverviewSection />);
 
     expect(
-      screen.getByText("Die Schul-Übersicht konnte nicht geladen werden."),
+      screen.getByText(
+        "Die Einrichtungs-Übersicht konnte nicht geladen werden.",
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Aktive Mitarbeitende")).not.toBeInTheDocument();
     expect(
-      screen.queryByText("Stundenkonto der Schule"),
+      screen.queryByText("Stundenkonto der Einrichtung"),
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));

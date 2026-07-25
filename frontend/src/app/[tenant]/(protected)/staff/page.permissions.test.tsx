@@ -1,5 +1,5 @@
 // Der Berechtigungs-Split der /staff-Seite (#1417 Tranche 2a): die
-// aggregierte Schul-Übersicht läuft mit users:read, die Zeitkonten-Tabelle
+// aggregierte Einrichtungs-Übersicht läuft mit users:read, die Zeitkonten-Tabelle
 // verlangt time_tracking:manage. Ohne die zweite Berechtigung darf der
 // Umschalter nicht erscheinen UND der Overview-Request nicht gefeuert werden —
 // eine Seite, die still ein 403 im Netzwerk-Tab produziert, gilt als kaputt.
@@ -73,7 +73,7 @@ describe("/staff — Berechtigungs-Split", () => {
     });
   });
 
-  it("zeigt die Schul-Übersicht auch ohne time_tracking:manage", () => {
+  it("zeigt die Einrichtungs-Übersicht auch ohne time_tracking:manage", () => {
     mockSession(["users:read"]);
 
     render(<StaffPage />);

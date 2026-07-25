@@ -167,7 +167,7 @@ export function StaffTimeAccountsTable({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-gray-800">
             Zeitkonten — {formatOverviewMonth(year, month)}
@@ -177,6 +177,9 @@ export function StaffTimeAccountsTable({
             Urlaub sind mit dem Tagessoll gutgeschrieben.
           </p>
         </div>
+        {/* Sichtbare Chip-Leiste statt ghost-Buttons: als ghost sahen die
+            inaktiven Presets wie Fließtext aus und niemand erkannte sie als
+            Filter. */}
         <div className="flex flex-wrap items-center gap-2">
           {saldoPresets.map((preset) => (
             <Button
@@ -186,7 +189,7 @@ export function StaffTimeAccountsTable({
               variant={
                 !showCustomSaldo && saldoPreset === preset.id
                   ? "primary"
-                  : "ghost"
+                  : "outline"
               }
               onClick={() => {
                 onCustomSaldoHoursChange("");
@@ -200,7 +203,7 @@ export function StaffTimeAccountsTable({
           <Button
             type="button"
             size="compact"
-            variant={showCustomSaldo ? "primary" : "ghost"}
+            variant={showCustomSaldo ? "primary" : "outline"}
             onClick={() => {
               onCustomSaldoHoursChange("");
               if (!showCustomSaldo) {

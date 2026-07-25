@@ -1,4 +1,4 @@
-// Tenant-wide time-tracking views for the /staff Schul-Dashboard
+// Tenant-wide time-tracking views for the /staff dashboard
 // (#1417 Tranche 2a). Two endpoints with deliberately different permissions:
 //
 //   /api/staff/dashboard-summary        users:read           aggregated KPIs
@@ -154,7 +154,7 @@ export const staffOverviewService = {
     return mapDashboardSummary(
       await readJson<BackendDashboardSummary>(
         response,
-        "Schul-Übersicht konnte nicht geladen werden",
+        "Einrichtungs-Übersicht konnte nicht geladen werden",
       ),
     );
   },

@@ -403,7 +403,7 @@ function StaffPageContent() {
         <StaffPendingInbox rows={pendingAbsences} staffList={staff} />
       )}
 
-      {/* Sektion 2 — Schul-Übersicht (#1417 Tranche 2a), läuft mit users:read */}
+      {/* Sektion 2 — Einrichtungs-Übersicht (#1417 Tranche 2a), läuft mit users:read */}
       {canReadUsers && <SchoolOverviewSection />}
 
       {/* Sektion 3 — Mitarbeitende. Status (Karten) und Zeitkonten (Tabelle)
@@ -511,19 +511,20 @@ function StaffPageContent() {
                       : {})}
                     className={cardClassName}
                   >
-                    <div className="relative p-5 pb-4">
-                      <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] md:group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]" />
-
-                      <div className="relative flex min-h-[112px] flex-col">
+                    <div className="relative p-4">
+                      <div className="relative flex min-h-[104px] flex-col">
                         <div className="mb-3 flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <h3 className="inline-block origin-left overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:scale-[1.025] md:group-hover:text-gray-950 motion-reduce:md:group-hover:scale-100">
-                                {staffMember.firstName}
+                            {/* Ein Name, eine Zeile: der Umbruch zwischen Vor-
+                                und Nachname ließ jede Karte wie zwei Personen
+                                aussehen. */}
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <h3 className="truncate text-base font-bold text-gray-900">
+                                {staffMember.firstName} {staffMember.lastName}
                               </h3>
                               {userIsAdmin && (
                                 <svg
-                                  className="h-4 w-4 flex-shrink-0 translate-x-0 text-gray-300 opacity-70 transition-[color,opacity,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:translate-x-0.5 md:group-hover:text-gray-600 md:group-hover:opacity-100 motion-reduce:md:group-hover:translate-x-0"
+                                  className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-200 md:group-hover:text-gray-500"
                                   fill="none"
                                   viewBox="0 0 24 24"
                                   stroke="currentColor"
@@ -537,23 +538,21 @@ function StaffPageContent() {
                                 </svg>
                               )}
                             </div>
-                            <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-300 md:group-hover:text-gray-800">
-                              {staffMember.lastName}
-                            </p>
-                            <p className="mt-1 text-xs text-gray-400 transition-colors duration-300 md:group-hover:text-gray-500">
+                            <p className="mt-0.5 truncate text-xs text-gray-500">
                               {staffMember.specialization ?? displayType}
                             </p>
                           </div>
 
                           <span className="flex flex-shrink-0 flex-col items-end gap-1.5">
+                            {/* Kein Glow, kein Pulsieren: 20 gleichzeitig
+                                leuchtende Badges sind Lärm, kein Status. */}
                             <span
-                              className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${locationStatus.badgeColor}`}
+                              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${locationStatus.badgeColor}`}
                               style={{
                                 backgroundColor: locationStatus.customBgColor,
-                                boxShadow: locationStatus.customShadow,
                               }}
                             >
-                              <span className="mr-2 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80"></span>
+                              <span className="h-1.5 w-1.5 rounded-full bg-white/80"></span>
                               {locationStatus.label}
                             </span>
                             {(pendingByStaff.get(Number(staffMember.id)) ?? 0) >
@@ -612,8 +611,6 @@ function StaffPageContent() {
                             Tippen für mehr Infos
                           </p>
                         )}
-
-                        <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30"></div>
                       </div>
                     </div>
                   </div>
