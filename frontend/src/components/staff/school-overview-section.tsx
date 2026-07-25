@@ -15,6 +15,8 @@
 
 import { useState } from "react";
 
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
@@ -39,13 +41,22 @@ const periodLabels: Record<DashboardPeriod, string> = {
  * Karte, weil genau diese Zahl sonst in der Leitungsrunde gegen die
  * Monatskarte gerechnet wird.
  */
-const deltaExplanation =
-  "Nicht Ist minus Soll: Krankheits-, Urlaubs- und Fortbildungstage werden mit dem Tagessoll gutgeschrieben. Die Zahl ist die Summe der Monatssalden aller Mitarbeitenden und stimmt deshalb mit den Stundenkonten überein.";
+const deltaExplanations: Record<DashboardPeriod, string> = {
+  week: "Nicht Ist minus Soll: Krankheits-, Urlaubs- und Fortbildungstage werden mit dem Tagessoll gutgeschrieben. Die Zahl ist die Summe der Saldo-Veränderungen aller Mitarbeitenden in dieser Woche.",
+  month:
+    "Nicht Ist minus Soll: Krankheits-, Urlaubs- und Fortbildungstage werden mit dem Tagessoll gutgeschrieben. Die Zahl ist die Summe der Monatssalden aller Mitarbeitenden.",
+};
 
 export function SchoolOverviewSection() {
   const [period, setPeriod] = useState<DashboardPeriod>("month");
 
-  const { data: summary, isLoading } = useSWRAuth(
+  const {
+    data: summary,
+    error,
+    isLoading,
+    isValidating,
+    mutate,
+  } = useSWRAuth(
     `staff-dashboard-summary-${period}`,
     () => staffOverviewService.getDashboardSummary(period),
     { keepPreviousData: true, revalidateOnFocus: false },
@@ -81,7 +92,30 @@ export function SchoolOverviewSection() {
         </Tabs>
       </div>
 
-      {isLoading && !summary ? (
+      {error && (
+        <div className="mb-3 space-y-2">
+          <Alert
+            type="error"
+            message={
+              summary
+                ? "Die Schul-Übersicht konnte nicht aktualisiert werden. Die zuletzt geladenen Werte bleiben sichtbar."
+                : "Die Schul-Übersicht konnte nicht geladen werden."
+            }
+          />
+          <Button
+            type="button"
+            size="compact"
+            variant="outline"
+            isLoading={isValidating}
+            loadingText="Wird geladen..."
+            onClick={() => void mutate()}
+          >
+            Erneut laden
+          </Button>
+        </div>
+      )}
+
+      {!summary && error ? null : isLoading && !summary ? (
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
           {Array.from({ length: 6 }, (_, index) => (
             <Skeleton key={index} className="h-28 rounded-3xl" />
@@ -131,7 +165,7 @@ export function SchoolOverviewSection() {
             progressPct={istPct}
             compactPrimary
           />
-          <div title={deltaExplanation}>
+          <div title={deltaExplanations[period]}>
             <KpiCard
               label="Saldo-Veränderung"
               primary={
@@ -145,30 +179,30 @@ export function SchoolOverviewSection() {
         </div>
       )}
 
-      {/* Kontostand, kein Zeitraumwert: für Woche und Monat identisch und
-          deshalb aus der Zeitraum-Reihe herausgenommen. */}
-      <div className="moto-content-surface mt-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-2xl border border-gray-200 p-4 shadow-sm">
-        <div>
-          <p className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
-            Stundenkonto der Schule
-          </p>
-          <p className="mt-1 text-xs text-gray-500">
-            Kontostand über alle Mitarbeitenden, unabhängig vom gewählten
-            Zeitraum
+      {summary && (
+        // Kontostand, kein Zeitraumwert: für Woche und Monat identisch und
+        // deshalb aus der Zeitraum-Reihe herausgenommen.
+        <div className="moto-content-surface mt-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-2xl border border-gray-200 p-4 shadow-sm">
+          <div>
+            <p className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
+              Stundenkonto der Schule
+            </p>
+            <p className="mt-1 text-xs text-gray-500">
+              Kontostand über alle Mitarbeitenden, unabhängig vom gewählten
+              Zeitraum
+            </p>
+          </div>
+          <p
+            className={`text-2xl font-bold ${
+              summary.saldoSchoolTotalMinutes < 0
+                ? "text-red-600"
+                : "text-gray-700"
+            }`}
+          >
+            {formatSignedDuration(summary.saldoSchoolTotalMinutes)}
           </p>
         </div>
-        <p
-          className={`text-2xl font-bold ${
-            summary && summary.saldoSchoolTotalMinutes < 0
-              ? "text-red-600"
-              : "text-gray-700"
-          }`}
-        >
-          {summary
-            ? formatSignedDuration(summary.saldoSchoolTotalMinutes)
-            : dash}
-        </p>
-      </div>
+      )}
     </section>
   );
 }

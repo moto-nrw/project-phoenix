@@ -11,7 +11,7 @@
 // Diese Ansicht wird nur mit time_tracking:manage gerendert; ohne die
 // Berechtigung feuert der Request gar nicht erst.
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -28,7 +28,7 @@ export const saldoPresets = [
   { id: "all", label: "Alle", min: null, max: null },
   { id: "minus", label: "Minusstunden", min: null, max: -1 },
   { id: "plus", label: "Plusstunden", min: 1, max: null },
-  { id: "plus20", label: "über +20 Std.", min: 20 * 60, max: null },
+  { id: "plus20", label: "über +20 Std.", min: 20 * 60 + 1, max: null },
 ] as const;
 
 export type SaldoPresetId = (typeof saldoPresets)[number]["id"];
@@ -70,6 +70,8 @@ interface Props {
   readonly onSaldoPresetChange: (preset: SaldoPresetId) => void;
   readonly customSaldoHours: string;
   readonly onCustomSaldoHoursChange: (value: string) => void;
+  readonly showCustomSaldo: boolean;
+  readonly onShowCustomSaldoChange: (show: boolean) => void;
 }
 
 export function StaffTimeAccountsTable({
@@ -83,9 +85,9 @@ export function StaffTimeAccountsTable({
   onSaldoPresetChange,
   customSaldoHours,
   onCustomSaldoHoursChange,
+  showCustomSaldo,
+  onShowCustomSaldoChange,
 }: Props) {
-  const [showCustom, setShowCustom] = useState(false);
-
   const columns = useMemo<DataTableColumn<TimeAccountRow>[]>(
     () => [
       {
@@ -179,8 +181,16 @@ export function StaffTimeAccountsTable({
               key={preset.id}
               type="button"
               size="compact"
-              variant={saldoPreset === preset.id ? "primary" : "ghost"}
-              onClick={() => onSaldoPresetChange(preset.id)}
+              variant={
+                !showCustomSaldo && saldoPreset === preset.id
+                  ? "primary"
+                  : "ghost"
+              }
+              onClick={() => {
+                onCustomSaldoHoursChange("");
+                onShowCustomSaldoChange(false);
+                onSaldoPresetChange(preset.id);
+              }}
             >
               {preset.label}
             </Button>
@@ -188,16 +198,21 @@ export function StaffTimeAccountsTable({
           <Button
             type="button"
             size="compact"
-            variant="ghost"
-            onClick={() => setShowCustom((open) => !open)}
-            aria-expanded={showCustom}
+            variant={showCustomSaldo ? "primary" : "ghost"}
+            onClick={() => {
+              if (showCustomSaldo) {
+                onCustomSaldoHoursChange("");
+              }
+              onShowCustomSaldoChange(!showCustomSaldo);
+            }}
+            aria-expanded={showCustomSaldo}
           >
-            {showCustom ? "Grenze ausblenden" : "Eigene Grenze"}
+            {showCustomSaldo ? "Grenze ausblenden" : "Eigene Grenze"}
           </Button>
         </div>
       </div>
 
-      {showCustom && (
+      {showCustomSaldo && (
         <div className="flex flex-wrap items-center gap-2">
           <label
             htmlFor="saldo-min-hours"

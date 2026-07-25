@@ -43,7 +43,10 @@ vi.mock("~/components/staff/staff-pending-inbox", () => ({
 }));
 
 vi.mock("~/components/staff/school-overview-section", () => ({
-  SchoolOverviewSection: () => <div data-testid="schul-uebersicht" />,
+  SchoolOverviewSection: () => {
+    void getDashboardSummary();
+    return <div data-testid="schul-uebersicht" />;
+  },
 }));
 
 function mockSession(permissions: string[]) {
@@ -60,6 +63,7 @@ function mockSession(permissions: string[]) {
 describe("/staff — Berechtigungs-Split", () => {
   beforeEach(() => {
     swrKeys.length = 0;
+    getDashboardSummary.mockReset().mockResolvedValue({});
     getTimeAccounts.mockReset().mockResolvedValue({
       year: 2026,
       month: 7,
@@ -73,6 +77,16 @@ describe("/staff — Berechtigungs-Split", () => {
     render(<StaffPage />);
 
     expect(screen.getByTestId("schul-uebersicht")).toBeInTheDocument();
+    expect(getDashboardSummary).toHaveBeenCalledTimes(1);
+  });
+
+  it("blendet die Schul-Übersicht ohne users:read aus und fragt sie nicht ab", () => {
+    mockSession(["time_tracking:manage"]);
+
+    render(<StaffPage />);
+
+    expect(screen.queryByTestId("schul-uebersicht")).not.toBeInTheDocument();
+    expect(getDashboardSummary).not.toHaveBeenCalled();
   });
 
   it("blendet den Zeitkonten-Umschalter ohne time_tracking:manage aus und fragt die Zeitkonten nicht ab", () => {

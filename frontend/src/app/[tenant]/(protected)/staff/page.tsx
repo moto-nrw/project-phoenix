@@ -52,6 +52,7 @@ function StaffPageContent() {
   // deshalb nie gefeuert — die Seite läuft dann vollständig als Status-Ansicht
   // plus aggregierte Schul-Übersicht.
   const canManageTimeTracking = hasPermission(session, "time_tracking:manage");
+  const canReadUsers = hasPermission(session, "users:read");
 
   // State variables for filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -61,6 +62,7 @@ function StaffPageContent() {
   const [employmentFilter, setEmploymentFilter] = useState("all");
   const [saldoPreset, setSaldoPreset] = useState<SaldoPresetId>("all");
   const [customSaldoHours, setCustomSaldoHours] = useState("");
+  const [showCustomSaldo, setShowCustomSaldo] = useState(false);
 
   // Handle mobile detection
   useEffect(() => {
@@ -294,6 +296,23 @@ function StaffPageContent() {
           onRemove: () => setEmploymentFilter("all"),
         });
       }
+      if (customSaldoHours.trim() !== "") {
+        filters.push({
+          id: "saldo",
+          label: `Saldo ab ${customSaldoHours} Std.`,
+          onRemove: () => {
+            setCustomSaldoHours("");
+            setShowCustomSaldo(false);
+          },
+        });
+      } else if (saldoPreset !== "all") {
+        const preset = saldoPresets.find((entry) => entry.id === saldoPreset);
+        filters.push({
+          id: "saldo",
+          label: preset?.label ?? saldoPreset,
+          onRemove: () => setSaldoPreset("all"),
+        });
+      }
       return filters;
     }
 
@@ -313,7 +332,14 @@ function StaffPageContent() {
     }
 
     return filters;
-  }, [searchTerm, locationFilter, employmentFilter, view]);
+  }, [
+    searchTerm,
+    locationFilter,
+    employmentFilter,
+    saldoPreset,
+    customSaldoHours,
+    view,
+  ]);
 
   if (status === "loading" || isLoading) {
     return <StaffPageSkeleton />;
@@ -354,6 +380,9 @@ function StaffPageContent() {
           setSearchTerm("");
           setLocationFilter("all");
           setEmploymentFilter("all");
+          setSaldoPreset("all");
+          setCustomSaldoHours("");
+          setShowCustomSaldo(false);
         }}
       />
 
@@ -366,7 +395,7 @@ function StaffPageContent() {
       )}
 
       {/* Sektion 2 — Schul-Übersicht (#1417 Tranche 2a), läuft mit users:read */}
-      <SchoolOverviewSection />
+      {canReadUsers && <SchoolOverviewSection />}
 
       {/* Sektion 3 — Mitarbeitende. Status (Karten) und Zeitkonten (Tabelle)
           beantworten verschiedene Fragen; der Umschalter erscheint nur mit
@@ -398,6 +427,8 @@ function StaffPageContent() {
           onSaldoPresetChange={setSaldoPreset}
           customSaldoHours={customSaldoHours}
           onCustomSaldoHoursChange={setCustomSaldoHours}
+          showCustomSaldo={showCustomSaldo}
+          onShowCustomSaldoChange={setShowCustomSaldo}
         />
       )}
 
