@@ -825,9 +825,10 @@ func (s *workTimeMonthService) GetMonthSummaryAtMonthEnd(ctx context.Context, st
 // GetRangeAggregate sums an arbitrary closed range from the SAME helpers the
 // Monatskarte and the daily table use: GetDailyTargets for the Soll (which
 // brings the account-start exclusion with it), getDailyActualMinutes for the
-// Ist (day cap, now cap, running break), and getDailyBalanceDeltas for the
-// balance (credits, adjustments, target). No new arithmetic, therefore no way
-// for a week total to contradict the month card above it.
+// Ist (day cap, now cap, running break, account-start exclusion), and
+// getDailyBalanceDeltas for the balance (credits, adjustments, target). No new
+// arithmetic, therefore no way for a week total to contradict the month card
+// above it.
 func (s *workTimeMonthService) GetRangeAggregate(ctx context.Context, staffID int64, from, to timezone.Date) (*RangeAggregate, error) {
 	if from.IsZero() || to.IsZero() || to.Before(from) {
 		return nil, errors.New("from and to must form a valid range")
@@ -844,7 +845,14 @@ func (s *workTimeMonthService) GetRangeAggregate(ctx context.Context, staffID in
 	if err != nil {
 		return nil, err
 	}
-	for _, minutes := range actual {
+	anchor, err := s.chainAnchor(ctx, monthOf(from))
+	if err != nil {
+		return nil, err
+	}
+	for date, minutes := range actual {
+		if excludedByAccountStart(date, anchor) {
+			continue
+		}
 		aggregate.ActualMinutes += minutes
 	}
 	deltas, err := s.getDailyBalanceDeltas(ctx, staffID, from, to)

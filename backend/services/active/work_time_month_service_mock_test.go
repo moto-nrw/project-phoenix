@@ -598,6 +598,28 @@ func TestWTMRangeAggregate_ZeroesBalanceBeforeMidWeekAccountStart(t *testing.T) 
 		"a day excluded from Soll must also be excluded from the balance delta")
 }
 
+func TestWTMRangeAggregate_ExcludesActualBeforeMidWeekAccountStart(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-08"
+	f.sessions.sessions = []*activeModels.WorkSession{
+		wtmSession(timezone.NewDate(2026, time.July, 6), 8, 480, 0),
+		wtmSession(timezone.NewDate(2026, time.July, 8), 8, 120, 0),
+	}
+
+	aggregate, err := f.svc.GetRangeAggregate(
+		context.Background(),
+		wtmStaffID,
+		timezone.NewDate(2026, time.July, 6),
+		timezone.NewDate(2026, time.July, 12),
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, 120, aggregate.ActualMinutes,
+		"only work on or after the Wednesday account start counts")
+	assert.Equal(t, 120, aggregate.BalanceMinutes,
+		"the displayed Ist and balance cover the same account-start range")
+}
+
 // An unset account start must not zero anything: chainAnchor then falls back to
 // January 1st, and no day can precede January 1st of its own year.
 func TestWTMDailyTargets_UnsetAccountStartZeroesNothing(t *testing.T) {

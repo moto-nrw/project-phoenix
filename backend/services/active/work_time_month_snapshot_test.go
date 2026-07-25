@@ -300,6 +300,32 @@ func TestMonthClose_IsIdempotent(t *testing.T) {
 	assert.Equal(t, first.ClosedStaff, second.SkippedStaff)
 }
 
+// TestMonthClose_RejectsCloseBehindLaterSnapshot prevents a newly frozen older
+// month from contradicting the history used by an already frozen later month.
+func TestMonthClose_RejectsCloseBehindLaterSnapshot(t *testing.T) {
+	f := newSnapshotFixture(t)
+
+	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotNextMonth, "Abschluss September")
+	require.NoError(t, err)
+
+	_, err = f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Abschluss August")
+	require.ErrorIs(t, err, active.ErrLaterMonthClosed)
+}
+
+func TestMonthClose_RetryBehindLaterSnapshotRemainsIdempotent(t *testing.T) {
+	f := newSnapshotFixture(t)
+
+	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Abschluss August")
+	require.NoError(t, err)
+	_, err = f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotNextMonth, "Abschluss September")
+	require.NoError(t, err)
+
+	result, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Abschluss August")
+	require.NoError(t, err)
+	assert.Zero(t, result.ClosedStaff)
+	assert.Equal(t, 2, result.SkippedStaff)
+}
+
 // TestMonthClose_RejectsAdjustmentInClosedMonth — a booking inside a frozen
 // month could not move its closing balance, so the ledger refuses it. Work
 // sessions stay editable on purpose; that difference is what drift is for.

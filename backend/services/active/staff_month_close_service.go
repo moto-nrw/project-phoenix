@@ -25,8 +25,8 @@ var (
 	ErrMonthNotClosable = errors.New("month cannot be closed")
 	// ErrMonthNotClosed marks a reopen of a month that is not frozen — HTTP 404.
 	ErrMonthNotClosed = errors.New("month is not closed")
-	// ErrLaterMonthClosed prevents reopening a month while a later one is
-	// still frozen — HTTP 409.
+	// ErrLaterMonthClosed prevents changing the snapshot chain behind a later
+	// frozen month — HTTP 409.
 	ErrLaterMonthClosed = errors.New("a later month is still closed")
 )
 
@@ -220,6 +220,16 @@ func (s *staffMonthCloseService) closeStaffMonth(
 	}
 	if existing != nil && existing.Year == key.Year && existing.Month == key.Month {
 		return nil, true, nil
+	}
+	latest, err := s.snapshotRepo.GetLatestClosedThrough(ctx, staffID, maxSnapshotYear, 12)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to check later month snapshots for staff %d: %w", staffID, err)
+	}
+	if latest != nil && key.before(monthKey{Year: latest.Year, Month: latest.Month}) {
+		return nil, false, fmt.Errorf(
+			"%w: %04d-%02d must be reopened first",
+			ErrLaterMonthClosed, latest.Year, latest.Month,
+		)
 	}
 	summary, err := s.monthService.GetMonthSummaryAtMonthEnd(ctx, staffID, key.Year, key.Month)
 	if err != nil {
