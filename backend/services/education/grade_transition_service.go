@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -467,17 +468,28 @@ func ensureFingerprintMatches(
 
 // fingerprintOf builds the stable digest both Preview and Apply compute. The
 // inputs are sorted, so neither query's row order can change the result.
+//
+// The mapping action is encoded as its own field instead of being inferred from
+// a "graduate" target sentinel: a school may legitimately name a class
+// "graduate", and with a sentinel that promotion serialized exactly like the
+// graduation of the same source class. Editing one into the other between
+// preview and apply then left the digest unchanged, so the stale-preview guard
+// waved through a bulk action the admin never confirmed — the destructive
+// direction of the pair. Every free-text field is quoted (strconv.Quote escapes
+// any embedded quote or backslash), so no class name can spoof the separators
+// either (#405 review).
 func fingerprintOf(mappings []*education.GradeTransitionMapping, students []*education.StudentClassInfo) string {
 	parts := make([]string, 0, len(mappings)+len(students))
 	for _, m := range mappings {
-		target := "graduate"
-		if m.ToClass != nil {
-			target = *m.ToClass
+		if m.ToClass == nil {
+			parts = append(parts, fmt.Sprintf("m|graduate|%s", strconv.Quote(m.FromClass)))
+			continue
 		}
-		parts = append(parts, fmt.Sprintf("m|%s|%s", m.FromClass, target))
+		parts = append(parts, fmt.Sprintf("m|promote|%s|%s",
+			strconv.Quote(m.FromClass), strconv.Quote(*m.ToClass)))
 	}
 	for _, st := range students {
-		parts = append(parts, fmt.Sprintf("s|%d|%s", st.StudentID, st.SchoolClass))
+		parts = append(parts, fmt.Sprintf("s|%d|%s", st.StudentID, strconv.Quote(st.SchoolClass)))
 	}
 	sort.Strings(parts)
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -398,10 +400,18 @@ func (rs *GradeTransitionResource) apply(w http.ResponseWriter, r *http.Request)
 	}
 	accountID := int64(claims.ID)
 
-	// Body is optional: an absent or empty one just means "no preview to check".
+	// The body is optional: an absent or EMPTY one (io.EOF) means "no preview to
+	// check". Anything else must be rejected. A truncated or malformed payload
+	// used to be swallowed, leaving ExpectedFingerprint empty — which ApplyChecked
+	// reads as "caller opted out of the stale-preview check", so a destructive
+	// transition ran unguarded on a cohort that may have changed since the admin
+	// confirmed it (#405 review).
 	var req ApplyRequest
 	if r.Body != nil {
-		_ = json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("invalid request body: %w", err)))
+			return
+		}
 	}
 
 	tenantID := tenant.FromContext(r.Context())

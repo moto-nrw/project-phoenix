@@ -1763,6 +1763,50 @@ func (r *StudentRepository) UpdateStatus(ctx context.Context, studentID int64, n
 	return base.AssertRowsAffected(result, 1, "update student status")
 }
 
+// UpdateStatusIfCurrent flips a student's lifecycle status to newStatus only
+// while the row still holds expectedStatus, and reports whether it did.
+//
+// Background lifecycle work (the activate-students tick) selects due rows, then
+// updates them one by one. An unconditional update by id resurrects a student
+// whose status changed in that window: a grade transition graduating the child
+// commits `alumnus`, the pending update waits on the same row lock, and then
+// replaces it with `active` or `inactive` — putting a departed child back into
+// every staff list, roster and export, past all the alumnus read filters and
+// without any of apply's guards. Comparing against the status the caller
+// actually saw makes that update a no-op instead (#405 review).
+func (r *StudentRepository) UpdateStatusIfCurrent(
+	ctx context.Context,
+	studentID int64,
+	expectedStatus, newStatus users.StudentStatus,
+) (bool, error) {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		TableExpr(`users.students AS "student"`).
+		Set("status = ?", string(newStatus)).
+		Set("updated_at = NOW()").
+		Where(`"student".id = ?`, studentID).
+		Where(`"student".status = ?`, string(expectedStatus))
+
+	query = base.WithTenantFilter(ctx, query, "student")
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "update student status if current",
+			Err: err,
+		}
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "get rows affected",
+			Err: err,
+		}
+	}
+
+	return affected > 0, nil
+}
+
 // FindPendingDueForActivation returns students whose status='pending' and
 // enrolled_from <= asOf within the current tenant context. Drives the
 // pending→active half of the activate-students scheduler tick.

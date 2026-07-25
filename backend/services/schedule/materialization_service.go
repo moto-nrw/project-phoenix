@@ -47,7 +47,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -750,7 +749,7 @@ func resolveWindow(baseDate timezone.Date, weeksAhead int) (from, to timezone.Da
 // keep their enrollment rows for transition reverts but must drop off every
 // current/future planning surface (#405).
 func enrollmentStudentIsAlumnus(e *activities.StudentEnrollment) bool {
-	return e != nil && e.Student != nil && e.Student.Status == usersModel.StudentStatusAlumnus
+	return e != nil && e.Student.IsAlumnus()
 }
 
 func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, periodID int64) bool {

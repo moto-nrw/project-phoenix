@@ -150,6 +150,13 @@ func (s *masterDataReviewService) ListPending(ctx context.Context) ([]*MasterDat
 		if !writable(students[r.StudentID]) {
 			continue
 		}
+		// A graduated child is soft-deleted: their pending requests survive the
+		// graduation (the hard delete it replaced cascaded them away), so without
+		// this they would sit in the staff queue and the sidebar badge and could
+		// still be approved onto an alumnus. A revert brings them back (#405 review).
+		if students[r.StudentID].IsAlumnus() {
+			continue
+		}
 		item := &MasterDataReviewItem{Request: r}
 		if st, ok := students[r.StudentID]; ok {
 			if p, ok := persons[st.PersonID]; ok {
@@ -185,6 +192,13 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 	student, err := s.studentRepo.FindByID(ctx, req.StudentID)
 	if err != nil {
 		return nil, fmt.Errorf("review: load student for decision: %w", err)
+	}
+	// The child graduated after filing this request. FindByID is unfiltered, so
+	// without this gate an approve would still rewrite an alumnus' master data
+	// (name, departure modes, companion links). Same 404 the rest of the child
+	// surface returns for graduates (#405 review).
+	if student.IsAlumnus() {
+		return nil, ErrReviewNotFound
 	}
 	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userCtx); !ok {
 		return nil, ErrReviewForbidden

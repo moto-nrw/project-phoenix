@@ -124,7 +124,15 @@ type StudentRepository interface {
 	FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*Student, error)
 
 	// UpdateStatus changes a student's lifecycle status. Tenant-scoped via context.
+	// Unconditional: it overwrites whatever status the row currently carries, so
+	// it must NOT be used by background lifecycle work that decided on a status
+	// it read earlier — use UpdateStatusIfCurrent for that.
 	UpdateStatus(ctx context.Context, studentID int64, newStatus StudentStatus) error
+
+	// UpdateStatusIfCurrent is the compare-and-set form: the row flips to
+	// newStatus only while it still holds expectedStatus. Reports whether it did.
+	// Tenant-scoped via context.
+	UpdateStatusIfCurrent(ctx context.Context, studentID int64, expectedStatus, newStatus StudentStatus) (bool, error)
 
 	// FindPendingDueForActivation returns students whose status='pending' AND
 	// enrolled_from <= asOf within the current tenant context. Used by the

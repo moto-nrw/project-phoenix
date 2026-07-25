@@ -339,6 +339,13 @@ func (s *excusedAbsenceRequestService) ListPending(ctx context.Context) ([]*Excu
 		if !writable(students[r.StudentID]) {
 			continue
 		}
+		// A graduated child is soft-deleted: their pending requests survive the
+		// graduation (the hard delete it replaced cascaded them away), so without
+		// this they would sit in the staff queue and the sidebar badge and could
+		// still be approved onto an alumnus. A revert brings them back (#405 review).
+		if students[r.StudentID].IsAlumnus() {
+			continue
+		}
 		item := &ExcusedRequestReviewItem{Request: r}
 		if st, ok := students[r.StudentID]; ok {
 			if p, ok := persons[st.PersonID]; ok {
@@ -383,7 +390,10 @@ func (s *excusedAbsenceRequestService) PendingByStudentForDate(ctx context.Conte
 	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
 	out := make(map[int64]*activeModels.ExcusedAbsenceRequest, len(candidates))
 	for studentID, req := range candidates {
-		if writable(students[studentID]) {
+		// Alumni are excluded for the same reason as in the review queue: a
+		// graduated child must not raise a pending-approval marker anywhere on the
+		// staff surface (#405 review).
+		if writable(students[studentID]) && !students[studentID].IsAlumnus() {
 			out[studentID] = req
 		}
 	}
@@ -416,6 +426,13 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	student, err := s.studentRepo.FindByID(ctx, req.StudentID)
 	if err != nil {
 		return nil, fmt.Errorf("active: load student for excused request decision: %w", err)
+	}
+	// The child graduated after filing this request. FindByID is unfiltered, so
+	// without this gate an approve would still write excused status days for an
+	// alumnus. Same 404 the rest of the child surface returns for graduates
+	// (#405 review).
+	if student.IsAlumnus() {
+		return nil, activeModels.ErrExcusedRequestNotFound
 	}
 	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext); !ok {
 		return nil, ErrExcusedRequestForbidden

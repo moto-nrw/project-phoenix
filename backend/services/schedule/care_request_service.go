@@ -336,6 +336,14 @@ func (s *careScheduleRequestService) ListPending(ctx context.Context) ([]*CareRe
 		if !writable(students[r.StudentID]) {
 			continue
 		}
+		// A graduated child is soft-deleted: the parent portal already hides them,
+		// but their pending requests survive graduation (a hard delete used to
+		// cascade them away). Keeping them here would leave the request in the
+		// staff queue and the sidebar badge, and let staff approve a change onto an
+		// alumnus. They reappear if the transition is reverted (#405 review).
+		if students[r.StudentID].IsAlumnus() {
+			continue
+		}
 		item := &CareRequestReviewItem{Request: r}
 		if st, ok := students[r.StudentID]; ok {
 			if p, ok := persons[st.PersonID]; ok {
@@ -399,6 +407,14 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 	student, err := s.studentRepo.FindByID(ctx, req.StudentID)
 	if err != nil {
 		return nil, fmt.Errorf("schedule: load student for care request decision: %w", err)
+	}
+	// The child graduated after filing this request. FindByID is unfiltered, so
+	// without this gate an approve would still rewrite an alumnus' care plan (and
+	// a reject would post a pill to a portal that no longer shows the child). Same
+	// 404 the whole child surface returns for graduates — as if the request had
+	// been cascaded away by the hard delete graduation replaced (#405 review).
+	if student.IsAlumnus() {
+		return nil, scheduleModels.ErrCareRequestNotFound
 	}
 	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext); !ok {
 		return nil, ErrCareRequestForbidden

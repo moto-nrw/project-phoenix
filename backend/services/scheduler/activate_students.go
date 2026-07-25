@@ -17,7 +17,10 @@ import (
 type StudentLifecycleRepository interface {
 	FindPendingDueForActivation(ctx context.Context, asOf timezone.Date) ([]*userModels.Student, error)
 	FindActiveDueForDeactivation(ctx context.Context, asOf timezone.Date) ([]*userModels.Student, error)
-	UpdateStatus(ctx context.Context, studentID int64, newStatus userModels.StudentStatus) error
+	// Compare-and-set, deliberately not the unconditional UpdateStatus: the tick
+	// decides from rows it read earlier, and by the time it writes, a grade
+	// transition may have graduated the child (see the repository method's doc).
+	UpdateStatusIfCurrent(ctx context.Context, studentID int64, expectedStatus, newStatus userModels.StudentStatus) (bool, error)
 }
 
 // SetStudentLifecycleRepo wires the repository for the activate-students tick.
@@ -123,12 +126,22 @@ func (s *Scheduler) runActivateStudentsForTenant(ctx context.Context, tenantID i
 // info entry per transition. Per-row errors are logged and skipped so a
 // single bad row doesn't abort the batch. GDPR: student IDs only — no
 // names at info level (CLAUDE.md backend logging rule).
+//
+// The write is a compare-and-set on `from` — the status the row carried when the
+// Find query selected it. Between that query and this update a grade transition
+// can graduate the child; the update then waits on its row lock and would
+// otherwise overwrite `alumnus` with active/inactive, resurrecting a departed
+// student past every alumnus read filter and without any of apply's guards. A row
+// whose status moved on is skipped, not an error — the next tick re-evaluates it
+// from current data (#405 review).
 func (s *Scheduler) applyStatusTransitions(ctx context.Context, tenantID int64, students []*userModels.Student, from, to userModels.StudentStatus) {
 	if len(students) == 0 {
 		return
 	}
+	transitioned := 0
 	for _, student := range students {
-		if err := s.studentLifecycleRepo.UpdateStatus(ctx, student.ID, to); err != nil {
+		updated, err := s.studentLifecycleRepo.UpdateStatusIfCurrent(ctx, student.ID, from, to)
+		if err != nil {
 			s.getLogger().Error("activate-students: update status failed",
 				slog.Int64("tenant_id", tenantID),
 				slog.Int64("student_id", student.ID),
@@ -138,6 +151,16 @@ func (s *Scheduler) applyStatusTransitions(ctx context.Context, tenantID int64, 
 			)
 			continue
 		}
+		if !updated {
+			s.getLogger().Info("activate-students: status changed since selection, skipped",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int64("student_id", student.ID),
+				slog.String("expected_from", string(from)),
+				slog.String("to", string(to)),
+			)
+			continue
+		}
+		transitioned++
 		s.getLogger().Info("student status transition",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("student_id", student.ID),
@@ -149,6 +172,7 @@ func (s *Scheduler) applyStatusTransitions(ctx context.Context, tenantID int64, 
 		slog.Int64("tenant_id", tenantID),
 		slog.String("from", string(from)),
 		slog.String("to", string(to)),
-		slog.Int("transitions", len(students)),
+		slog.Int("transitions", transitioned),
+		slog.Int("candidates", len(students)),
 	)
 }
