@@ -378,6 +378,11 @@ export function PhasesEditor() {
       if (schemaSource === "reuse" && !payload.form_schema_id) {
         throw new Error("Bitte ein Formular auswählen oder Basis wählen.");
       }
+      if (!payload.service_start_date || !payload.service_end_date) {
+        throw new Error(
+          "Bitte Beginn und Ende des Betreuungszeitraums angeben.",
+        );
+      }
       if (
         payload.service_start_date &&
         payload.service_end_date &&
@@ -1303,6 +1308,8 @@ function PhaseForm(props: PhaseFormProps) {
               value={draft.service_start_date}
               className="mt-1"
               calendarLayout="popover"
+              hideClearButton
+              required
               onChange={(next) => {
                 setDraft((prev) => {
                   if (!prev) return prev;
@@ -1334,6 +1341,8 @@ function PhaseForm(props: PhaseFormProps) {
               onChange={(next) => update({ service_end_date: next })}
               className="mt-1"
               calendarLayout="popover"
+              hideClearButton
+              required
             />
           </div>
         </div>

@@ -217,6 +217,32 @@ describe("RolloverForm", () => {
     expect(onSuccess).not.toHaveBeenCalled();
   });
 
+  it("does not submit without the required service dates", async () => {
+    render(
+      <RolloverForm
+        source={makeSourcePhase()}
+        onCancel={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/Betreuung von/), {
+      target: { value: "" },
+    });
+    fireEvent.submit(
+      screen.getByRole("button", { name: /Anschlussphase erstellen/ }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Bitte Beginn und Ende des Betreuungszeitraums angeben.",
+        ),
+      ).toBeInTheDocument();
+    });
+    expect(mockCreateRollover).not.toHaveBeenCalled();
+  });
+
   it("calls onCancel when the cancel button is clicked", () => {
     const onCancel = vi.fn();
     render(

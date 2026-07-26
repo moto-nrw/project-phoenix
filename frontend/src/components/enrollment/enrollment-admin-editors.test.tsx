@@ -1741,6 +1741,29 @@ describe("PhasesEditor", () => {
     expect(mocks.createPhase).not.toHaveBeenCalled();
   });
 
+  it("does not save a phase without both service dates", async () => {
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Erste Anmeldephase anlegen" }),
+    );
+    fireEvent.change(inputByName("name"), {
+      target: { value: "Unvollständiger Zeitraum" },
+    });
+    fireEvent.change(inputByName("service_start_date"), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Bitte Beginn und Ende des Betreuungszeitraums angeben.",
+    );
+    expect(mocks.createPhase).not.toHaveBeenCalled();
+  });
+
   it("shows a German validation error when the phase name is blank", async () => {
     mocks.listPhases.mockResolvedValue([]);
     mocks.listSchemas.mockResolvedValue([schema()]);

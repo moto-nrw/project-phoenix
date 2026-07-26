@@ -100,6 +100,8 @@ type DatePickerProps =
       readonly maxDate?: Date;
       /** Hide the inline clear ("X") control. Use when the value is required. */
       readonly hideClearButton?: boolean;
+      /** Keeps a selected day from being deselected in the calendar. */
+      readonly required?: boolean;
       // Swaps the "Juni 2026" caption for month + year dropdowns. Month arrows
       // alone need ~80 clicks to reach a birth year, so any field where the
       // target is years away from today should turn this on.
@@ -288,6 +290,7 @@ export function DatePicker({
       labels={labels}
       compact={isCompactPanel}
       calendarLayout={calendarLayout}
+      required={props.required}
       onChange={(date) => {
         props.onChange(date);
         setIsOpen(false);
@@ -332,7 +335,7 @@ export function DatePicker({
         <div className="flex items-center gap-1">
           {displayValue &&
             !isDisabled &&
-            !(!isMultiple && props.hideClearButton) && (
+            !(!isMultiple && (props.hideClearButton || props.required)) && (
               <span
                 role="button"
                 tabIndex={0}
@@ -402,6 +405,7 @@ export function DatePicker({
                 top: popoverPosition.top,
                 left: popoverPosition.left,
                 width: popoverPosition.width,
+                pointerEvents: "auto",
               }}
             >
               {calendar}
@@ -435,6 +439,7 @@ function DatePickerCalendar({
   labels,
   compact,
   calendarLayout,
+  required,
   onChange,
 }: {
   readonly value?: Date | null;
@@ -445,6 +450,7 @@ function DatePickerCalendar({
   readonly labels: Required<DatePickerLabels>;
   readonly compact: boolean;
   readonly calendarLayout: CalendarLayout;
+  readonly required?: boolean;
   readonly onChange: (date: Date | null) => void;
 }) {
   const [month, setMonth] = useState(value ?? new Date());
@@ -464,10 +470,11 @@ function DatePickerCalendar({
       <DayPicker
         mode="single"
         selected={value ?? undefined}
+        required={required}
         disabled={buildSingleDisabledMatchers(minDate, maxDate)}
         month={month}
         onMonthChange={setMonth}
-        onSelect={(date) => onChange(date ?? null)}
+        onSelect={(date: Date | undefined) => onChange(date ?? null)}
         locale={locale}
         weekStartsOn={1}
         showOutsideDays
@@ -596,6 +603,8 @@ export function ISODatePicker({
   readonly calendarLayout?: CalendarLayout;
   readonly monthYearNavigation?: boolean;
   readonly hideClearButton?: boolean;
+  /** Prevents clearing an already selected date from the calendar. */
+  readonly required?: boolean;
   readonly disabled?: boolean;
   readonly id?: string;
   readonly ariaLabel?: string;
@@ -614,6 +623,7 @@ export function ISODatePicker({
       value={toDateOrNull(value)}
       minDate={toDateOrNull(min) ?? undefined}
       maxDate={toDateOrNull(max) ?? undefined}
+      required={rest.required}
       onChange={(date) => onChange(date ? toISODate(date) : "")}
     />
   );

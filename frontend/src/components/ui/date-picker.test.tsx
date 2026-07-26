@@ -7,11 +7,13 @@ vi.mock("react-day-picker", () => ({
   DayPicker: ({
     selected,
     onSelect,
+    required,
   }: {
     selected?: Date | Date[];
     onSelect: (date: Date | undefined) => void;
+    required?: boolean;
   }) => (
-    <div data-testid="day-picker">
+    <div data-testid="day-picker" data-required={required}>
       <button
         type="button"
         onClick={() => onSelect(new Date("2024-01-15T00:00:00Z"))}
@@ -227,6 +229,22 @@ describe("DatePicker", () => {
       name: /datum löschen/i,
     });
     expect(clearButton).not.toBeInTheDocument();
+  });
+
+  it("keeps required dates non-clearable", () => {
+    const testDate = new Date("2024-01-15T00:00:00Z");
+    render(<DatePicker value={testDate} onChange={mockOnChange} required />);
+
+    expect(
+      screen.queryByRole("button", { name: /datum löschen/i }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /15\.01\.2024/i }));
+
+    expect(screen.getByTestId("day-picker")).toHaveAttribute(
+      "data-required",
+      "true",
+    );
   });
 
   it("clears date when clear button is clicked", () => {

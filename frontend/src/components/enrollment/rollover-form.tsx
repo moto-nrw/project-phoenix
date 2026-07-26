@@ -99,6 +99,11 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
     setError(null);
     setNameError(null);
     try {
+      if (!draft.service_start_date || !draft.service_end_date) {
+        throw new Error(
+          "Bitte Beginn und Ende des Betreuungszeitraums angeben.",
+        );
+      }
       const payload: RolloverInput = {
         ...draft,
         rollover_deadline: localToRFC3339(deadlineLocal),
@@ -210,10 +215,10 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
               onChange={(next) => update("service_start_date", next)}
               className="mt-1"
               calendarLayout="popover"
-              // handleSubmit never validated these itself, it relied on the
-              // native `required`. All three fields arrive prefilled from the
-              // source phase and can no longer be cleared, so they stay set.
+              // The required picker prevents deselection in the calendar; the
+              // submit validation remains the safety net for programmatic edits.
               hideClearButton
+              required
             />
           </div>
           <div className="block">
@@ -233,6 +238,7 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
               className="mt-1"
               calendarLayout="popover"
               hideClearButton
+              required
             />
           </div>
         </div>
