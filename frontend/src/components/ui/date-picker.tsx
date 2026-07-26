@@ -483,11 +483,11 @@ function DatePickerCalendar({
           // narrow one gets narrow cells rather than forcing the card wider
           // than the field it belongs to.
           weekday:
-            "text-gray-500 flex-1 min-w-0 font-normal text-xs text-center",
-          week: "flex w-full mt-1",
-          day: "flex-1 min-w-0 h-8 text-center text-sm p-0 relative",
+            "text-gray-500 flex-1 min-w-0 font-normal text-xs text-center pb-1",
+          week: "flex w-full mt-1.5",
+          day: "flex-1 min-w-0 h-9 text-center text-sm p-0 relative",
           day_button:
-            "w-full h-8 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
+            "w-full h-9 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
           selected: "bg-gray-900 text-white hover:bg-gray-800 rounded-lg",
           today: "font-bold text-blue-600",
           outside: "text-gray-300",
@@ -532,11 +532,11 @@ function MultipleDatePickerCalendar({
           // narrow one gets narrow cells rather than forcing the card wider
           // than the field it belongs to.
           weekday:
-            "text-gray-500 flex-1 min-w-0 font-normal text-xs text-center",
-          week: "flex w-full mt-1",
-          day: "flex-1 min-w-0 h-8 text-center text-sm p-0 relative",
+            "text-gray-500 flex-1 min-w-0 font-normal text-xs text-center pb-1",
+          week: "flex w-full mt-1.5",
+          day: "flex-1 min-w-0 h-9 text-center text-sm p-0 relative",
           day_button:
-            "w-full h-8 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
+            "w-full h-9 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
           selected: "bg-gray-900 text-white hover:bg-gray-800 rounded-lg",
           today: "font-bold text-blue-600",
           outside: "text-gray-300",
@@ -662,13 +662,14 @@ const NAV_MENU_Z_INDEX = 10002;
 // renders as unstyled text floating over the calendar. min-w keeps a 46px-wide
 // year trigger from producing an unclickably narrow list.
 const NAV_MENU_CLASS =
-  "min-w-24 overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg";
+  "scrollbar-thin min-w-24 overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg";
 const NAV_OPTION_CLASS =
-  "flex w-full cursor-pointer items-center px-3 py-1.5 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50";
-const NAV_OPTION_ACTIVE_CLASS = "bg-gray-100 font-medium text-gray-900";
+  "flex w-full cursor-pointer items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50";
+const NAV_OPTION_ACTIVE_CLASS =
+  "flex w-full cursor-pointer items-center gap-2 bg-gray-50 px-4 py-2 text-left text-sm font-medium text-gray-900 transition-colors";
 
 const NAV_SELECT_CLASS =
-  "min-w-0 rounded-md border border-gray-200 bg-white px-1.5 py-1 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:border-gray-300 focus:ring-2 focus:ring-gray-200 focus:outline-none";
+  "inline-flex h-9 min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-2.5 text-sm leading-5 font-medium text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
 
 // The offered years always include the month currently on screen, so a value
 // outside the caller's bounds (legacy data) still shows its own year instead of
@@ -714,7 +715,7 @@ function CalendarNavHeader({
   const monthLabels = useMemo(() => buildMonthLabels(locale), [locale]);
 
   return (
-    <div className="mb-3 flex items-center justify-between gap-1">
+    <div className="mb-4 flex items-center justify-between gap-2">
       <button
         type="button"
         aria-label={labels.previousMonth}
@@ -819,12 +820,12 @@ function buildSingleDisabledMatchers(
 }
 
 function getCalendarContainerClass(calendarLayout: CalendarLayout): string {
-  const base = "rounded-xl border border-gray-200 bg-white p-3 shadow-lg";
+  const base = "rounded-xl border border-gray-200 bg-white p-4 shadow-lg";
   // The floating layouts get their width from the portal wrapper, which is
   // sized to the trigger; inline takes its parent's width and only needs the
   // legible-minimum floor.
   if (calendarLayout === "inline") {
-    return `${base} mt-2 w-full min-w-[168px]`;
+    return `${base} mt-2 w-full min-w-[176px]`;
   }
   return `${base} w-full`;
 }
