@@ -80,7 +80,7 @@ function OptionGroup<T extends string>({
 
 // Vorab-Bericht für die DATEV-Formate: dieselbe Berechnung wie die Datei,
 // sichtbar VOR dem Download. Eine still unvollständige Lohndatei darf es
-// nicht geben — wer ohne Personalnummer übersprungen wird, steht hier.
+// nicht geben — fehlende Personalnummern sperren den Export.
 function DatevReportPanel({
   state,
   onRetry,
@@ -127,7 +127,7 @@ function DatevReportPanel({
       {report.staffSkipped.length > 0 && (
         <div>
           <p className="font-medium text-[#F78C10]">
-            Ohne Personalnummer übersprungen ({report.staffSkipped.length}):
+            {`Export gesperrt: Personalnummer fehlt (${report.staffSkipped.length}):`}
           </p>
           <ul className="list-inside list-disc">
             {report.staffSkipped.map((entry) => (
@@ -206,7 +206,13 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
   }, [isOpen, format, year, month, reportAttempt]);
 
   const handleExport = () => {
-    if (datev && activeReportState.status !== "ready") return;
+    if (
+      datev &&
+      (activeReportState.status !== "ready" ||
+        activeReportState.report.staffSkipped.length > 0)
+    ) {
+      return;
+    }
     const params = new URLSearchParams({ year: String(year), format });
     if (scope === "month" || datev) {
       params.set("month", String(month));
@@ -221,7 +227,10 @@ export function StaffTimeExportModal({ isOpen, onClose, year, month }: Props) {
     onClose();
   };
 
-  const exportDisabled = datev && activeReportState.status !== "ready";
+  const exportDisabled =
+    datev &&
+    (activeReportState.status !== "ready" ||
+      activeReportState.report.staffSkipped.length > 0);
 
   return (
     <Modal

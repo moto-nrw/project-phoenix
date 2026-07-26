@@ -239,8 +239,8 @@ func (s *staffTimeExportService) Export(ctx context.Context, req TimeExportReque
 		if report != nil {
 			rowCount = report.LineCount
 			staffSeen = report.StaffExported
-			// The skipped staff are part of the audit trail: the file is
-			// deliberately incomplete, and the record must say so.
+			// Successful exports have no skipped staff; retain the count in
+			// audit metadata so that invariant remains observable.
 			extra = map[string]interface{}{"skipped_staff_count": len(report.StaffSkipped)}
 		}
 	case req.Granularity == ExportGranularityDay:

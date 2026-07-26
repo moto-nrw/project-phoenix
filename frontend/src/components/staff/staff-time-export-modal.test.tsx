@@ -120,7 +120,7 @@ describe("StaffTimeExportModal", () => {
     );
   });
 
-  it("shows the skip report and the open-month warning before a DATEV download", async () => {
+  it("blocks DATEV downloads when the report contains staff without personnel numbers", async () => {
     fetchReportMock.mockResolvedValue({
       lineCount: 4,
       staffExported: 1,
@@ -141,15 +141,16 @@ describe("StaffTimeExportModal", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText(/Ohne Personalnummer übersprungen/),
+        screen.getByText(/Export gesperrt: Personalnummer fehlt/),
       ).toBeInTheDocument(),
     );
     expect(screen.getByText("Sicht, Ueber")).toBeInTheDocument();
     expect(screen.getByText(/Fortbildung/)).toBeInTheDocument();
     expect(screen.getByText(/noch nicht abgeschlossen/)).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Exportieren" }),
-    ).not.toBeDisabled();
+    const exportButton = screen.getByRole("button", { name: "Exportieren" });
+    expect(exportButton).toBeDisabled();
+    fireEvent.click(exportButton);
+    expect(globalThis.location.href).toBe("");
   });
 
   it("blocks the DATEV download while the payroll configuration is incomplete", async () => {

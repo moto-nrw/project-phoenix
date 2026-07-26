@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	phaseEligibleGradeLevelsVersion     = "1.15.237"
+	phaseEligibleGradeLevelsVersion     = "1.15.233"
 	phaseEligibleGradeLevelsDescription = "Add enrollment.phases.eligible_grade_levels so a phase can be restricted to whole grades for issue #1663"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func phaseEligibleGradeLevelsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.237: Adding eligible_grade_levels to enrollment.phases...")
+	fmt.Println("Migration 1.15.233: Adding eligible_grade_levels to enrollment.phases...")
 
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.phases
@@ -48,7 +48,7 @@ func phaseEligibleGradeLevelsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func phaseEligibleGradeLevelsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.237: Removing eligible_grade_levels from enrollment.phases...")
+	fmt.Println("Rolling back migration 1.15.233: Removing eligible_grade_levels from enrollment.phases...")
 
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.phases

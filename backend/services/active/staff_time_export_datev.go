@@ -108,7 +108,7 @@ func datevCategoryValue(category configSvc.PayrollCategoryStatus, row MonthExpor
 
 // buildDatevLines maps the export rows onto Bewegungsdaten lines and collects
 // the report. Categories without a Lohnartnummer export no line; staff
-// without a Personalnummer are skipped and reported.
+// without a Personalnummer are reported, and exportDatev rejects the download.
 func buildDatevLines(rows []MonthExportRow, status *configSvc.PayrollStatus) ([]datevLine, *DatevExportReport) {
 	report := &DatevExportReport{
 		StaffSkipped:           []DatevSkippedStaff{},
@@ -260,6 +260,10 @@ func encodeDatevANSI(s string) []byte {
 // configuration that can produce a correct file. The open month stays allowed
 // — the report says so.
 func (s *staffTimeExportService) validateDatevRequest(req TimeExportRequest) error {
+	if req.Format != ExportFormatDatevLodas && req.Format != ExportFormatDatevLug {
+		return fmt.Errorf("%w: DATEV request requires format %s or %s",
+			ErrTimeExportInvalid, ExportFormatDatevLodas, ExportFormatDatevLug)
+	}
 	if req.Month == 0 {
 		return fmt.Errorf("%w: DATEV export requires a single month", ErrTimeExportInvalid)
 	}
@@ -324,6 +328,10 @@ func (s *staffTimeExportService) exportDatev(ctx context.Context, req TimeExport
 	lines, report, status, err := s.buildDatev(ctx, req)
 	if err != nil {
 		return nil, nil, err
+	}
+	if len(report.StaffSkipped) > 0 {
+		return nil, report, fmt.Errorf("%w: %d Mitarbeitende ohne Personalnummer",
+			ErrPayrollConfigIncomplete, len(report.StaffSkipped))
 	}
 
 	file := ExportFile{ContentType: "text/plain; charset=windows-1252"}

@@ -79,11 +79,12 @@ func (f *overviewFixture) setPersonnelNumber(t *testing.T, staffID int64, number
 }
 
 // newDatevFixture builds two staff members with deterministic June 2026 data.
-// Staff[0] carries personnel number 1001 and every booking category;
-// staff[1] has NO personnel number and must be skipped with a report entry.
+// Both carry personnel numbers so exports pass the mandatory preflight;
+// staff[0] also has data for every booking category.
 func newDatevFixture(t *testing.T) *overviewFixture {
 	f := newOverviewFixture(t, 2)
 	f.setPersonnelNumber(t, f.staff[0].ID, "1001")
+	f.setPersonnelNumber(t, f.staff[1].ID, "1002")
 
 	// June 2026 bookings for staff[0]: 2×8h work, 1 sick day, 2 vacation
 	// days, 1 training day, one payout and one comp-time booking.
@@ -211,10 +212,12 @@ func TestDatevExport_PinsAgainstMonthSummary(t *testing.T) {
 	require.Negative(t, summary.BalanceMinutes)
 }
 
-// TestDatevExport_SkipsStaffWithoutPersonnelNumber: the file is produced, the
-// gap is visible in report and audit metadata — never silently complete.
-func TestDatevExport_SkipsStaffWithoutPersonnelNumber(t *testing.T) {
+// TestDatevExport_RefusesStaffWithoutPersonnelNumber: the report identifies
+// the gap, but no file or audit row is produced until every staff member has
+// a personnel number.
+func TestDatevExport_RefusesStaffWithoutPersonnelNumber(t *testing.T) {
 	f := newDatevFixture(t)
+	f.setPersonnelNumber(t, f.staff[1].ID, "")
 	actorID := f.newActorAccount(t)
 	f.cleanupAccessLogs(t)
 	svc := f.newDatevExportService(datevFullConfig())
@@ -228,8 +231,8 @@ func TestDatevExport_SkipsStaffWithoutPersonnelNumber(t *testing.T) {
 	assert.True(t, report.OpenMonth, "June was never closed — the report must say so")
 
 	file, err := svc.Export(f.ctx, datevRequest(active.ExportFormatDatevLug), actorID, "admin")
-	require.NoError(t, err)
-	assert.NotContains(t, string(file.Data), "Sicht", "names must not appear in the file")
+	require.ErrorIs(t, err, active.ErrPayrollConfigIncomplete)
+	assert.Nil(t, file)
 
 	var logs []*auditModels.DataAccessLog
 	require.NoError(t, f.db.NewSelect().
@@ -237,9 +240,7 @@ func TestDatevExport_SkipsStaffWithoutPersonnelNumber(t *testing.T) {
 		ModelTableExpr(`audit.data_access_log AS "data_access_log"`).
 		Where("tenant_id = ?", f.tenantID).
 		Scan(context.Background()))
-	require.Len(t, logs, 1)
-	assert.Equal(t, "time_tracking_export", logs[0].ResourceType)
-	assert.EqualValues(t, 1, logs[0].Metadata["skipped_staff_count"])
+	assert.Empty(t, logs)
 }
 
 // TestDatevExport_RefusesIncompleteConfiguration: no file from missing LODAS
@@ -292,6 +293,19 @@ func TestDatevExport_RequiresSingleMonth(t *testing.T) {
 	req.Granularity = active.ExportGranularityDay
 	_, err = svc.Export(f.ctx, req, actorID, "admin")
 	require.ErrorIs(t, err, active.ErrTimeExportInvalid)
+}
+
+func TestDatevReport_RejectsNonDatevFormats(t *testing.T) {
+	svc := active.NewStaffTimeExportService(nil, nil, nil, nil, nil, nil)
+
+	for _, format := range []string{"", active.ExportFormatCSV, active.ExportFormatXLSX} {
+		_, err := svc.DatevReport(context.Background(), active.TimeExportRequest{
+			Year:   2026,
+			Month:  6,
+			Format: format,
+		})
+		require.ErrorIs(t, err, active.ErrTimeExportInvalid, "format %q", format)
+	}
 }
 
 // TestDatevExport_NoFileWithoutAudit: same contract as CSV/XLSX (#2005).

@@ -98,4 +98,13 @@ func TestTimeTrackingExportAPI_Datev(t *testing.T) {
 	// A DATEV request without a single month is a caller mistake.
 	rec = ctx.get("/staff/time-tracking/export/datev-report?year=2026&format=datev_lodas", "time_tracking:manage")
 	assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+
+	for _, format := range []string{"", "csv", "xlsx"} {
+		path := "/staff/time-tracking/export/datev-report?year=2026&month=1"
+		if format != "" {
+			path += "&format=" + format
+		}
+		rec = ctx.get(path, "time_tracking:manage")
+		assert.Equal(t, http.StatusBadRequest, rec.Code, "format %q: %s", format, rec.Body.String())
+	}
 }
