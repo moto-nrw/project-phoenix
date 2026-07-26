@@ -179,6 +179,30 @@ func (r *RequestChildRepository) LinkCreatedStudent(ctx context.Context, request
 	return nil
 }
 
+// UpdateMatchedStudent re-points (or clears) the already-enrolled student an
+// existing_students child is pinned to. Submission and replacement edits write
+// the pin as part of the INSERT; the change-request path edits an already
+// persisted row in place, so an approved identity change needs this to keep the
+// pin describing the same human the row now names (#1663). A nil studentID
+// clears the pin, which sends approval down the fresh-create branch.
+func (r *RequestChildRepository) UpdateMatchedStudent(ctx context.Context, requestChildID int64, studentID *int64) error {
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*enrollment.RequestChild)(nil)).
+		ModelTableExpr(requestChildTableExpr).
+		Set("matched_student_id = ?", studentID).
+		Set("updated_at = ?", time.Now()).
+		Where(`"request_child".id = ?`, requestChildID).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to update request child matched student: %w", err)
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("request child %d not found", requestChildID)
+	}
+	return nil
+}
+
 // UpdateActivationPlan records the approval-time lifecycle decision on
 // the child row. Submission rows start with the schema default; approval is
 // the first point where the tenant setting and phase dates are authoritative.

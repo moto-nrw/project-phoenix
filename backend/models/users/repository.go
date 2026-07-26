@@ -97,6 +97,25 @@ type StudentRepository interface {
 	// FindBySchoolClass retrieves students by their school class
 	FindBySchoolClass(ctx context.Context, schoolClass string) ([]*Student, error)
 
+	// ExistsEnrolledByNameAndBirthday reports whether an already-enrolled
+	// student (active OR pending — a child approved before its service
+	// start date is created pending until activation) with the given
+	// (case-insensitive) name and birthday exists in the tenant. Backs the
+	// enrollment new_students audience check (#1663).
+	// TenantID is filtered explicitly because the enrollment parent
+	// submit path runs under an admin transaction where RLS does not
+	// narrow the query. Not expressible via the generic List filters:
+	// the match spans the joined users.persons row.
+	ExistsEnrolledByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday timezone.Date) (bool, error)
+
+	// FindEnrolledStudentIDByNameAndBirthday resolves the single enrolled
+	// student matching the (case-insensitive) name and birthday, backing the
+	// existing_students re-enrollment path (#1663). Returns the ID only on an
+	// unambiguous single match; zero or multiple matches yield (nil, nil) so
+	// approval never renews an arbitrary student. Same explicit-tenant,
+	// active+pending scope as ExistsEnrolledByNameAndBirthday.
+	FindEnrolledStudentIDByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday timezone.Date) (*int64, error)
+
 	// ListSchoolClasses retrieves all distinct non-empty school classes.
 	ListSchoolClasses(ctx context.Context) ([]string, error)
 
@@ -324,6 +343,27 @@ type StudentGuardianRepository interface {
 
 	// FindByGuardianProfileID retrieves relationships by guardian profile ID
 	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*StudentGuardian, error)
+
+	// AccountHasStudentPermission reports whether the guardian account holds the
+	// named parent_portal.* permission on its relationship to the given student
+	// at the tenant, backed by an ACTIVE auth.account_tenants mapping. It is the
+	// per-child authorization probe for parent-portal actions that resolve a
+	// concrete student only deep inside a service — e.g. existing_students
+	// re-enrollment (#1663), where a school-wide submit flag is too coarse to
+	// prove authority over one specific child. tenant_id is passed explicitly so
+	// the check is correct even under an admin transaction (RLS bypassed). A
+	// deactivated guardian's lingering relationship rows report false.
+	AccountHasStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error)
+
+	// GuardianEmailHasStudentPermission is the accountless sibling of
+	// AccountHasStudentPermission: the same per-child probe keyed on the
+	// guardian's EMAIL, for flows whose submitter has no portal account — a late
+	// enrollment invite names a guardian email and may reach a guardian who never
+	// logged in (#1663). guardian_profiles is unique on (tenant_id, LOWER(email)),
+	// so at most one profile per school answers. An active account_tenants mapping
+	// is required only when the profile carries an account, so a deactivated
+	// guardian's lingering relationship rows still report false.
+	GuardianEmailHasStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string) (bool, error)
 
 	// FindByStudentAndGuardianForUpdate returns the relationship row joining the
 	// student and guardian profile, locked FOR UPDATE for the current

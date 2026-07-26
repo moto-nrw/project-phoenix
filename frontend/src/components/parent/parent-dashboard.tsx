@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Newspaper, Users } from "lucide-react";
+import { ArrowRight, Newspaper, Plus, Users } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   type Child,
@@ -214,6 +214,13 @@ export function ParentDashboard() {
                 </p>
               </div>
               <HeroChildrenList items={childOverviewItems} />
+              <Link
+                href="/parents/enroll"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#83CD2D] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#74b827] focus-visible:ring-2 focus-visible:ring-[#83CD2D] focus-visible:ring-offset-2 focus-visible:outline-none"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                {t("newEnrollment")}
+              </Link>
             </div>
           </div>
         </div>

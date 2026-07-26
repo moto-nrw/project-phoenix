@@ -428,6 +428,7 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		SchoolClass:               schoolClassCfg,
 		CollectGradeLevel:         capabilities.CollectGradeLevel,
 		CareOfferingsEnabled:      capabilities.CareOfferingsEnabled,
+		EligibleGradeLevels:       publicEligibleGradeLevels(data.Phase),
 	}, "Public care offerings retrieved")
 }
 
@@ -500,6 +501,11 @@ type PublicCareOfferingsResponse struct {
 	SchoolClass               PublicSchoolClassConfig `json:"school_class"`
 	CollectGradeLevel         bool                    `json:"collect_grade_level"`
 	CareOfferingsEnabled      bool                    `json:"care_offerings_enabled"`
+	// EligibleGradeLevels mirrors PublicPhase.EligibleGradeLevels (#1663).
+	// This response carries no phase object, and it is the form's fallback
+	// load path when the page did not prefetch a bootstrap — so the grade
+	// restriction has to ride along here too, next to the class config.
+	EligibleGradeLevels []int `json:"eligible_grade_levels"`
 }
 
 type PublicEnrollmentFormBootstrapResponse struct {
@@ -525,6 +531,16 @@ type PublicSchoolClassConfig struct {
 	Collect          bool     `json:"collect"`
 	AvailableClasses []string `json:"available_classes"`
 	Require          bool     `json:"require"`
+	// CollectGrade1 is the server-authoritative answer to "does grade 1
+	// declare a concrete class in this phase?" (#1663). Grade 1 is opt-in
+	// (#1833) and the form cannot derive the answer itself: a phase
+	// restricted to a prefixless class ("Bienen") collects it for grade 1
+	// too, yet its narrowed pick list looks exactly like an unrestricted
+	// phase that merely offers a named class. Hiding the field where the
+	// submit path demands it — or showing it where the submit path clears
+	// it — is a dead end either way, so the decision is made once, in
+	// enrollment.CollectsGrade1Class, and shipped to the form.
+	CollectGrade1 bool `json:"collect_grade_1"`
 }
 
 func toPublicSchoolClassConfig(phase *enrollmentModels.Phase, collect bool) PublicSchoolClassConfig {
@@ -536,7 +552,17 @@ func toPublicSchoolClassConfig(phase *enrollmentModels.Phase, collect bool) Publ
 		Collect:          collect,
 		AvailableClasses: classes,
 		Require:          phase.RequireSchoolClass,
+		CollectGrade1:    enrollmentService.CollectsGrade1Class(phase),
 	}
+}
+
+// publicEligibleGradeLevels returns the phase's grade restriction as a
+// non-nil slice so the JSON is `[]` rather than `null` (#1663).
+func publicEligibleGradeLevels(phase *enrollmentModels.Phase) []int {
+	if phase == nil || phase.EligibleGradeLevels == nil {
+		return []int{}
+	}
+	return phase.EligibleGradeLevels
 }
 
 func effectiveCareOfferingSelectionMode(mode string, enabled bool) string {
@@ -562,6 +588,17 @@ type PublicPhase struct {
 	EnrollmentCloseAt         string `json:"enrollment_close_at,omitempty"`
 	ShowStatusReasonToParent  bool   `json:"show_status_reason_to_parent"`
 	CareOfferingSelectionMode string `json:"care_offering_selection_mode"`
+	// Audience (#1663): audience-restricted phases (linked_parents and
+	// existing_students) never reach this listing — ListPublicOpen filters
+	// exactly what the anonymous form gate refuses; "new_students" lets the
+	// public picker label the remaining restriction.
+	Audience string `json:"audience"`
+	// EligibleGradeLevels (#1663) is the phase's grade restriction, empty
+	// when unrestricted. The form narrows its grade select to these values
+	// so a parent cannot fill in the whole form only to be rejected with
+	// grade_not_eligible — the same reason the offered class list is
+	// narrowed server-side.
+	EligibleGradeLevels []int `json:"eligible_grade_levels"`
 }
 
 func toPublicPhase(p *enrollmentModels.Phase) PublicPhase {
@@ -573,6 +610,12 @@ func toPublicPhase(p *enrollmentModels.Phase) PublicPhase {
 		ServiceEndDate:            p.ServiceEndDate.String(),
 		ShowStatusReasonToParent:  p.ShowStatusReasonToParent,
 		CareOfferingSelectionMode: p.CareOfferingSelectionMode,
+		Audience:                  p.Audience,
+		EligibleGradeLevels:       p.EligibleGradeLevels,
+	}
+	if entry.EligibleGradeLevels == nil {
+		// Emit [] rather than null so the frontend list binding is stable.
+		entry.EligibleGradeLevels = []int{}
 	}
 	if p.EnrollmentOpenAt != nil {
 		entry.EnrollmentOpenAt = p.EnrollmentOpenAt.Format(time.RFC3339)
@@ -635,6 +678,17 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	common.Respond(w, r, http.StatusOK, BuildPublicEnrollmentFormBootstrapResponse(data, captcha),
+		"Public enrollment form bootstrap retrieved")
+}
+
+// BuildPublicEnrollmentFormBootstrapResponse assembles the parent-facing
+// bootstrap wire response from resolved bootstrap data. Shared by the
+// anonymous public form-bootstrap handler and the authenticated
+// parents-portal bootstrap handler so both form-load paths emit an
+// identical contract. captcha is empty for the parent path (the parent JWT
+// is the anti-bot signal, so captcha is skipped there).
+func BuildPublicEnrollmentFormBootstrapResponse(data *enrollmentService.PublicFormBootstrapData, captcha PublicCaptchaConfigResponse) PublicEnrollmentFormBootstrapResponse {
 	items := make([]CareOfferingResponse, 0, len(data.Offerings))
 	for _, o := range data.Offerings {
 		items = append(items, toCareOfferingResponse(o))
@@ -642,7 +696,7 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 	phase := data.Phase
 	texts := data.LegalTexts
 	capabilities := enrollmentService.EffectiveFormCapabilities(data.Capabilities, data.Offerings)
-	common.Respond(w, r, http.StatusOK, PublicEnrollmentFormBootstrapResponse{
+	return PublicEnrollmentFormBootstrapResponse{
 		Phase:                     toPublicPhase(phase),
 		Schema:                    toPublicFormSchemaResponse(data.Schema),
 		Offerings:                 items,
@@ -663,7 +717,15 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 			PhotoEnabled:        texts.PhotoEnabled,
 			Blocks:              texts.Blocks,
 		},
-	}, "Public enrollment form bootstrap retrieved")
+	}
+}
+
+// RenderPublicEnrollmentBootstrapError maps a public/enrollee bootstrap
+// error to HTTP. Exported so the parents-portal bootstrap handler emits the
+// same error codes (disabled / window-closed / late-invite → coded 404s,
+// stage failures → 500) as the anonymous public path.
+func RenderPublicEnrollmentBootstrapError(w http.ResponseWriter, r *http.Request, err error) {
+	renderPublicBootstrapError(w, r, err)
 }
 
 // listPublicPhases returns the currently-open phases for the given
