@@ -24,7 +24,7 @@ export const CALENDAR_PANEL_MARGIN = 8;
  * Narrowest a stretchable calendar gets: 7 × 20px day cells + 16px card padding
  * per side + the 1px border. Two-digit day numbers still fit at 20px.
  */
-export const CALENDAR_MIN_WIDTH = 176;
+const CALENDAR_MIN_WIDTH = 176;
 
 /**
  * Height used for the flip-up decision: the worst case, a six-week month.
@@ -32,7 +32,7 @@ export const CALENDAR_MIN_WIDTH = 176;
  * lands just under 360. Underestimating it would let the panel open downward
  * and run off the bottom of the viewport.
  */
-export const CALENDAR_PANEL_HEIGHT = 360;
+const CALENDAR_PANEL_HEIGHT = 360;
 
 export interface PanelGeometry {
   readonly top: number;
