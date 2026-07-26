@@ -7,6 +7,7 @@ import { format, addMonths, subMonths, type Locale } from "date-fns";
 import { de } from "date-fns/locale";
 import "react-day-picker/style.css";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
+import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
 import {
   clampCalendarWidth,
   computeCalendarPanelPosition,
@@ -217,7 +218,19 @@ export function DatePicker({
   // — the same trade-off the operator status dropdown makes.
   useEffect(() => {
     if (!isPopover || !isOpen) return;
-    const close = () => setIsOpen(false);
+    const close = (event: Event) => {
+      // Scrolling the year list (101 entries) must not count: that menu is a
+      // portal of our own header, and closing on its scroll would make the
+      // dropdown unusable.
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest('[role="listbox"]') !== null
+      ) {
+        return;
+      }
+      setIsOpen(false);
+    };
     window.addEventListener("resize", syncPopoverPosition);
     window.addEventListener("scroll", close, true);
     return () => {
@@ -234,6 +247,15 @@ export function DatePicker({
       // unmounts the calendar before the day button's click lands and picking a
       // date silently does nothing.
       if (popoverRef.current?.contains(target)) {
+        return;
+      }
+      // The month/year dropdowns portal their menus to body too, so an option
+      // click lands outside both refs. Without this the calendar would close on
+      // pointerdown and the month change would never apply.
+      if (
+        target instanceof Element &&
+        target.closest('[role="listbox"]') !== null
+      ) {
         return;
       }
       if (containerRef.current && !containerRef.current.contains(target)) {
@@ -632,6 +654,19 @@ function buildMonthLabels(locale: Locale): string[] {
 const DEFAULT_YEARS_BACK = 100;
 const DEFAULT_YEARS_AHEAD = 5;
 
+// One above the calendar's own portal (z-[10001]), so the month/year menu opens
+// on top of the calendar surface instead of behind it.
+const NAV_MENU_Z_INDEX = 10002;
+
+// The menu surface is the caller's job in this kit component — without these it
+// renders as unstyled text floating over the calendar. min-w keeps a 46px-wide
+// year trigger from producing an unclickably narrow list.
+const NAV_MENU_CLASS =
+  "min-w-24 overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg";
+const NAV_OPTION_CLASS =
+  "flex w-full cursor-pointer items-center px-3 py-1.5 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50";
+const NAV_OPTION_ACTIVE_CLASS = "bg-gray-100 font-medium text-gray-900";
+
 const NAV_SELECT_CLASS =
   "min-w-0 rounded-md border border-gray-200 bg-white px-1.5 py-1 text-sm font-medium text-gray-900 hover:bg-gray-50 focus:border-gray-300 focus:ring-2 focus:ring-gray-200 focus:outline-none";
 
@@ -701,39 +736,45 @@ function CalendarNavHeader({
         </svg>
       </button>
       {monthYearNavigation ? (
+        // Kit dropdowns, not native <select>: a native select opens an
+        // OS-level popup, which cannot be styled to match the kit and does not
+        // exist in the DOM (so it never appears in a screenshot or a test).
+        // The menu z-index has to clear the calendar's own portal.
         <div className="flex min-w-0 items-center gap-1">
-          <select
-            aria-label={labels.month}
-            value={month.getMonth()}
-            onChange={(event) =>
-              onMonthChange(
-                new Date(month.getFullYear(), Number(event.target.value), 1),
-              )
+          <ListboxDropdown
+            ariaLabel={labels.month}
+            value={String(month.getMonth())}
+            options={monthLabels.map((label, index) => ({
+              value: String(index),
+              label,
+            }))}
+            onChange={(next) =>
+              onMonthChange(new Date(month.getFullYear(), Number(next), 1))
             }
             className={NAV_SELECT_CLASS}
-          >
-            {monthLabels.map((label, index) => (
-              <option key={label} value={index}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label={labels.year}
-            value={month.getFullYear()}
-            onChange={(event) =>
-              onMonthChange(
-                new Date(Number(event.target.value), month.getMonth(), 1),
-              )
+            menuClassName={NAV_MENU_CLASS}
+            optionClassName={NAV_OPTION_CLASS}
+            activeOptionClassName={NAV_OPTION_ACTIVE_CLASS}
+            menuZIndex={NAV_MENU_Z_INDEX}
+            triggerRole="combobox"
+          />
+          <ListboxDropdown
+            ariaLabel={labels.year}
+            value={String(month.getFullYear())}
+            options={buildYearOptions(month, minDate, maxDate).map((year) => ({
+              value: String(year),
+              label: String(year),
+            }))}
+            onChange={(next) =>
+              onMonthChange(new Date(Number(next), month.getMonth(), 1))
             }
             className={NAV_SELECT_CLASS}
-          >
-            {buildYearOptions(month, minDate, maxDate).map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
+            menuClassName={NAV_MENU_CLASS}
+            optionClassName={NAV_OPTION_CLASS}
+            activeOptionClassName={NAV_OPTION_ACTIVE_CLASS}
+            menuZIndex={NAV_MENU_Z_INDEX}
+            triggerRole="combobox"
+          />
         </div>
       ) : (
         <span className="truncate text-sm font-medium text-gray-900">
