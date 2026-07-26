@@ -1,6 +1,7 @@
 package students
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -105,6 +106,32 @@ func TestBuildDayLogResponse_OmitsStudentBeforeScheduledArrival(t *testing.T) {
 	assert.Empty(t, response.Groups[0].Students)
 	assert.Equal(t, 0, response.Groups[0].Counters.Absent)
 	assert.Equal(t, 0, response.Groups[0].Counters.Total)
+}
+
+func TestLoadDayLogSignOffs_UsesCarePlanOnlyForToday(t *testing.T) {
+	now := time.Date(2026, time.July, 26, 8, 0, 0, 0, timezone.Berlin)
+	stub := &stubCareDayService{verdicts: map[int64]scheduleService.CareDayStatus{
+		10: scheduleService.CareDayNotScheduled,
+	}}
+	rs := &Resource{ResourceConfig: ResourceConfig{CareDayService: stub}}
+	pastData := &dayLogData{
+		statusByStudent: map[int64][]*active.StudentStatusDay{},
+		careDays:        map[int64]scheduleService.CareDayStatus{},
+		arrivalTimes:    map[int64]*scheduleService.EffectiveArrivalTime{},
+	}
+
+	require.NoError(t, rs.loadDayLogSignOffs(context.Background(), pastData, []int64{10}, timezone.DateFromTime(now).AddDays(-1), now))
+	assert.Empty(t, stub.askedFor)
+	assert.Empty(t, pastData.careDays)
+
+	todayData := &dayLogData{
+		statusByStudent: map[int64][]*active.StudentStatusDay{},
+		careDays:        map[int64]scheduleService.CareDayStatus{},
+		arrivalTimes:    map[int64]*scheduleService.EffectiveArrivalTime{},
+	}
+	require.NoError(t, rs.loadDayLogSignOffs(context.Background(), todayData, []int64{10}, timezone.DateFromTime(now), now))
+	assert.Equal(t, []int64{10}, stub.askedFor)
+	assert.Equal(t, scheduleService.CareDayNotScheduled, todayData.careDays[10])
 }
 
 // The listexport renderers treat a row with GroupTitle as a section MARKER and

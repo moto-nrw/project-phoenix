@@ -355,9 +355,11 @@ func (rs *Resource) loadDayLogSignOffs(ctx context.Context, data *dayLogData, st
 		}
 	}
 
-	// Optional: without the care-day derivation every unexplained child stays
-	// plain "absent" (bare test Resources run without it).
-	if rs.CareDayService != nil {
+	// Care plans are recurring and have no effective-date history. Derive them
+	// only for today's live log; a later plan edit must not relabel a completed
+	// day. Historical verdicts therefore use only persisted attendance and
+	// status-day facts.
+	if date == timezone.DateFromTime(now) && rs.CareDayService != nil {
 		careDays, err := rs.CareDayService.ResolveForDate(ctx, studentIDs, date)
 		if err != nil {
 			return err
