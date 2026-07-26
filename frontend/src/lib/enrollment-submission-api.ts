@@ -368,7 +368,7 @@ export async function fetchPublicCareOfferings(
  * positive integers only, so a backend that omits the field (or a stale
  * one that never sends it) reads as "no restriction" rather than throwing.
  */
-export function parseGradeLevels(raw: unknown): number[] {
+function parseGradeLevels(raw: unknown): number[] {
   if (!Array.isArray(raw)) return [];
   return raw.filter(
     (g): g is number => typeof g === "number" && Number.isInteger(g) && g > 0,
