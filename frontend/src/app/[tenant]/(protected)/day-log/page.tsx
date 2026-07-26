@@ -34,12 +34,13 @@ import {
   type DayLogStudent,
 } from "~/lib/day-log-api";
 import {
+  berlinTodayISO,
   formatDate,
   parseISODate,
   toISODate,
-  todayISO,
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "DayLogPage" });
 
@@ -192,11 +193,12 @@ function GroupCard({
 }
 
 function StudentRow({ student }: { readonly student: DayLogStudent }) {
+  const tenantPath = useTenantAwarePath();
   const detail = studentDetailLine(student);
   return (
     <li>
       <Link
-        href={`/students/${student.student_id}?from=/day-log`}
+        href={tenantPath(`/students/${student.student_id}?from=/day-log`)}
         className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-gray-50"
       >
         <div className="min-w-0">
@@ -253,7 +255,10 @@ function GroupDetail({ group }: { readonly group: DayLogGroup }) {
 }
 
 export default function DayLogPage() {
-  const [dateISO, setDateISO] = useState<string>(todayISO());
+  // Berlin, not browser-local: the backend validates against
+  // timezone.TodayDate() (Europe/Berlin), so a browser in another timezone
+  // must not default to a day the server considers future or already past.
+  const [dateISO, setDateISO] = useState<string>(() => berlinTodayISO());
   const [data, setData] = useState<DayLogResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorCode, setErrorCode] = useState<DayLogErrorCode | null>(null);
@@ -295,12 +300,12 @@ export default function DayLogPage() {
   // cap (backend-enforced; 30 by default).
   const minDate = useMemo(() => {
     const capDays = data?.caps.attendance_days ?? 30;
-    const today = parseISODate(todayISO());
+    const today = parseISODate(berlinTodayISO());
     const min = new Date(today);
     min.setDate(min.getDate() - (capDays - 1));
     return min;
   }, [data]);
-  const maxDate = useMemo(() => parseISODate(todayISO()), []);
+  const maxDate = useMemo(() => parseISODate(berlinTodayISO()), []);
 
   const downloadExport = useCallback(
     async (format: ExportFormat, groupId?: string) => {
@@ -341,11 +346,19 @@ export default function DayLogPage() {
   // shows it instead of forcing the attachment download) and print from there.
   const printPdf = useCallback(
     async (groupId?: string) => {
+      // The tab must open synchronously inside the click gesture — popup
+      // blockers discard windows opened after an await. Navigate it to the
+      // blob URL once the PDF arrives; close it again if the export fails.
+      // (window.open with the "noopener" feature returns null, so the opener
+      // is severed manually instead.)
+      const tab = window.open("", "_blank");
+      if (tab) tab.opener = null;
       setExporting(`print-${groupId ?? "all"}`);
       setExportError(null);
       try {
         const res = await fetch(dayLogExportUrl(dateISO, "pdf", groupId));
         if (!res.ok) {
+          tab?.close();
           setExportError(
             "Druckansicht fehlgeschlagen. Bitte erneut versuchen.",
           );
@@ -353,10 +366,17 @@ export default function DayLogPage() {
         }
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
-        window.open(url, "_blank", "noopener");
+        if (tab) {
+          tab.location.href = url;
+        } else {
+          // Popup blocked even in the gesture — last resort, may be blocked
+          // too, but the blob URL stays valid for a manual retry.
+          window.open(url, "_blank");
+        }
         // Give the new tab time to load before releasing the object URL.
         setTimeout(() => URL.revokeObjectURL(url), 60_000);
       } catch (error) {
+        tab?.close();
         logger.error("day_log_print_failed", {
           error: error instanceof Error ? error.message : String(error),
         });

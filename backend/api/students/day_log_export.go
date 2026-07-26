@@ -53,7 +53,7 @@ func (rs *Resource) exportStudentsDayLog(w http.ResponseWriter, r *http.Request)
 	}
 	groups, err := rs.resolveDayLogGroups(r, logger)
 	if err != nil {
-		renderError(w, r, common.ErrorForbidden(err))
+		renderDayLogGroupError(w, r, err, logger)
 		return
 	}
 

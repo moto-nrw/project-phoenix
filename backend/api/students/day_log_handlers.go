@@ -3,6 +3,7 @@ package students
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -137,7 +138,7 @@ func (rs *Resource) getStudentsDayLog(w http.ResponseWriter, r *http.Request) {
 
 	groups, err := rs.resolveDayLogGroups(r, logger)
 	if err != nil {
-		renderError(w, r, common.ErrorForbidden(err))
+		renderDayLogGroupError(w, r, err, logger)
 		return
 	}
 
@@ -191,6 +192,11 @@ func parseDayLogDate(r *http.Request, attendanceCap int) (timezone.Date, error) 
 	return date, nil
 }
 
+// errDayLogGroupsUnavailable marks a dependency failure (group service /
+// database) while resolving the caller's groups. It must surface as a 5xx —
+// mapping it to 403 would disguise a transient outage as a privacy restriction.
+var errDayLogGroupsUnavailable = errors.New("failed to resolve permitted groups")
+
 // resolveDayLogGroups returns the groups the caller may evaluate, optionally
 // narrowed to the requested group_id. Admins and (with scope all_staff) every
 // staff member see all groups; otherwise only supervised groups are visible.
@@ -205,7 +211,7 @@ func (rs *Resource) resolveDayLogGroups(r *http.Request, logger *slog.Logger) ([
 		groups, err = rs.UserContextService.GetMyGroups(ctx)
 	}
 	if err != nil {
-		return nil, errors.New("failed to resolve permitted groups")
+		return nil, fmt.Errorf("%w: %w", errDayLogGroupsUnavailable, err)
 	}
 
 	groups, err = filterDayLogGroups(r, groups)
@@ -214,6 +220,20 @@ func (rs *Resource) resolveDayLogGroups(r *http.Request, logger *slog.Logger) ([
 	}
 	sort.SliceStable(groups, func(i, j int) bool { return groups[i].Name < groups[j].Name })
 	return groups, nil
+}
+
+// renderDayLogGroupError separates the two failure classes of
+// resolveDayLogGroups: dependency failures become 500s, everything else is a
+// genuine authorization denial and stays 403.
+func renderDayLogGroupError(w http.ResponseWriter, r *http.Request, err error, logger *slog.Logger) {
+	if errors.Is(err, errDayLogGroupsUnavailable) {
+		logger.Error("day log group resolution failed",
+			slog.String("error", err.Error()),
+		)
+		renderError(w, r, common.ErrorInternalServerWrap("failed to resolve permitted groups", err))
+		return
+	}
+	renderError(w, r, common.ErrorForbidden(err))
 }
 
 func (rs *Resource) dayLogSeesAllGroups(r *http.Request, logger *slog.Logger) bool {
