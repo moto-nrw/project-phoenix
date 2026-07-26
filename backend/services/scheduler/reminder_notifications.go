@@ -30,6 +30,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/reminders"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // reminderNotificationKey identifies one dispatched reminder occurrence.
@@ -140,13 +141,19 @@ func (s *Scheduler) runReminderNotificationsForTenant(ctx context.Context, tenan
 		)
 		return
 	}
-	for _, key := range freshKeys {
-		s.reminderNotified.Store(key, now)
-	}
-	s.getLogger().Info("reminder notification dispatched",
-		slog.Int64("tenant_id", tenantID),
-		slog.Int("reminder_count", len(fresh)),
-	)
+	// Notify registered delivery first, so this hook runs after delivery and
+	// only after the surrounding tenant transaction commits. A rollback or
+	// commit failure drops both hooks and leaves the occurrences eligible for
+	// the next tick.
+	tenant.RegisterAfterCommit(ctx, func() {
+		for _, key := range freshKeys {
+			s.reminderNotified.Store(key, now)
+		}
+		s.getLogger().Info("reminder notification dispatched",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int("reminder_count", len(fresh)),
+		)
+	})
 }
 
 // reminderIdentity builds the dedup identity of one reminder occurrence:

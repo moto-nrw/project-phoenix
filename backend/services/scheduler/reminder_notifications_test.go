@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/reminders"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,11 +31,13 @@ type captureNotifier struct {
 	err    error
 }
 
-func (c *captureNotifier) Notify(_ context.Context, event notifications.Event) error {
+func (c *captureNotifier) Notify(ctx context.Context, event notifications.Event) error {
 	if c.err != nil {
 		return c.err
 	}
-	c.events = append(c.events, event)
+	tenant.RegisterAfterCommit(ctx, func() {
+		c.events = append(c.events, event)
+	})
 	return nil
 }
 
@@ -132,6 +135,52 @@ func TestReminderNotificationsNotifyFailureLeavesUnmarked(t *testing.T) {
 	notifier.err = nil
 	sched.runReminderNotificationsForTenant(context.Background(), 7, time.Now())
 	assert.Len(t, notifier.events, 1, "a failed dispatch must not consume the occurrence")
+}
+
+func TestReminderNotificationsMarksOccurrencesAfterCommit(t *testing.T) {
+	reminder := reminderFixture(reminders.TypePickupUpcoming, "11", "14:00")
+	notifier := &captureNotifier{}
+	sched := buildReminderSched(&fakeReminderComputer{result: &reminders.Result{
+		Enabled:   true,
+		Reminders: []reminders.Reminder{reminder},
+	}}, notifier)
+	key := reminderNotificationKey{tenantID: 7, reminder: reminderIdentity(reminder)}
+	ctx, commit := tenant.WithAfterCommitHooksForTest(context.Background())
+
+	sched.runReminderNotificationsForTenant(ctx, 7, time.Now())
+
+	assert.Empty(t, notifier.events, "delivery must wait for commit")
+	_, markedBeforeCommit := sched.reminderNotified.Load(key)
+	assert.False(t, markedBeforeCommit, "dedup key must wait for commit")
+
+	commit()
+
+	assert.Len(t, notifier.events, 1)
+	_, markedAfterCommit := sched.reminderNotified.Load(key)
+	assert.True(t, markedAfterCommit, "successful commit must consume the occurrence")
+
+	sched.runReminderNotificationsForTenant(context.Background(), 7, time.Now())
+	assert.Len(t, notifier.events, 1, "committed occurrence must not re-fire")
+}
+
+func TestReminderNotificationsRollbackLeavesOccurrencesUnmarked(t *testing.T) {
+	reminder := reminderFixture(reminders.TypePickupUpcoming, "11", "14:00")
+	notifier := &captureNotifier{}
+	sched := buildReminderSched(&fakeReminderComputer{result: &reminders.Result{
+		Enabled:   true,
+		Reminders: []reminders.Reminder{reminder},
+	}}, notifier)
+	key := reminderNotificationKey{tenantID: 7, reminder: reminderIdentity(reminder)}
+	rolledBackCtx, _ := tenant.WithAfterCommitHooksForTest(context.Background())
+
+	sched.runReminderNotificationsForTenant(rolledBackCtx, 7, time.Now())
+
+	assert.Empty(t, notifier.events, "rollback must drop queued delivery")
+	_, marked := sched.reminderNotified.Load(key)
+	assert.False(t, marked, "rollback must leave the occurrence eligible")
+
+	sched.runReminderNotificationsForTenant(context.Background(), 7, time.Now())
+	assert.Len(t, notifier.events, 1, "the next successful tick must retry the occurrence")
 }
 
 func TestReminderNotificationsTenantIsolationAndDayRotation(t *testing.T) {
