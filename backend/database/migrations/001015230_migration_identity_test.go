@@ -1,6 +1,11 @@
 package migrations
 
-import "testing"
+import (
+	"context"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestPublishedMigrationVersionsRemainStable(t *testing.T) {
 	tests := []struct {
@@ -22,4 +27,8 @@ func TestPublishedMigrationVersionsRemainStable(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPushSubscriptionsDownPreservesExistingTable(t *testing.T) {
+	require.NoError(t, pushSubscriptionsDown(context.Background(), nil))
 }
