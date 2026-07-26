@@ -141,6 +141,9 @@ func (r *StaffRepository) staffWithPersonQuery(ctx context.Context, results *[]s
 		// scanned back as NULL for every staff member.
 		ColumnExpr(`"staff".employment_type AS "staff__employment_type"`).
 		ColumnExpr(`"staff".work_time_model_id AS "staff__work_time_model_id"`).
+		// personnel_number feeds the DATEV writers (#1417): without it every
+		// staff member would be "skipped, no Personalnummer" in the export.
+		ColumnExpr(`"staff".personnel_number AS "staff__personnel_number"`).
 		ColumnExpr(`"staff".rotation_anchor_date AS "staff__rotation_anchor_date"`).
 		ColumnExpr(`"person".id AS "person__id"`).
 		ColumnExpr(`"person".created_at AS "person__created_at"`).

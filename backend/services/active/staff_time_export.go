@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // Cross-staff time-tracking export (#1417 Tranche 2b).
@@ -30,6 +31,10 @@ const (
 
 	ExportFormatCSV  = "csv"
 	ExportFormatXLSX = "xlsx"
+	// DATEV formats (#1417 2b final part): month-granular Bewegungsdaten
+	// files, one line per staff member and configured Lohnart.
+	ExportFormatDatevLodas = "datev_lodas"
+	ExportFormatDatevLug   = "datev_lug"
 
 	ExportTimeHHMM    = "hhmm"
 	ExportTimeDecimal = "decimal"
@@ -58,8 +63,11 @@ type MonthExportRow struct {
 	FirstName      string
 	LastName       string
 	EmploymentType string
-	Year           int
-	Month          int
+	// PersonnelNumber is the payroll system's Personalnummer ("" = none).
+	// Only the DATEV writers consume it; CSV/XLSX stay name-based.
+	PersonnelNumber string
+	Year            int
+	Month           int
 
 	CarryInMinutes          int
 	TargetMinutes           int
@@ -102,14 +110,18 @@ type ExportFile struct {
 // produced (same contract as the enrollment exports).
 type StaffTimeExportService interface {
 	Export(ctx context.Context, req TimeExportRequest, actorAccountID int64, actorRole string) (*ExportFile, error)
+	// DatevReport is the preflight for the DATEV formats: the same build as
+	// the file, returned as a visible report instead of a download.
+	DatevReport(ctx context.Context, req TimeExportRequest) (*DatevExportReport, error)
 }
 
 type staffTimeExportService struct {
-	overview  StaffOverviewService
-	sessions  WorkSessionService
-	staffRepo userModels.StaffRepository
-	auditRepo auditModels.DataAccessLogRepository
-	logger    *slog.Logger
+	overview      StaffOverviewService
+	sessions      WorkSessionService
+	staffRepo     userModels.StaffRepository
+	auditRepo     auditModels.DataAccessLogRepository
+	payrollStatus configSvc.PayrollStatusGetter
+	logger        *slog.Logger
 
 	// todayFunc is a test hook; production uses timezone.TodayDate.
 	todayFunc func() timezone.Date
@@ -122,14 +134,16 @@ func NewStaffTimeExportService(
 	sessions WorkSessionService,
 	staffRepo userModels.StaffRepository,
 	auditRepo auditModels.DataAccessLogRepository,
+	payrollStatus configSvc.PayrollStatusGetter,
 	logger *slog.Logger,
 ) *staffTimeExportService {
 	return &staffTimeExportService{
-		overview:  overview,
-		sessions:  sessions,
-		staffRepo: staffRepo,
-		auditRepo: auditRepo,
-		logger:    logger,
+		overview:      overview,
+		sessions:      sessions,
+		staffRepo:     staffRepo,
+		auditRepo:     auditRepo,
+		payrollStatus: payrollStatus,
+		logger:        logger,
 	}
 }
 
@@ -160,9 +174,10 @@ func (s *staffTimeExportService) validate(req *TimeExportRequest) error {
 	switch req.Format {
 	case "":
 		req.Format = ExportFormatCSV
-	case ExportFormatCSV, ExportFormatXLSX:
+	case ExportFormatCSV, ExportFormatXLSX, ExportFormatDatevLodas, ExportFormatDatevLug:
 	default:
-		return fmt.Errorf("%w: format must be %s or %s", ErrTimeExportInvalid, ExportFormatCSV, ExportFormatXLSX)
+		return fmt.Errorf("%w: format must be %s, %s, %s or %s", ErrTimeExportInvalid,
+			ExportFormatCSV, ExportFormatXLSX, ExportFormatDatevLodas, ExportFormatDatevLug)
 	}
 	switch req.TimeFormat {
 	case "":
@@ -214,10 +229,21 @@ func (s *staffTimeExportService) Export(ctx context.Context, req TimeExportReque
 		file      *ExportFile
 		rowCount  int
 		staffSeen int
+		extra     map[string]interface{}
 		err       error
 	)
-	switch req.Granularity {
-	case ExportGranularityDay:
+	switch {
+	case req.Format == ExportFormatDatevLodas || req.Format == ExportFormatDatevLug:
+		var report *DatevExportReport
+		file, report, err = s.exportDatev(ctx, req)
+		if report != nil {
+			rowCount = report.LineCount
+			staffSeen = report.StaffExported
+			// The skipped staff are part of the audit trail: the file is
+			// deliberately incomplete, and the record must say so.
+			extra = map[string]interface{}{"skipped_staff_count": len(report.StaffSkipped)}
+		}
+	case req.Granularity == ExportGranularityDay:
 		file, rowCount, staffSeen, err = s.exportDays(ctx, req, from, to)
 	default:
 		file, rowCount, staffSeen, err = s.exportMonths(ctx, req)
@@ -226,7 +252,7 @@ func (s *staffTimeExportService) Export(ctx context.Context, req TimeExportReque
 		return nil, err
 	}
 
-	if err := s.writeAudit(ctx, req, from, to, actorAccountID, actorRole, rowCount, staffSeen); err != nil {
+	if err := s.writeAudit(ctx, req, from, to, actorAccountID, actorRole, rowCount, staffSeen, extra); err != nil {
 		return nil, err
 	}
 	return file, nil
@@ -319,6 +345,7 @@ func (s *staffTimeExportService) writeAudit(
 	actorAccountID int64,
 	actorRole string,
 	rowCount, staffCount int,
+	extra map[string]interface{},
 ) error {
 	if s.auditRepo == nil {
 		return errors.New("time export: audit repository not configured")
@@ -345,6 +372,9 @@ func (s *staffTimeExportService) writeAudit(
 			"row_count":   rowCount,
 			"staff_count": staffCount,
 		},
+	}
+	for key, value := range extra {
+		entry.Metadata[key] = value
 	}
 	if err := s.auditRepo.Create(ctx, entry); err != nil {
 		return fmt.Errorf("time export: audit write failed: %w", err)

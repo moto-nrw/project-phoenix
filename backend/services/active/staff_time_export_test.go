@@ -28,6 +28,7 @@ func (f *overviewFixture) newExportService() active.StaffTimeExportService {
 		f.repos.Staff,
 		f.repos.DataAccessLog,
 		nil,
+		nil,
 	)
 }
 
@@ -260,7 +261,7 @@ func TestStaffTimeExport_NoFileWithoutAudit(t *testing.T) {
 	f := newOverviewFixture(t, 1)
 	actorID := f.newActorAccount(t)
 	exportSvc := active.NewStaffTimeExportService(
-		f.svc, f.newWorkSessionService(), f.repos.Staff, failingAccessLogRepo{}, nil,
+		f.svc, f.newWorkSessionService(), f.repos.Staff, failingAccessLogRepo{}, nil, nil,
 	)
 
 	file, err := exportSvc.Export(f.ctx, active.TimeExportRequest{
@@ -279,7 +280,7 @@ func TestStaffTimeExport_DayRowsMatchSingleExport(t *testing.T) {
 	f.cleanupAccessLogs(t)
 	sessionSvc := f.newWorkSessionService()
 	exportSvc := active.NewStaffTimeExportService(
-		f.svc, sessionSvc, f.repos.Staff, f.repos.DataAccessLog, nil,
+		f.svc, sessionSvc, f.repos.Staff, f.repos.DataAccessLog, nil, nil,
 	)
 
 	file, err := exportSvc.Export(f.ctx, active.TimeExportRequest{

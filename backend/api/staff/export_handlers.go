@@ -6,14 +6,20 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 )
 
-// timeExportErrorRules classifies the export sentinels: caller mistakes → 400.
+// timeExportErrorRules classifies the export sentinels: caller mistakes →
+// 400, an incomplete payroll configuration → 409 (fixable on /payroll, not by
+// changing the request).
 var timeExportErrorRules = []common.ErrorRule{
 	{Target: activeSvc.ErrTimeExportInvalid, Render: common.ErrorInvalidRequest},
+	{Target: activeSvc.ErrPayrollConfigIncomplete, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "payroll_config_incomplete")
+	}},
 }
 
 // parseTimeExportRequest reads the export parameters. Year is required; month
@@ -67,4 +73,21 @@ func (rs *Resource) exportTimeTracking(w http.ResponseWriter, r *http.Request) {
 	if _, err := w.Write(file.Data); err != nil {
 		rs.getLogger().Error("failed to write export response", "error", err.Error())
 	}
+}
+
+// datevExportReport handles GET /api/staff/time-tracking/export/datev-report —
+// the preflight the export dialog shows before a DATEV download. Same
+// permission as the export; no audit row because nothing leaves the system.
+func (rs *Resource) datevExportReport(w http.ResponseWriter, r *http.Request) {
+	req, err := parseTimeExportRequest(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	report, err := rs.TimeExportService.DatevReport(r.Context(), req)
+	if err != nil {
+		common.RenderError(w, r, common.RenderWithRules(err, timeExportErrorRules, common.ErrorInternalServer))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, report, "DATEV export report")
 }

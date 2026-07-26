@@ -118,6 +118,9 @@ func buildMonthExportRow(staff *userModels.Staff, summary *MonthSummary) MonthEx
 	if staff.EmploymentType != nil {
 		row.EmploymentType = *staff.EmploymentType
 	}
+	if staff.PersonnelNumber != nil {
+		row.PersonnelNumber = *staff.PersonnelNumber
+	}
 	row.FirstName, row.LastName = staffNames(staff)
 	return row
 }
