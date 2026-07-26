@@ -18,6 +18,7 @@ package userstest
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -55,6 +56,7 @@ type PersonServiceMock struct {
 	GetStudentsByIDsFn               func(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error)
 	GetStudentsByGroupIDFn           func(ctx context.Context, groupID int64) ([]*userModels.Student, error)
 	GetStudentsByGroupIDsFn          func(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error)
+	GetEligibleGroupStudentsFn       func(ctx context.Context, groupIDs []int64, date timezone.Date) ([]*userModels.Student, error)
 	CountStudentsByGroupIDsFn        func(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 	CreateStaffWithTeacherFn         func(ctx context.Context, input users.CreateStaffInput) (staff *userModels.Staff, teacher *userModels.Teacher, teacherCreationFailed bool, err error)
 	UpdateStaffWithTeacherFn         func(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, users.TeacherAction, error)
@@ -271,6 +273,13 @@ func (m *PersonServiceMock) GetStudentsByGroupID(ctx context.Context, groupID in
 func (m *PersonServiceMock) GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
 	if m.GetStudentsByGroupIDsFn != nil {
 		return m.GetStudentsByGroupIDsFn(ctx, groupIDs)
+	}
+	return nil, nil
+}
+
+func (m *PersonServiceMock) GetEligibleStudentsByGroupIDsOnDate(ctx context.Context, groupIDs []int64, date timezone.Date) ([]*userModels.Student, error) {
+	if m.GetEligibleGroupStudentsFn != nil {
+		return m.GetEligibleGroupStudentsFn(ctx, groupIDs, date)
 	}
 	return nil, nil
 }

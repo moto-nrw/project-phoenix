@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -65,26 +64,6 @@ func TestClassifyDayLogStudent_NotScheduledAndAbsent(t *testing.T) {
 	classifyDayLogStudent(&row, nil, nil, scheduleService.CareDayUnknown)
 	assert.Equal(t, dayLogStatusAbsent, row.Status)
 	assert.Equal(t, "Abwesend", dayLogStatusLabel(row.Status, ""))
-}
-
-func TestFilterDayLogEligibleStudents_UsesEnrollmentWindowForPastDates(t *testing.T) {
-	date := timezone.TodayDate().AddDays(-1)
-	fromBeforeDate := date.AddDays(-1)
-	fromToday := timezone.TodayDate()
-	untilBeforeDate := date.AddDays(-1)
-
-	eligible := &usersModel.Student{EnrolledFrom: &fromBeforeDate}
-	laterEnrolled := &usersModel.Student{EnrolledFrom: &fromToday}
-	departed := &usersModel.Student{EnrolledUntil: &untilBeforeDate}
-
-	filtered := filterDayLogEligibleStudents(
-		[]*usersModel.Student{eligible, laterEnrolled, departed},
-		date,
-		timezone.TodayDate(),
-	)
-
-	require.Len(t, filtered, 1)
-	assert.Same(t, eligible, filtered[0])
 }
 
 // The listexport renderers treat a row with GroupTitle as a section MARKER and

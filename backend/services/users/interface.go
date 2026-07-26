@@ -3,6 +3,7 @@ package users
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -115,6 +116,10 @@ type PersonService interface {
 
 	// GetStudentsByGroupIDs retrieves the students of multiple groups.
 	GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error)
+
+	// GetEligibleStudentsByGroupIDsOnDate retrieves group students enrolled on
+	// the requested calendar date.
+	GetEligibleStudentsByGroupIDsOnDate(ctx context.Context, groupIDs []int64, date timezone.Date) ([]*userModels.Student, error)
 
 	// CountStudentsByGroupIDs counts students per group in a single query.
 	CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)

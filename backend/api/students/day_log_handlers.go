@@ -279,14 +279,13 @@ func (rs *Resource) loadDayLogData(ctx context.Context, groups []*educationModel
 		groupIDs = append(groupIDs, group.ID)
 	}
 
-	students, err := rs.PersonService.GetStudentsByGroupIDs(ctx, groupIDs)
+	students, err := rs.PersonService.GetEligibleStudentsByGroupIDsOnDate(ctx, groupIDs, date)
 	if err != nil {
 		return nil, err
 	}
 	// Student.GroupID is the current assignment. The data model does not retain
 	// dated group assignments, so only enrollment eligibility can be evaluated
 	// retrospectively here.
-	students = filterDayLogEligibleStudents(students, date, timezone.TodayDate())
 
 	data := &dayLogData{
 		studentsByGroup:     make(map[int64][]*usersModel.Student, len(groups)),
@@ -307,32 +306,6 @@ func (rs *Resource) loadDayLogData(ctx context.Context, groups []*educationModel
 		return nil, err
 	}
 	return data, nil
-}
-
-// filterDayLogEligibleStudents keeps the retrospective roster bounded by the
-// enrollment period. Lifecycle status is only a current projection, so it is
-// consulted only for legacy rows without enrollment dates. This mirrors the
-// date semantics used by the slot-list eligibility resolver.
-func filterDayLogEligibleStudents(students []*usersModel.Student, date, today timezone.Date) []*usersModel.Student {
-	eligible := make([]*usersModel.Student, 0, len(students))
-	for _, student := range students {
-		if student == nil {
-			continue
-		}
-		if student.EnrolledFrom != nil && date.Before(*student.EnrolledFrom) {
-			if student.Status != usersModel.StudentStatusActive || date.Before(today) {
-				continue
-			}
-		}
-		if student.EnrolledUntil != nil && date.After(*student.EnrolledUntil) {
-			continue
-		}
-		if student.EnrolledFrom == nil && student.EnrolledUntil == nil && student.Status == usersModel.StudentStatusInactive {
-			continue
-		}
-		eligible = append(eligible, student)
-	}
-	return eligible
 }
 
 func indexDayLogStudents(data *dayLogData, students []*usersModel.Student) (studentIDs, personIDs []int64) {
