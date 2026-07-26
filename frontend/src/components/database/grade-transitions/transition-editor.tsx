@@ -34,7 +34,7 @@ const MODE_OPTIONS = [
 ] as const;
 
 /** Suggests the academic year label for the upcoming school year change. */
-export function suggestAcademicYear(now: Date): string {
+function suggestAcademicYear(now: Date): string {
   // From May onwards the transition targets the school year starting in
   // summer of the current year; before that it belongs to the previous one.
   const year = now.getMonth() >= 4 ? now.getFullYear() : now.getFullYear() - 1;

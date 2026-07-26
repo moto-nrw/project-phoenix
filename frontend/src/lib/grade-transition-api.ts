@@ -19,19 +19,19 @@ const BASE = "/api/admin/grade-transitions";
  * accepted so a response from an older server (or a hand-written test fixture)
  * still maps; only the string form is exact, which is why nothing here ever
  * converts an id back to a number (#405 review). */
-export type BackendID = string | number;
+type BackendID = string | number;
 
 /** Normalizes a wire id to the string form the app uses everywhere. A string
  * passes through verbatim — never via Number() — so no precision is lost. */
-export function toIdString(id: BackendID): string {
+function toIdString(id: BackendID): string {
   return typeof id === "string" ? id : id.toString();
 }
 
 export type TransitionStatus = "draft" | "applied" | "reverted";
-export type MappingAction = "promote" | "graduate";
-export type HistoryAction = "promoted" | "graduated" | "unchanged";
+type MappingAction = "promote" | "graduate";
+type HistoryAction = "promoted" | "graduated" | "unchanged";
 
-export interface BackendTransitionMapping {
+interface BackendTransitionMapping {
   id: BackendID;
   from_class: string;
   to_class?: string | null;
@@ -55,14 +55,14 @@ export interface BackendGradeTransition {
   can_revert: boolean;
 }
 
-export interface BackendMappingPreview {
+interface BackendMappingPreview {
   from_class: string;
   to_class?: string | null;
   student_count: number;
   action: MappingAction;
 }
 
-export interface BackendUnmappedClass {
+interface BackendUnmappedClass {
   class_name: string;
   student_count: number;
 }
@@ -116,7 +116,7 @@ export interface BackendTransitionHistoryEntry {
 // Frontend (camelCase) types
 // ---------------------------------------------------------------------------
 
-export interface TransitionMapping {
+interface TransitionMapping {
   id: string;
   fromClass: string;
   toClass: string | null;
@@ -137,14 +137,14 @@ export interface GradeTransition {
   canRevert: boolean;
 }
 
-export interface MappingPreview {
+interface MappingPreview {
   fromClass: string;
   toClass: string | null;
   studentCount: number;
   action: MappingAction;
 }
 
-export interface UnmappedClass {
+interface UnmappedClass {
   className: string;
   studentCount: number;
 }
@@ -429,13 +429,6 @@ export async function listGradeTransitions(): Promise<GradeTransition[]> {
   }
 
   return Array.from(byID.values()).map(mapTransition);
-}
-
-export async function getGradeTransition(id: string): Promise<GradeTransition> {
-  const response = await fetch(`${BASE}/${encodeURIComponent(id)}`, {
-    cache: "no-store",
-  });
-  return mapTransition(await readJSON<BackendGradeTransition>(response));
 }
 
 export async function createGradeTransition(

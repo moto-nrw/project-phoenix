@@ -1527,7 +1527,7 @@ var errStudentGraduatedUnderLock = errors.New("student graduated between snapsho
 // In-tx sentinel for the purge path: the child was restored (transition
 // reverted, or status changed by hand) between the Abgänge list and the locked
 // re-read. Mapped to 409 — the list is stale, not the request malformed.
-var errStudentNoLongerGraduated = errors.New("Kind ist kein Abgänger mehr und wurde nicht gelöscht. Bitte Liste neu laden.")
+var errStudentNoLongerGraduated = errors.New("Kind ist kein Abgänger mehr und wurde nicht gelöscht. Bitte Liste neu laden.") //nolint:staticcheck // ST1005: user-facing German message
 
 // deleteStudentTx performs the locked student delete inside the caller's
 // tenant transaction.
