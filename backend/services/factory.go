@@ -421,6 +421,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		settingsService,
 		activeLogger,
 	)
+	if broadcastAware, ok := staffMonthCloseService.(interface {
+		SetBroadcaster(realtime.Broadcaster)
+	}); ok {
+		broadcastAware.SetBroadcaster(realtimeHub)
+	}
 
 	// Tenant-wide time-tracking views (#1417 2a). Prefetches all inputs once
 	// and runs the SAME per-staff month math over in-memory readers, so the

@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
 // Sentinel errors for handler mapping (#1417).
@@ -79,6 +80,7 @@ type staffMonthCloseService struct {
 	monthService WorkTimeMonthService
 	staffLister  monthCloseStaffLister
 	settings     monthSettingsResolver
+	broadcaster  realtime.Broadcaster
 	logger       *slog.Logger
 }
 
@@ -100,6 +102,16 @@ func NewStaffMonthCloseService(
 
 func (s *staffMonthCloseService) getLogger() *slog.Logger {
 	return cmp.Or(s.logger, slog.Default())
+}
+
+// SetBroadcaster injects the tenant-wide SSE broadcaster. It stays outside
+// StaffMonthCloseService so existing API-layer mocks stay unchanged.
+func (s *staffMonthCloseService) SetBroadcaster(broadcaster realtime.Broadcaster) {
+	s.broadcaster = broadcaster
+}
+
+func (s *staffMonthCloseService) broadcastTimeTrackingChanged(ctx context.Context) {
+	queueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
 }
 
 func calendarMonthHasEnded(key monthKey, today timezone.Date) bool {
@@ -198,6 +210,9 @@ func (s *staffMonthCloseService) CloseMonth(ctx context.Context, closedBy int64,
 		"closed_staff", result.ClosedStaff,
 		"skipped_staff", result.SkippedStaff,
 	)
+	if result.ClosedStaff > 0 {
+		s.broadcastTimeTrackingChanged(ctx)
+	}
 	return result, nil
 }
 
@@ -317,6 +332,7 @@ func (s *staffMonthCloseService) ReopenMonth(ctx context.Context, staffID, reope
 		"reopened_by", reopenedBy,
 		"frozen_closing_balance_minutes", snapshot.ClosingBalanceMinutes,
 	)
+	s.broadcastTimeTrackingChanged(ctx)
 	return nil
 }
 

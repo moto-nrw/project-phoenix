@@ -540,6 +540,7 @@ describe("useGlobalSSE", () => {
         "staff-absences-42-2026-07-01-2026-07-31",
         "staff-pending-absences-42",
         "staff-month-summary-42-2026-7",
+        "staff-month-close-2026-7",
         "staff-balance-adjustments-42-2026-01-01-9999-12-31",
         "staff-schedule-42",
         "staff-schedule-targets-42-2026-07-01-2026-07-31",

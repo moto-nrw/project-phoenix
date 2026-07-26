@@ -69,9 +69,11 @@ type TimeTrackingOverviewRow struct {
 	LastName  string `json:"last_name"`
 	Name      string `json:"name"`
 	// EmploymentType is "" when the staff member has none recorded.
-	EmploymentType        string  `json:"employment_type"`
-	SollMinutes           int     `json:"soll_minutes"`
-	IstMinutes            int     `json:"ist_minutes"`
+	EmploymentType string `json:"employment_type"`
+	SollMinutes    int    `json:"soll_minutes"`
+	IstMinutes     int    `json:"ist_minutes"`
+	// BalanceMinutes is the authoritative closing balance: frozen for an
+	// actively closed month, live otherwise.
 	BalanceMinutes        int     `json:"balance_minutes"`
 	RemainingVacationDays float64 `json:"remaining_vacation_days"`
 }
@@ -429,11 +431,15 @@ func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filt
 			// silently short. Fail the request and name the staff member.
 			return nil, fmt.Errorf("failed to compute month summary for staff %d: %w", staff.ID, err)
 		}
+		balanceMinutes := summary.ClosingBalanceMinutes
+		if summary.IsClosed && summary.FrozenClosingBalanceMinutes != nil {
+			balanceMinutes = *summary.FrozenClosingBalanceMinutes
+		}
 		row := TimeTrackingOverviewRow{
 			StaffID:        staff.ID,
 			SollMinutes:    summary.TargetMinutesToDate,
 			IstMinutes:     summary.ActualMinutes,
-			BalanceMinutes: summary.ClosingBalanceMinutes,
+			BalanceMinutes: balanceMinutes,
 			RemainingVacationDays: s.remainingVacationDays(
 				staff.ID,
 				key.Year,

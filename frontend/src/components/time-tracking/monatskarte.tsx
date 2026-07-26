@@ -6,7 +6,11 @@
 // Saldo. Everything is computed live by the backend — the Übertrag updates
 // automatically when past months are corrected.
 
+import { Lock } from "lucide-react";
+
+import { Button } from "~/components/ui/button";
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
+import { formatLocalizedDate } from "~/lib/localized-date-format";
 import {
   balanceAdjustmentTypeLabel,
   formatDuration,
@@ -104,6 +108,11 @@ export interface MonatskarteProps {
   readonly accountStartsInFuture?: boolean;
   /** Configured account start ("YYYY-MM-DD"), for the pre-account note. */
   readonly accountStartDate?: string;
+  /**
+   * Admin-only (#1417): renders the "Monat wieder öffnen" action on a closed
+   * month. The MA-facing own view passes nothing and stays read-only.
+   */
+  readonly onReopen?: () => void;
 }
 
 function formatIsoDateGerman(iso: string): string {
@@ -119,6 +128,7 @@ export function Monatskarte({
   isPreAccountMonth = false,
   accountStartsInFuture = false,
   accountStartDate,
+  onReopen,
 }: MonatskarteProps) {
   if (isLoading) {
     return (
@@ -157,9 +167,20 @@ export function Monatskarte({
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">
-        Monatskarte {monthLabel(summary.year, summary.month)}
-      </h3>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <h3 className="text-sm font-semibold text-gray-900">
+          Monatskarte {monthLabel(summary.year, summary.month)}
+        </h3>
+        {summary.isClosed && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
+            <Lock className="h-3 w-3" />
+            Abgeschlossen
+            {summary.closedAt
+              ? ` am ${formatLocalizedDate(summary.closedAt, "de")}`
+              : ""}
+          </span>
+        )}
+      </div>
 
       <div className="divide-y divide-gray-100">
         {!isPreAccountMonth && (
@@ -240,17 +261,65 @@ export function Monatskarte({
             the value is a clean 0 for an empty span. Printing either as
             "Übertrag Monatsende" or "Stundenkonto Stand" would present a
             non-cumulative figure as a real balance. */}
-        {!isPreAccountMonth && !accountStartsInFuture && (
-          <SummaryRow
-            label={
-              isCurrentMonth ? "Stundenkonto Stand" : "Übertrag Monatsende"
-            }
-            value={formatSignedDuration(summary.closingBalanceMinutes)}
-            valueClass={deltaClass(summary.closingBalanceMinutes)}
-            emphasis
-          />
-        )}
+        {!isPreAccountMonth &&
+          !accountStartsInFuture &&
+          (summary.isClosed && summary.frozenClosingBalanceMinutes !== null ? (
+            // Abgeschlossener Monat: der Folgemonat rechnet mit dem
+            // EINGEFRORENEN Wert weiter, also ist der die verbindliche Zahl.
+            // Die live gerechneten Zeilen darüber bleiben stehen; weicht ihre
+            // Summe ab, erklärt der Hinweis darunter die Differenz.
+            <SummaryRow
+              label="Übertrag Monatsende (eingefroren)"
+              value={formatSignedDuration(summary.frozenClosingBalanceMinutes)}
+              valueClass={deltaClass(summary.frozenClosingBalanceMinutes)}
+              emphasis
+            />
+          ) : (
+            <SummaryRow
+              label={
+                isCurrentMonth ? "Stundenkonto Stand" : "Übertrag Monatsende"
+              }
+              value={formatSignedDuration(summary.closingBalanceMinutes)}
+              valueClass={deltaClass(summary.closingBalanceMinutes)}
+              emphasis
+            />
+          ))}
       </div>
+
+      {summary.isClosed && summary.driftMinutes !== 0 && (
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+          <p className="font-semibold">
+            Seit dem Abschluss wurden Zeiten in diesem Monat geändert.
+          </p>
+          <p className="mt-1">
+            Neu gerechnet wäre der Übertrag{" "}
+            <span className="font-medium tabular-nums">
+              {formatSignedDuration(summary.closingBalanceMinutes)}
+            </span>{" "}
+            ({formatSignedDuration(summary.driftMinutes)} gegenüber dem
+            abgeschlossenen Stand). Der Übertrag in den Folgemonat bleibt beim
+            eingefrorenen Wert.
+          </p>
+          <p className="mt-1">
+            Zwei Wege zur Korrektur: die Differenz im offenen Monat als Buchung
+            im Stundenkonto erfassen (Übersicht-Tab, empfohlen), oder den Monat
+            wieder öffnen, wenn der Abschluss selbst falsch war.
+          </p>
+        </div>
+      )}
+
+      {summary.isClosed && onReopen && (
+        <div className="mt-3 flex justify-end">
+          <Button
+            type="button"
+            size="compact"
+            variant="ghost"
+            onClick={onReopen}
+          >
+            Monat wieder öffnen…
+          </Button>
+        </div>
+      )}
 
       {isPreAccountMonth && (
         <p className="mt-3 text-xs text-gray-500">

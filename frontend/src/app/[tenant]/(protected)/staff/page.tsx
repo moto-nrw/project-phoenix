@@ -8,8 +8,11 @@ import type {
   FilterConfig,
   ActiveFilter,
 } from "~/components/ui/page-header/types";
-import { staffService } from "~/lib/staff-api";
-import type { Staff } from "~/lib/staff-api";
+import {
+  staffMonthCloseService,
+  staffService,
+  type Staff,
+} from "~/lib/staff-api";
 import {
   getStaffDisplayType,
   getStaffCardInfo,
@@ -18,6 +21,7 @@ import {
   getStaffLocationStatus,
 } from "~/lib/staff-helpers";
 import { useSWRAuth } from "~/lib/swr";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { isAdmin, hasPermission } from "~/lib/auth-utils";
 import {
@@ -30,7 +34,9 @@ import {
   saldoPresets,
   type SaldoPresetId,
 } from "~/components/staff/staff-time-accounts-table";
+import { MonthCloseReasonModal } from "~/components/staff/month-close-modal";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { useSWRConfig } from "swr";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { staffOverviewService } from "~/lib/staff-overview-api";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
@@ -60,6 +66,17 @@ function StaffPageContent() {
     "status",
   );
   const [employmentFilter, setEmploymentFilter] = useState("all");
+  // Angezeigter Monat der Zeitkonten (#1417): Default ist der laufende Monat;
+  // zurückblättern erlaubt der Endpoint seit #1988, vorwärts über heute hinaus
+  // lehnt er ab (Zukunftsmonat = volles Soll gegen null Ist).
+  const berlinToday = useBerlinToday();
+  const currentYear = Number(berlinToday.slice(0, 4));
+  const currentMonth = Number(berlinToday.slice(5, 7));
+  const [monthAnchor, setMonthAnchor] = useState<{
+    year: number;
+    month: number;
+  }>(() => ({ year: currentYear, month: currentMonth }));
+  const [showCloseModal, setShowCloseModal] = useState(false);
   const [saldoPreset, setSaldoPreset] = useState<SaldoPresetId>("all");
   const [customSaldoHours, setCustomSaldoHours] = useState("");
   const [showCustomSaldo, setShowCustomSaldo] = useState(false);
@@ -119,7 +136,7 @@ function StaffPageContent() {
 
   const accountsKey =
     canManageTimeTracking && view === "accounts"
-      ? `staff-time-accounts-${employmentFilter}-${saldoMin ?? ""}-${saldoMax ?? ""}`
+      ? `staff-time-accounts-${monthAnchor.year}-${monthAnchor.month}-${employmentFilter}-${saldoMin ?? ""}-${saldoMax ?? ""}`
       : null;
   const {
     data: accounts,
@@ -129,6 +146,8 @@ function StaffPageContent() {
     accountsKey,
     () =>
       staffOverviewService.getTimeAccounts({
+        year: monthAnchor.year,
+        month: monthAnchor.month,
         employmentType:
           employmentFilter === "all" ? undefined : employmentFilter,
         saldoMin,
@@ -138,6 +157,59 @@ function StaffPageContent() {
     // the response for the active filter key arrives.
     { keepPreviousData: false, revalidateOnFocus: false },
   );
+
+  // Abschluss-Status des angezeigten Monats (#1417). Leeres Array = offen.
+  const monthCloseKey =
+    canManageTimeTracking && view === "accounts"
+      ? `staff-month-close-${monthAnchor.year}-${monthAnchor.month}`
+      : null;
+  const {
+    data: monthCloseSnapshots,
+    error: monthCloseStatusError,
+    mutate: mutateMonthClose,
+  } = useSWRAuth(
+    monthCloseKey,
+    () => staffMonthCloseService.getStatus(monthAnchor.year, monthAnchor.month),
+    { keepPreviousData: false, revalidateOnFocus: false },
+  );
+  const monthClose =
+    !monthCloseStatusError && monthCloseSnapshots
+      ? {
+          closed: monthCloseSnapshots.length > 0,
+          closedAt: monthCloseSnapshots[0]?.closedAt ?? "",
+          closedCount: monthCloseSnapshots.length,
+        }
+      : null;
+
+  const isCurrentOrFutureMonth =
+    monthAnchor.year > currentYear ||
+    (monthAnchor.year === currentYear && monthAnchor.month >= currentMonth);
+  const shiftMonth = (delta: number) => {
+    setMonthAnchor((anchor) => {
+      const date = new Date(anchor.year, anchor.month - 1 + delta, 1);
+      return { year: date.getFullYear(), month: date.getMonth() + 1 };
+    });
+  };
+
+  const { mutate: globalMutate } = useSWRConfig();
+  const handleCloseMonth = async (reason: string) => {
+    await staffMonthCloseService.closeMonth({
+      year: monthAnchor.year,
+      month: monthAnchor.month,
+      reason,
+    });
+    await mutateMonthClose();
+    // Folgemonate rechnen ab jetzt vom eingefrorenen Übertrag — die schulweite
+    // Tabelle und beide Monatskarten-Familien sind potenziell veraltet.
+    // includes statt startsWith: useSWRAuth präfixt die Keys mit dem Tenant.
+    await globalMutate(
+      (key) =>
+        typeof key === "string" &&
+        (key.includes("staff-time-accounts") ||
+          key.includes("staff-month-summary-") ||
+          key.includes("time-tracking-month-summary-")),
+    );
+  };
 
   const accountRows = useMemo(() => {
     const rows = accounts?.rows ?? [];
@@ -427,8 +499,20 @@ function StaffPageContent() {
       {view === "accounts" && (
         <StaffTimeAccountsTable
           rows={accountRows}
-          year={accounts?.year ?? new Date().getFullYear()}
-          month={accounts?.month ?? new Date().getMonth() + 1}
+          year={accounts?.year ?? monthAnchor.year}
+          month={accounts?.month ?? monthAnchor.month}
+          onPrevMonth={() => shiftMonth(-1)}
+          onNextMonth={() => shiftMonth(1)}
+          canGoNextMonth={!isCurrentOrFutureMonth}
+          monthClose={monthClose}
+          monthCloseError={
+            monthCloseStatusError
+              ? "Der Abschlussstatus konnte nicht geladen werden. Abschließen und erneutes Abschließen sind bis zur erfolgreichen Aktualisierung nicht verfügbar."
+              : null
+          }
+          onRetryMonthClose={() => void mutateMonthClose()}
+          monthIsOver={!isCurrentOrFutureMonth}
+          onCloseMonth={() => setShowCloseModal(true)}
           isLoading={accountsLoading && !accounts}
           error={
             accountsError ? "Zeitkonten konnten nicht geladen werden." : null
@@ -441,6 +525,34 @@ function StaffPageContent() {
           showCustomSaldo={showCustomSaldo}
           onShowCustomSaldoChange={setShowCustomSaldo}
           paginationResetKey={`${accountsKey ?? "inactive"}:${searchTerm}`}
+        />
+      )}
+
+      {showCloseModal && (
+        <MonthCloseReasonModal
+          title={`Monat abschließen — ${String(monthAnchor.month).padStart(2, "0")}/${monthAnchor.year}`}
+          description={
+            <>
+              <p>
+                Der Abschluss friert den Saldo zum Monatsende für{" "}
+                <strong>alle Mitarbeitenden</strong> ein. Spätere Monate rechnen
+                ab dann mit diesem eingefrorenen Übertrag weiter.
+              </p>
+              <p>
+                Werden danach noch Zeiten in diesem Monat geändert, bleibt der
+                Übertrag stehen; die Abweichung wird auf der Monatskarte der
+                Person angezeigt.
+              </p>
+              <p>
+                Bereits abgeschlossene Konten bleiben unverändert; nur offene
+                Konten werden eingefroren.
+              </p>
+            </>
+          }
+          submitLabel="Monat abschließen"
+          successMessage="Monat abgeschlossen."
+          onSubmit={handleCloseMonth}
+          onClose={() => setShowCloseModal(false)}
         />
       )}
 

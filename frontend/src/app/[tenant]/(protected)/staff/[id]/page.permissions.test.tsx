@@ -113,7 +113,7 @@ describe("StaffDetailContent permissions", () => {
     window.scrollTo = vi.fn();
   });
 
-  it("shows the overview to time-tracking managers without admin role", () => {
+  it("shows overview and time tracking to managers without admin role", () => {
     vi.mocked(useSession).mockReturnValue({
       data: {
         user: {
@@ -135,8 +135,9 @@ describe("StaffDetailContent permissions", () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId("uebersicht-tab")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Zeiterfassung" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "Zeiterfassung" }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("zeiterfassung-tab")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Arbeitszeitmodell" }),
     ).not.toBeInTheDocument();

@@ -11,22 +11,25 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// monthCloseErrorRules classifies the Monatsabschluss sentinels (#1417):
-// caller mistakes → 400, missing snapshot → 404. The conflict sentinel is
-// rendered with a machine-readable code in renderMonthCloseError before this
-// table is consulted.
+// monthCloseErrorRules classifies the remaining Monatsabschluss sentinel
+// (#1417): caller mistakes → 400. The sentinels the frontend has to
+// distinguish carry machine-readable codes in renderMonthCloseError before
+// this table is consulted.
 var monthCloseErrorRules = []common.ErrorRule{
 	{Target: activeSvc.ErrMonthCloseInvalid, Render: common.ErrorInvalidRequest},
-	{Target: activeSvc.ErrMonthNotClosable, Render: common.ErrorInvalidRequest},
-	{Target: activeSvc.ErrMonthNotClosed, Render: common.ErrorNotFound},
 }
 
 func renderMonthCloseError(w http.ResponseWriter, r *http.Request, err error) {
-	if errors.Is(err, activeSvc.ErrLaterMonthClosed) {
+	switch {
+	case errors.Is(err, activeSvc.ErrLaterMonthClosed):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "later_month_closed"))
-		return
+	case errors.Is(err, activeSvc.ErrMonthNotClosable):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "month_not_closable"))
+	case errors.Is(err, activeSvc.ErrMonthNotClosed):
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, "month_not_closed"))
+	default:
+		common.RenderError(w, r, common.RenderWithRules(err, monthCloseErrorRules, common.ErrorInternalServer))
 	}
-	common.RenderError(w, r, common.RenderWithRules(err, monthCloseErrorRules, common.ErrorInternalServer))
 }
 
 // monthCloseRequest is the wire shape for POST

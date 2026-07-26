@@ -15,6 +15,14 @@ const baseProps = {
   onRowClick: vi.fn(),
   saldoPreset: "all" as const,
   customSaldoHours: "10",
+  onPrevMonth: vi.fn(),
+  onNextMonth: vi.fn(),
+  canGoNextMonth: true,
+  monthClose: null,
+  monthCloseError: null,
+  onRetryMonthClose: vi.fn(),
+  monthIsOver: true,
+  onCloseMonth: vi.fn(),
 };
 
 describe("StaffTimeAccountsTable", () => {
@@ -88,5 +96,33 @@ describe("StaffTimeAccountsTable", () => {
     expect(saldoPresets.find((preset) => preset.id === "plus20")?.min).toBe(
       1201,
     );
+  });
+
+  it("zeigt das Abschlussdatum in der Berliner Zeitzone", () => {
+    const originalTimeZone = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+
+    try {
+      render(
+        <StaffTimeAccountsTable
+          {...baseProps}
+          monthClose={{
+            closed: true,
+            closedAt: "2026-09-01T00:30:00Z",
+            closedCount: 12,
+          }}
+          onSaldoPresetChange={vi.fn()}
+          onCustomSaldoHoursChange={vi.fn()}
+          onShowCustomSaldoChange={vi.fn()}
+          showCustomSaldo={false}
+        />,
+      );
+
+      expect(
+        screen.getByText("Abgeschlossen am 01.09.2026"),
+      ).toBeInTheDocument();
+    } finally {
+      process.env.TZ = originalTimeZone;
+    }
   });
 });
