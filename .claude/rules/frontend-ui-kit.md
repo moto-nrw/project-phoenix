@@ -144,6 +144,8 @@ Compact / ghost / icon-only buttons now EXIST on `ui/Button` (`variant="ghost"`,
 
 ## Detection
 
+**CI-enforced ratchet** (since #1629): the oxlint plugin `frontend/scripts/oxlint-plugin-ui-kit.mjs` fails `pnpm run check` on three drift patterns in files not on its shrink-only allowlists — `ui-kit/no-generic-brand-colors` (generic Tailwind hues), `ui-kit/no-hand-rolled-overlay` (`fixed inset-0` outside `ui/`), and `ui-kit/no-rounded-3xl` (off-scale card radius). When you migrate a file, delete its allowlist entry; never add one. Test/stories files are exempt (several assert on the legacy classes — the brand-hex fix for the kit primitives themselves is a deliberate rule change requiring test updates in the same PR).
+
 ```bash
 # Components imported from the design-system package — should be ZERO (tokens only)
 rg -n "from ['\"]@moto-nrw/design-system['\"]" frontend/src -g '*.tsx' -g '*.ts'
