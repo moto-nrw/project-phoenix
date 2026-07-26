@@ -2,12 +2,14 @@ package sse
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -194,6 +196,46 @@ func TestSetupSSEConnection_NonFlusher(t *testing.T) {
 
 	assert.Nil(t, conn, "Connection should be nil for non-flusher")
 	assert.Equal(t, http.StatusInternalServerError, statusCode)
+}
+
+func TestCreateAndRegisterClientPreservesAdminScope(t *testing.T) {
+	hub := realtime.NewHub(slog.Default())
+	rs := &Resource{hub: hub}
+	conn := &sseConnection{
+		staffID:  123,
+		tenantID: 41,
+		isAdmin:  true,
+		topics:   &sseTopics{},
+	}
+
+	rs.createAndRegisterClient(conn)
+	t.Cleanup(func() { hub.Unregister(conn.client) })
+
+	require.NotNil(t, conn.client)
+	assert.True(t, conn.client.IsAdmin)
+	assert.Equal(t, int64(41), conn.client.TenantID)
+}
+
+func TestHasEffectiveAdminScope(t *testing.T) {
+	tests := []struct {
+		name        string
+		isAdmin     bool
+		permissions []string
+		want        bool
+	}{
+		{name: "literal admin", isAdmin: true, want: true},
+		{name: "admin wildcard", permissions: []string{"admin:*"}, want: true},
+		{name: "full wildcard", permissions: []string{"*:*"}, want: true},
+		{name: "scoped caregiver", permissions: []string{"users:read"}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.WithValue(context.Background(), jwt.CtxClaims, jwt.AppClaims{IsAdmin: tt.isAdmin})
+			ctx = context.WithValue(ctx, jwt.CtxPermissions, tt.permissions)
+			assert.Equal(t, tt.want, hasEffectiveAdminScope(ctx))
+		})
+	}
 }
 
 // nonFlusherResponseWriter is a ResponseWriter that doesn't implement Flusher

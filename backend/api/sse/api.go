@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -49,6 +50,7 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Step 2: Extract tenant ID from JWT context (set by TenantMiddleware)
 	conn.tenantID = tenant.FromContext(ctx)
+	conn.isAdmin = hasEffectiveAdminScope(ctx)
 
 	// Step 3: Resolve staff + subscription topics.
 	topics, staffID, err := rs.resolveSSESubscription(ctx, conn.tenantID)
@@ -70,6 +72,11 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	// need BroadcastToAll events for dashboard count refreshes).
 	rs.createAndRegisterClient(conn)
 	rs.runEventLoop(ctx, conn)
+}
+
+func hasEffectiveAdminScope(ctx context.Context) bool {
+	return jwt.ClaimsFromCtx(ctx).IsAdmin ||
+		authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx))
 }
 
 // resolveSSESubscription resolves the client's topic subscription inside a

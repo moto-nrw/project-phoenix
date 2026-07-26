@@ -77,7 +77,7 @@ func TestReminderNotificationsAggregateAndDedup(t *testing.T) {
 	event := notifier.events[0]
 	assert.Equal(t, "reminders_due", event.Type)
 	assert.Equal(t, int64(7), event.Audience.TenantID)
-	assert.Equal(t, notifications.ScopeTenant, event.Audience.Scope)
+	assert.Equal(t, notifications.ScopeAdmin, event.Audience.Scope)
 	assert.Equal(t, notifications.PriorityNormal, event.Priority)
 	assert.Equal(t, "Erinnerungen", event.Title)
 	assert.Equal(t, "2 anstehende Abholungen, 1 beginnende Aktivität.", event.Body)

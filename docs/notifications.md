@@ -21,7 +21,7 @@ err := factory.Notifications.Notify(ctx, notifications.Event{
     Type:     "pickup_upcoming",              // stable, feature-defined type
     Audience: notifications.Audience{
         TenantID: tenantID,
-        Scope:    notifications.ScopeTenant,  // or ScopeGuardian / ScopeGroup
+        Scope:    notifications.ScopeTenant,  // or ScopeAdmin / ScopeGuardian / ScopeGroup
     },
     Priority: notifications.PriorityNormal,   // low | normal | high
     Title:    "Abholung in 10 Minuten",       // display-safe, German
@@ -40,6 +40,7 @@ Audience scopes map to the existing SSE routing:
 | Scope | Recipients |
 |---|---|
 | `ScopeTenant` | every connected staff client of the tenant |
+| `ScopeAdmin` | connected staff clients with effective admin scope in the tenant |
 | `ScopeGuardian` | one guardian account's own clients (`GuardianAccountID` required) |
 | `ScopeGroup` | clients subscribed to one active group (`ActiveGroupID` required) |
 
@@ -53,6 +54,11 @@ details are loaded authenticated after the user follows the deep link into
 the app. `Data` carries opaque IDs only. The SSE channel forwards it as
 `notification_data` for client-side routing; channels that leave the app
 (especially Web Push and E-Mail) must not include it.
+
+Display safety does not replace recipient authorization. Producers must choose
+an audience that matches the visibility of the data used to build the event.
+For example, an aggregate derived from an admin-wide view must use
+`ScopeAdmin`, not `ScopeTenant`.
 
 ## Channels
 

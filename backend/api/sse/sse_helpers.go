@@ -18,6 +18,7 @@ type sseConnection struct {
 	flusher  http.Flusher
 	staffID  int64
 	tenantID int64
+	isAdmin  bool
 	client   *realtime.Client
 	topics   *sseTopics
 	logger   *slog.Logger
@@ -117,6 +118,7 @@ func (rs *Resource) createAndRegisterClient(conn *sseConnection) {
 		Channel:          make(chan realtime.Event, 32), // Buffer up to 32 events (issue #848: headroom for bursts, e.g. admin-overview clients subscribed to every group)
 		UserID:           conn.staffID,
 		TenantID:         conn.tenantID,
+		IsAdmin:          conn.isAdmin,
 		SubscribedGroups: make(map[string]bool),
 	}
 	rs.hub.Register(conn.client, conn.tenantID, conn.topics.allTopics)

@@ -211,8 +211,11 @@ func buildReminderNotificationEvent(tenantID int64, fresh []reminders.Reminder) 
 	}
 
 	return notifications.Event{
-		Type:     "reminders_due",
-		Audience: notifications.Audience{TenantID: tenantID, Scope: notifications.ScopeTenant},
+		Type: "reminders_due",
+		// The counts come from Compute(IsAdmin: true), so only clients with the
+		// same effective admin scope may receive them. Caregivers fetch their
+		// own supervision-filtered counts from /reminders.
+		Audience: notifications.Audience{TenantID: tenantID, Scope: notifications.ScopeAdmin},
 		Priority: priority,
 		Title:    "Erinnerungen",
 		Body:     strings.Join(parts, ", ") + ".",

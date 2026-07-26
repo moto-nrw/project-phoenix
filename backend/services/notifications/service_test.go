@@ -86,9 +86,13 @@ func TestNotifyDeliversTenantScopedSSE(t *testing.T) {
 	assert.Equal(t, map[string]string{"reminder_id": "123"}, call.Event.Data.NotificationData)
 }
 
-func TestNotifyGuardianAndGroupRouting(t *testing.T) {
+func TestNotifyAdminGuardianAndGroupRouting(t *testing.T) {
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := notifications.NewService(enabledSettings(true), nil, notifications.NewSSEChannel(broadcaster))
+
+	admin := tenantEvent(41)
+	admin.Audience.Scope = notifications.ScopeAdmin
+	require.NoError(t, svc.Notify(context.Background(), admin))
 
 	guardian := tenantEvent(41)
 	guardian.Audience.Scope = notifications.ScopeGuardian
@@ -99,6 +103,10 @@ func TestNotifyGuardianAndGroupRouting(t *testing.T) {
 	group.Audience.Scope = notifications.ScopeGroup
 	group.Audience.ActiveGroupID = "g-9"
 	require.NoError(t, svc.Notify(context.Background(), group))
+
+	adminCalls := broadcaster.CallsByMethod("admin")
+	require.Len(t, adminCalls, 1)
+	assert.Equal(t, int64(41), adminCalls[0].TenantID)
 
 	guardianCalls := broadcaster.CallsByMethod("guardian")
 	require.Len(t, guardianCalls, 1)
