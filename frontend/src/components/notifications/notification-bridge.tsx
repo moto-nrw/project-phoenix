@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useToast } from "~/contexts/ToastContext";
 import type { PhoenixNotificationDetail } from "~/lib/notification-events";
+import { tenantAwarePath } from "~/lib/tenant-path";
 
 export type { PhoenixNotificationDetail } from "~/lib/notification-events";
 
@@ -32,9 +33,20 @@ function isSafeAppRelativePath(path: string): boolean {
   }
 }
 
+export function tenantNotificationPath(
+  path: string,
+  tenantSlug: string | undefined,
+  hostname: string,
+): string {
+  const routingMode =
+    tenantSlug && hostname.startsWith(`${tenantSlug}.`) ? "subdomain" : "path";
+  return tenantAwarePath(path, tenantSlug, routingMode);
+}
+
 export function NotificationBridge() {
   const toast = useToast();
   const router = useRouter();
+  const { tenant: tenantSlug } = useParams<{ tenant?: string }>();
 
   useEffect(() => {
     const onNotification = (event: Event) => {
@@ -49,7 +61,14 @@ export function NotificationBridge() {
         deepLink && isSafeAppRelativePath(deepLink)
           ? {
               label: "Öffnen",
-              onClick: () => router.push(deepLink),
+              onClick: () =>
+                router.push(
+                  tenantNotificationPath(
+                    deepLink,
+                    tenantSlug,
+                    window.location.hostname,
+                  ),
+                ),
             }
           : undefined;
 
@@ -65,7 +84,7 @@ export function NotificationBridge() {
     window.addEventListener("phoenix:notification", onNotification);
     return () =>
       window.removeEventListener("phoenix:notification", onNotification);
-  }, [router, toast]);
+  }, [router, tenantSlug, toast]);
 
   return null;
 }

@@ -21,7 +21,7 @@ err := factory.Notifications.Notify(ctx, notifications.Event{
     Type:     "pickup_upcoming",              // stable, feature-defined type
     Audience: notifications.Audience{
         TenantID: tenantID,
-        Scope:    notifications.ScopeTenant,  // or ScopeGuardian / ScopeGroup
+        Scope:    notifications.ScopeTenant,  // or ScopeAdmin / ScopeGuardian / ScopeGroup
     },
     Priority: notifications.PriorityNormal,   // low | normal | high
     Title:    "Abholung in 10 Minuten",       // display-safe, German
@@ -41,6 +41,7 @@ Audience scopes map to the existing SSE routing:
 | Scope | Recipients |
 |---|---|
 | `ScopeTenant` | every connected staff client of the tenant |
+| `ScopeAdmin` | connected staff clients with effective admin scope in the tenant |
 | `ScopeGuardian` | one guardian account's own clients (`GuardianAccountID` required) |
 | `ScopeGroup` | clients subscribed to one active group (`ActiveGroupID` required) |
 
@@ -54,6 +55,11 @@ details are loaded authenticated after the user follows the deep link into
 the app. `Data` carries opaque IDs only. The SSE channel forwards it as
 `notification_data` for client-side routing; channels that leave the app
 (especially Web Push and E-Mail) must not include it.
+
+Display safety does not replace recipient authorization. Producers must choose
+an audience that matches the visibility of the data used to build the event.
+For example, an aggregate derived from an admin-wide view must use
+`ScopeAdmin`, not `ScopeTenant`.
 
 ## Channels
 
@@ -81,6 +87,20 @@ channel is activated, per the issue.
   push-permission prompt hooks in.
 - Unlike all other SSE events, `notification` events are rendered directly,
   not used as refetch triggers.
+
+## First consumer: reminder notifications
+
+The scheduler task `reminder-notifications`
+(`services/scheduler/reminder_notifications.go`) is the first real producer.
+Every minute, per tenant, it computes the #1457 reminder list (pickups,
+activity starts, overdue variants) and dispatches ONE aggregated event
+(`Type: "reminders_due"`) for occurrences that newly became due — priority
+`high` when something is overdue, deep link `/reminders`. Double gate:
+`notifications.dispatch_enabled` AND at least one `reminders.*` type enabled.
+The notification carries counts only, never student names (GDPR); a once-per-
+day in-memory guard (rotated at midnight, refires once after a restart)
+prevents repeats. The producer only builds an Event and calls `Notify` — new
+channels apply to it automatically.
 
 ## Verifying a tenant's setup
 

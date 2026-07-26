@@ -38,6 +38,8 @@ func (c *sseChannel) Deliver(ctx context.Context, event Event) error {
 	switch event.Audience.Scope {
 	case ScopeTenant:
 		return c.broadcaster.BroadcastToTenant(event.Audience.TenantID, sseEvent)
+	case ScopeAdmin:
+		return c.broadcaster.BroadcastToTenantAdmins(event.Audience.TenantID, sseEvent)
 	case ScopeGuardian:
 		return c.broadcaster.BroadcastToGuardian(event.Audience.TenantID, event.Audience.GuardianAccountID, sseEvent)
 	case ScopeGroup:

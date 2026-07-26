@@ -2,12 +2,18 @@ package sse
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/go-chi/jwtauth/v5"
+	jwxjwt "github.com/lestrrat-go/jwx/v3/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -163,6 +169,32 @@ func TestSSEConnection_SendEvent(t *testing.T) {
 	assert.Contains(t, body, "Test Student")
 }
 
+func TestRunEventLoopDoesNotSendBufferedEventAfterDeadline(t *testing.T) {
+	for range 32 {
+		hub := realtime.NewHub(slog.Default())
+		rs := &Resource{hub: hub}
+		mf := newMockFlusher()
+		client := &realtime.Client{
+			Channel:          make(chan realtime.Event, 1),
+			SubscribedGroups: make(map[string]bool),
+		}
+		conn := &sseConnection{
+			writer:  mf,
+			flusher: mf,
+			client:  client,
+		}
+		hub.Register(client, 1, nil)
+		client.Channel <- realtime.Event{Type: realtime.EventStudentCheckIn}
+
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+		rs.runEventLoop(ctx, conn)
+		cancel()
+
+		assert.Empty(t, mf.Body.String())
+		assert.Zero(t, mf.flushCount)
+	}
+}
+
 // =============================================================================
 // SETUP CONNECTION TESTS
 // =============================================================================
@@ -194,6 +226,72 @@ func TestSetupSSEConnection_NonFlusher(t *testing.T) {
 
 	assert.Nil(t, conn, "Connection should be nil for non-flusher")
 	assert.Equal(t, http.StatusInternalServerError, statusCode)
+}
+
+func TestWithSSETokenDeadlineAppliesAccessTokenExpiry(t *testing.T) {
+	expiresAt := time.Now().Add(time.Hour)
+	token, err := jwxjwt.NewBuilder().Expiration(expiresAt).Build()
+	require.NoError(t, err)
+
+	ctx := jwtauth.NewContext(context.Background(), token, nil)
+	deadlineCtx, cancel, ok := withSSETokenDeadline(ctx)
+	require.True(t, ok)
+	defer cancel()
+
+	deadline, hasDeadline := deadlineCtx.Deadline()
+	require.True(t, hasDeadline)
+	assert.WithinDuration(t, expiresAt, deadline, time.Millisecond)
+}
+
+func TestWithSSETokenDeadlineRejectsTokenWithoutExpiry(t *testing.T) {
+	token, err := jwxjwt.NewBuilder().Build()
+	require.NoError(t, err)
+
+	ctx := jwtauth.NewContext(context.Background(), token, nil)
+	_, cancel, ok := withSSETokenDeadline(ctx)
+	defer cancel()
+
+	assert.False(t, ok)
+}
+
+func TestCreateAndRegisterClientPreservesAdminScope(t *testing.T) {
+	hub := realtime.NewHub(slog.Default())
+	rs := &Resource{hub: hub}
+	conn := &sseConnection{
+		staffID:  123,
+		tenantID: 41,
+		isAdmin:  true,
+		topics:   &sseTopics{},
+	}
+
+	rs.createAndRegisterClient(conn)
+	t.Cleanup(func() { hub.Unregister(conn.client) })
+
+	require.NotNil(t, conn.client)
+	assert.True(t, conn.client.IsAdmin)
+	assert.Equal(t, int64(41), conn.client.TenantID)
+}
+
+func TestHasEffectiveAdminScope(t *testing.T) {
+	tests := []struct {
+		name        string
+		isAdmin     bool
+		permissions []string
+		want        bool
+	}{
+		{name: "literal admin", isAdmin: true, want: true},
+		{name: "admin wildcard", permissions: []string{"admin:*"}, want: true},
+		{name: "full wildcard", permissions: []string{"*:*"}, want: true},
+		{name: "scoped caregiver", permissions: []string{"users:read"}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.WithValue(context.Background(), jwt.CtxClaims, jwt.AppClaims{IsAdmin: tt.isAdmin})
+			ctx = context.WithValue(ctx, jwt.CtxPermissions, tt.permissions)
+			assert.Equal(t, tt.want, authorize.HasEffectiveAdminScope(ctx))
+		})
+	}
 }
 
 // nonFlusherResponseWriter is a ResponseWriter that doesn't implement Flusher

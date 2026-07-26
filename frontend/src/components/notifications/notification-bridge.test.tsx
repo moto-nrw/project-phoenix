@@ -1,6 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/react";
-import { NotificationBridge } from "./notification-bridge";
+import {
+  NotificationBridge,
+  tenantNotificationPath,
+} from "./notification-bridge";
 import type { PhoenixNotificationDetail } from "./notification-bridge";
 
 const toast = vi.hoisted(() => ({
@@ -11,12 +14,14 @@ const toast = vi.hoisted(() => ({
   remove: vi.fn(),
 }));
 const routerPush = vi.hoisted(() => vi.fn());
+const useParams = vi.hoisted(() => vi.fn(() => ({})));
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => toast,
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: routerPush }),
+  useParams,
 }));
 
 interface ToastCallOptions {
@@ -32,6 +37,11 @@ function dispatch(detail: Partial<PhoenixNotificationDetail>) {
 }
 
 describe("NotificationBridge", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useParams.mockReturnValue({});
+  });
+
   it("renders a notification event as an info toast", () => {
     render(<NotificationBridge />);
     dispatch({ title: "Testbenachrichtigung", body: "Alles eingerichtet." });
@@ -53,8 +63,6 @@ describe("NotificationBridge", () => {
   });
 
   it("opens a validated app-relative deep link from the toast action", () => {
-    toast.info.mockClear();
-    routerPush.mockClear();
     render(<NotificationBridge />);
     dispatch({ title: "Erinnerung", deepLink: "/reminders?id=123" });
 
@@ -67,8 +75,25 @@ describe("NotificationBridge", () => {
     expect(routerPush).toHaveBeenCalledWith("/reminders?id=123");
   });
 
+  it("keeps the tenant slug when opening a deep link in path mode", () => {
+    useParams.mockReturnValue({ tenant: "school-a" });
+    render(<NotificationBridge />);
+    dispatch({ title: "Erinnerung", deepLink: "/reminders" });
+
+    const options = toast.info.mock.calls.at(-1)?.[1] as
+      ToastCallOptions | undefined;
+    options?.action?.onClick();
+
+    expect(routerPush).toHaveBeenCalledWith("/school-a/reminders");
+  });
+
+  it("keeps a bare deep link in tenant subdomain mode", () => {
+    expect(
+      tenantNotificationPath("/reminders", "school-a", "school-a.localhost"),
+    ).toBe("/reminders");
+  });
+
   it("does not expose an action for an external deep link", () => {
-    toast.info.mockClear();
     render(<NotificationBridge />);
     dispatch({ title: "Unsicher", deepLink: "/\\example.com/phish" });
 
@@ -78,7 +103,6 @@ describe("NotificationBridge", () => {
   });
 
   it("ignores events without a title", () => {
-    toast.info.mockClear();
     render(<NotificationBridge />);
     dispatch({ body: "kein Titel" });
 
@@ -86,7 +110,6 @@ describe("NotificationBridge", () => {
   });
 
   it("stops listening after unmount", () => {
-    toast.info.mockClear();
     const { unmount } = render(<NotificationBridge />);
     unmount();
     dispatch({ title: "Nach Unmount" });

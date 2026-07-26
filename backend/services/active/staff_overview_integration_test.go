@@ -292,9 +292,9 @@ func TestTimeTrackingOverview_AccountStartAfterRequestedMonthMatchesDetail(t *te
 	require.NoError(t, err)
 
 	assert.Equal(t, expected.TargetMinutesToDate, overview.Rows[0].SollMinutes)
-	assert.Equal(t, expected.ActualMinutes, overview.Rows[0].IstMinutes)
+	assert.Equal(t, expected.ActualMinutes, overview.Rows[0].IstMinutes,
+		"the standalone month must retain the elapsed portion of its worked session")
 	assert.Equal(t, expected.ClosingBalanceMinutes, overview.Rows[0].BalanceMinutes)
-	assert.Equal(t, 4*60, overview.Rows[0].IstMinutes, "the standalone month must retain its worked session")
 }
 
 // TestTimeTrackingOverview_VacationMatchesQuotaEndpoint pins Resturlaub against

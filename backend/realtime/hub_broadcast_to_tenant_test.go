@@ -60,6 +60,55 @@ func TestHubBroadcastToTenant_OnlyMatchingTenantReceives(t *testing.T) {
 	}
 }
 
+func TestHubBroadcastToTenantAdmins_ExcludesScopedStaffAndOtherTenants(t *testing.T) {
+	hub := NewHub(slog.Default())
+
+	admin := &Client{
+		Channel:          make(chan Event, 1),
+		UserID:           1,
+		IsAdmin:          true,
+		SubscribedGroups: make(map[string]bool),
+	}
+	caregiver := &Client{
+		Channel:          make(chan Event, 1),
+		UserID:           2,
+		SubscribedGroups: make(map[string]bool),
+	}
+	otherTenantAdmin := &Client{
+		Channel:          make(chan Event, 1),
+		UserID:           3,
+		IsAdmin:          true,
+		SubscribedGroups: make(map[string]bool),
+	}
+	hub.Register(admin, int64(100), nil)
+	hub.Register(caregiver, int64(100), nil)
+	hub.Register(otherTenantAdmin, int64(200), nil)
+
+	event := NewEvent(EventNotification, "", EventData{})
+	if err := hub.BroadcastToTenantAdmins(int64(100), event); err != nil {
+		t.Fatalf("BroadcastToTenantAdmins returned error: %v", err)
+	}
+
+	select {
+	case got := <-admin.Channel:
+		if got.Type != EventNotification {
+			t.Errorf("admin got type %v, want %v", got.Type, EventNotification)
+		}
+	default:
+		t.Fatal("admin should have received the admin-scoped broadcast")
+	}
+	for name, client := range map[string]*Client{
+		"caregiver":          caregiver,
+		"other tenant admin": otherTenantAdmin,
+	} {
+		select {
+		case <-client.Channel:
+			t.Errorf("%s should not receive the admin-scoped broadcast", name)
+		default:
+		}
+	}
+}
+
 // TestHubBroadcastToTenant_NoClients — broadcasting on an empty hub
 // or to a tenant with no connected clients must return nil and not panic.
 func TestHubBroadcastToTenant_NoClients(t *testing.T) {

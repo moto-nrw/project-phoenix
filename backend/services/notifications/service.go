@@ -17,9 +17,11 @@
 //     future channels; see docs/notifications.md.
 //
 // GDPR contract: Title, Body and DeepLink are the ONLY user-visible fields and
-// must be display-safe — no student names or other sensitive child data. A
-// deep link points into the authenticated app, where sensitive details are
-// loaded after login. Data carries opaque IDs only.
+// must be display-safe — no student names or other sensitive child data. The
+// audience must also match the visibility of the source data; display safety
+// does not authorize broader delivery. A deep link points into the
+// authenticated app, where sensitive details are loaded after login. Data
+// carries opaque IDs only.
 package notifications
 
 import (
@@ -49,6 +51,9 @@ type AudienceScope string
 const (
 	// ScopeTenant delivers to every connected client of the tenant (staff app).
 	ScopeTenant AudienceScope = "tenant"
+	// ScopeAdmin delivers only to connected staff clients with effective admin
+	// scope in the tenant.
+	ScopeAdmin AudienceScope = "admin"
 	// ScopeGuardian delivers only to one guardian account's own clients.
 	ScopeGuardian AudienceScope = "guardian"
 	// ScopeGroup delivers to clients subscribed to one active group.
@@ -134,6 +139,7 @@ func validate(event Event) error {
 	}
 	switch event.Audience.Scope {
 	case ScopeTenant:
+	case ScopeAdmin:
 	case ScopeGuardian:
 		if event.Audience.GuardianAccountID <= 0 {
 			return errors.New("guardian-scoped notification requires a guardian account id")
