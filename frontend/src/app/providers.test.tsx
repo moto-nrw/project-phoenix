@@ -10,6 +10,7 @@ vi.mock("@/components/dashboard/modal-context", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
+  useParams: () => ({}),
   useRouter: () => ({ push: vi.fn() }),
 }));
 
