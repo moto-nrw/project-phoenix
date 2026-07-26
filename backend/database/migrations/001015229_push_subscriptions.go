@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	pushSubscriptionsVersion     = "1.15.228"
+	pushSubscriptionsVersion     = "1.15.229"
 	pushSubscriptionsDescription = "Create iot.push_subscriptions - Web Push device subscriptions (#2003)"
 )
 
@@ -54,7 +54,7 @@ func init() {
 // (public values, not secrets). The payload GDPR contract lives in
 // services/notifications: Title/Body/DeepLink only, never child data.
 func pushSubscriptionsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.228: Creating iot.push_subscriptions...")
+	fmt.Println("Migration 1.15.229: Creating iot.push_subscriptions...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -120,7 +120,7 @@ func pushSubscriptionsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func pushSubscriptionsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.228: Dropping iot.push_subscriptions...")
+	fmt.Println("Rolling back migration 1.15.229: Dropping iot.push_subscriptions...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
