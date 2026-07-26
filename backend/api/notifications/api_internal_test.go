@@ -24,11 +24,16 @@ type captureService struct {
 
 type pushSubscriptionServiceStub struct {
 	notificationsService.PushSubscriptionService
-	subscribeErr error
+	subscribeErr   error
+	unsubscribeErr error
 }
 
 func (s pushSubscriptionServiceStub) Subscribe(context.Context, int64, notificationsService.PushSubscriptionInput) error {
 	return s.subscribeErr
+}
+
+func (s pushSubscriptionServiceStub) Unsubscribe(context.Context, int64, string) error {
+	return s.unsubscribeErr
 }
 
 func (c *captureService) Notify(_ context.Context, event notificationsService.Event) error {
@@ -145,4 +150,23 @@ func TestSubscribePushClassifiesServiceErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUnsubscribePushHidesServiceErrors(t *testing.T) {
+	rs := &Resource{PushService: pushSubscriptionServiceStub{
+		unsubscribeErr: errors.New("delete subscription: pq: internal detail"),
+	}}
+	req := httptest.NewRequest(
+		http.MethodDelete,
+		"/push/subscriptions?endpoint=https%3A%2F%2Ffcm.googleapis.com%2Ffcm%2Fsend%2Fdevice",
+		nil,
+	)
+	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 42}))
+	rec := httptest.NewRecorder()
+
+	rs.unsubscribePush(rec, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Contains(t, rec.Body.String(), "Push-Registrierung konnte nicht entfernt werden.")
+	assert.NotContains(t, rec.Body.String(), "internal detail")
 }

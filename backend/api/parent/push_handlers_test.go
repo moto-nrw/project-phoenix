@@ -14,11 +14,16 @@ import (
 
 type parentPushSubscriptionServiceStub struct {
 	notificationsService.PushSubscriptionService
-	subscribeErr error
+	subscribeErr   error
+	unsubscribeErr error
 }
 
 func (s parentPushSubscriptionServiceStub) SubscribeParent(context.Context, int64, notificationsService.PushSubscriptionInput) error {
 	return s.subscribeErr
+}
+
+func (s parentPushSubscriptionServiceStub) UnsubscribeParent(context.Context, int64, string) error {
+	return s.unsubscribeErr
 }
 
 func TestSubscribePushClassifiesServiceErrors(t *testing.T) {
@@ -67,4 +72,25 @@ func TestSubscribePushClassifiesServiceErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUnsubscribePushHidesServiceErrors(t *testing.T) {
+	rs := &Resource{PushService: parentPushSubscriptionServiceStub{
+		unsubscribeErr: errors.New("delete parent subscription: pq: internal detail"),
+	}}
+	req := withClaims(
+		httptest.NewRequest(
+			http.MethodDelete,
+			"/parent/me/push/subscriptions?endpoint=https%3A%2F%2Ffcm.googleapis.com%2Ffcm%2Fsend%2Fdevice",
+			nil,
+		),
+		42,
+	)
+	rec := httptest.NewRecorder()
+
+	rs.unsubscribePush(rec, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Contains(t, rec.Body.String(), "Push-Registrierung konnte nicht entfernt werden.")
+	assert.NotContains(t, rec.Body.String(), "internal detail")
 }
